@@ -1,0 +1,73 @@
+//============================================================
+//
+//	mame.rc - Minimal resource file for Win32 MAME
+//
+//============================================================
+//
+//  Copyright Aaron Giles
+//  All rights reserved.
+//
+//  Redistribution and use in source and binary forms, with or 
+//  without modification, are permitted provided that the 
+//  following conditions are met:
+//
+//    * Redistributions of source code must retain the above 
+//      copyright notice, this list of conditions and the 
+//      following disclaimer.
+//	  * Redistributions in binary form must reproduce the 
+//      above copyright notice, this list of conditions and 
+//      the following disclaimer in the documentation and/or 
+//      other materials provided with the distribution.
+//	  * Neither the name 'MAME' nor the names of its 
+//      contributors may be used to endorse or promote 
+//      products derived from this software without specific 
+//      prior written permission.
+//
+//  THIS SOFTWARE IS PROVIDED BY AARON GILES ''AS IS'' AND 
+//  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+//  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND 
+//  FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO 
+//  EVENT SHALL AARON GILES BE LIABLE FOR ANY DIRECT, 
+//  INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
+//  DAMAGE (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+//  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR 
+//  PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
+//  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+//  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+//  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN 
+//  IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+//============================================================
+
+//#define NOWINRES
+#include "windows.h"
+#include "commctrl.h"
+#include "resource.h"
+#include "mamevers.rc"
+
+1                       24      MOVEABLE PURE   "mame.man"
+
+IDD_LUA DIALOGEX 0, 0, 270, 150
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_MINIMIZEBOX | WS_POPUP | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Lua Script"
+MENU LUAWINDOW_MENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    PUSHBUTTON      "Browse...",IDC_BUTTON_LUABROWSE,7,31,48,16
+    PUSHBUTTON      "Run",IDC_BUTTON_LUARUN,213,31,50,16
+    PUSHBUTTON      "Stop",IDC_BUTTON_LUASTOP,160,31,50,16
+    EDITTEXT        IDC_EDIT_LUAPATH,7,16,256,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_LUACONSOLE,7,61,256,81,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL
+    LTEXT           "Output Console",IDC_STATIC,7,51,51,8
+    LTEXT           "Script File",IDC_STATIC,7,7,32,8
+    PUSHBUTTON      "Edit",IDC_BUTTON_LUAEDIT,58,31,46,16
+END
+
+LUAWINDOW_MENU MENU
+BEGIN
+	POPUP "Console"
+	BEGIN
+		MENUITEM "&Font...",                    IDC_LUACONSOLE_CHOOSEFONT
+		MENUITEM "Clear",                       IDC_LUACONSOLE_CLEAR
+	END
+END

@@ -1,0 +1,39 @@
+#ifndef _LUAENGINE_H
+#define _LUAENGINE_H
+#include "render.h"
+
+enum LuaCallID
+{
+	LUACALL_BEFOREEMULATION,
+	LUACALL_AFTEREMULATION,
+	LUACALL_BEFOREEXIT,
+
+	LUACALL_COUNT
+};
+void CallRegisteredLuaFunctions(int calltype);
+
+//void MAME_LuaWrite(UINT32 addr);
+void MAME_LuaFrameBoundary(running_machine *machine);
+int MAME_LoadLuaCode(const char *filename);
+void MAME_ReloadLuaCode();
+void MAME_LuaStop();
+int MAME_LuaRunning();
+
+int MAME_LuaUsingJoypad();
+UINT32 MAME_LuaReadJoypad();
+int MAME_LuaSpeed();
+//int MAME_LuaFrameskip();
+int MAME_LuaRerecordCountSkip();
+
+void MAME_LuaGui(bitmap_t *bitmap);
+
+void MAME_LuaWriteInform();
+
+void MAME_LuaClearGui();
+void MAME_LuaEnableGui(UINT8 enabled);
+
+char* MAME_GetLuaScriptName();
+
+void lua_init(running_machine *machine);
+
+#endif
