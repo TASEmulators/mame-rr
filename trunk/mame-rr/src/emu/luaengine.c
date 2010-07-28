@@ -239,8 +239,7 @@ static int mame_romname(lua_State *L) {
 //
 //   Returns the name of the source file for the running game.
 static int mame_gamename(lua_State *L) {
-	const game_driver * drv = driver_get_name(machine->basename);
-	lua_pushstring(L, drv->description);
+	lua_pushstring(L, machine->gamedrv->description);
 	return 1;
 }
 
@@ -248,8 +247,7 @@ static int mame_gamename(lua_State *L) {
 //
 //   Returns the name of the source file for the running game.
 static int mame_parentname(lua_State *L) {
-	const game_driver * drv = driver_get_name(machine->basename);
-	lua_pushstring(L, drv->parent);
+	lua_pushstring(L, machine->gamedrv->parent);
 	return 1;
 }
 
@@ -257,8 +255,7 @@ static int mame_parentname(lua_State *L) {
 //
 //   Returns the name of the source file for the running game.
 static int mame_sourcename(lua_State *L) {
-	const game_driver * drv = driver_get_name(machine->basename);
-	lua_pushstring(L, drv->source_file);
+	lua_pushstring(L, machine->gamedrv->source_file);
 	return 1;
 }
 
