@@ -35,6 +35,7 @@ void MAME_LuaClearGui();
 void MAME_LuaEnableGui(UINT8 enabled);
 
 char* MAME_GetLuaScriptName();
+struct lua_State* MAME_GetLuaState();
 
 void lua_init(running_machine *machine);
 

@@ -87,6 +87,7 @@
 #include "streams.h"
 #include "crsshair.h"
 #include "validity.h"
+#include "luasav.h"
 #include "debug/debugcon.h"
 
 #include <time.h>
@@ -640,6 +641,8 @@ static void set_saveload_filename(running_machine *machine, const char *filename
 void mame_schedule_save(running_machine *machine, const char *filename)
 {
 	mame_private *mame = machine->mame_data;
+	LuaSaveData saveData;
+	char luaSaveFilename [512];
 
 	/* specify the filename to save or load */
 	set_saveload_filename(machine, filename);
@@ -647,6 +650,20 @@ void mame_schedule_save(running_machine *machine, const char *filename)
 	/* note the start time and set a timer for the next timeslice to actually schedule it */
 	mame->saveload_schedule_callback = handle_save;
 	mame->saveload_schedule_time = timer_get_time(machine);
+
+	// call savestate.save callback if any and store the results in a luasav file if any
+	CallRegisteredLuaSaveFunctions(filename, saveData);
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename, PATH_SEPARATOR, filename);
+	if (saveData.recordList) {
+		FILE* luaSaveFile = fopen(luaSaveFilename, "wb");
+		if(luaSaveFile) {
+			saveData.ExportRecords(luaSaveFile);
+			fclose(luaSaveFile);
+		}
+	}
+	else {
+		unlink(luaSaveFilename);
+	}
 
 	/* we can't be paused since we need to clear out anonymous timers */
 //	mame_pause(machine, FALSE);
@@ -661,6 +678,8 @@ void mame_schedule_save(running_machine *machine, const char *filename)
 void mame_schedule_load(running_machine *machine, const char *filename)
 {
 	mame_private *mame = machine->mame_data;
+	LuaSaveData saveData;
+	char luaSaveFilename [512];
 
 	/* specify the filename to save or load */
 	set_saveload_filename(machine, filename);
@@ -669,6 +688,15 @@ void mame_schedule_load(running_machine *machine, const char *filename)
 	mame->saveload_schedule_callback = handle_load;
 	mame->saveload_schedule_time = timer_get_time(machine);
 
+	// call savestate.registerload callback if any
+	// and pass it the result from the previous savestate.registerload callback to the same state if any
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename, PATH_SEPARATOR, filename);
+	FILE* luaSaveFile = fopen(luaSaveFilename, "rb");
+	if (luaSaveFile) {
+		saveData.ImportRecords(luaSaveFile);
+		fclose(luaSaveFile);
+	}
+	CallRegisteredLuaLoadFunctions(filename, saveData);
 	/* we can't be paused since we need to clear out anonymous timers */
 //	mame_pause(machine, FALSE);
 }

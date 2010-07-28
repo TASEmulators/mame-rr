@@ -25,6 +25,7 @@ extern "C" {
 #include "emu.h"
 #include "emuopts.h"
 #include "uiinput.h"
+#include "luasav.h"
 #include "debug/debugcmd.h"
 #include "debug/debugcpu.h"
 #ifdef WIN32
@@ -698,6 +699,7 @@ static int mame_registerstart(lua_State *L) {
 	return 1;
 }
 
+
 static int memory_readbyte(lua_State *L)
 {
 	const address_space *space;
@@ -1105,6 +1107,47 @@ static int savestate_load(lua_State *L) {
 	numTries--;
 
 	mame_schedule_load(machine, filename);
+	return 0;
+}
+
+static int savestate_registersave(lua_State *L) {
+	lua_settop(L,1);
+	if (!lua_isnil(L,1))
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+	lua_getfield(L, LUA_REGISTRYINDEX, LUA_SAVE_CALLBACK_STRING);
+	lua_pushvalue(L,1);
+	lua_setfield(L, LUA_REGISTRYINDEX, LUA_SAVE_CALLBACK_STRING);
+	return 1;
+}
+
+static int savestate_registerload(lua_State *L) {
+	lua_settop(L,1);
+	if (!lua_isnil(L,1))
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+	lua_getfield(L, LUA_REGISTRYINDEX, LUA_LOAD_CALLBACK_STRING);
+	lua_pushvalue(L,1);
+	lua_setfield(L, LUA_REGISTRYINDEX, LUA_LOAD_CALLBACK_STRING);
+	return 1;
+}
+
+static int savestate_loadscriptdata(lua_State *L) {
+	const char *filename = savestateobj2filename(L,1);
+	{
+		LuaSaveData saveData;
+
+		char luaSaveFilename [512];
+		sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename, PATH_SEPARATOR, filename);
+		FILE* luaSaveFile = fopen(luaSaveFilename, "rb");
+		if(luaSaveFile)
+		{
+			saveData.ImportRecords(luaSaveFile);
+			fclose(luaSaveFile);
+
+			lua_settop(L, 0);
+			saveData.LoadRecord(L, LUA_DATARECORDKEY, (unsigned int)-1);
+			return lua_gettop(L);
+		}
+	}
 	return 0;
 }
 
@@ -3150,6 +3193,10 @@ static const struct luaL_reg savestatelib[] = {
 	{"create", savestate_create},
 	{"save", savestate_save},
 	{"load", savestate_load},
+
+	{"registersave", savestate_registersave},
+	{"registerload", savestate_registerload},
+	{"loadscriptdata", savestate_loadscriptdata},
 
 	{NULL,NULL}
 };
