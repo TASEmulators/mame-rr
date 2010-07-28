@@ -109,6 +109,7 @@ static const char* luaCallIDStrings [] =
 	"CALL_BEFOREEMULATION",
 	"CALL_AFTEREMULATION",
 	"CALL_BEFOREEXIT",
+	"LUACALL_ONSTART",
 };
 
 static char* rawToCString(lua_State* L, int idx=0);
@@ -226,6 +227,42 @@ void MAME_LuaWriteInform() {
 
 
 
+// string mame.romname()
+//
+//   Returns the name of the running game.
+static int mame_romname(lua_State *L) {
+	lua_pushstring(L, machine->basename);
+	return 1;
+}
+
+// string mame.gamename()
+//
+//   Returns the name of the source file for the running game.
+static int mame_gamename(lua_State *L) {
+	const game_driver * drv = driver_get_name(machine->basename);
+	lua_pushstring(L, drv->description);
+	return 1;
+}
+
+// string mame.parentname()
+//
+//   Returns the name of the source file for the running game.
+static int mame_parentname(lua_State *L) {
+	const game_driver * drv = driver_get_name(machine->basename);
+	lua_pushstring(L, drv->parent);
+	return 1;
+}
+
+// string mame.sourcename()
+//
+//   Returns the name of the source file for the running game.
+static int mame_sourcename(lua_State *L) {
+	const game_driver * drv = driver_get_name(machine->basename);
+	lua_pushstring(L, drv->source_file);
+	return 1;
+}
+
+
 // mame.speedmode(string mode)
 //
 //   Takes control of the emulation speed
@@ -293,6 +330,7 @@ static int mame_unpause(lua_State *L) {
 
 	return lua_yield(L, 0);
 }
+
 
 static inline bool isalphaorunderscore(char c)
 {
@@ -650,6 +688,18 @@ static int mame_registerexit(lua_State *L) {
 	return 1;
 }
 
+static int mame_registerstart(lua_State *L) {
+	if (!lua_isnil(L,1))
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+	lua_settop(L,1);
+	lua_getfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ONSTART]);
+	lua_insert(L,1);
+	lua_pushvalue(L,-1); // copy the function so we can also call it
+	lua_setfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ONSTART]);
+	if (!lua_isnil(L,-1))
+		lua_call(L,0,0); // call the function now since the game has already started and this start function hasn't been called yet
+	return 1;
+}
 
 static int memory_readbyte(lua_State *L)
 {
@@ -3036,6 +3086,10 @@ void CallRegisteredLuaFunctions(int calltype)
 
 
 static const struct luaL_reg mamelib [] = {
+	{"romname", mame_romname},
+	{"gamename", mame_gamename},
+	{"parentname", mame_parentname},
+	{"sourcename", mame_sourcename},
 	{"speedmode", mame_speedmode},
 	{"frameadvance", mame_frameadvance},
 	{"pause", mame_pause},
@@ -3044,6 +3098,7 @@ static const struct luaL_reg mamelib [] = {
 	{"registerbefore", mame_registerbefore},
 	{"registerafter", mame_registerafter},
 	{"registerexit", mame_registerexit},
+	{"registerstart", mame_registerstart},
 	{"message", mame_message},
 	{"print", print}, // sure, why not
 	{NULL,NULL}
@@ -3629,10 +3684,11 @@ void lua_init(running_machine *machine_ptr)
 {
 	const char *filename = options_get_string(mame_options(), OPTION_LUA);
 
-	if (filename[0] != 0)
+	if ( (filename[0] != 0) && (LUA == NULL) )
 		MAME_LoadLuaCode(filename);
 
 	if (machine != machine_ptr)
 		machine = machine_ptr;
 	add_frame_callback(machine_ptr, MAME_LuaFrameBoundary);
+	CallRegisteredLuaFunctions(LUACALL_ONSTART);
 }
