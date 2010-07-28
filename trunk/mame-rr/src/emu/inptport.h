@@ -332,6 +332,9 @@ enum
 	IPT_UI_PASTE,
 	IPT_UI_SAVE_STATE,
 	IPT_UI_LOAD_STATE,
+	IPT_UI_LUA_OPEN,
+	IPT_UI_LUA_STOP,
+	IPT_UI_LUA_RELOAD,
 
 	/* additional OSD-specified UI port types (up to 16) */
 	IPT_OSD_1,

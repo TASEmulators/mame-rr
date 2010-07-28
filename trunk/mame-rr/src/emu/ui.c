@@ -1459,6 +1459,14 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 	else
 		video_set_fastforward(FALSE);
 
+	/* Lua scripting */
+	if (ui_input_pressed(machine, IPT_UI_LUA_OPEN))
+		MAME_OpenLuaConsole();
+	if (ui_input_pressed(machine, IPT_UI_LUA_STOP))
+		MAME_LuaStop();
+	if (ui_input_pressed(machine, IPT_UI_LUA_RELOAD))
+		MAME_ReloadLuaCode();
+
 	return 0;
 }
 

@@ -3334,6 +3334,13 @@ void MAME_LuaStop() {
 	MAME_LuaOnStop();
 }
 
+void MAME_OpenLuaConsole() {
+	if(!LuaConsoleHWnd)
+		LuaConsoleHWnd = CreateDialog(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_LUA), NULL, (DLGPROC) DlgLuaScriptDialog);
+	else
+		SetForegroundWindow(LuaConsoleHWnd);
+}
+
 
 /**
  * Returns true if there is a Lua script running.
@@ -3587,11 +3594,9 @@ void lua_init(running_machine *machine_ptr)
 {
 	const char *filename = options_get_string(mame_options(), OPTION_LUA);
 
-	// if no file, nothing to do
-	if (filename[0] == 0)
-		return;
+	if (filename[0] != 0)
+		MAME_LoadLuaCode(filename);
 
-	MAME_LoadLuaCode(filename);
 	machine = machine_ptr;
 	add_frame_callback(machine_ptr, MAME_LuaFrameBoundary);
 }

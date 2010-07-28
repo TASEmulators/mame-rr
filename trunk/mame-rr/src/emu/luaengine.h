@@ -17,6 +17,7 @@ void MAME_LuaFrameBoundary(running_machine *machine);
 int MAME_LoadLuaCode(const char *filename);
 void MAME_ReloadLuaCode();
 void MAME_LuaStop();
+void MAME_OpenLuaConsole();
 int MAME_LuaRunning();
 
 int MAME_LuaUsingJoypad();

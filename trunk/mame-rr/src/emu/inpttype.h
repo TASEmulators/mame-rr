@@ -609,6 +609,9 @@ static const input_type_desc core_types[] =
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_TOGGLE_DEBUG,     "Toggle Debugger",        SEQ_DEF_1(KEYCODE_F5) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_SAVE_STATE,       "Save State",             SEQ_DEF_2(KEYCODE_F7, KEYCODE_LSHIFT) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LOAD_STATE,       "Load State",             SEQ_DEF_3(KEYCODE_F7, SEQCODE_NOT, KEYCODE_LSHIFT) )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_OPEN,         "Lua Script Window",      SEQ_DEF_2(KEYCODE_L, KEYCODE_LCONTROL) )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_STOP,         "Lua Script Stop",        SEQ_DEF_0 )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_RELOAD,       "Lua Script Reload",      SEQ_DEF_0 )
 
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      OSD_1,               NULL,                     SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      OSD_2,               NULL,                     SEQ_DEF_0 )
