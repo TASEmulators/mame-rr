@@ -2669,7 +2669,11 @@ static int input_getcurrentinputstatus(lua_State *L) {
 	// mouse position in game screen pixel coordinates
 	{
 		int x, y, bla;
+		RECT t;
+		GetClientRect(win_window_list->hwnd, &t);
 		ui_input_find_mouse(machine, &x, &y, &bla);
+		x = (x / ((float)t.right / iScreenWidth));
+		y = (y / ((float)t.bottom / iScreenHeight));
 	
 		lua_pushinteger(L, x);
 		lua_setfield(L, -2, "xmouse");
@@ -3276,6 +3280,7 @@ int MAME_LoadLuaCode(const char *filename) {
 	info_onstop = WinLuaOnStop;
 	if(!LuaConsoleHWnd)
 		LuaConsoleHWnd = CreateDialog(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_LUA), NULL, (DLGPROC) DlgLuaScriptDialog);
+	SetForegroundWindow(win_window_list->hwnd);
 	info_uid = (int)LuaConsoleHWnd;
 #else
 	info_print = NULL;
