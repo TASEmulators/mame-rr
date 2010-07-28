@@ -24,6 +24,9 @@ extern "C" {
 
 #include "emu.h"
 #include "emuopts.h"
+#include "uiinput.h"
+#include "debug/debugcmd.h"
+#include "debug/debugcpu.h"
 #ifdef WIN32
 #include <direct.h>
 #include <windows.h>
@@ -175,7 +178,7 @@ int MAME_LuaFrameSkip() {
  * (not necessarily worth informing Lua), call this.
  */
 void MAME_LuaWriteInform() {
-/*	if (!LUA || !luaRunning || !usingMemoryRegister) return;
+	if (!LUA || !luaRunning || !usingMemoryRegister) return;
 	// Nuke the stack, just in case.
 	lua_settop(LUA,0);
 
@@ -184,18 +187,21 @@ void MAME_LuaWriteInform() {
 	while (lua_next(LUA, 1) != 0)
 	{
 		unsigned int addr = luaL_checkinteger(LUA, 2);
+		const address_space *space;
+		if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+			return;
 		lua_Integer value;
 		lua_getfield(LUA, LUA_REGISTRYINDEX, memoryValueTable);
 		lua_pushvalue(LUA, 2);
 		lua_gettable(LUA, 4);
 		value = luaL_checkinteger(LUA, 5);
-		if (value != (lua_Integer)ReadValueAtHardwareAddress(addr,1,0))
+		if (value != (lua_Integer)debug_read_byte(space, memory_address_to_byte(space,addr), TRUE))
 		{
 			int res;
 
 			// Value changed; update & invoke the Lua callback
 			lua_pushinteger(LUA, addr);
-			lua_pushinteger(LUA, ReadValueAtHardwareAddress(addr,1,0));
+			lua_pushinteger(LUA, debug_read_byte(space, memory_address_to_byte(space,addr), TRUE));
 			lua_settable(LUA, 4);
 			lua_pop(LUA, 2);
 
@@ -213,7 +219,7 @@ void MAME_LuaWriteInform() {
 		}
 		lua_settop(LUA, 2);
 	}
-	lua_settop(LUA, 0);*/
+	lua_settop(LUA, 0);
 }
 
 ///////////////////////////
@@ -645,58 +651,70 @@ static int mame_registerexit(lua_State *L) {
 }
 
 
-/*static int is_little_endian(lua_State *L,int argn)
-{
-	int littleEndian;
-	if(lua_gettop(L) >= argn)
-		littleEndian = lua_toboolean(L,argn);
-	else
-		littleEndian = 0;
-	return littleEndian;
-}*/
-
 static int memory_readbyte(lua_State *L)
 {
-//	lua_pushinteger(L, ReadValueAtHardwareAddress(luaL_checkinteger(L,1),1,0));
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
+	lua_pushinteger(L, debug_read_byte(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE));
 	return 1;
 }
 
 static int memory_readbytesigned(lua_State *L) {
-//	signed char c = (signed char)ReadValueAtHardwareAddress(luaL_checkinteger(L,1),1,0);
-//	lua_pushinteger(L, c);
+	signed char c;
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
+	c = (signed char)debug_read_byte(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
+	lua_pushinteger(L, c);
 	return 1;
 }
 
 static int memory_readword(lua_State *L)
 {
-//	lua_pushinteger(L, ReadValueAtHardwareAddress(luaL_checkinteger(L,1),2,is_little_endian(L,2)));
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
+	lua_pushinteger(L, debug_read_word(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE));
 	return 1;
 }
 
 static int memory_readwordsigned(lua_State *L) {
-//	signed short c = (signed short)ReadValueAtHardwareAddress(luaL_checkinteger(L,1),2,is_little_endian(L,2));
-//	lua_pushinteger(L, c);
+	signed short c;
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
+	c = (signed short)debug_read_word(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
+	lua_pushinteger(L, c);
 	return 1;
 }
 
 static int memory_readdword(lua_State *L)
 {
-//	UINT32 addr = luaL_checkinteger(L,1);
-//	UINT32 val = ReadValueAtHardwareAddress(addr,4,is_little_endian(L,2));
-//
-//	// lua_pushinteger doesn't work properly for 32bit system, does it?
-//	if (val >= 0x80000000 && sizeof(int) <= 4)
-//		lua_pushnumber(L, val);
-//	else
-//		lua_pushinteger(L, val);
+	const address_space *space;
+	UINT32 val;
+
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
+	val = debug_read_dword(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
+
+	// lua_pushinteger doesn't work properly for 32bit system, does it?
+	if (val >= 0x80000000 && sizeof(int) <= 4)
+		lua_pushnumber(L, val);
+	else
+		lua_pushinteger(L, val);
 	return 1;
 }
 
 static int memory_readdwordsigned(lua_State *L) {
-//	UINT32 addr = luaL_checkinteger(L,1);
-//	INT32 val = (INT32)ReadValueAtHardwareAddress(addr,4,is_little_endian(L,2));
-//
-//	lua_pushinteger(L, val);
+	const address_space *space;
+	UINT32 val;
+
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
+	val = (INT32)debug_read_dword(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
+
+	lua_pushinteger(L, val);
 	return 1;
 }
 
@@ -704,6 +722,10 @@ static int memory_readbyterange(lua_State *L) {
 	int a,n;
 	UINT32 address = luaL_checkinteger(L,1);
 	int length = luaL_checkinteger(L,2);
+	const address_space *space;
+
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
 
 	if(length < 0)
 	{
@@ -717,8 +739,7 @@ static int memory_readbyterange(lua_State *L) {
 	// put all the values into the (1-based) array
 	for(a = address, n = 1; n <= length; a++, n++)
 	{
-//		unsigned char value = ReadValueAtHardwareAddress(a,1,0);
-		unsigned char value = 0;
+		unsigned char value = debug_read_byte(space, memory_address_to_byte(space,a), TRUE);
 		lua_pushinteger(L, value);
 		lua_rawseti(L, -2, n);
 	}
@@ -728,19 +749,31 @@ static int memory_readbyterange(lua_State *L) {
 
 static int memory_writebyte(lua_State *L)
 {
-//	WriteValueAtHardwareAddress(luaL_checkinteger(L,1), luaL_checkinteger(L,2),1,0);
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 1;
+	debug_write_byte(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
+
 	return 0;
 }
 
 static int memory_writeword(lua_State *L)
 {
-//	WriteValueAtHardwareAddress(luaL_checkinteger(L,1), luaL_checkinteger(L,2),2,is_little_endian(L,3));
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 1;
+	debug_write_word(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
+
 	return 0;
 }
 
 static int memory_writedword(lua_State *L)
 {
-//	WriteValueAtHardwareAddress(luaL_checkinteger(L,1), luaL_checkinteger(L,2),4,is_little_endian(L,3));
+	const address_space *space;
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 1;
+	debug_write_dword(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
+
 	return 0;
 }
 
@@ -752,13 +785,16 @@ static int memory_writedword(lua_State *L)
 //  occurred, so the new address is readable.
 static int memory_registerwrite(lua_State *L) {
 	// Check args
-//	unsigned int addr = luaL_checkinteger(L, 1);
+	const address_space *space;
+	unsigned int addr = luaL_checkinteger(L, 1);
 	if (lua_type(L,2) != LUA_TNIL && lua_type(L,2) != LUA_TFUNCTION)
 		luaL_error(L, "function or nil expected in arg 2 to memory.register");
+	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
+		return 0;
 	
 	
 	// Check the address range
-//	if (IsHardwareAddressValid(addr))
+//	if (addr > memory_address_to_byte(space,space->bytemask))
 //		luaL_error(L, "arg 1 is out of range");
 
 	// Commit it to the registery
@@ -769,7 +805,7 @@ static int memory_registerwrite(lua_State *L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, memoryValueTable);
 	lua_pushvalue(L,1);
 	if (lua_isnil(L,2)) lua_pushnil(L);
-//	else lua_pushinteger(L, ReadValueAtHardwareAddress(addr,1,0));
+	else lua_pushinteger(L, debug_read_byte(space, memory_address_to_byte(space,addr), TRUE));
 	lua_settable(L, -3);
 	
 	if(!usingMemoryRegister)
@@ -2599,15 +2635,6 @@ const char* s_keyToName[256] =
 	"quote",
 };
 
-void GetMouseData(UINT32 *md)
-{
-	/*extern UINT32 mousex,mousey;
-	RECT t;
-	GetClientRect(hScrnWnd, &t);
-	md[0] = (UINT32)(mousex / ((float)t.right / iScreenWidth));
-	md[1] = (UINT32)(mousey / ((float)t.bottom / iScreenHeight));*/
-}
-
 #endif
 
 // input.get()
@@ -2641,17 +2668,13 @@ static int input_getcurrentinputstatus(lua_State *L) {
 	}
 	// mouse position in game screen pixel coordinates
 	{
-		// TODO
-//		UINT32 MouseData[2];
-//		int x, y;
-//		GetMouseData(MouseData);
-//		x = MouseData[0];
-//		y = MouseData[1];
-//	
-//		lua_pushinteger(L, x);
-//		lua_setfield(L, -2, "xmouse");
-//		lua_pushinteger(L, y);
-//		lua_setfield(L, -2, "ymouse");
+		int x, y, bla;
+		ui_input_find_mouse(machine, &x, &y, &bla);
+	
+		lua_pushinteger(L, x);
+		lua_setfield(L, -2, "xmouse");
+		lua_pushinteger(L, y);
+		lua_setfield(L, -2, "ymouse");
 	}
 #else
 	// NYI (well, return an empty table)
