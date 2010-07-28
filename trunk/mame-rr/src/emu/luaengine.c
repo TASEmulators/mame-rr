@@ -654,6 +654,9 @@ static int mame_registerexit(lua_State *L) {
 static int memory_readbyte(lua_State *L)
 {
 	const address_space *space;
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	lua_pushinteger(L, debug_read_byte(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE));
@@ -663,6 +666,9 @@ static int memory_readbyte(lua_State *L)
 static int memory_readbytesigned(lua_State *L) {
 	signed char c;
 	const address_space *space;
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	c = (signed char)debug_read_byte(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
@@ -673,6 +679,10 @@ static int memory_readbytesigned(lua_State *L) {
 static int memory_readword(lua_State *L)
 {
 	const address_space *space;
+
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	lua_pushinteger(L, debug_read_word(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE));
@@ -682,6 +692,9 @@ static int memory_readword(lua_State *L)
 static int memory_readwordsigned(lua_State *L) {
 	signed short c;
 	const address_space *space;
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	c = (signed short)debug_read_word(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
@@ -694,6 +707,9 @@ static int memory_readdword(lua_State *L)
 	const address_space *space;
 	UINT32 val;
 
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	val = debug_read_dword(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
@@ -710,6 +726,9 @@ static int memory_readdwordsigned(lua_State *L) {
 	const address_space *space;
 	UINT32 val;
 
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	val = (INT32)debug_read_dword(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
@@ -724,6 +743,9 @@ static int memory_readbyterange(lua_State *L) {
 	int length = luaL_checkinteger(L,2);
 	const address_space *space;
 
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 
@@ -750,6 +772,9 @@ static int memory_readbyterange(lua_State *L) {
 static int memory_writebyte(lua_State *L)
 {
 	const address_space *space;
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 1;
 	debug_write_byte(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
@@ -760,6 +785,9 @@ static int memory_writebyte(lua_State *L)
 static int memory_writeword(lua_State *L)
 {
 	const address_space *space;
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 1;
 	debug_write_word(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
@@ -770,6 +798,9 @@ static int memory_writeword(lua_State *L)
 static int memory_writedword(lua_State *L)
 {
 	const address_space *space;
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 1;
 	debug_write_dword(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
@@ -789,6 +820,9 @@ static int memory_registerwrite(lua_State *L) {
 	unsigned int addr = luaL_checkinteger(L, 1);
 	if (lua_type(L,2) != LUA_TNIL && lua_type(L,2) != LUA_TFUNCTION)
 		luaL_error(L, "function or nil expected in arg 2 to memory.register");
+	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
+		luaL_error(L, "memory.* functions require -debug option");
+	}
 	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
 		return 0;
 	
@@ -3121,7 +3155,8 @@ void MAME_LuaFrameBoundary(running_machine *machine_ptr) {
 	lua_State *thread;
 	int result;
 
-	machine = machine_ptr;
+	if (machine != machine_ptr)
+		machine = machine_ptr;
 
 	// HA!
 	if (!LUA || !luaRunning)
@@ -3597,6 +3632,7 @@ void lua_init(running_machine *machine_ptr)
 	if (filename[0] != 0)
 		MAME_LoadLuaCode(filename);
 
-	machine = machine_ptr;
+	if (machine != machine_ptr)
+		machine = machine_ptr;
 	add_frame_callback(machine_ptr, MAME_LuaFrameBoundary);
 }
