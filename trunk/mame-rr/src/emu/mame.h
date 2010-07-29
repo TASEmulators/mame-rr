@@ -67,10 +67,10 @@ enum
 
 /* MESS vs. MAME abstractions */
 #ifndef MESS
-#define APPNAME					"MAME"
-#define APPNAME_LOWER			"mame"
-#define CONFIGNAME				"mame"
-#define APPLONGNAME				"M.A.M.E."
+#define APPNAME					"MAME-RR"
+#define APPNAME_LOWER			"mame-rr"
+#define CONFIGNAME				"mame-rr"
+#define APPLONGNAME				"M.A.M.E. Rerecording"
 #define CAPGAMENOUN				"GAME"
 #define CAPSTARTGAMENOUN		"Game"
 #define GAMENOUN				"game"
@@ -78,10 +78,10 @@ enum
 #define HISTORYNAME				"History"
 #define COPYRIGHT				"Copyright Nicola Salmoria\nand the MAME team\nhttp://mamedev.org"
 #else
-#define APPNAME					"MESS"
-#define APPNAME_LOWER			"mess"
-#define CONFIGNAME				"mess"
-#define APPLONGNAME				"M.E.S.S."
+#define APPNAME					"MESS-RR"
+#define APPNAME_LOWER			"mess-rr"
+#define CONFIGNAME				"mess-rr"
+#define APPLONGNAME				"M.E.S.S. Rerecording"
 #define CAPGAMENOUN				"SYSTEM"
 #define CAPSTARTGAMENOUN		"System"
 #define GAMENOUN				"system"

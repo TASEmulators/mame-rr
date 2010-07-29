@@ -1214,6 +1214,8 @@ static TIMER_CALLBACK( vblank_end_callback )
 
 	/* increment the frame number counter */
 	state->frame_number++;
+
+	CallRegisteredLuaFunctions(LUACALL_AFTEREMULATION);
 }
 
 
@@ -1285,8 +1287,6 @@ void video_frame_update(running_machine *machine, int debug)
 	assert(machine != NULL);
 	assert(machine->config != NULL);
 
-	CallRegisteredLuaFunctions(LUACALL_BEFOREEMULATION);
-
 	/* only render sound and video if we're in the running phase */
 	if (phase == MAME_PHASE_RUNNING && (!mame_is_paused(machine) || options_get_bool(mame_options(), OPTION_UPDATEINPAUSE)))
 	{
@@ -1346,7 +1346,6 @@ void video_frame_update(running_machine *machine, int debug)
 			profiler_mark_end();
 		}
 	}
-	CallRegisteredLuaFunctions(LUACALL_AFTEREMULATION);
 }
 
 

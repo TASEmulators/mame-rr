@@ -56,6 +56,8 @@ const game_driver * const drivers[] =
 	DRIVER( starfir2 )	/* (c) 1979 Exidy */
 	DRIVER( wrally )	/* (c) 1993 - Ref 930705 */
 	DRIVER( cninja )	/* (c) 1993 - Ref 930705 */
+	DRIVER( cninjau )	/* (c) 1993 - Ref 930705 */
+	DRIVER( cninja1 )	/* (c) 1993 - Ref 930705 */
 	DRIVER( mutantf )	/* (c) 1993 - Ref 930705 */
 
 #endif	/* DRIVER_RECURSIVE */

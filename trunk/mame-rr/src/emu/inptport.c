@@ -2527,6 +2527,7 @@ profiler_mark_start(PROFILER_INPUT);
 
 		/* handle playback/record */
 		playback_port(port);
+		CallRegisteredLuaFunctions(LUACALL_BEFOREEMULATION);
 		MAME_LuaReadJoypad();
 		record_port(port);
 
