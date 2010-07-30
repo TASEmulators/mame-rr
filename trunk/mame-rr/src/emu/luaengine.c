@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
-#include <string.h>
 #include <ctype.h>
 #include <algorithm>
 #include <vector>
+#include <string>
 
 using std::min;
 using std::max;
@@ -118,6 +118,7 @@ static const char* toCString(lua_State* L, int idx=0);
 // LuaWriteInform is very slow, so we'll only use it if memory.register was used in this session.
 static int usingMemoryRegister=0;
 
+static std::string empty_driver("empty");
 
 /**
  * Resets emulator speed / pause states after script exit.
@@ -253,7 +254,17 @@ static int mame_parentname(lua_State *L) {
 //
 //   Returns the name of the source file for the running game.
 static int mame_sourcename(lua_State *L) {
-	lua_pushstring(L, machine->gamedrv->source_file);
+	const char *srcfile;
+	srcfile = strrchr(machine->gamedrv->source_file, '/');
+	if (!srcfile)
+		srcfile = strrchr(machine->gamedrv->source_file, '\\');
+	if (!srcfile)
+		srcfile = strrchr(machine->gamedrv->source_file, ':');
+	if (!srcfile)
+		srcfile = machine->gamedrv->source_file;
+	else
+		srcfile++;
+	lua_pushstring(L, srcfile);
 	return 1;
 }
 
@@ -730,14 +741,14 @@ static UINT32 custom_read_dword(const address_space *space, offs_t address) {
 
 static int memory_readbyte(lua_State *L)
 {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, memory_read_byte(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readbytesigned(lua_State *L) {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (signed char)memory_read_byte(space, luaL_checkinteger(L,1)));
 	return 1;
@@ -745,14 +756,14 @@ static int memory_readbytesigned(lua_State *L) {
 
 static int memory_readword(lua_State *L)
 {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, custom_read_word(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readwordsigned(lua_State *L) {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (signed short)custom_read_word(space, luaL_checkinteger(L,1)));
 	return 1;
@@ -760,7 +771,7 @@ static int memory_readwordsigned(lua_State *L) {
 
 static int memory_readdword(lua_State *L)
 {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	UINT32 val = custom_read_dword(space, luaL_checkinteger(L,1));
 
@@ -773,14 +784,14 @@ static int memory_readdword(lua_State *L)
 }
 
 static int memory_readdwordsigned(lua_State *L) {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (INT32)custom_read_dword(space, luaL_checkinteger(L,1)));
 	return 1;
 }
 
 static int memory_readbyterange(lua_State *L) {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	int a,n;
 	UINT32 address = luaL_checkinteger(L,1);
 	int length = luaL_checkinteger(L,2);
@@ -840,7 +851,7 @@ void custom_write_dword(const address_space *space, offs_t address, UINT32 data)
 
 static int memory_writebyte(lua_State *L)
 {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	memory_write_byte(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
@@ -848,7 +859,7 @@ static int memory_writebyte(lua_State *L)
 
 static int memory_writeword(lua_State *L)
 {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	custom_write_word(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
@@ -856,7 +867,7 @@ static int memory_writeword(lua_State *L)
 
 static int memory_writedword(lua_State *L)
 {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	custom_write_dword(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
@@ -869,7 +880,7 @@ static int memory_writedword(lua_State *L)
 //  written to. No args are given to the function. The write has already
 //  occurred, so the new address is readable.
 static int memory_registerwrite(lua_State *L) {
-	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
 	// Check args
 	unsigned int addr = luaL_checkinteger(L, 1);
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);

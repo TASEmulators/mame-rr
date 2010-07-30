@@ -36,6 +36,9 @@
 #include <commctrl.h>
 #include <list>
 #include <vector>
+#include <string>
+
+static std::string empty_driver("empty");
 
 #define INVALID_HARDWARE_ADDRESS	((HWAddressType) -1)
 #undef realloc
@@ -2063,7 +2066,7 @@ void init_list_box(HWND Box, const WCHAR* Strs[], int numColumns, int *columnWid
 
 void RamSearchOpen(running_machine *machine)
 {
-	if (machine->gamedrv->driver_init == NULL) {
+	if (empty_driver.compare(machine->basename) == 0) {
 		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Search",MB_OK | MB_ICONSTOP);
 		return;
 	}
@@ -2080,7 +2083,7 @@ void RamSearchOpen(running_machine *machine)
 
 void RamWatchOpen(running_machine *machine)
 {
-	if (machine->gamedrv->driver_init == NULL) {
+	if (empty_driver.compare(machine->basename) == 0) {
 		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Watch",MB_OK | MB_ICONSTOP);
 		return;
 	}
