@@ -67,6 +67,9 @@
 #include "strconv.h"
 #include "config.h"
 
+#include "ram_search.h"
+#include "ramwatch.h"
+
 #ifdef MESS
 #include "menu.h"
 #endif
@@ -387,6 +390,12 @@ static void check_osd_inputs(running_machine *machine)
 	if (ui_input_pressed(machine, IPT_OSD_2))
 		win_toggle_menubar();
 #endif
+
+	// RAM tools
+	if (ui_input_pressed(machine, IPT_OSD_3))
+		RamSearchOpen(machine);
+	if (ui_input_pressed(machine, IPT_OSD_4))
+		RamWatchOpen(machine);
 }
 
 

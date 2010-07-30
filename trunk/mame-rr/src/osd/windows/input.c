@@ -771,6 +771,18 @@ void osd_customize_input_type_list(input_type_desc *typelist)
 				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_LALT, KEYCODE_ENTER);
 				break;
 
+			// RAM tools
+			case IPT_OSD_3:
+				typedesc->token = "RAM_SEARCH";
+				typedesc->name = "RAM Search";
+				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_F, KEYCODE_LCONTROL);
+				break;
+			case IPT_OSD_4:
+				typedesc->token = "RAM_WATCH";
+				typedesc->name = "RAM Watch";
+				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_W, KEYCODE_LCONTROL);
+				break;
+
 #ifdef MESS
 			case IPT_UI_THROTTLE:
 				input_seq_set_0(&typedesc->seq[SEQ_TYPE_STANDARD]);

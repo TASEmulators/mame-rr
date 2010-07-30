@@ -229,7 +229,7 @@ endif
 LDFLAGS += -static-libgcc
 
 # add the windows libraries
-LIBS += -luser32 -lgdi32 -lddraw -ldsound -ldxguid -lwinmm -ladvapi32 -lcomctl32 -lshlwapi -ldinput8 -llua51
+LIBS += -luser32 -lgdi32 -lddraw -ldsound -ldxguid -lwinmm -ladvapi32 -lcomctl32 -lshlwapi -ldinput8 -lcomdlg32 -llua51
 
 ifeq ($(DIRECTINPUT),8)
 LIBS += -ldinput8
@@ -273,6 +273,8 @@ OSDOBJS = \
 	$(WINOBJ)/input.o \
 	$(WINOBJ)/luaconsole.o \
 	$(WINOBJ)/output.o \
+	$(WINOBJ)/ram_search.o \
+	$(WINOBJ)/ramwatch.o \
 	$(WINOBJ)/sound.o \
 	$(WINOBJ)/video.o \
 	$(WINOBJ)/window.o \

@@ -1489,6 +1489,8 @@ static void init_machine(running_machine *machine)
 		cheat_init(machine);
 
 	lua_init(machine);
+	extern void Update_RAM_Search(running_machine *machine);
+	add_frame_callback(machine, Update_RAM_Search);
 
 	/* disallow save state registrations starting here */
 	state_save_allow_registration(machine, FALSE);
