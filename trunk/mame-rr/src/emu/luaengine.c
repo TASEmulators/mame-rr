@@ -1019,7 +1019,7 @@ static char *savestateobj2filename(lua_State *L, int offset) {
 
 
 // Helper function for garbage collection.
-/*static int savestate_gc(lua_State *L) {
+static int savestate_gc(lua_State *L) {
 	const char *filename;
 
 	// The object we're collecting is on top of the stack
@@ -1034,7 +1034,7 @@ static char *savestateobj2filename(lua_State *L, int offset) {
 	
 	// We exit, and the garbage collector takes care of the rest.
 	return 0;
-}*/
+}
 
 // object savestate.create(int which = nil)
 //
@@ -1042,18 +1042,15 @@ static char *savestateobj2filename(lua_State *L, int offset) {
 //  The object can be associated with a player-accessible savestate
 //  ("which" between 1 and 10) or not (which == nil).
 static int savestate_create(lua_State *L) {
-	const char *filename = luaL_checkstring(L,1);
+	const char *filename;
+	bool anonymous = false;
 
-	// TODO: add temp support
-/*	if (which > 0) {
-		// Find an appropriate filename. This is OS specific, unfortunately.
-		// So I turned the filename selection code into my bitch. :)
-		// Numbers are 0 through 9 though.
-		filename = GetSavestateFilename(which);
-	}
+	if (lua_gettop(L) >= 1)
+		filename = luaL_checkstring(L,1);
 	else {
 		filename = tempnam(NULL, "snlua");
-	}*/
+		anonymous = true;
+	}
 	
 	// Our "object". We don't care about the type, we just need the memory and GC services.
 	lua_newuserdata(L,1);
@@ -1070,12 +1067,11 @@ static int savestate_create(lua_State *L) {
 	lua_pushstring(L, filename);
 	lua_setfield(L, -2, "filename");
 	
-	// TODO: add temp support
-/*	// If it's an anonymous savestate, we must delete the file from disk should it be gargage collected
-	if (which < 0) {
+	// If it's an anonymous savestate, we must delete the file from disk should it be gargage collected
+	if (anonymous) {
 		lua_pushcfunction(L, savestate_gc);
 		lua_setfield(L, -2, "__gc");
-	}*/
+	}
 	
 	// Set the metatable
 	lua_setmetatable(L, -2);
@@ -1089,7 +1085,12 @@ static int savestate_create(lua_State *L) {
 //
 //   Saves a state to the given object.
 static int savestate_save(lua_State *L) {
-	char *filename = savestateobj2filename(L,1);
+	const char *filename;
+
+	if (lua_type(L,1) == LUA_TUSERDATA)
+		filename = savestateobj2filename(L,1);
+	else
+		filename = luaL_checkstring(L,1);
 
 	// Save states are very expensive. They take time.
 	numTries--;
@@ -1102,7 +1103,12 @@ static int savestate_save(lua_State *L) {
 //
 //   Loads the given state
 static int savestate_load(lua_State *L) {
-	char *filename = savestateobj2filename(L,1);
+	const char *filename;
+
+	if (lua_type(L,1) == LUA_TUSERDATA)
+		filename = savestateobj2filename(L,1);
+	else
+		filename = luaL_checkstring(L,1);
 
 	numTries--;
 
