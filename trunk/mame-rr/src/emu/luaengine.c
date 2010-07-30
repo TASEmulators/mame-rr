@@ -24,10 +24,9 @@ extern "C" {
 
 #include "emu.h"
 #include "emuopts.h"
+#include "memory.h"
 #include "uiinput.h"
 #include "luasav.h"
-#include "debug/debugcmd.h"
-#include "debug/debugcpu.h"
 #ifdef WIN32
 #include <direct.h>
 #include <windows.h>
@@ -189,21 +188,19 @@ void MAME_LuaWriteInform() {
 	while (lua_next(LUA, 1) != 0)
 	{
 		unsigned int addr = luaL_checkinteger(LUA, 2);
-		const address_space *space;
-		if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-			return;
+		const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 		lua_Integer value;
 		lua_getfield(LUA, LUA_REGISTRYINDEX, memoryValueTable);
 		lua_pushvalue(LUA, 2);
 		lua_gettable(LUA, 4);
 		value = luaL_checkinteger(LUA, 5);
-		if (value != (lua_Integer)debug_read_byte(space, memory_address_to_byte(space,addr), TRUE))
+		if (value != (lua_Integer)memory_read_byte(space, addr))
 		{
 			int res;
 
 			// Value changed; update & invoke the Lua callback
 			lua_pushinteger(LUA, addr);
-			lua_pushinteger(LUA, debug_read_byte(space, memory_address_to_byte(space,addr), TRUE));
+			lua_pushinteger(LUA, memory_read_byte(space, addr));
 			lua_settable(LUA, 4);
 			lua_pop(LUA, 2);
 
@@ -699,69 +696,73 @@ static int mame_registerstart(lua_State *L) {
 	return 1;
 }
 
+static UINT16 custom_read_word(const address_space *space, offs_t address) {
+	// if this is misaligned read, just read two bytes
+	if ((address & 1) != 0) {
+		UINT8 byte0 = memory_read_byte(space, address + 0);
+		UINT8 byte1 = memory_read_byte(space, address + 1);
+
+		// based on the endianness, the result is assembled differently
+		if (space->endianness == ENDIANNESS_LITTLE)
+			return (byte0 | (byte1 << 8));
+		else
+			return (byte1 | (byte0 << 8));
+	}
+	else
+		return memory_read_word(space, address);
+}
+
+static UINT32 custom_read_dword(const address_space *space, offs_t address) {
+	// if this is misaligned read, just read two words */
+	if ((address & 3) != 0) {
+		UINT16 word0 = custom_read_word(space, address + 0);
+		UINT16 word1 = custom_read_word(space, address + 2);
+
+		// based on the endianness, the result is assembled differently
+		if (space->endianness == ENDIANNESS_LITTLE)
+			return (word0 | (word1 << 16));
+		else
+			return (word1 | (word0 << 16));
+	}
+	else
+		return memory_read_dword(space, address);
+}
 
 static int memory_readbyte(lua_State *L)
 {
-	const address_space *space;
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
-	lua_pushinteger(L, debug_read_byte(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE));
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, memory_read_byte(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readbytesigned(lua_State *L) {
-	signed char c;
-	const address_space *space;
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
-	c = (signed char)debug_read_byte(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
-	lua_pushinteger(L, c);
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, (signed char)memory_read_byte(space, luaL_checkinteger(L,1)));
 	return 1;
 }
 
 static int memory_readword(lua_State *L)
 {
-	const address_space *space;
-
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
-	lua_pushinteger(L, debug_read_word(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE));
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, custom_read_word(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readwordsigned(lua_State *L) {
-	signed short c;
-	const address_space *space;
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
-	c = (signed short)debug_read_word(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
-	lua_pushinteger(L, c);
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, (signed short)custom_read_word(space, luaL_checkinteger(L,1)));
 	return 1;
 }
 
 static int memory_readdword(lua_State *L)
 {
-	const address_space *space;
-	UINT32 val;
-
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
-	val = debug_read_dword(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	UINT32 val = custom_read_dword(space, luaL_checkinteger(L,1));
 
 	// lua_pushinteger doesn't work properly for 32bit system, does it?
 	if (val >= 0x80000000 && sizeof(int) <= 4)
@@ -772,31 +773,18 @@ static int memory_readdword(lua_State *L)
 }
 
 static int memory_readdwordsigned(lua_State *L) {
-	const address_space *space;
-	UINT32 val;
-
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
-	val = (INT32)debug_read_dword(space, memory_address_to_byte(space,luaL_checkinteger(L,1)), TRUE);
-
-	lua_pushinteger(L, val);
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, (INT32)custom_read_dword(space, luaL_checkinteger(L,1)));
 	return 1;
 }
 
 static int memory_readbyterange(lua_State *L) {
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
 	int a,n;
 	UINT32 address = luaL_checkinteger(L,1);
 	int length = luaL_checkinteger(L,2);
-	const address_space *space;
-
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	if(length < 0)
 	{
@@ -810,7 +798,7 @@ static int memory_readbyterange(lua_State *L) {
 	// put all the values into the (1-based) array
 	for(a = address, n = 1; n <= length; a++, n++)
 	{
-		unsigned char value = debug_read_byte(space, memory_address_to_byte(space,a), TRUE);
+		unsigned char value = memory_read_byte(space, address);
 		lua_pushinteger(L, value);
 		lua_rawseti(L, -2, n);
 	}
@@ -818,42 +806,59 @@ static int memory_readbyterange(lua_State *L) {
 	return 1;
 }
 
+void custom_write_word(const address_space *space, offs_t address, UINT16 data) {
+	// if this is a misaligned write, just write two bytes
+	if ((address & 1) != 0) {
+		if (space->endianness == ENDIANNESS_LITTLE) {
+			memory_write_byte(space, address + 0, data >> 0);
+			memory_write_byte(space, address + 1, data >> 8);
+		}
+		else {
+			memory_write_byte(space, address + 0, data >> 8);
+			memory_write_byte(space, address + 1, data >> 0);
+		}
+	}
+	else
+		memory_write_word(space, address, data);
+}
+
+void custom_write_dword(const address_space *space, offs_t address, UINT32 data) {
+	// if this is a misaligned write, just write two words
+	if ((address & 3) != 0) {
+		if (space->endianness == ENDIANNESS_LITTLE) {
+			custom_write_word(space, address + 0, data >> 0);
+			custom_write_word(space, address + 2, data >> 16);
+		}
+		else {
+			custom_write_word(space, address + 0, data >> 16);
+			custom_write_word(space, address + 2, data >> 0);
+		}
+	}
+	else
+		memory_write_dword(space, address, data);
+}
+
 static int memory_writebyte(lua_State *L)
 {
-	const address_space *space;
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 1;
-	debug_write_byte(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
-
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	memory_write_byte(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
 }
 
 static int memory_writeword(lua_State *L)
 {
-	const address_space *space;
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 1;
-	debug_write_word(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
-
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	custom_write_word(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
 }
 
 static int memory_writedword(lua_State *L)
 {
-	const address_space *space;
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 1;
-	debug_write_dword(space, memory_address_to_byte(space, luaL_checkinteger(L,1)), luaL_checkinteger(L,2), TRUE);
-
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	custom_write_dword(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
 }
 
@@ -864,16 +869,11 @@ static int memory_writedword(lua_State *L)
 //  written to. No args are given to the function. The write has already
 //  occurred, so the new address is readable.
 static int memory_registerwrite(lua_State *L) {
+	if (machine->gamedrv->driver_init == NULL) luaL_error(L, "no game running");
 	// Check args
-	const address_space *space;
 	unsigned int addr = luaL_checkinteger(L, 1);
-	if (lua_type(L,2) != LUA_TNIL && lua_type(L,2) != LUA_TFUNCTION)
-		luaL_error(L, "function or nil expected in arg 2 to memory.register");
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		luaL_error(L, "memory.* functions require -debug option");
-	}
-	if (!debug_command_parameter_cpu_space(machine, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+
 	
 	
 	// Check the address range
@@ -888,7 +888,7 @@ static int memory_registerwrite(lua_State *L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, memoryValueTable);
 	lua_pushvalue(L,1);
 	if (lua_isnil(L,2)) lua_pushnil(L);
-	else lua_pushinteger(L, debug_read_byte(space, memory_address_to_byte(space,addr), TRUE));
+	else lua_pushinteger(L, memory_read_byte(space, addr));
 	lua_settable(L, -3);
 	
 	if(!usingMemoryRegister)

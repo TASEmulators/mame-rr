@@ -32,8 +32,6 @@
 #include "resource.h"
 #include "ram_search.h"
 #include "ramwatch.h"
-#include "debug/debugcmd.h"
-#include "debug/debugcpu.h"
 #include <assert.h>
 #include <commctrl.h>
 #include <list>
@@ -94,18 +92,48 @@ bool IsHardwareAddressValid(HWAddressType address)
 		return false;
 }
 
+static UINT16 custom_read_word(const address_space *space, offs_t address) {
+	// if this is misaligned read, just read two bytes
+	if ((address & 1) != 0) {
+		UINT8 byte0 = memory_read_byte(space, address + 0);
+		UINT8 byte1 = memory_read_byte(space, address + 1);
+
+		// based on the endianness, the result is assembled differently
+		if (space->endianness == ENDIANNESS_LITTLE)
+			return (byte0 | (byte1 << 8));
+		else
+			return (byte1 | (byte0 << 8));
+	}
+	else
+		return memory_read_word(space, address);
+}
+
+static UINT32 custom_read_dword(const address_space *space, offs_t address) {
+	// if this is misaligned read, just read two words */
+	if ((address & 3) != 0) {
+		UINT16 word0 = custom_read_word(space, address + 0);
+		UINT16 word1 = custom_read_word(space, address + 2);
+
+		// based on the endianness, the result is assembled differently
+		if (space->endianness == ENDIANNESS_LITTLE)
+			return (word0 | (word1 << 16));
+		else
+			return (word1 | (word0 << 16));
+	}
+	else
+		return memory_read_dword(space, address);
+}
+
 unsigned int ReadValueAtHardwareAddress(HWAddressType address, unsigned int size)
 {
-	const address_space *space;
-	if (!debug_command_parameter_cpu_space(machine_rw, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return 0;
+	const address_space *space = cpu_get_address_space(machine_rw->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	if (size == 1)
-		return debug_read_byte(space, memory_address_to_byte(space,address), TRUE);
+		return memory_read_byte(space, address);
 	else if (size == 2)
-		return debug_read_word(space, memory_address_to_byte(space,address), TRUE);
+		return custom_read_word(space, address);
 	else
-		return debug_read_dword(space, memory_address_to_byte(space,address), TRUE);
+		return custom_read_dword(space, address);
 }
 
 void ResetMemoryRegions()
@@ -119,13 +147,11 @@ void ResetMemoryRegions()
 	static const int regionSearchGranularity = 1; // if this is too small, we'll waste time (in this function only), but if any region in RAM isn't evenly divisible by this, we might crash.
 	const char * region_share[100];
 	int region_count = 0;
-	const address_space *space;
 	address_map_entry *entry;
+	const address_space *space = cpu_get_address_space(machine_rw->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	MemoryAddressStart = INVALID_HARDWARE_ADDRESS;
 	MemoryAddressEnd = INVALID_HARDWARE_ADDRESS;
-	if (!debug_command_parameter_cpu_space(machine_rw, NULL, ADDRESS_SPACE_PROGRAM, &space))
-		return;
 	
 	if (space->endianness == ENDIANNESS_LITTLE)
 		littleEndian = true;
@@ -2037,8 +2063,8 @@ void init_list_box(HWND Box, const WCHAR* Strs[], int numColumns, int *columnWid
 
 void RamSearchOpen(running_machine *machine)
 {
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		MessageBox(hWnd,L"RAM tools require -debug option.",L"RAM Search",MB_OK | MB_ICONSTOP);
+	if (machine->gamedrv->driver_init == NULL) {
+		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Search",MB_OK | MB_ICONSTOP);
 		return;
 	}
 	if (machine_rw != machine)
@@ -2054,8 +2080,8 @@ void RamSearchOpen(running_machine *machine)
 
 void RamWatchOpen(running_machine *machine)
 {
-	if (!options_get_bool(mame_options(), OPTION_DEBUG)) {
-		MessageBox(hWnd,L"RAM tools require -debug option.",L"RAM Watch",MB_OK | MB_ICONSTOP);
+	if (machine->gamedrv->driver_init == NULL) {
+		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Watch",MB_OK | MB_ICONSTOP);
 		return;
 	}
 	if (machine_rw != machine)
