@@ -290,9 +290,10 @@ static int mame_speedmode(lua_State *L) {
 	if (core_stricmp(mode, "normal")==0) {
 		speedmode = SPEED_NORMAL;
 		video_set_fastforward(FALSE);
+		video_set_throttle(TRUE);
 	} else if (core_stricmp(mode, "nothrottle")==0) {
 		speedmode = SPEED_NOTHROTTLE;
-//		SetEmulationSpeed(EMUSPEED_FASTEST); // TODO
+		video_set_throttle(FALSE);
 	} else if (core_stricmp(mode, "turbo")==0) {
 		speedmode = SPEED_TURBO;
 		video_set_fastforward(TRUE);

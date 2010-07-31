@@ -127,6 +127,9 @@ static int ui_active;
 static int ui_use_natural_keyboard;
 static UINT8 non_char_keys_down[(ARRAY_LENGTH(non_char_keys) + 7) / 8];
 
+/* save state stuff */
+static char savestate_filename[20];
+static int current_savestate;
 
 /***************************************************************************
     FUNCTION PROTOTYPES
@@ -1362,36 +1365,9 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 		return ui_set_handler(ui_gfx_ui_handler, is_paused);
 	}
 
-	/* handle a save state request */
-	if (ui_input_pressed(machine, IPT_UI_SAVE_STATE))
-	{
-		mame_pause(machine, TRUE);
-		return ui_set_handler(handler_load_save, LOADSAVE_SAVE);
-	}
-
-	/* handle a load state request */
-	if (ui_input_pressed(machine, IPT_UI_LOAD_STATE))
-	{
-		mame_pause(machine, TRUE);
-		return ui_set_handler(handler_load_save, LOADSAVE_LOAD);
-	}
-
 	/* handle a save snapshot request */
 	if (ui_input_pressed(machine, IPT_UI_SNAPSHOT))
 		video_save_active_screen_snapshots(machine);
-
-	/* toggle pause */
-	if (ui_input_pressed(machine, IPT_UI_PAUSE))
-	{
-		/* with a shift key, it is single step */
-		if (is_paused && (input_code_pressed(machine, KEYCODE_LSHIFT) || input_code_pressed(machine, KEYCODE_RSHIFT)))
-		{
-			single_step = TRUE;
-			mame_pause(machine, FALSE);
-		}
-		else
-			mame_pause(machine, !mame_is_paused(machine));
-	}
 
 	/* handle a toggle cheats request */
 	if (ui_input_pressed(machine, IPT_UI_TOGGLE_CHEAT))
@@ -1459,6 +1435,23 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 	else
 		video_set_fastforward(FALSE);
 
+	/* toggle pause */
+	if (ui_input_pressed(machine, IPT_UI_PAUSE))
+	{
+		mame_pause(machine, !mame_is_paused(machine));
+	}
+
+	/* frame advance */
+	if (ui_input_pressed_repeat(machine, IPT_UI_FRAME_ADVANCE,6))
+	{
+		if (is_paused) {
+			single_step = TRUE;
+			mame_pause(machine, FALSE);
+		}
+		else
+			mame_pause(machine, TRUE);
+	}
+
 	/* Lua scripting */
 	if (ui_input_pressed(machine, IPT_UI_LUA_OPEN))
 		MAME_OpenLuaConsole();
@@ -1477,6 +1470,63 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 		CallRegisteredLuaFunctions(LUACALL_HOTKEY_4);
 	if (ui_input_pressed(machine, IPT_UI_LUA_HOTKEY_5))
 		CallRegisteredLuaFunctions(LUACALL_HOTKEY_5);
+
+	/* save states */
+	if (ui_input_pressed(machine, IPT_UI_SAVE_STATE))
+		return ui_set_handler(handler_load_save, LOADSAVE_SAVE);
+	if (ui_input_pressed(machine, IPT_UI_LOAD_STATE))
+		return ui_set_handler(handler_load_save, LOADSAVE_LOAD);
+	for (int i = IPT_UI_LOAD_STATE_1; i <= IPT_UI_LOAD_STATE_9; i++) {
+		if (ui_input_pressed(machine, i)) {
+			current_savestate=i-IPT_UI_LOAD_STATE_1+1;
+			sprintf(savestate_filename, "%d", current_savestate);
+			popmessage("Load from position %d", current_savestate);
+			mame_schedule_load(machine, savestate_filename);
+			return 0;
+		}
+	}
+	for (int i = IPT_UI_SAVE_STATE_1; i <= IPT_UI_SAVE_STATE_9; i++) {
+		if (ui_input_pressed(machine, i)) {
+			current_savestate=i-IPT_UI_SAVE_STATE_1+1;
+			sprintf(savestate_filename, "%d", current_savestate);
+			popmessage("Save to position %d", current_savestate);
+			mame_schedule_save(machine, savestate_filename);
+			return 0;
+		}
+	}
+	for (int i = IPT_UI_SELECT_STATE_1; i <= IPT_UI_SELECT_STATE_9; i++) {
+		if (ui_input_pressed(machine, i)) {
+			current_savestate=i-IPT_UI_SELECT_STATE_1+1;
+			popmessage("State %d selected", current_savestate);
+			return 0;
+		}
+	}
+	if (ui_input_pressed(machine, IPT_UI_SELECT_PREV_STATE)) {
+		current_savestate--;
+		if (current_savestate < 1)
+			current_savestate = 1;
+		popmessage("State %d selected", current_savestate);
+		return 0;
+	}
+	if (ui_input_pressed(machine, IPT_UI_SELECT_NEXT_STATE)) {
+		current_savestate++;
+		if (current_savestate > 9)
+			current_savestate = 9;
+		popmessage("State %d selected", current_savestate);
+		return 0;
+	}
+	if (ui_input_pressed(machine, IPT_UI_LOAD_CUR_STATE)) {
+		sprintf(savestate_filename, "%d", current_savestate);
+		popmessage("Load from position %d", current_savestate);
+		mame_schedule_load(machine, savestate_filename);
+		return 0;
+	}
+	if (ui_input_pressed(machine, IPT_UI_SAVE_CUR_STATE)) {
+		sprintf(savestate_filename, "%d", current_savestate);
+		popmessage("Save to position %d", current_savestate);
+		mame_schedule_save(machine, savestate_filename);
+		return 0;
+	}
 
 	return 0;
 }

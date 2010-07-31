@@ -47,7 +47,7 @@ int ramw_x, ramw_y;			//Used to store ramwatch dialog window positions
 AddressWatcher rswatches[MAX_WATCH_COUNT];
 int WatchCount=0;
 
-char applicationPath[2048];
+static char applicationPath[2048];
 struct InitRamWatch
 {
 	InitRamWatch()
