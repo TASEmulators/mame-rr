@@ -246,7 +246,7 @@ Note that this function can return colors that have already been written to the 
 
 Returns the separate RGBA components of the given color.
 
-For example, you can say local r,g,b,a = gui.parsecolor('orange') to retrieve the red/green/blue values of the preset color orange. (You could also omit the a in cases like this.) This uses the same conversion method that MAME uses internally to support the different representations of colors that the GUI library uses. Overriding this function will not change how MAME interprets color values, however. 
+For example, you can say local r,g,b,a = gui.parsecolor('orange') to retrieve the red/green/blue values of the preset color orange. (You could also omit the a in cases like this.) This uses the same conversion method that MAME-RR uses internally to support the different representations of colors that the GUI library uses. Overriding this function will not change how MAME-RR interprets color values, however. 
 
 ===`gui.gdoverlay([int dx=0, int dy=0,] string str [, sx=0, sy=0, sw, sh] [, float alphamul=1.0])`===
 
@@ -288,4 +288,4 @@ Keys are case-sensitive. Keys for keyboard buttons are for buttons, *not* ASCII 
 
 Registers a callback function to run when a certain hotkey is pressed. which is the hotkey number, and currently must be a number between 1 and 5. This range corresponds with the user-configurable hotkeys "Lua Custom Hotkey 1" through "Lua Custom Hotkey 5", which will do nothing when pressed except trigger the aforementioned callback. These hotkeys must be configured by the user in the input settings beforehand. 
 
-The only real advantage this has over other methods of checking input is that it works even if MAME is paused. There is no alternative way of allowing user-controlled activation of script code during a pause, except for using gui.register or other similarly hacky way.
+The only real advantage this has over other methods of checking input is that it works even if MAME-RR is paused. There is no alternative way of allowing user-controlled activation of script code during a pause, except for using gui.register or other similarly hacky ways.
