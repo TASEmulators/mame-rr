@@ -1385,7 +1385,6 @@ static int finish_screen_updates(running_machine *machine)
 
 					fixedvis.max_x++;
 					fixedvis.max_y++;
-					MAME_LuaGui(bitmap);
 					render_texture_set_bitmap(state->texture[state->curbitmap], bitmap, &fixedvis, state->texture_format, palette);
 					state->curtexture = state->curbitmap;
 					state->curbitmap = 1 - state->curbitmap;
@@ -1414,6 +1413,9 @@ static int finish_screen_updates(running_machine *machine)
 	/* draw any crosshairs */
 	for (screen = video_screen_first(machine); screen != NULL; screen = video_screen_next(screen))
 		crosshair_render(screen);
+
+	// draw Lua GUI
+	MAME_LuaGui();
 
 	return anything_changed;
 }

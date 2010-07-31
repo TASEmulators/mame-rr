@@ -33,7 +33,7 @@ int MAME_LuaSpeed();
 //int MAME_LuaFrameskip();
 int MAME_LuaRerecordCountSkip();
 
-void MAME_LuaGui(bitmap_t *bitmap);
+void MAME_LuaGui();
 
 void MAME_LuaWriteInform();
 
