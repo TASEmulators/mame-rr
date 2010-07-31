@@ -1467,6 +1467,17 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 	if (ui_input_pressed(machine, IPT_UI_LUA_RELOAD))
 		MAME_ReloadLuaCode();
 
+	if (ui_input_pressed(machine, IPT_UI_LUA_HOTKEY_1))
+		CallRegisteredLuaFunctions(LUACALL_HOTKEY_1);
+	if (ui_input_pressed(machine, IPT_UI_LUA_HOTKEY_2))
+		CallRegisteredLuaFunctions(LUACALL_HOTKEY_2);
+	if (ui_input_pressed(machine, IPT_UI_LUA_HOTKEY_3))
+		CallRegisteredLuaFunctions(LUACALL_HOTKEY_3);
+	if (ui_input_pressed(machine, IPT_UI_LUA_HOTKEY_4))
+		CallRegisteredLuaFunctions(LUACALL_HOTKEY_4);
+	if (ui_input_pressed(machine, IPT_UI_LUA_HOTKEY_5))
+		CallRegisteredLuaFunctions(LUACALL_HOTKEY_5);
+
 	return 0;
 }
 

@@ -613,6 +613,12 @@ static const input_type_desc core_types[] =
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_STOP,         "Lua Script Stop",        SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_RELOAD,       "Lua Script Reload",      SEQ_DEF_0 )
 
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_HOTKEY_1,     "Lua Custom Hotkey 1",    SEQ_DEF_0 )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_HOTKEY_2,     "Lua Custom Hotkey 2",    SEQ_DEF_0 )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_HOTKEY_3,     "Lua Custom Hotkey 3",    SEQ_DEF_0 )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_HOTKEY_4,     "Lua Custom Hotkey 4",    SEQ_DEF_0 )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_HOTKEY_5,     "Lua Custom Hotkey 5",    SEQ_DEF_0 )
+
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      OSD_1,               NULL,                     SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      OSD_2,               NULL,                     SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      OSD_3,               NULL,                     SEQ_DEF_0 )

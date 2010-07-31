@@ -336,6 +336,12 @@ enum
 	IPT_UI_LUA_STOP,
 	IPT_UI_LUA_RELOAD,
 
+	IPT_UI_LUA_HOTKEY_1,
+	IPT_UI_LUA_HOTKEY_2,
+	IPT_UI_LUA_HOTKEY_3,
+	IPT_UI_LUA_HOTKEY_4,
+	IPT_UI_LUA_HOTKEY_5,
+
 	/* additional OSD-specified UI port types (up to 16) */
 	IPT_OSD_1,
 	IPT_OSD_2,

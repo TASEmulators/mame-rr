@@ -109,7 +109,13 @@ static const char* luaCallIDStrings [] =
 	"CALL_BEFOREEMULATION",
 	"CALL_AFTEREMULATION",
 	"CALL_BEFOREEXIT",
-	"LUACALL_ONSTART",
+	"CALL_ONSTART",
+
+	"CALL_HOTKEY_1",
+	"CALL_HOTKEY_2",
+	"CALL_HOTKEY_3",
+	"CALL_HOTKEY_4",
+	"CALL_HOTKEY_5",
 };
 
 static char* rawToCString(lua_State* L, int idx=0);
@@ -119,6 +125,8 @@ static const char* toCString(lua_State* L, int idx=0);
 static int usingMemoryRegister=0;
 
 static std::string empty_driver("empty");
+static bool is_init = false;
+static bool run_it_once = false;
 
 /**
  * Resets emulator speed / pause states after script exit.
@@ -2663,6 +2671,27 @@ use_console:
 
 }
 
+static int input_registerhotkey(lua_State *L)
+{
+	int hotkeyNumber = luaL_checkinteger(L,1);
+	if(hotkeyNumber < 1 || hotkeyNumber > 5)
+	{
+		luaL_error(L, "input.registerhotkey(n,func) requires 1 <= n <= 5, but got n = %d.", hotkeyNumber);
+		return 0;
+	}
+	else
+	{
+		const char* key = luaCallIDStrings[LUACALL_HOTKEY_1 + hotkeyNumber-1];
+		lua_getfield(L, LUA_REGISTRYINDEX, key);
+		lua_replace(L,1);
+		if (!lua_isnil(L,2))
+			luaL_checktype(L, 2, LUA_TFUNCTION);
+		lua_settop(L,2);
+		lua_setfield(L, LUA_REGISTRYINDEX, key);
+		return 1;
+	}
+}
+
 // string gui.popup(string message, string type = "ok", string icon = "message")
 // string input.popup(string message, string type = "yesno", string icon = "question")
 static int gui_popup(lua_State *L)
@@ -3260,6 +3289,7 @@ static const struct luaL_reg guilib[] = {
 
 static const struct luaL_reg inputlib[] = {
 	{"get", input_getcurrentinputstatus},
+	{"registerhotkey", input_registerhotkey},
 	{"popup", input_popup},
 	// alternative names
 	{"read", input_getcurrentinputstatus},
@@ -3275,8 +3305,9 @@ void MAME_LuaFrameBoundary(running_machine *machine_ptr) {
 		machine = machine_ptr;
 
 	// HA!
-	if (!LUA || !luaRunning)
+	if (!LUA || !luaRunning || (mame_is_paused(machine) && !run_it_once))
 		return;
+	run_it_once = false;
 
 	// Our function needs calling
 	lua_settop(LUA,0);
@@ -3442,7 +3473,9 @@ int MAME_LoadLuaCode(const char *filename) {
 		info_onstart(info_uid);
 
 	// And run it right now. :)
-//	MAME_LuaFrameBoundary(machine);
+	run_it_once = true; // run it now, even if it's paused
+	if (is_init) // but we can't run it before init time
+		MAME_LuaFrameBoundary(machine);
 
 	// Set up our protection hook to be executed once every 10,000 bytecode instructions.
 	lua_sethook(thread, MAME_LuaHookFunction, LUA_MASKCOUNT, 10000);
@@ -3752,4 +3785,5 @@ void lua_init(running_machine *machine_ptr)
 		machine = machine_ptr;
 	add_frame_callback(machine_ptr, MAME_LuaFrameBoundary);
 	CallRegisteredLuaFunctions(LUACALL_ONSTART);
+	is_init = true;
 }
