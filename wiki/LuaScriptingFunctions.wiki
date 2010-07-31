@@ -65,6 +65,13 @@ The ROM name of the parent of the currently loaded game. This returns 0 if the g
 
 The name of source file for the currently running driver. (ex: for Mutant Fighter, this would return "cninja.c", since it uses the same driver of Caveman Ninja.)
 
+===`int emu.screenwidth()`===
+
+Returns the width of the internal resolution that the game uses.
+
+===`int emu.screenheight()`===
+
+Returns the height of the internal resolution that the game uses.
 
 ===`emu.registerbefore(function func)`===
 
