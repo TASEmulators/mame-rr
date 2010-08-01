@@ -61,10 +61,12 @@ SOUNDS += TMS5220
 SOUNDS += OKIM6295
 SOUNDS += HC55516
 SOUNDS += YM3812
+SOUNDS += CEM3394
 SOUNDS += YM2203
 SOUNDS += YM2608
 SOUNDS += YM2610
 SOUNDS += YM2610B
+
 
 
 #-------------------------------------------------

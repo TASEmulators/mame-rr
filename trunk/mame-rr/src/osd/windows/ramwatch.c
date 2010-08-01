@@ -1,19 +1,7 @@
-//#include <windows.h>
-//#include <iostream>
-//#include "emu.h"
-//#include "window.h"
-//#include "resource.h"
-//#include "ram_search.h"
-//#include "ramwatch.h"
-//#include <assert.h>
-//#include <commctrl.h>
-//#include <list>
-//#include <vector>
-//#include "BaseTsd.h"
 
-#include <windows.h>
 #include <iostream>
 #include "emu.h"
+#include <windows.h>
 #include "window.h"
 #include "resource.h"
 
@@ -57,7 +45,7 @@ struct InitRamWatch
 } initRamWatch;
 
 HWND RamWatchHWnd;
-#define gamefilename machine_rw->basename
+#define gamefilename machine_rw->basename()
 #define hWnd win_window_list->hwnd
 #define hInst GetModuleHandle(NULL)
 static char Str_Tmp [1024];

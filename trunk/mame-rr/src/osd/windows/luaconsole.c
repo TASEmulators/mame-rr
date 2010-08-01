@@ -1,8 +1,7 @@
-#include <windows.h>
 #include "emu.h"
+#include <windows.h>
 #include "window.h"
 #include "resource.h"
-
 HWND LuaConsoleHWnd = NULL;
 HFONT hFont = NULL;
 LOGFONT LuaConsoleLogFont;

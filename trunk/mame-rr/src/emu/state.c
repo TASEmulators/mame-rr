@@ -543,19 +543,6 @@ state_save_error state_save_write_file(running_machine *machine, mame_file *file
 		if (mame_fwrite(file, entry->data, totalsize) != totalsize)
 			return STATERR_WRITE_ERROR;
 	}
-
-	/* RERECORDING CODE */
-//	const UINT8 *filedata;
-//	mame_file *record_file;
-//
-//	/* read and write the data if we can */
-//	record_file = get_record_file(machine);
-//	filedata = (const UINT8 *)core_fbuffer(mame_core_file(record_file));
-//	if (filedata != NULL)
-//		mame_fwrite(file, filedata, core_fsize(mame_core_file(record_file)));
-//	else
-//		mame_printf_error("There's no filedata.");
-
 	return STATERR_NONE;
 }
 

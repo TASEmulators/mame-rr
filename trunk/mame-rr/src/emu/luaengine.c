@@ -240,7 +240,7 @@ void MAME_LuaWriteInform() {
 //
 //   Returns the name of the running game.
 static int mame_romname(lua_State *L) {
-	lua_pushstring(L, machine->basename);
+	lua_pushstring(L, machine->basename());
 	return 1;
 }
 
@@ -332,7 +332,7 @@ static int mame_frameadvance(lua_State *L) {
 //  This function MAY be called from a non-frame boundary, but the frame
 //  finishes executing anyways. In this case, the function returns immediately.
 static int mame_pause(lua_State *L) {
-	mame_pause(machine, TRUE);
+	machine->pause();
 	speedmode = SPEED_NORMAL;
 
 	// If it's on a frame boundary, we also yield.
@@ -343,7 +343,7 @@ static int mame_pause(lua_State *L) {
 
 // mame.unpause()
 static int mame_unpause(lua_State *L) {
-	mame_pause(machine, FALSE);
+	machine->resume();
 
 	return lua_yield(L, 0);
 }
@@ -767,14 +767,14 @@ static UINT32 custom_read_dword(const address_space *space, offs_t address) {
 
 static int memory_readbyte(lua_State *L)
 {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, memory_read_byte(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readbytesigned(lua_State *L) {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (signed char)memory_read_byte(space, luaL_checkinteger(L,1)));
 	return 1;
@@ -782,14 +782,14 @@ static int memory_readbytesigned(lua_State *L) {
 
 static int memory_readword(lua_State *L)
 {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, custom_read_word(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readwordsigned(lua_State *L) {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (signed short)custom_read_word(space, luaL_checkinteger(L,1)));
 	return 1;
@@ -797,7 +797,7 @@ static int memory_readwordsigned(lua_State *L) {
 
 static int memory_readdword(lua_State *L)
 {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	UINT32 val = custom_read_dword(space, luaL_checkinteger(L,1));
 
@@ -810,14 +810,14 @@ static int memory_readdword(lua_State *L)
 }
 
 static int memory_readdwordsigned(lua_State *L) {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (INT32)custom_read_dword(space, luaL_checkinteger(L,1)));
 	return 1;
 }
 
 static int memory_readbyterange(lua_State *L) {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	int a,n;
 	UINT32 address = luaL_checkinteger(L,1);
 	int length = luaL_checkinteger(L,2);
@@ -877,7 +877,7 @@ void custom_write_dword(const address_space *space, offs_t address, UINT32 data)
 
 static int memory_writebyte(lua_State *L)
 {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	memory_write_byte(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
@@ -885,7 +885,7 @@ static int memory_writebyte(lua_State *L)
 
 static int memory_writeword(lua_State *L)
 {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	custom_write_word(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
@@ -893,7 +893,7 @@ static int memory_writeword(lua_State *L)
 
 static int memory_writedword(lua_State *L)
 {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	custom_write_dword(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
@@ -906,7 +906,7 @@ static int memory_writedword(lua_State *L)
 //  written to. No args are given to the function. The write has already
 //  occurred, so the new address is readable.
 static int memory_registerwrite(lua_State *L) {
-	if (empty_driver.compare(machine->basename) == 0) luaL_error(L, "no game loaded");
+	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	// Check args
 	unsigned int addr = luaL_checkinteger(L, 1);
 	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
@@ -945,7 +945,7 @@ static int joy_get_internal(lua_State *L, bool reportUp, bool reportDown) {
 	const input_port_config *port;
 
 	// iterate over the input ports and add menu items
-	for (port = machine->portlist.first(); port != NULL; port = port->next)
+	for (port = machine->m_portlist.first(); port != NULL; port = port->next())
 		for (field = port->fieldlist; field != NULL; field = field->next) {
 			const char *name = input_field_name(field);
 
@@ -1009,7 +1009,7 @@ static int joypad_set(lua_State *L) {
 	const input_port_config *port;
 
 	// iterate over the input ports and add menu items
-	for (port = machine->portlist.first(); port != NULL; port = port->next)
+	for (port = machine->m_portlist.first(); port != NULL; port = port->next())
 		for (field = port->fieldlist; field != NULL; field = field->next) {
 			const char *name = input_field_name(field);
 
@@ -1132,7 +1132,7 @@ static int savestate_save(lua_State *L) {
 	// Save states are very expensive. They take time.
 	numTries--;
 
-	mame_schedule_save(machine, filename);
+	machine->schedule_save(filename);
 	return 0;
 }
 
@@ -1149,7 +1149,7 @@ static int savestate_load(lua_State *L) {
 
 	numTries--;
 
-	mame_schedule_load(machine, filename);
+	machine->schedule_load(filename);
 	return 0;
 }
 
@@ -1179,7 +1179,7 @@ static int savestate_loadscriptdata(lua_State *L) {
 		LuaSaveData saveData;
 
 		char luaSaveFilename [512];
-		sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename, PATH_SEPARATOR, filename);
+		sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 		FILE* luaSaveFile = fopen(luaSaveFilename, "rb");
 		if(luaSaveFile)
 		{
@@ -1199,10 +1199,9 @@ static int savestate_loadscriptdata(lua_State *L) {
 //
 //   Gets the frame counter for the movie
 int movie_framecount(lua_State *L) {
-	lua_pushinteger(L, video_screen_get_frame_number(machine->primary_screen));
+	lua_pushinteger(L, machine->primary_screen->frame_number());
 	return 1;
 }
-
 
 // string movie.mode()
 //
@@ -1243,8 +1242,8 @@ static int movie_stop(lua_State *L) {
 static void gui_prepare() {
 	int x,y;
 
-	LUA_SCREEN_WIDTH  = video_screen_get_visible_area(machine->primary_screen)->max_x - video_screen_get_visible_area(machine->primary_screen)->min_x + 1;
-	LUA_SCREEN_HEIGHT = video_screen_get_visible_area(machine->primary_screen)->max_y - video_screen_get_visible_area(machine->primary_screen)->min_y + 1;
+	LUA_SCREEN_WIDTH  = machine->primary_screen->visible_area().max_x - machine->primary_screen->visible_area().min_x + 1;
+	LUA_SCREEN_HEIGHT = machine->primary_screen->visible_area().max_y - machine->primary_screen->visible_area().min_y + 1;
 
 	if ( (LUA_SCREEN_WIDTH != old_screen_width) || (LUA_SCREEN_HEIGHT != old_screen_height) ) {
 		if (gui_bitmap != NULL) bitmap_free(gui_bitmap);
@@ -3331,15 +3330,15 @@ static const struct luaL_reg inputlib[] = {
 };
 
 
-void MAME_LuaFrameBoundary(running_machine *machine_ptr) {
+void MAME_LuaFrameBoundary(running_machine &machine_ptr) {
 	lua_State *thread;
 	int result;
 
-	if (machine != machine_ptr)
-		machine = machine_ptr;
+	if (machine != &machine_ptr)
+		machine = &machine_ptr;
 
 	// HA!
-	if (!LUA || !luaRunning || (mame_is_paused(machine) && !run_it_once))
+	if (!LUA || !luaRunning || (machine->paused() && !run_it_once))
 		return;
 	run_it_once = false;
 
@@ -3509,7 +3508,7 @@ int MAME_LoadLuaCode(const char *filename) {
 	// And run it right now. :)
 	run_it_once = true; // run it now, even if it's paused
 	if (is_init) // but we can't run it before init time
-		MAME_LuaFrameBoundary(machine);
+		MAME_LuaFrameBoundary(*machine);
 
 	// Set up our protection hook to be executed once every 10,000 bytecode instructions.
 	lua_sethook(thread, MAME_LuaHookFunction, LUA_MASKCOUNT, 10000);
@@ -3598,7 +3597,7 @@ UINT32 MAME_LuaReadJoypad() {
 		const input_port_config *port;
 	
 		// iterate over the input ports and add menu items
-		for (port = machine->portlist.first(); port != NULL; port = port->next)
+		for (port = machine->m_portlist.first(); port != NULL; port = port->next())
 			for (field = port->fieldlist; field != NULL; field = field->next) {
 				const char *name = input_field_name(field);
 	
@@ -3840,6 +3839,13 @@ char* MAME_GetLuaScriptName() {
 	return luaScriptName;
 }
 
+
+static void on_vblank(screen_device &screen, void *param, bool vblank_state)
+{
+	if (!vblank_state)
+		CallRegisteredLuaFunctions(LUACALL_AFTEREMULATION);
+}
+
 void lua_init(running_machine *machine_ptr)
 {
 	const char *filename = options_get_string(mame_options(), OPTION_LUA);
@@ -3850,8 +3856,8 @@ void lua_init(running_machine *machine_ptr)
 	if (machine != machine_ptr)
 		machine = machine_ptr;
 	gui_prepare();
-	add_frame_callback(machine_ptr, MAME_LuaFrameBoundary);
-//	video_screen_register_vblank_callback(machine->primary_screen, CallRegisteredLuaFunctions(LUACALL_AFTEREMULATION), NULL);
+	machine->add_notifier(MACHINE_NOTIFY_FRAME, MAME_LuaFrameBoundary);
+	machine->primary_screen->register_vblank_callback(on_vblank, NULL);
 	CallRegisteredLuaFunctions(LUACALL_ONSTART);
 	is_init = true;
 }

@@ -24,9 +24,9 @@
 // during these sporadic "setup" steps to achieve an all-around faster per-update speed.
 // (You can test this case by performing the search: Modulo 2 Is Specific Address 0)
 
-#include <windows.h>
 #include <iostream>
 #include "emu.h"
+#include <windows.h>
 #include "emuopts.h"
 #include "window.h"
 #include "resource.h"
@@ -37,6 +37,8 @@
 #include <list>
 #include <vector>
 #include <string>
+#undef realloc
+//#undef delete
 
 static std::string empty_driver("empty");
 
@@ -1281,13 +1283,13 @@ LRESULT CustomDraw (LPARAM lParam)
 	return CDRF_DODEFAULT;
 }
 
-void Update_RAM_Search(running_machine *machine) //keeps RAM values up to date in the search and watch windows
+void Update_RAM_Search(running_machine &machine) //keeps RAM values up to date in the search and watch windows
 {
 	if(disableRamSearchUpdate)
 		return;
 
-	if (machine_rw != machine)
-		machine_rw = machine;
+	if (machine_rw != &machine)
+		machine_rw = &machine;
 
 	if (AutoSearch && !ResultCount)
 	{
@@ -2066,7 +2068,7 @@ void init_list_box(HWND Box, const WCHAR* Strs[], int numColumns, int *columnWid
 
 void RamSearchOpen(running_machine *machine)
 {
-	if (empty_driver.compare(machine->basename) == 0) {
+	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Search",MB_OK | MB_ICONSTOP);
 		return;
 	}
@@ -2083,7 +2085,7 @@ void RamSearchOpen(running_machine *machine)
 
 void RamWatchOpen(running_machine *machine)
 {
-	if (empty_driver.compare(machine->basename) == 0) {
+	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Watch",MB_OK | MB_ICONSTOP);
 		return;
 	}

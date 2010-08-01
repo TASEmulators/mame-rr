@@ -20,7 +20,7 @@ enum LuaCallID
 void CallRegisteredLuaFunctions(int calltype);
 
 //void MAME_LuaWrite(UINT32 addr);
-void MAME_LuaFrameBoundary(running_machine *machine);
+void MAME_LuaFrameBoundary(running_machine &machine);
 int MAME_LoadLuaCode(const char *filename);
 void MAME_ReloadLuaCode();
 void MAME_LuaStop();

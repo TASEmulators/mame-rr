@@ -134,6 +134,10 @@ enum
 	IPT_COIN6,
 	IPT_COIN7,
 	IPT_COIN8,
+	IPT_COIN9,
+	IPT_COIN10,
+	IPT_COIN11,
+	IPT_COIN12,
 	IPT_BILL1,
 
 	/* service coin */
@@ -141,6 +145,12 @@ enum
 	IPT_SERVICE2,
 	IPT_SERVICE3,
 	IPT_SERVICE4,
+
+	/* tilt inputs */
+	IPT_TILT1,
+	IPT_TILT2,
+	IPT_TILT3,
+	IPT_TILT4,
 
 	/* misc other digital inputs */
 	IPT_SERVICE,
@@ -765,7 +775,9 @@ public:
 	input_port_config(const char *tag);
 	~input_port_config();
 
-	input_port_config *			next;			/* pointer to next port */
+	input_port_config *next() const { return m_next; }
+
+	input_port_config *			m_next;			/* pointer to next port */
 	const char *				tag;			/* pointer to this port's tag */
 	const input_field_config *	fieldlist;		/* list of input_field_configs */
 
@@ -1156,9 +1168,6 @@ int input_field_has_next_setting(const input_field_config *field);
 /* select the next item for a DIP switch or configuration field */
 void input_field_select_next_setting(const input_field_config *field);
 
-/* helper function to access INP file handles.  **shakes fist at MAMEdev** */
-mame_file* get_record_file(running_machine* machine);
-mame_file* get_playback_file(running_machine* machine);
 
 
 /* ----- port reading ----- */
@@ -1231,6 +1240,10 @@ int input_has_input_class(running_machine *machine, int inputclass);
 int input_player_number(const input_field_config *field);
 int input_count_players(running_machine *machine);
 int input_category_active(running_machine *machine, int category);
+
+/* helper function to access INP file handles.  **shakes fist at MAMEdev** */
+mame_file* get_record_file(running_machine* machine);
+mame_file* get_playback_file(running_machine* machine);
 
 void set_port_digital(const input_port_config *port, UINT32 new_digital);
 
