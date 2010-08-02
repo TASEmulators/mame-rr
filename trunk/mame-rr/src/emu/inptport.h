@@ -44,8 +44,8 @@
 
 
 /* INP file information */
-#define INP_HEADER_SIZE			64
-#define INP_HEADER_MAJVERSION	3
+#define INP_HEADER_SIZE			56
+#define INP_HEADER_MAJVERSION	1
 #define INP_HEADER_MINVERSION	0
 
 
