@@ -269,7 +269,18 @@ struct _input_port_private
 	UINT32						total_frames; /* accumulated frames during playback or recording */
 	UINT32						rerecord_count;
 	UINT32						bytes_per_frame;
+	UINT32						movie_buffer_size;
+	UINT8*						movie_pointer;
 };
+
+static void movie_presave(running_machine *machine, void *param);
+static void movie_postload(running_machine *machine, void *param);
+struct movie_type {
+	UINT8* buffer;    // full movie input buffer
+	UINT32 size;      // movie input buffer size
+	UINT8* pointer;   // pointer to the full movie input buffer
+};
+static struct movie_type movie;
 
 
 typedef struct _inputx_code inputx_code;
@@ -975,13 +986,13 @@ static WRITE_LINE_DEVICE_HANDLER( changed_write_line_device )
 
 time_t input_port_init(running_machine *machine, const input_port_token *tokens)
 {
-	//input_port_private *portdata;
+	input_port_private *portdata;
 	char errorbuf[1024];
 	time_t basetime;
 
 	/* allocate memory for our data structure */
 	machine->input_port_data = auto_alloc_clear(machine, input_port_private);
-	//portdata = machine->input_port_data;
+	portdata = machine->input_port_data;
 
 	/* add an exit callback and a frame callback */
 	machine->add_notifier(MACHINE_NOTIFY_EXIT, input_port_exit);
@@ -1005,6 +1016,26 @@ time_t input_port_init(running_machine *machine, const input_port_token *tokens)
 	/* open playback and record files if specified */
 	basetime = playback_init(machine);
 	record_init(machine);
+
+	// movie rerecording
+	state_save_register_presave(machine, movie_presave, NULL);
+	state_save_register_postload(machine, movie_postload, NULL);
+	state_save_register_memory(machine, "inptport", NULL, 0, "current_frame",
+	                           &portdata->current_frame,
+	                           sizeof(portdata->current_frame),
+	                           1, __FILE__, __LINE__);
+	state_save_register_memory(machine, "inptport", NULL, 0, "rerecord_count",
+	                           &portdata->rerecord_count,
+	                           sizeof(portdata->rerecord_count),
+	                           1, __FILE__, __LINE__);
+	state_save_register_memory(machine, "inptport", NULL, 0, "movie_buffer_size",
+	                           &portdata->movie_buffer_size,
+	                           sizeof(portdata->movie_buffer_size),
+	                           1, __FILE__, __LINE__);
+	state_save_register_memory(machine, "inptport", NULL, 0, "movie_buffer",
+	                           &portdata->movie_pointer,
+	                           sizeof(portdata->movie_pointer[0]),
+	                           portdata->movie_buffer_size, __FILE__, __LINE__);
 
 	return basetime;
 }
@@ -2476,7 +2507,7 @@ profiler_mark_start(PROFILER_INPUT);
 	playback_frame(machine, curtime);
 	record_frame(machine, curtime);
 
-	portdata->total_frames++;
+	portdata->current_frame++;
 
 	/* track the duration of the previous frame */
 	portdata->last_delta_nsec = attotime_to_attoseconds(attotime_sub(curtime, portdata->last_frame_time)) / ATTOSECONDS_PER_NANOSECOND;
@@ -4310,13 +4341,6 @@ static void save_game_inputs(running_machine *machine, xml_data_node *parentnode
     INPUT PLAYBACK
 ***************************************************************************/
 
-struct movie_type {
-	UINT8* buffer;    // full movie input buffer
-	UINT32 size;      // movie input buffer size
-	UINT8* pointer;   // pointer to the full movie input buffer
-};
-static struct movie_type movie;
-
 static void set_bytes_per_frame(running_machine *machine)
 {
 	input_port_private *portdata = machine->input_port_data;
@@ -4349,6 +4373,22 @@ static void reserve_movie_buffer_space(UINT32 space_needed)
 		movie.buffer  = (UINT8*)realloc(movie.buffer, movie.size);
 		movie.pointer = movie.buffer + ptr_offset;
 	}
+}
+
+static void movie_presave(running_machine *machine, void *param)
+{
+	input_port_private *portdata = machine->input_port_data;
+
+	portdata->movie_buffer_size = portdata->bytes_per_frame*(portdata->current_frame+1);
+	portdata->movie_pointer = movie.buffer;
+}
+
+static void movie_postload(running_machine *machine, void *param)
+{
+	input_port_private *portdata = machine->input_port_data;
+
+	portdata->rerecord_count++;
+	movie.pointer = movie.buffer+(portdata->bytes_per_frame * portdata->current_frame);
 }
 
 /*-------------------------------------------------
@@ -4637,9 +4677,9 @@ static void record_end(running_machine *machine, const char *message)
 	/* only applies if we have a live file */
 	if (portdata->record_file != NULL)
 	{
-		mame_fwrite(portdata->record_file, &portdata->total_frames, sizeof(portdata->total_frames));
+		mame_fwrite(portdata->record_file, &portdata->current_frame, sizeof(portdata->current_frame));
 		mame_fwrite(portdata->record_file, &portdata->rerecord_count, sizeof(portdata->rerecord_count));
-		mame_fwrite(portdata->record_file, movie.buffer, portdata->bytes_per_frame*(portdata->total_frames+1));
+		mame_fwrite(portdata->record_file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
 
 		/* close the file */
 		mame_fclose(portdata->record_file);
