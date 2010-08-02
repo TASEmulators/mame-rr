@@ -4557,10 +4557,10 @@ static void record_write_uint8(UINT8 data)
 static void record_write_uint32(UINT32 data)
 {
 	UINT32 result = LITTLE_ENDIANIZE_INT32(data);
-	movie.pointer[0]=(UINT8)result&0xFF;
-	movie.pointer[1]=(UINT8)(result>>8)&0xFF;
-	movie.pointer[2]=(UINT8)(result>>16)&0xFF;
-	movie.pointer[3]=(UINT8)(result>>24)&0xFF;
+	movie.pointer[0]=(UINT8)result;
+	movie.pointer[1]=(UINT8)(result>>8);
+	movie.pointer[2]=(UINT8)(result>>16);
+	movie.pointer[3]=(UINT8)(result>>24);
 	movie.pointer += 4;
 }
 
@@ -4573,14 +4573,14 @@ static void record_write_uint32(UINT32 data)
 static void record_write_uint64(UINT64 data)
 {
 	UINT64 result = LITTLE_ENDIANIZE_INT64(data);
-	movie.pointer[0]=(UINT8)result&0xFF;
-	movie.pointer[1]=(UINT8)(result>>8)&0xFF;
-	movie.pointer[2]=(UINT8)(result>>16)&0xFF;
-	movie.pointer[3]=(UINT8)(result>>24)&0xFF;
-	movie.pointer[4]=(UINT8)(result>>32)&0xFF;
-	movie.pointer[5]=(UINT8)(result>>40)&0xFF;
-	movie.pointer[6]=(UINT8)(result>>48)&0xFF;
-	movie.pointer[7]=(UINT8)(result>>56)&0xFF;
+	movie.pointer[0]=(UINT8)result;
+	movie.pointer[1]=(UINT8)(result>>8);
+	movie.pointer[2]=(UINT8)(result>>16);
+	movie.pointer[3]=(UINT8)(result>>24);
+	movie.pointer[4]=(UINT8)(result>>32);
+	movie.pointer[5]=(UINT8)(result>>40);
+	movie.pointer[6]=(UINT8)(result>>48);
+	movie.pointer[7]=(UINT8)(result>>56);
 	movie.pointer += 8;
 }
 
