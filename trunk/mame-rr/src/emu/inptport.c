@@ -269,12 +269,9 @@ struct _input_port_private
 	UINT32						total_frames; /* accumulated frames during playback or recording */
 	UINT32						rerecord_count;
 	UINT32						bytes_per_frame;
-	UINT32						movie_buffer_size;
-	UINT8*						movie_pointer;
+	UINT8						movie_header[INP_HEADER_SIZE];
 };
 
-static void movie_presave(running_machine *machine, void *param);
-static void movie_postload(running_machine *machine, void *param);
 struct movie_type {
 	UINT8* buffer;    // full movie input buffer
 	UINT32 size;      // movie input buffer size
@@ -1018,24 +1015,14 @@ time_t input_port_init(running_machine *machine, const input_port_token *tokens)
 	record_init(machine);
 
 	// movie rerecording
-	state_save_register_presave(machine, movie_presave, NULL);
-	state_save_register_postload(machine, movie_postload, NULL);
+	state_save_register_memory(machine, "inptport", NULL, 0, "movie_header",
+	                           &portdata->movie_header,
+	                           sizeof(portdata->movie_header[0]),
+	                           sizeof(portdata->movie_header), __FILE__, __LINE__);
 	state_save_register_memory(machine, "inptport", NULL, 0, "current_frame",
 	                           &portdata->current_frame,
 	                           sizeof(portdata->current_frame),
 	                           1, __FILE__, __LINE__);
-	state_save_register_memory(machine, "inptport", NULL, 0, "rerecord_count",
-	                           &portdata->rerecord_count,
-	                           sizeof(portdata->rerecord_count),
-	                           1, __FILE__, __LINE__);
-	state_save_register_memory(machine, "inptport", NULL, 0, "movie_buffer_size",
-	                           &portdata->movie_buffer_size,
-	                           sizeof(portdata->movie_buffer_size),
-	                           1, __FILE__, __LINE__);
-	state_save_register_memory(machine, "inptport", NULL, 0, "movie_buffer",
-	                           &portdata->movie_pointer,
-	                           sizeof(portdata->movie_pointer[0]),
-	                           portdata->movie_buffer_size, __FILE__, __LINE__);
 
 	return basetime;
 }
@@ -4375,18 +4362,17 @@ static void reserve_movie_buffer_space(UINT32 space_needed)
 	}
 }
 
-static void movie_presave(running_machine *machine, void *param)
+void movie_postsave(running_machine *machine, mame_file *file)
 {
-	input_port_private *portdata = machine->input_port_data;
-
-	portdata->movie_buffer_size = portdata->bytes_per_frame*(portdata->current_frame+1);
-	portdata->movie_pointer = movie.buffer;
+	mame_fwrite(file, movie.buffer, machine->input_port_data->bytes_per_frame*(machine->input_port_data->current_frame+1));
 }
 
-static void movie_postload(running_machine *machine, void *param)
+void movie_postload(running_machine *machine, mame_file *file)
 {
 	input_port_private *portdata = machine->input_port_data;
 
+	reserve_movie_buffer_space((portdata->bytes_per_frame*(portdata->current_frame+1)) - (movie.pointer - movie.buffer));
+	mame_fread(file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
 	portdata->rerecord_count++;
 	movie.pointer = movie.buffer+(portdata->bytes_per_frame * portdata->current_frame);
 }
@@ -4442,7 +4428,6 @@ static time_t playback_init(running_machine *machine)
 {
 	const char *filename = options_get_string(machine->options(), OPTION_PLAYBACK);
 	input_port_private *portdata = machine->input_port_data;
-	UINT8 header[INP_HEADER_SIZE];
 	file_error filerr;
 	UINT32 bytes_to_read;
 
@@ -4457,11 +4442,11 @@ static time_t playback_init(running_machine *machine)
 	assert_always(filerr == FILERR_NONE, "Failed to open file for playback");
 
 	/* read the header and verify that it is a modern version; if not, print an error */
-	if (mame_fread(portdata->playback_file, header, sizeof(header)) != sizeof(header))
+	if (mame_fread(portdata->playback_file, portdata->movie_header, sizeof(portdata->movie_header)) != sizeof(portdata->movie_header))
 		fatalerror("Input file is corrupt or invalid (missing header)");
-	if (memcmp(header, "MAMETAS\0", 8) != 0)
+	if (memcmp(portdata->movie_header, "MAMETAS\0", 8) != 0)
 		fatalerror("Input file invalid or in an older, unsupported format");
-	if (header[0x08] != INP_HEADER_MAJVERSION)
+	if (portdata->movie_header[0x08] != INP_HEADER_MAJVERSION)
 		fatalerror("Input file format version mismatch");
 
 	// read movie lenght and rerecord count
@@ -4470,14 +4455,14 @@ static time_t playback_init(running_machine *machine)
 
 	/* output info to console */
 	mame_printf_info("Input file: %s\n", filename);
-	mame_printf_info("INP version %d.%d\n", header[0x08], header[0x09]);
-	mame_printf_info("Recorded using %s\n", header + 0x18);
+	mame_printf_info("INP version %d.%d\n", portdata->movie_header[0x08], portdata->movie_header[0x09]);
+	mame_printf_info("Recorded using %s\n", portdata->movie_header + 0x18);
 	mame_printf_info("Total frames: %d\n", (UINT32)portdata->total_frames);
 	mame_printf_info("Rerecord count: %d\n", (UINT32)portdata->rerecord_count);
 
 	/* verify the header against the current game */
-	if (memcmp(machine->gamedrv->name, header + 0x0c, strlen(machine->gamedrv->name) + 1) != 0)
-		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'\n", header + 0x0c, machine->gamedrv->name);
+	if (memcmp(machine->gamedrv->name, portdata->movie_header + 0x0c, strlen(machine->gamedrv->name) + 1) != 0)
+		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'\n", portdata->movie_header + 0x0c, machine->gamedrv->name);
 
 	/* enable compression */
 	mame_fcompress(portdata->playback_file, FCOMPRESS_NONE);
@@ -4633,7 +4618,6 @@ static void record_init(running_machine *machine)
 {
 	const char *filename = options_get_string(machine->options(), OPTION_RECORD);
 	input_port_private *portdata = machine->input_port_data;
-	UINT8 header[INP_HEADER_SIZE];
 	file_error filerr;
 
 	/* if no file, nothing to do */
@@ -4647,15 +4631,12 @@ static void record_init(running_machine *machine)
 	assert_always(filerr == FILERR_NONE, "Failed to open file for recording");
 
 	/* fill in the header */
-	memset(header, 0, sizeof(header));
-	memcpy(header, "MAMETAS\0", 8);
-	header[0x08] = INP_HEADER_MAJVERSION;
-	header[0x09] = INP_HEADER_MINVERSION;
-	strcpy((char *)header + 0x0c, machine->gamedrv->name);
-	sprintf((char *)header + 0x18, APPNAME " %s", build_version);
-
-	/* write it */
-	mame_fwrite(portdata->record_file, header, sizeof(header));
+	memset(portdata->movie_header, 0, sizeof(portdata->movie_header));
+	memcpy(portdata->movie_header, "MAMETAS\0", 8);
+	portdata->movie_header[0x08] = INP_HEADER_MAJVERSION;
+	portdata->movie_header[0x09] = INP_HEADER_MINVERSION;
+	strcpy((char *)portdata->movie_header + 0x0c, machine->gamedrv->name);
+	sprintf((char *)portdata->movie_header + 0x18, APPNAME " %s", build_version);
 
 	/* enable compression */
 	mame_fcompress(portdata->record_file, FCOMPRESS_NONE);
@@ -4677,6 +4658,7 @@ static void record_end(running_machine *machine, const char *message)
 	/* only applies if we have a live file */
 	if (portdata->record_file != NULL)
 	{
+		mame_fwrite(portdata->record_file, portdata->movie_header, sizeof(portdata->movie_header));
 		mame_fwrite(portdata->record_file, &portdata->current_frame, sizeof(portdata->current_frame));
 		mame_fwrite(portdata->record_file, &portdata->rerecord_count, sizeof(portdata->rerecord_count));
 		mame_fwrite(portdata->record_file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));

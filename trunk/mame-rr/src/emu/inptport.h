@@ -1246,5 +1246,7 @@ mame_file* get_record_file(running_machine* machine);
 mame_file* get_playback_file(running_machine* machine);
 
 void set_port_digital(const input_port_config *port, UINT32 new_digital);
+void movie_postsave(running_machine *machine, mame_file *file);
+void movie_postload(running_machine *machine, mame_file *file);
 
 #endif	/* __INPTPORT_H__ */

@@ -850,10 +850,16 @@ void running_machine::handle_saveload()
 				break;
 		}
 
-		if (staterr == STATERR_NONE && m_saveload_schedule == SLS_SAVE)
-			luasav_save(fullname);
-		if (staterr == STATERR_NONE && m_saveload_schedule == SLS_LOAD)
-			luasav_load(fullname);
+		if (staterr == STATERR_NONE) {
+			if (m_saveload_schedule == SLS_SAVE)
+				movie_postsave(this, file);
+			if (m_saveload_schedule == SLS_LOAD)
+				movie_postload(this, file);
+			if (m_saveload_schedule == SLS_SAVE)
+				luasav_save(fullname);
+			if (m_saveload_schedule == SLS_LOAD)
+				luasav_load(fullname);
+		}
 		// close and perhaps delete the file
 		mame_fclose(file);
 		if (staterr != STATERR_NONE && m_saveload_schedule == SLS_SAVE)
