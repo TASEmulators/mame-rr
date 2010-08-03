@@ -115,7 +115,6 @@
 #include "streams.h"
 #include "crsshair.h"
 #include "validity.h"
-#include "luasav.h"
 #include "debug/debugcon.h"
 
 #include <time.h>
@@ -561,29 +560,12 @@ void running_machine::set_saveload_filename(const char *filename)
 
 void running_machine::schedule_save(const char *filename)
 {
-	LuaSaveData saveData;
-	char luaSaveFilename [512];
-
 	// specify the filename to save or load
 	set_saveload_filename(filename);
 
 	// note the start time and set a timer for the next timeslice to actually schedule it
 	m_saveload_schedule = SLS_SAVE;
 	m_saveload_schedule_time = timer_get_time(this);
-
-	// call savestate.save callback if any and store the results in a luasav file if any
-	CallRegisteredLuaSaveFunctions(filename, saveData);
-	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, basename(), PATH_SEPARATOR, filename);
-	if (saveData.recordList) {
-		FILE* luaSaveFile = fopen(luaSaveFilename, "wb");
-		if(luaSaveFile) {
-			saveData.ExportRecords(luaSaveFile);
-			fclose(luaSaveFile);
-		}
-	}
-	else {
-		unlink(luaSaveFilename);
-	}
 
 	// we can't be paused since we need to clear out anonymous timers
 //	resume();
@@ -597,25 +579,12 @@ void running_machine::schedule_save(const char *filename)
 
 void running_machine::schedule_load(const char *filename)
 {
-	LuaSaveData saveData;
-	char luaSaveFilename [512];
-
 	// specify the filename to save or load
 	set_saveload_filename(filename);
 
 	// note the start time and set a timer for the next timeslice to actually schedule it
 	m_saveload_schedule = SLS_LOAD;
 	m_saveload_schedule_time = timer_get_time(this);
-
-	// call savestate.registerload callback if any
-	// and pass it the result from the previous savestate.registerload callback to the same state if any
-	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, basename(), PATH_SEPARATOR, filename);
-	FILE* luaSaveFile = fopen(luaSaveFilename, "rb");
-	if (luaSaveFile) {
-		saveData.ImportRecords(luaSaveFile);
-		fclose(luaSaveFile);
-	}
-	CallRegisteredLuaLoadFunctions(filename, saveData);
 
 	// we can't be paused since we need to clear out anonymous timers
 //	resume();
@@ -881,6 +850,10 @@ void running_machine::handle_saveload()
 				break;
 		}
 
+		if (staterr == STATERR_NONE && m_saveload_schedule == SLS_SAVE)
+			luasav_save(fullname);
+		if (staterr == STATERR_NONE && m_saveload_schedule == SLS_LOAD)
+			luasav_load(fullname);
 		// close and perhaps delete the file
 		mame_fclose(file);
 		if (staterr != STATERR_NONE && m_saveload_schedule == SLS_SAVE)

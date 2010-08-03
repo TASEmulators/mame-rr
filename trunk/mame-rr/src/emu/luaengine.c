@@ -1033,6 +1033,51 @@ static int joypad_set(lua_State *L) {
 }
 
 
+void luasav_save(const char *fullname) {
+	LuaSaveData saveData;
+	char luaSaveFilename[512];
+	char filename[512];
+	char pathseparator = PATH_SEPARATOR[0];
+
+	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator))-5 );
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE),
+	        PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
+
+	// call savestate.save callback if any and store the results in a luasav file if any
+	CallRegisteredLuaSaveFunctions(filename, saveData);
+	if (saveData.recordList) {
+		FILE* luaSaveFile = fopen(luaSaveFilename, "wb");
+		if(luaSaveFile) {
+			saveData.ExportRecords(luaSaveFile);
+			fclose(luaSaveFile);
+		}
+	}
+	else {
+		unlink(luaSaveFilename);
+	}
+}
+
+void luasav_load(const char *fullname) {
+	LuaSaveData saveData;
+	char luaSaveFilename[512];
+	char filename[512];
+	char pathseparator = PATH_SEPARATOR[0];
+
+	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator))-5 );
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE),
+	        PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
+
+	// call savestate.registerload callback if any
+	// and pass it the result from the previous savestate.registerload callback to the same state if any
+	FILE* luaSaveFile = fopen(luaSaveFilename, "rb");
+	if (luaSaveFile) {
+		saveData.ImportRecords(luaSaveFile);
+		fclose(luaSaveFile);
+	}
+	CallRegisteredLuaLoadFunctions(filename, saveData);
+}
+
+
 // Helper function to convert a savestate object to the filename it represents.
 static char *savestateobj2filename(lua_State *L, int offset) {
 	// First we get the metatable of the indicated object

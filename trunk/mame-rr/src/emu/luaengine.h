@@ -43,6 +43,8 @@ void MAME_LuaEnableGui(UINT8 enabled);
 char* MAME_GetLuaScriptName();
 struct lua_State* MAME_GetLuaState();
 
+void luasav_save(const char *filename);
+void luasav_load(const char *filename);
 void lua_init(running_machine *machine);
 
 #endif
