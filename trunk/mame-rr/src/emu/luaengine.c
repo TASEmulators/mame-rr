@@ -235,6 +235,17 @@ void MAME_LuaWriteInform() {
 ///////////////////////////
 
 
+// mame.hardreset()
+static int mame_hardreset(lua_State *L) {
+	machine->schedule_hard_reset();
+	return 1;
+}
+
+// mame.softreset()
+static int mame_softreset(lua_State *L) {
+	machine->schedule_soft_reset();
+	return 1;
+}
 
 // string mame.romname()
 //
@@ -3248,6 +3259,8 @@ void CallRegisteredLuaFunctions(int calltype)
 
 
 static const struct luaL_reg mamelib [] = {
+	{"hardreset", mame_hardreset},
+	{"softreset", mame_softreset},
 	{"romname", mame_romname},
 	{"gamename", mame_gamename},
 	{"parentname", mame_parentname},
