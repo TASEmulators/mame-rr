@@ -3938,16 +3938,16 @@ static void on_vblank(screen_device &screen, void *param, bool vblank_state)
 void lua_exit(running_machine &machine)
 {
 	// free bitmaps and textures for the GUI
-		if (gui_texture != NULL)
-			render_texture_free(gui_texture);
-		gui_texture = NULL;
+	if (gui_texture != NULL)
+		render_texture_free(gui_texture);
+	gui_texture = NULL;
 
-		if (gui_bitmap != NULL)
-			bitmap_free(gui_bitmap);
-		gui_bitmap = NULL;
-		
-		old_screen_width  = 0;
-		old_screen_height = 0;
+	if (gui_bitmap != NULL)
+		bitmap_free(gui_bitmap);
+	gui_bitmap = NULL;
+	
+	old_screen_width  = 0;
+	old_screen_height = 0;
 }
 
 void lua_init(running_machine *machine_ptr)

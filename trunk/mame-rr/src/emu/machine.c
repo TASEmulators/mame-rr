@@ -128,6 +128,7 @@
 // a giant string buffer for temporary strings
 static char giant_string_buffer[65536] = { 0 };
 
+bool start_paused = false;
 
 
 //**************************************************************************
@@ -403,6 +404,11 @@ int running_machine::run(bool firstrun)
 		// perform a soft reset -- this takes us to the running phase
 		soft_reset();
 
+		if (start_paused) {
+			pause();
+			start_paused = false;
+		}
+
 		// run the CPUs until a reset or exit
 		m_hard_reset_pending = false;
 		while ((!m_hard_reset_pending && !m_exit_pending) || m_saveload_schedule != SLS_NONE)
@@ -495,6 +501,9 @@ void running_machine::schedule_hard_reset()
 {
 	m_hard_reset_pending = true;
 
+	if (m_paused)
+		start_paused = true;
+
 	// if we're executing, abort out immediately
 	m_scheduler.eat_all_cycles();
 }
@@ -510,7 +519,7 @@ void running_machine::schedule_soft_reset()
 	timer_adjust_oneshot(m_soft_reset_timer, attotime_zero, 0);
 
 	// we can't be paused since the timer needs to fire
-	resume();
+//	resume();
 
 	// if we're executing, abort out immediately
 	m_scheduler.eat_all_cycles();
