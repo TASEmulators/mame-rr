@@ -1052,8 +1052,11 @@ void luasav_save(const char *fullname) {
 	char luaSaveFilename[512];
 	char filename[512];
 	char pathseparator = PATH_SEPARATOR[0];
+	char* filenameEnd;
 
-	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator))-5 );
+	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator)) );
+	filenameEnd = strrchr(filename, '.');
+	filenameEnd[0] = '\0';
 	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE),
 	        PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 
@@ -1076,8 +1079,11 @@ void luasav_load(const char *fullname) {
 	char luaSaveFilename[512];
 	char filename[512];
 	char pathseparator = PATH_SEPARATOR[0];
+	char* filenameEnd;
 
-	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator))-5 );
+	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator)) );
+	filenameEnd = strrchr(filename, '.');
+	filenameEnd[0] = '\0';
 	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE),
 	        PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 
@@ -1235,7 +1241,7 @@ static int savestate_registerload(lua_State *L) {
 static int savestate_loadscriptdata(lua_State *L) {
 	const char *filename;
 	LuaSaveData saveData;
-	char luaSaveFilename [512];
+	char luaSaveFilename[512];
 	FILE* luaSaveFile;
 
 	if (lua_type(L,1) == LUA_TUSERDATA)
@@ -1254,6 +1260,20 @@ static int savestate_loadscriptdata(lua_State *L) {
 		saveData.LoadRecord(L, LUA_DATARECORDKEY, (unsigned int)-1);
 		return lua_gettop(L);
 	}
+	return 0;
+}
+
+static int savestate_savescriptdata(lua_State *L) {
+	const char *filename;
+	char luaSaveFilename[512];
+
+	if (lua_type(L,1) == LUA_TUSERDATA)
+		filename = savestateobj2filename(L,1);
+	else
+		filename = luaL_checkstring(L,1);
+
+	sprintf(luaSaveFilename, "%s%s%s%s%s.sta", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
+	luasav_save(luaSaveFilename);
 	return 0;
 }
 
@@ -3340,6 +3360,7 @@ static const struct luaL_reg savestatelib[] = {
 
 	{"registersave", savestate_registersave},
 	{"registerload", savestate_registerload},
+	{"savescriptdata", savestate_savescriptdata},
 	{"loadscriptdata", savestate_loadscriptdata},
 
 	{NULL,NULL}
