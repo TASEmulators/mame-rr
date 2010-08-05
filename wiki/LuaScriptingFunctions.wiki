@@ -63,7 +63,7 @@ The ROM name of the parent of the currently loaded game. This returns 0 if the g
 
 ===`string emu.sourcename()`===
 
-The name of source file for the currently running driver. (ex: for Mutant Fighter, this would return "cninja.c", since it uses the same driver of Caveman Ninja.)
+The name of the source file for the currently running driver. (ex: for Mutant Fighter, this would return "cninja.c", since it uses the same driver of Caveman Ninja.)
 
 ===`int emu.screenwidth()`===
 
@@ -182,6 +182,10 @@ The callback function func will receive the save slot number as an argument when
 Registers a function to get called whenever the emulation state is loaded from any save slot (either by the user or by a script). 
 
 The callback function func will receive the save slot number as its first argument when it is called. It will also receive as additional arguments whatever data was returned by a callback registered by savestate.registersave when the state being loaded was last saved. If you don't need to use that data now then don't define your load callback with any additional arguments.
+
+===`savestate.savescriptdata(string location)`===
+
+Calls any registered save callbacks and saves the return values alongside the savestate that's at the given location. location should be a save slot.
 
 ===`savestate.loadscriptdata(string location)`===
 
