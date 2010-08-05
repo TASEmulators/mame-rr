@@ -123,7 +123,7 @@ static UINT8 non_char_keys_down[(ARRAY_LENGTH(non_char_keys) + 7) / 8];
 
 /* save state stuff */
 static char savestate_filename[20];
-static int current_savestate;
+static int current_savestate=1;
 
 
 /***************************************************************************

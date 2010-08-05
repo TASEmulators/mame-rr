@@ -5604,14 +5604,22 @@ static void execute_dumpkbd(running_machine *machine, int ref, int params, const
 /* INP file handle helper functions */
 mame_file* get_record_file(running_machine* machine)
 {
-	input_port_private *portdata = machine->input_port_data;
-	return portdata->record_file;
+	return machine->input_port_data->record_file;
 }
 
 mame_file* get_playback_file(running_machine* machine)
 {
-	input_port_private *portdata = machine->input_port_data;
-	return portdata->playback_file;
+	return machine->input_port_data->playback_file;
+}
+
+UINT32 get_current_frame(running_machine* machine)
+{
+	return machine->input_port_data->current_frame;
+}
+
+UINT32 get_port_digital(const input_port_config *port)
+{
+	return port->state->digital;
 }
 
 void set_port_digital(const input_port_config *port, UINT32 new_digital)

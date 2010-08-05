@@ -1032,7 +1032,10 @@ static int joypad_set(lua_State *L) {
 				((field->type == IPT_OTHER && field->name != NULL) || input_type_group(machine, field->type, field->player) != IPG_INVALID)) {
 					lua_getfield(L, 1, name);
 					if (!lua_isnil(L,-1)) {
-						lua_joypads[i] = 1;
+						if (lua_toboolean(L,-1))
+							lua_joypads[i] = 1; // pressed
+						else
+							lua_joypads[i] = 2; // unpressed
 //						mame_printf_info("*JOYPAD*: '%s' : %d\n",name,lua_joypads[i]);
 					}
 					lua_pop(L,1);
@@ -1230,22 +1233,26 @@ static int savestate_registerload(lua_State *L) {
 }
 
 static int savestate_loadscriptdata(lua_State *L) {
-	const char *filename = savestateobj2filename(L,1);
+	const char *filename;
+	LuaSaveData saveData;
+	char luaSaveFilename [512];
+	FILE* luaSaveFile;
+
+	if (lua_type(L,1) == LUA_TUSERDATA)
+		filename = savestateobj2filename(L,1);
+	else
+		filename = luaL_checkstring(L,1);
+
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
+	luaSaveFile = fopen(luaSaveFilename, "rb");
+	if(luaSaveFile)
 	{
-		LuaSaveData saveData;
+		saveData.ImportRecords(luaSaveFile);
+		fclose(luaSaveFile);
 
-		char luaSaveFilename [512];
-		sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
-		FILE* luaSaveFile = fopen(luaSaveFilename, "rb");
-		if(luaSaveFile)
-		{
-			saveData.ImportRecords(luaSaveFile);
-			fclose(luaSaveFile);
-
-			lua_settop(L, 0);
-			saveData.LoadRecord(L, LUA_DATARECORDKEY, (unsigned int)-1);
-			return lua_gettop(L);
-		}
+		lua_settop(L, 0);
+		saveData.LoadRecord(L, LUA_DATARECORDKEY, (unsigned int)-1);
+		return lua_gettop(L);
 	}
 	return 0;
 }
@@ -1255,7 +1262,7 @@ static int savestate_loadscriptdata(lua_State *L) {
 //
 //   Gets the frame counter for the movie
 int movie_framecount(lua_State *L) {
-	lua_pushinteger(L, machine->primary_screen->frame_number());
+	lua_pushinteger(L, get_current_frame(machine));
 	return 1;
 }
 
@@ -3666,7 +3673,10 @@ UINT32 MAME_LuaReadJoypad() {
 	#endif // MESS
 					((field->type == IPT_OTHER && field->name != NULL) || input_type_group(machine, field->type, field->player) != IPG_INVALID)) {
 						if(lua_joypads[i] == 1) {
-							set_port_digital(port,( (~input_port_read_direct(port)) ^ field->mask) );
+							set_port_digital(port, get_port_digital(port) | field->mask);
+						}
+						if(lua_joypads[i] == 2) {
+							set_port_digital(port, get_port_digital(port) & (~field->mask));
 						}
 //						mame_printf_info("*READ_JOY*: '%s' %d (%X:%X:%X:%X)\n",name,lua_joypads[i],caca,field->mask,(caca ^ field->mask),(caca & field->mask));
 						i++;

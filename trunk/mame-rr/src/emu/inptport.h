@@ -1244,7 +1244,9 @@ int input_category_active(running_machine *machine, int category);
 /* helper function to access INP file handles.  **shakes fist at MAMEdev** */
 mame_file* get_record_file(running_machine* machine);
 mame_file* get_playback_file(running_machine* machine);
+UINT32 get_current_frame(running_machine* machine);
 
+UINT32 get_port_digital(const input_port_config *port);
 void set_port_digital(const input_port_config *port, UINT32 new_digital);
 void movie_postsave(running_machine *machine, mame_file *file);
 void movie_postload(running_machine *machine, mame_file *file);
