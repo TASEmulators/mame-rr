@@ -583,13 +583,12 @@ const char *video_get_speed_text(running_machine *machine)
 	bool paused = machine->paused();
 	static char buffer[1024];
 	char *dest = buffer;
-	screen_device* state = machine->primary_screen;
 
 	/* validate */
 	assert(machine != NULL);
 
 	/* show frame counter */
-	dest += sprintf(dest, "[%i] : ",(UINT32)state->frame_number());
+	dest += sprintf(dest, "[%i] : ",get_current_frame(machine));
 
 	/* if we're paused, just display Paused */
 	if (paused)

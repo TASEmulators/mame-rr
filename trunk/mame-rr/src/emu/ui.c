@@ -100,7 +100,7 @@ static UINT32 ui_handler_param;
 static int single_step;
 
 /* FPS counter display */
-static int showfps;
+static int showfps = 1;
 static osd_ticks_t showfps_end;
 
 /* profiler display */
