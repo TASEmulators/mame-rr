@@ -3935,6 +3935,21 @@ static void on_vblank(screen_device &screen, void *param, bool vblank_state)
 		CallRegisteredLuaFunctions(LUACALL_AFTEREMULATION);
 }
 
+void lua_exit(running_machine &machine)
+{
+	// free bitmaps and textures for the GUI
+		if (gui_texture != NULL)
+			render_texture_free(gui_texture);
+		gui_texture = NULL;
+
+		if (gui_bitmap != NULL)
+			bitmap_free(gui_bitmap);
+		gui_bitmap = NULL;
+		
+		old_screen_width  = 0;
+		old_screen_height = 0;
+}
+
 void lua_init(running_machine *machine_ptr)
 {
 	const char *filename = options_get_string(mame_options(), OPTION_LUA);
@@ -3946,6 +3961,7 @@ void lua_init(running_machine *machine_ptr)
 		machine = machine_ptr;
 	gui_prepare();
 	machine->add_notifier(MACHINE_NOTIFY_FRAME, MAME_LuaFrameBoundary);
+	machine->add_notifier(MACHINE_NOTIFY_EXIT, lua_exit);
 	machine->primary_screen->register_vblank_callback(on_vblank, NULL);
 	CallRegisteredLuaFunctions(LUACALL_ONSTART);
 	is_init = true;

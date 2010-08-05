@@ -584,7 +584,7 @@ static const input_type_desc core_types[] =
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_DEBUG_BREAK,      "Break in Debugger",      SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_CONFIGURE,        "Config Menu",            SEQ_DEF_1(KEYCODE_TAB) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_PAUSE,            "Pause",                  SEQ_DEF_1(KEYCODE_P) )
-	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_RESET_MACHINE,    "Reset Game",             SEQ_DEF_2(KEYCODE_F3, KEYCODE_LSHIFT) )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_RESET_MACHINE,    "Reset Game",             SEQ_DEF_2(KEYCODE_F3, KEYCODE_LALT) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_SOFT_RESET,       "Soft Reset",             SEQ_DEF_2(KEYCODE_F3, KEYCODE_LCONTROL) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_SHOW_GFX,         "Show Gfx",               SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_FRAMESKIP_DEC,    "Frameskip Dec",          SEQ_DEF_0 )
