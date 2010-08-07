@@ -377,6 +377,8 @@ finishit:
 
 void RamWatchOpen(running_machine *machine);
 void RamSearchOpen(running_machine *machine);
+void start_record_dialog(running_machine *machine);
+void start_playback_dialog(running_machine *machine);
 static void check_osd_inputs(running_machine *machine)
 {
 	// check for toggling fullscreen mode
@@ -394,6 +396,12 @@ static void check_osd_inputs(running_machine *machine)
 		RamSearchOpen(machine);
 	if (ui_input_pressed(machine, IPT_OSD_4))
 		RamWatchOpen(machine);
+
+	// movie dialogs
+	if (ui_input_pressed(machine, IPT_OSD_5))
+		start_record_dialog(machine);
+	if (ui_input_pressed(machine, IPT_OSD_6))
+		start_playback_dialog(machine);
 }
 
 

@@ -11,6 +11,8 @@
 #define IDC_LUACONSOLE_CHOOSEFONT       19
 #define IDC_LUACONSOLE_CLEAR            20
 
+#define IDD_REPLAYINP                   234
+#define IDD_RECORDINP                   235
 #define IDD_RAMSEARCH                   236
 #define IDD_RAMWATCH                    237
 #define IDD_EDITWATCH                   238
@@ -28,6 +30,15 @@
 #define ID_RAM_WATCH                    11809
 #define RW_MENU_FIRST_RECENT_FILE       11810
 #define RW_MENU_LAST_RECENT_FILE        11811
+#define IDC_CHOOSE_LIST                 20076
+#define IDC_LENGTH                      20255
+#define IDC_FRAMES                      20256
+#define IDC_UNDO                        20257
+#define IDC_METADATA                    20258
+#define IDC_READONLY                    20259
+#define IDC_FILENAME                    20260
+#define IDC_BROWSE                      20261
+#define IDC_REPLAYRESET                 20262
 #define IDC_RAMLIST                     20266
 #define IDC_C_SEARCH                    20267
 #define IDC_C_WATCH                     20269

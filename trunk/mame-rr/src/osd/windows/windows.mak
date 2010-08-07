@@ -280,6 +280,7 @@ OSDOBJS = \
 	$(WINOBJ)/window.o \
 	$(WINOBJ)/winmain.o \
 	$(WINOBJ)/luaconsole.o \
+	$(WINOBJ)/movie.o \
 	$(WINOBJ)/ram_search.o \
 	$(WINOBJ)/ramwatch.o
 

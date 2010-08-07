@@ -968,7 +968,7 @@ static int joy_get_internal(lua_State *L, bool reportUp, bool reportDown) {
 				((field->type == IPT_OTHER && field->name != NULL) || input_type_group(machine, field->type, field->player) != IPG_INVALID)) {
 //					type = input_type_is_analog(field->type) ? INPUT_TYPE_ANALOG : INPUT_TYPE_DIGITAL;
 //					bool pressed = input_seq_pressed(machine,input_field_seq(field, SEQ_TYPE_STANDARD));
-					bool pressed = !(input_port_read_direct(port) & field->mask);
+					bool pressed = get_port_digital(port) & field->mask;
 					if ((pressed && reportDown) || (!pressed && reportUp)) {
 						lua_pushboolean(L,pressed);
 						lua_setfield(L, -2, name);

@@ -800,6 +800,16 @@ void osd_customize_input_type_list(input_type_desc *typelist)
 				typedesc->name = "RAM Watch";
 				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_W, KEYCODE_LCONTROL);
 				break;
+			case IPT_OSD_5:
+				typedesc->token = "MOVIE_RECORD";
+				typedesc->name = "Start Movie Recording";
+				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_N, KEYCODE_LCONTROL);
+				break;
+			case IPT_OSD_6:
+				typedesc->token = "MOVIE_PLAYBACK";
+				typedesc->name = "Start Movie Playback";
+				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_R, KEYCODE_LCONTROL);
+				break;
 
 #ifdef MESS
 			case IPT_UI_THROTTLE:

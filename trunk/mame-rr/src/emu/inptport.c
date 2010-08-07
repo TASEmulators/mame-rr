@@ -263,8 +263,8 @@ struct _input_port_private
 	attoseconds_t				last_delta_nsec;	/* nanoseconds that passed since the previous callback */
 
 	/* playback/record information */
-	mame_file *					record_file;		/* recording file (NULL if not recording) */
-	mame_file *					playback_file;		/* playback file (NULL if not recording) */
+	FILE *					record_file;		/* recording file (NULL if not recording) */
+	FILE *					playback_file;		/* playback file (NULL if not recording) */
 	UINT32						current_frame;
 	UINT32						total_frames; /* accumulated frames during playback or recording */
 	UINT32						rerecord_count;
@@ -278,6 +278,8 @@ struct movie_type {
 	UINT8* pointer;   // pointer to the full movie input buffer
 };
 static struct movie_type movie;
+static char scheduled_record_file[_MAX_PATH];
+static char scheduled_playback_file[_MAX_PATH];
 
 
 typedef struct _inputx_code inputx_code;
@@ -824,7 +826,7 @@ static void save_default_inputs(running_machine *machine, xml_data_node *parentn
 static void save_game_inputs(running_machine *machine, xml_data_node *parentnode);
 
 /* input playback */
-static time_t playback_init(running_machine *machine);
+static void playback_init(running_machine *machine);
 static void playback_end(running_machine *machine, const char *message);
 static void playback_frame(running_machine *machine, attotime curtime);
 static void playback_port(const input_port_config *port);
@@ -985,7 +987,6 @@ time_t input_port_init(running_machine *machine, const input_port_token *tokens)
 {
 	input_port_private *portdata;
 	char errorbuf[1024];
-	time_t basetime;
 
 	/* allocate memory for our data structure */
 	machine->input_port_data = auto_alloc_clear(machine, input_port_private);
@@ -1011,7 +1012,7 @@ time_t input_port_init(running_machine *machine, const input_port_token *tokens)
 	config_register(machine, "input", load_config_callback, save_config_callback);
 
 	/* open playback and record files if specified */
-	basetime = playback_init(machine);
+	playback_init(machine);
 	record_init(machine);
 
 	// movie rerecording
@@ -1024,7 +1025,7 @@ time_t input_port_init(running_machine *machine, const input_port_token *tokens)
 	                           sizeof(portdata->current_frame),
 	                           1, __FILE__, __LINE__);
 
-	return basetime;
+	return 0;
 }
 
 
@@ -4373,7 +4374,8 @@ void movie_postload(running_machine *machine, mame_file *file)
 
 	reserve_movie_buffer_space((portdata->bytes_per_frame*(portdata->current_frame+1)) - (movie.pointer - movie.buffer));
 	mame_fread(file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
-	portdata->rerecord_count++;
+	if (!MAME_LuaRerecordCountSkip())
+		portdata->rerecord_count++;
 	movie.pointer = movie.buffer+(portdata->bytes_per_frame * portdata->current_frame);
 }
 
@@ -4421,28 +4423,25 @@ static UINT64 playback_read_uint64()
 
 
 /*-------------------------------------------------
-    playback_init - initialize INP playback
+    playback_open_file - open INP playback
 -------------------------------------------------*/
 
-static time_t playback_init(running_machine *machine)
+static void playback_open_file(running_machine *machine,const char* filename)
 {
-	const char *filename = options_get_string(machine->options(), OPTION_PLAYBACK);
 	input_port_private *portdata = machine->input_port_data;
-	file_error filerr;
 	UINT32 bytes_to_read;
-
-	/* if no file, nothing to do */
-	if (filename[0] == 0)
-		return 0;
 
 	set_bytes_per_frame(machine);
 
 	/* open the playback file */
-	filerr = mame_fopen(SEARCHPATH_INPUTLOG, filename, OPEN_FLAG_READ, &portdata->playback_file);
-	assert_always(filerr == FILERR_NONE, "Failed to open file for playback");
+	portdata->playback_file = fopen(filename, "r+b");
+	if (!portdata->playback_file) {
+		mame_printf_info("Failed to open file %s for playback.\n", filename);
+		return;
+	}
 
 	/* read the header and verify that it is a modern version; if not, print an error */
-	if (mame_fread(portdata->playback_file, portdata->movie_header, sizeof(portdata->movie_header)) != sizeof(portdata->movie_header))
+	if (fread(portdata->movie_header, 1, sizeof(portdata->movie_header), portdata->playback_file) != sizeof(portdata->movie_header))
 		fatalerror("Input file is corrupt or invalid (missing header)");
 	if (memcmp(portdata->movie_header, "MAMETAS\0", 8) != 0)
 		fatalerror("Input file invalid or in an older, unsupported format");
@@ -4450,8 +4449,8 @@ static time_t playback_init(running_machine *machine)
 		fatalerror("Input file format version mismatch");
 
 	// read movie lenght and rerecord count
-	mame_fread(portdata->playback_file, &portdata->total_frames, sizeof(portdata->total_frames));
-	mame_fread(portdata->playback_file, &portdata->rerecord_count, sizeof(portdata->rerecord_count));
+	fread(&portdata->total_frames, 1, sizeof(portdata->total_frames), portdata->playback_file);
+	fread(&portdata->rerecord_count, 1, sizeof(portdata->rerecord_count), portdata->playback_file);
 
 	/* output info to console */
 	mame_printf_info("Input file: %s\n", filename);
@@ -4464,9 +4463,6 @@ static time_t playback_init(running_machine *machine)
 	if (memcmp(machine->gamedrv->name, portdata->movie_header + 0x0c, strlen(machine->gamedrv->name) + 1) != 0)
 		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'\n", portdata->movie_header + 0x0c, machine->gamedrv->name);
 
-	/* enable compression */
-	mame_fcompress(portdata->playback_file, FCOMPRESS_NONE);
-
 	// initialize movie
 	movie.pointer = movie.buffer;
 	movie.size = 0;
@@ -4474,9 +4470,27 @@ static time_t playback_init(running_machine *machine)
 	// fill buffer
 	bytes_to_read = portdata->bytes_per_frame*(portdata->total_frames+1);
 	reserve_movie_buffer_space(bytes_to_read);
-	mame_fread(portdata->playback_file, movie.buffer, bytes_to_read);
+	fread(movie.buffer, 1, bytes_to_read, portdata->playback_file);
+}
 
-	return 0;
+
+/*-------------------------------------------------
+    playback_init - initialize INP playback
+-------------------------------------------------*/
+
+static void playback_init(running_machine *machine)
+{
+	char filename[_MAX_PATH];
+
+	strncpy(filename,options_get_string(machine->options(), OPTION_PLAYBACK),_MAX_PATH);
+	if (scheduled_playback_file[0] != 0) {
+		strncpy(filename,scheduled_playback_file,_MAX_PATH);
+		scheduled_playback_file[0] = 0;
+	}
+
+	/* if file, open */
+	if (filename[0] != 0)
+		playback_open_file(machine, filename);
 }
 
 
@@ -4492,7 +4506,7 @@ static void playback_end(running_machine *machine, const char *message)
 	if (portdata->playback_file != NULL)
 	{
 		/* close the file */
-		mame_fclose(portdata->playback_file);
+		fclose(portdata->playback_file);
 		portdata->playback_file = NULL;
 
 		/* pop a message */
@@ -4611,24 +4625,21 @@ static void record_write_uint64(UINT64 data)
 
 
 /*-------------------------------------------------
-    record_init - initialize INP recording
+    record_open_file - open INP recording
 -------------------------------------------------*/
 
-static void record_init(running_machine *machine)
+static void record_open_file(running_machine *machine,const char* filename)
 {
-	const char *filename = options_get_string(machine->options(), OPTION_RECORD);
 	input_port_private *portdata = machine->input_port_data;
-	file_error filerr;
-
-	/* if no file, nothing to do */
-	if (filename[0] == 0)
-		return;
 
 	set_bytes_per_frame(machine);
 
 	/* open the record file  */
-	filerr = mame_fopen(SEARCHPATH_INPUTLOG, filename, OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS, &portdata->record_file);
-	assert_always(filerr == FILERR_NONE, "Failed to open file for recording");
+	portdata->record_file = fopen(filename, "w+b");
+	if (!portdata->record_file) {
+		mame_printf_info("Failed to open file %s for recording.\n", filename);
+		return;
+	}
 
 	/* fill in the header */
 	memset(portdata->movie_header, 0, sizeof(portdata->movie_header));
@@ -4638,12 +4649,29 @@ static void record_init(running_machine *machine)
 	strcpy((char *)portdata->movie_header + 0x0c, machine->gamedrv->name);
 	sprintf((char *)portdata->movie_header + 0x18, APPNAME " %s", build_version);
 
-	/* enable compression */
-	mame_fcompress(portdata->record_file, FCOMPRESS_NONE);
-
 	// initialize movie
 	movie.pointer = movie.buffer;
 	movie.size = 0;
+}
+
+
+/*-------------------------------------------------
+    record_init - initialize INP recording
+-------------------------------------------------*/
+
+static void record_init(running_machine *machine)
+{
+	char filename[_MAX_PATH];
+
+	strncpy(filename,options_get_string(machine->options(), OPTION_RECORD),_MAX_PATH);
+	if (scheduled_record_file[0] != 0) {
+		strncpy(filename,scheduled_record_file,_MAX_PATH);
+		scheduled_record_file[0] = 0;
+	}
+
+	/* if no file, nothing to do */
+	if (filename[0] != 0)
+		record_open_file(machine, filename);
 }
 
 
@@ -4658,13 +4686,13 @@ static void record_end(running_machine *machine, const char *message)
 	/* only applies if we have a live file */
 	if (portdata->record_file != NULL)
 	{
-		mame_fwrite(portdata->record_file, portdata->movie_header, sizeof(portdata->movie_header));
-		mame_fwrite(portdata->record_file, &portdata->current_frame, sizeof(portdata->current_frame));
-		mame_fwrite(portdata->record_file, &portdata->rerecord_count, sizeof(portdata->rerecord_count));
-		mame_fwrite(portdata->record_file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
+		fwrite(portdata->movie_header, 1, sizeof(portdata->movie_header), portdata->record_file);
+		fwrite(&portdata->current_frame, 1, sizeof(portdata->current_frame), portdata->record_file);
+		fwrite(&portdata->rerecord_count, 1, sizeof(portdata->rerecord_count), portdata->record_file);
+		fwrite(movie.buffer, 1, portdata->bytes_per_frame*(portdata->current_frame+1), portdata->record_file);
 
 		/* close the file */
-		mame_fclose(portdata->record_file);
+		fclose(portdata->record_file);
 		portdata->record_file = NULL;
 
 		/* pop a message */
@@ -5602,12 +5630,12 @@ static void execute_dumpkbd(running_machine *machine, int ref, int params, const
 }
 
 /* INP file handle helper functions */
-mame_file* get_record_file(running_machine* machine)
+FILE* get_record_file(running_machine* machine)
 {
 	return machine->input_port_data->record_file;
 }
 
-mame_file* get_playback_file(running_machine* machine)
+FILE* get_playback_file(running_machine* machine)
 {
 	return machine->input_port_data->playback_file;
 }
@@ -5619,10 +5647,21 @@ UINT32 get_current_frame(running_machine* machine)
 
 UINT32 get_port_digital(const input_port_config *port)
 {
-	return port->state->digital;
+	if (port->machine->input_port_data->safe_to_read)
+		return port->state->digital;
+	else
+		return 0;
 }
 
 void set_port_digital(const input_port_config *port, UINT32 new_digital)
 {
 	port->state->digital = new_digital;
+}
+
+void schedule_record(char * choice) {
+	strcpy(scheduled_record_file, choice);
+}
+
+void schedule_playback(char * choice) {
+	strcpy(scheduled_playback_file, choice);
 }

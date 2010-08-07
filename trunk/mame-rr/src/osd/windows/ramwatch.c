@@ -56,7 +56,7 @@ bool QuickSaveWatches();
 bool ResetWatches();
 
 #define _AtoT(a) ANSIToTCHAR(a, NULL, 0)
-WCHAR* ANSIToTCHAR(const char* pszInString, WCHAR* pszOutString, int nOutSize)
+static WCHAR* ANSIToTCHAR(const char* pszInString, WCHAR* pszOutString, int nOutSize)
 {
 	static WCHAR szStringBuffer[1024];
 
@@ -64,22 +64,6 @@ WCHAR* ANSIToTCHAR(const char* pszInString, WCHAR* pszOutString, int nOutSize)
 	int nBufferSize  = pszOutString ? nOutSize * 2 : sizeof(szStringBuffer);
 
 	if (MultiByteToWideChar(CP_ACP, 0, pszInString, -1, pszBuffer, nBufferSize)) {
-		return pszBuffer;
-	}
-
-	return NULL;
-}
-#define _TtoA(a)	TCHARToANSI(a, NULL, 0)
-char* TCHARToANSI(const TCHAR* pszInString, char* pszOutString, int nOutSize)
-{
-
-	static char szStringBuffer[1024];
-	memset(szStringBuffer, 0, sizeof(szStringBuffer));
-
-	char* pszBuffer = pszOutString ? pszOutString : szStringBuffer;
-	int nBufferSize = pszOutString ? nOutSize * 2 : sizeof(szStringBuffer);
-
-	if (WideCharToMultiByte(CP_ACP, 0, pszInString, -1, pszBuffer, nBufferSize, NULL, NULL)) {
 		return pszBuffer;
 	}
 
