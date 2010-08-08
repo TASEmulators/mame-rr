@@ -5685,3 +5685,8 @@ void replay_movie(running_machine *machine) {
 	schedule_playback(machine->input_port_data->movie_filename);
 	machine->schedule_hard_reset();
 }
+
+bool is_movie_pending(running_machine *machine){
+	return (get_record_file(machine) || get_playback_file(machine) ||
+	        (scheduled_playback_file[0] != 0) || (scheduled_record_file[0] != 0));
+}

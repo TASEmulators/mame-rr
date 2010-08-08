@@ -1256,5 +1256,6 @@ void schedule_record(char * choice);
 void schedule_playback(char * choice);
 void stop_movie(running_machine *machine, const char *message);
 void replay_movie(running_machine *machine);
+bool is_movie_pending(running_machine *machine);
 
 #endif	/* __INPTPORT_H__ */

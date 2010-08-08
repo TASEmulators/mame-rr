@@ -395,7 +395,9 @@ int running_machine::run(bool firstrun)
 
 		// load the configuration settings and NVRAM
 		bool settingsloaded = config_load_settings(this);
-		nvram_load(this);
+		if (!is_movie_pending(this)) {
+			nvram_load(this);
+		}
 		sound_mute(this, FALSE);
 
 		// display the startup screens
