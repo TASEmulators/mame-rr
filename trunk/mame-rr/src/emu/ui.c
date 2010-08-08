@@ -1484,6 +1484,12 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 			machine->pause();
 	}
 
+	/* movies */
+	if (ui_input_pressed(machine, IPT_UI_PLAY_MOVIE_BEGIN))
+		replay_movie(machine);
+	if (ui_input_pressed(machine, IPT_UI_STOP_MOVIE))
+		stop_movie(machine, "stopped by user");
+
 	/* Lua scripting */
 	if (ui_input_pressed(machine, IPT_UI_LUA_OPEN))
 		MAME_OpenLuaConsole();

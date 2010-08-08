@@ -391,17 +391,17 @@ static void check_osd_inputs(running_machine *machine)
 		win_toggle_menubar();
 #endif
 
-	// RAM tools
-	if (ui_input_pressed(machine, IPT_OSD_3))
-		RamSearchOpen(machine);
-	if (ui_input_pressed(machine, IPT_OSD_4))
-		RamWatchOpen(machine);
-
 	// movie dialogs
-	if (ui_input_pressed(machine, IPT_OSD_5))
+	if (ui_input_pressed(machine, IPT_OSD_3))
 		start_record_dialog(machine);
-	if (ui_input_pressed(machine, IPT_OSD_6))
+	if (ui_input_pressed(machine, IPT_OSD_4))
 		start_playback_dialog(machine);
+
+	// RAM tools
+	if (ui_input_pressed(machine, IPT_OSD_5))
+		RamSearchOpen(machine);
+	if (ui_input_pressed(machine, IPT_OSD_6))
+		RamWatchOpen(machine);
 }
 
 

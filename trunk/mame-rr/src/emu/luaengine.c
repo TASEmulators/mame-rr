@@ -1315,10 +1315,9 @@ static int movie_rerecordcounting(lua_State *L) {
 static int movie_stop(lua_State *L) {
 	if (!get_record_file(machine) && !get_playback_file(machine))
 		luaL_error(L, "no movie");
-	
-//	StopReplay(); // TODO
-	return 0;
 
+	stop_movie(machine, "used movie.stop()");
+	return 0;
 }
 
 // Common code by the gui library: make sure the screen array is ready

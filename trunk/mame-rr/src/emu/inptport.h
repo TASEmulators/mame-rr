@@ -385,6 +385,9 @@ enum
 	IPT_UI_LOAD_CUR_STATE,
 	IPT_UI_SAVE_CUR_STATE,
 
+	IPT_UI_PLAY_MOVIE_BEGIN,
+	IPT_UI_STOP_MOVIE,
+
 	/* additional OSD-specified UI port types (up to 16) */
 	IPT_OSD_1,
 	IPT_OSD_2,
@@ -1251,5 +1254,7 @@ void movie_postsave(running_machine *machine, mame_file *file);
 void movie_postload(running_machine *machine, mame_file *file);
 void schedule_record(char * choice);
 void schedule_playback(char * choice);
+void stop_movie(running_machine *machine, const char *message);
+void replay_movie(running_machine *machine);
 
 #endif	/* __INPTPORT_H__ */

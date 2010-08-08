@@ -37,12 +37,10 @@
 #include <list>
 #include <vector>
 #include <string>
-#undef realloc
-//#undef delete
 
 static std::string empty_driver("empty");
 
-#define INVALID_HARDWARE_ADDRESS	((HWAddressType) -1)
+#define INVALID_HARDWARE_ADDRESS ((HWAddressType) -1)
 #undef realloc
 
 struct MemoryRegion

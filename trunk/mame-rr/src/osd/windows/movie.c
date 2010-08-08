@@ -3,11 +3,12 @@
 #include <windows.h>
 #include "emuopts.h"
 #include "window.h"
-#include "strconv.h"
 #include "resource.h"
+#include "strconv.h"
 #include <commdlg.h>
-
 #include <io.h>
+#undef delete
+#include <string>
 
 #ifndef W_OK
 #define W_OK 4
@@ -18,6 +19,8 @@ bool bReplayReadOnly = false;
 WCHAR szChoice[_MAX_PATH] = L"";
 OPENFILENAME ofn;
 WCHAR szFilter[_MAX_PATH];
+
+static std::string empty_driver("empty");
 
 #define _AtoT(a) ANSIToTCHAR(a, NULL, 0)
 static WCHAR* ANSIToTCHAR(const char* pszInString, WCHAR* pszOutString, int nOutSize)
@@ -338,6 +341,14 @@ static BOOL CALLBACK ReplayDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM
 void start_playback_dialog(running_machine *machine_ptr)
 {
 	machine = machine_ptr;
+	if (empty_driver.compare(machine->basename()) == 0) {
+		MessageBox(win_window_list->hwnd,L"You can't replay a movie before loading a game.",L"Replay input",MB_OK | MB_ICONSTOP);
+		return;
+	}
+	if (get_record_file(machine) || get_playback_file(machine)) {
+		MessageBox(win_window_list->hwnd,L"There's already a movie running.",L"Replay input",MB_OK | MB_ICONSTOP);
+		return;
+	}
 	if (DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_REPLAYINP), win_window_list->hwnd, ReplayDialogProc)) {
 		schedule_playback(_TtoA(szChoice));
 		machine->schedule_hard_reset();
@@ -440,6 +451,14 @@ static BOOL CALLBACK RecordDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM
 void start_record_dialog(running_machine *machine_ptr)
 {
 	machine = machine_ptr;
+	if (empty_driver.compare(machine->basename()) == 0) {
+		MessageBox(win_window_list->hwnd,L"You can't record a movie before loading a game.",L"Record input",MB_OK | MB_ICONSTOP);
+		return;
+	}
+	if (get_record_file(machine) || get_playback_file(machine)) {
+		MessageBox(win_window_list->hwnd,L"There's already a movie running.",L"Record input",MB_OK | MB_ICONSTOP);
+		return;
+	}
 	if (DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_RECORDINP), win_window_list->hwnd, RecordDialogProc)) {
 		schedule_record(_TtoA(szChoice));
 		machine->schedule_hard_reset();

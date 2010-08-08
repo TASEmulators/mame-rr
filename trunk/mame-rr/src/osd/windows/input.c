@@ -789,26 +789,27 @@ void osd_customize_input_type_list(input_type_desc *typelist)
 				}
 				break;
 
-			// RAM tools
+			// movies
 			case IPT_OSD_3:
-				typedesc->token = "RAM_SEARCH";
-				typedesc->name = "RAM Search";
-				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_F, KEYCODE_LCONTROL);
-				break;
-			case IPT_OSD_4:
-				typedesc->token = "RAM_WATCH";
-				typedesc->name = "RAM Watch";
-				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_W, KEYCODE_LCONTROL);
-				break;
-			case IPT_OSD_5:
 				typedesc->token = "MOVIE_RECORD";
 				typedesc->name = "Start Movie Recording";
 				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_N, KEYCODE_LCONTROL);
 				break;
-			case IPT_OSD_6:
+			case IPT_OSD_4:
 				typedesc->token = "MOVIE_PLAYBACK";
 				typedesc->name = "Start Movie Playback";
 				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_R, KEYCODE_LCONTROL);
+				break;
+			// RAM tools
+			case IPT_OSD_5:
+				typedesc->token = "RAM_SEARCH";
+				typedesc->name = "RAM Search";
+				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_F, KEYCODE_LCONTROL);
+				break;
+			case IPT_OSD_6:
+				typedesc->token = "RAM_WATCH";
+				typedesc->name = "RAM Watch";
+				input_seq_set_2(&typedesc->seq[SEQ_TYPE_STANDARD], KEYCODE_W, KEYCODE_LCONTROL);
 				break;
 
 #ifdef MESS

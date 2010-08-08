@@ -263,13 +263,14 @@ struct _input_port_private
 	attoseconds_t				last_delta_nsec;	/* nanoseconds that passed since the previous callback */
 
 	/* playback/record information */
-	FILE *					record_file;		/* recording file (NULL if not recording) */
-	FILE *					playback_file;		/* playback file (NULL if not recording) */
+	FILE *						record_file;		/* recording file (NULL if not recording) */
+	FILE *						playback_file;		/* playback file (NULL if not recording) */
 	UINT32						current_frame;
 	UINT32						total_frames; /* accumulated frames during playback or recording */
 	UINT32						rerecord_count;
 	UINT32						bytes_per_frame;
 	UINT8						movie_header[INP_HEADER_SIZE];
+	char						movie_filename[_MAX_PATH];
 };
 
 struct movie_type {
@@ -2491,6 +2492,9 @@ static void frame_update(running_machine *machine)
 
 profiler_mark_start(PROFILER_INPUT);
 
+	if ((portdata->playback_file != NULL) && (portdata->current_frame >= portdata->total_frames))
+		playback_end(machine, "movie end");
+
 	/* record/playback information about the current frame */
 	playback_frame(machine, curtime);
 	record_frame(machine, curtime);
@@ -4461,7 +4465,7 @@ static void playback_open_file(running_machine *machine,const char* filename)
 
 	/* verify the header against the current game */
 	if (memcmp(machine->gamedrv->name, portdata->movie_header + 0x0c, strlen(machine->gamedrv->name) + 1) != 0)
-		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'\n", portdata->movie_header + 0x0c, machine->gamedrv->name);
+		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'.\n", portdata->movie_header + 0x0c, machine->gamedrv->name);
 
 	// initialize movie
 	movie.pointer = movie.buffer;
@@ -4489,8 +4493,10 @@ static void playback_init(running_machine *machine)
 	}
 
 	/* if file, open */
-	if (filename[0] != 0)
+	if (filename[0] != 0) {
+		strncpy(machine->input_port_data->movie_filename,filename,_MAX_PATH);
 		playback_open_file(machine, filename);
+	}
 }
 
 
@@ -4669,9 +4675,11 @@ static void record_init(running_machine *machine)
 		scheduled_record_file[0] = 0;
 	}
 
-	/* if no file, nothing to do */
-	if (filename[0] != 0)
+	/* if file, open */
+	if (filename[0] != 0) {
+		strncpy(machine->input_port_data->movie_filename,filename,_MAX_PATH);
 		record_open_file(machine, filename);
+	}
 }
 
 
@@ -5664,4 +5672,16 @@ void schedule_record(char * choice) {
 
 void schedule_playback(char * choice) {
 	strcpy(scheduled_playback_file, choice);
+}
+
+void stop_movie(running_machine *machine, const char *message) {
+	if (get_record_file(machine))
+		record_end(machine, message);
+	if (get_playback_file(machine))
+		playback_end(machine, message);
+}
+
+void replay_movie(running_machine *machine) {
+	schedule_playback(machine->input_port_data->movie_filename);
+	machine->schedule_hard_reset();
 }
