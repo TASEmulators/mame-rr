@@ -43,7 +43,7 @@ To run the game and immediately load savestate 3:
 mame raiden -state 3
 }}}
 
-To run the game and a [http://code.google.com/p/mame-rr/wiki/LuaScriptingFunctions Lua script]:
+To run the game and a [LuaScriptingFunctions Lua script]:
 {{{
 mame raiden -lua myscript.lua
 }}}
@@ -68,7 +68,7 @@ mame raiden -mngwrite mngfile.mng -wavwrite wavfile.wav
 }}}
 The MNG is a lossless video file, like PNG but for movies instead of images. It doesn't contain audio, so the audio is dumped separately with `-wavwrite`. Then you must combine the audio and video and convert to AVI.
 
-[http://en.wikipedia.org/wiki/MNG#Application_support Not many programs can handle MNG.] One method is the command-line program [http://www.libpng.org/pub/mng/mngapps.html mplayer/mencoder]. Download and extract the package. Change to its directory in a command prompt and tell it to convert the MNG and WAV to AVI. For example:
+[http://en.wikipedia.org/wiki/MNG#Application_support Not many programs can handle MNG.] One method is the command-line program [http://oss.netfarm.it/mplayer-win32.php mplayer/mencoder]. Download and extract the package. Change to its directory in a command prompt and tell it to convert the MNG and WAV to AVI. For example:
 {{{
 mencoder -fps 59.600 -ovc lavc -lavcopts vcodec=ffv1:vstrict=-2 -oac copy -o mng-to-avi.avi 
 D:\mame-rr\snap\mngfile.mng -audiofile D:\mame-rr\snap\wavfile.wav
