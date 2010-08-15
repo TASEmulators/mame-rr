@@ -1,4 +1,4 @@
-#summary One-sentence summary of this page.
+#summary How to manage ROMs
 
 *[http://mamedev.emulab.it/clrmamepro/ clrmamepro]* is a tool that checks your ROMs against a database.
 It reports any missing or incorrect data and can correct some errors.
