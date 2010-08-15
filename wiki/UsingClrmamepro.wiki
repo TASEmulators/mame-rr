@@ -117,11 +117,11 @@ Some ROMs may be different between different versions of MAME/FBA. If you need t
 ----
 = Other profiles =
 
-The techniques here can be used to keep track of other dats besides MAME. For example, [http://datomatic.no-intro.org/ no-intro] and [http://redump.org/ redump.org] maintain software databases via dat files.
+The techniques here can be used to keep track of other dats besides MAME. For example, [http://datomatic.no-intro.org/ no-intro] and [http://redump.org/ redump.org] maintain software databases via dat files, and FBA can create a dat for itself from the menu with _Misc > Generate dat file > XML !ClrMame Pro format > Generate dat_.
 
 [http://mame-rr.googlecode.com/svn/wiki/profiler-add-dat.png]
 
-To add a dat, click _Add !DatFile_ in the profiler, then browse to the dat you downloaded. Pick a folder and click _OK_ to create the profile. An alternative way to add a dat is to place it directly where you want it in the datfiles subfolder of clrmamepro's directory, then click _Refresh List_ in the Profiler.
+To add a dat, click _Add !DatFile_ in the profiler, then browse to the dat you obtained. Pick a folder and click _OK_ to create the profile. An alternative way to add a dat is to place it directly where you want it in the datfiles subfolder of clrmamepro's directory, then click _Refresh List_ in the Profiler.
 
 Click _NEW DATFILES_ in the pane on the left and then the new profile on the right. Click Load / Update to commence the same procedure as above.
 
