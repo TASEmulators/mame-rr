@@ -220,21 +220,13 @@ function game_y_to_mame(y)
 end
 
 
-function draw_hitbox(hb)
+function draw_hitbox(hb, colour)
 	local left   = game_x_to_mame(hb.left)
 	local bottom = game_y_to_mame(hb.bottom)
 	local right  = game_x_to_mame(hb.right)
 	local top    = game_y_to_mame(hb.top)
 	local hval   = game_x_to_mame(hb.hval)
 	local vval   = game_y_to_mame(hb.vval)
-
-	if hb.type == HITBOX_VULNERABILITY then
-		colour = HITBOX_VULNERABILITY_COLOUR
-	elseif hb.type == HITBOX_ATTACK then
-		colour = HITBOX_ATTACK_COLOUR
-	elseif hb.type == HITBOX_PUSH then
-		colour = HITBOX_PUSH_COLOUR
-	end
 
 	-- draw mini axis
 --	gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, MINI_AXIS_COLOUR)
@@ -250,10 +242,10 @@ function draw_game_object(obj)
 	local y = game_y_to_mame(obj.pos_y)
 
 	for i = 0, 2 do
-		draw_hitbox(obj[HITBOX_VULNERABILITY][i])
+		draw_hitbox(obj[HITBOX_VULNERABILITY][i], HITBOX_VULNERABILITY_COLOUR)
 	end
-	draw_hitbox(obj[HITBOX_ATTACK])
-	draw_hitbox(obj[HITBOX_PUSH])
+	draw_hitbox(obj[HITBOX_ATTACK], HITBOX_ATTACK_COLOUR)
+	draw_hitbox(obj[HITBOX_PUSH], HITBOX_PUSH_COLOUR)
 
 	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOUR)
 	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOUR)
