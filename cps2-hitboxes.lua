@@ -64,7 +64,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"vsav","vhunt2"},
+		games = {"vsav","vhunt2","vsav2"},
 		address = {
 			player1          = 0x00FF8400,
 			player2          = 0x00FF8800,
@@ -102,6 +102,7 @@ for f = 1, DRAW_DELAY + 1 do
 	frame_buffer_array[f] = {}
 	frame_buffer_array[f][projectiles] = {}
 end
+if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
 
 function update_globals()
 	globals.left_screen_edge = memory.readword(address.left_screen_edge)
@@ -120,31 +121,20 @@ function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
 		hval  = -hval
 	end
 
-	local left   = offset_x + hval - hrad
-	local top    = offset_y + vval - vrad
-	local right  = offset_x + hval + hrad
-	local bottom = offset_y + vval + vrad
+	local box_dimensions  = {
+		left   = offset_x + hval - hrad,
+		right  = offset_x + hval + hrad,
+		bottom = offset_y + vval + vrad,
+		top    = offset_y + vval - vrad,
+		hval   = offset_x + hval,
+		vval   = offset_y + vval,
+		type   = type
+	}
 
 	if type == HITBOX_VULNERABILITY then
-		obj[HITBOX_VULNERABILITY][i] = {
-			left   = left,
-			right  = right,
-			bottom = bottom,
-			top    = top,
-			hval   = offset_x+hval,
-			vval   = offset_y+vval,
-			type   = type
-		}
+		obj[HITBOX_VULNERABILITY][i] = box_dimensions
 	else
-		obj[type] = {
-			left   = left,
-			right  = right,
-			bottom = bottom,
-			top    = top,
-			hval   = offset_x+hval,
-			vval   = offset_y+vval,
-			type   = type
-		}
+		obj[type] = box_dimensions
 	end
 end
 
@@ -253,7 +243,6 @@ end
 
 
 local function whatgame()
-	if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
 	address, offset = nil, nil
 	for n, module in ipairs(profile) do
 		for m, shortname in ipairs(module.games) do
