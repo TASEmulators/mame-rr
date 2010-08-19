@@ -159,11 +159,11 @@ function update_game_object(obj, base, is_projectile)
 		local v_hb_addr_table
 		if is_projectile and offset.projectile_ptr then
 			v_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
-			v_hb_addr_table = memory.readword(v_hb_addr_table) + v_hb_addr_table
+			v_hb_addr_table = memory.readwordsigned(v_hb_addr_table) + v_hb_addr_table
 		else
 			v_hb_addr_table = memory.readdword(base + offset.v_hb_addr_table + (i*4))
 		end
-		local v_hb_curr_id    = memory.readbyte(base_id + offset.v_hb_curr_id + i)
+		local v_hb_curr_id = memory.readbyte(base_id + offset.v_hb_curr_id + i)
 		hitbox_load(obj, i, HITBOX_VULNERABILITY, obj.facing_dir, obj.pos_x, obj.pos_y, v_hb_addr_table+(v_hb_curr_id*8))
 	end
 
@@ -171,16 +171,22 @@ function update_game_object(obj, base, is_projectile)
 	local a_hb_addr_table
 	if is_projectile and offset.projectile_ptr then
 		a_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
-		a_hb_addr_table = memory.readword(a_hb_addr_table+2) + a_hb_addr_table
+		a_hb_addr_table = memory.readwordsigned(a_hb_addr_table+2) + a_hb_addr_table
 	else
 		a_hb_addr_table = memory.readdword(base + offset.a_hb_addr_table)
 	end
-	local a_hb_curr_id    = memory.readbyte(animation_ptr + offset.a_hb_curr_id)
+	local a_hb_curr_id = memory.readbyte(animation_ptr + offset.a_hb_curr_id)
 	hitbox_load(obj, 0, HITBOX_ATTACK, obj.facing_dir, obj.pos_x, obj.pos_y, a_hb_addr_table+(a_hb_curr_id*0x20))
 
 	-- Load the push hitbox
-	local p_hb_addr_table = memory.readdword(base + offset.p_hb_addr_table)
-	local p_hb_curr_id    = memory.readbyte(base_id + offset.p_hb_curr_id)
+	local p_hb_addr_table
+	if is_projectile and offset.projectile_ptr then
+		p_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
+		p_hb_addr_table = memory.readwordsigned(p_hb_addr_table+4) + p_hb_addr_table
+	else
+		p_hb_addr_table = memory.readdword(base + offset.p_hb_addr_table)
+	end
+	local p_hb_curr_id = memory.readbyte(base_id + offset.p_hb_curr_id)
 	hitbox_load(obj, 0, HITBOX_PUSH, obj.facing_dir, obj.pos_x, obj.pos_y, p_hb_addr_table+(p_hb_curr_id*8))
 end
 
