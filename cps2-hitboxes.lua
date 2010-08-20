@@ -1,5 +1,5 @@
 print("CPS-2 hitbox display")
-print("August 18, 2010")
+print("August 19, 2010")
 print("http://code.google.com/p/mame-rr/") print()
 
 local DRAW_DELAY            = 2
@@ -39,6 +39,7 @@ local profile = {
 			use_animation_ptr= true,
 			projectile_ptr   = 0x60,
 			projectile_space = 0x80,
+			invulnerability  = nil,
 		},
 	},
 	{
@@ -61,6 +62,7 @@ local profile = {
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
 			projectile_space = 0x100,
+			invulnerability  = nil,
 		},
 	},
 	{
@@ -83,6 +85,7 @@ local profile = {
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
 			projectile_space = 0x100,
+			invulnerability  = 0x147,
 		},
 	},
 }
@@ -156,6 +159,9 @@ function update_game_object(obj, base, is_projectile)
 	-- Load the vulnerability hitboxes
 	obj[HITBOX_VULNERABILITY] = {}
 	for i = 0, 2 do
+		if not is_projectile and offset.invulnerability and memory.readbyte(base + offset.invulnerability) > 0 then
+			break
+		end
 		local v_hb_addr_table
 		if is_projectile and offset.projectile_ptr then
 			v_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
@@ -217,6 +223,8 @@ end
 
 
 function draw_hitbox(hb, colour)
+	if not hb then return end
+
 	local left   = game_x_to_mame(hb.left)
 	local bottom = game_y_to_mame(hb.bottom)
 	local right  = game_x_to_mame(hb.right)
