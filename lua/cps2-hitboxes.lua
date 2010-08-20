@@ -62,7 +62,7 @@ local profile = {
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
 			projectile_space = 0x100,
-			invulnerability  = nil,
+			invulnerability  = 0xD6,
 		},
 	},
 	{
