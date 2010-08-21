@@ -1,21 +1,27 @@
 print("CPS-2 hitbox display")
-print("August 19, 2010")
+print("August 20, 2010")
 print("http://code.google.com/p/mame-rr/") print()
 
 local DRAW_DELAY            = 2
-local SCREEN_WIDTH          = 384
-local SCREEN_HEIGHT         = 224
-local MAX_GAME_PROJECTILES  = 14
+local HITBOX_VULNERABILITY_COLOUR = 0x0000FF40
+local HITBOX_ATTACK_COLOUR  = 0xFF000060
+local HITBOX_PUSH_COLOUR    = 0x00FF0060
+local P_HITBOX_VULNERABILITY_COLOUR = 0x0000FF40
+local P_HITBOX_ATTACK_COLOUR= 0xFF000060
+local P_HITBOX_PUSH_COLOUR  = 0x00FF0060
 local AXIS_COLOUR           = 0xFFFFFFFF
 local MINI_AXIS_COLOUR      = 0xFFFF00FF
-local AXIS_SIZE             = 25
+local DRAW_AXIS             = true
+local DRAW_MINI_AXIS        = false
+
+local SCREEN_WIDTH          = 384
+local SCREEN_HEIGHT         = 224
+local MAX_GAME_PROJECTILES  = 16
+local AXIS_SIZE             = 16
 local MINI_AXIS_SIZE        = 2
 local HITBOX_VULNERABILITY  = 0
 local HITBOX_ATTACK         = 1
 local HITBOX_PUSH           = 2
-local HITBOX_VULNERABILITY_COLOUR = 0x0000FF40
-local HITBOX_ATTACK_COLOUR  = 0xFF000040
-local HITBOX_PUSH_COLOUR    = 0x00FF0040
 local GAME_PHASE_NOT_PLAYING= 0
 
 local profile = {
@@ -24,7 +30,7 @@ local profile = {
 		address = {
 			player1          = 0x00FF8400,
 			player2          = 0x00FF8800,
-			projectile       = 0x00FF9B00,
+			projectile       = 0x00FF9900,
 			left_screen_edge = 0x00FF8026,
 			top_screen_edge  = 0x00FF8028,
 			game_phase       = 0x00FF812D,
@@ -47,7 +53,7 @@ local profile = {
 		address = {
 			player1          = 0x00FF8400,
 			player2          = 0x00FF8800,
-			projectile       = 0x00FF9F00,
+			projectile       = 0x00FF9D00,
 			left_screen_edge = 0x00FF8026,
 			top_screen_edge  = 0x00FF8028,
 			game_phase       = 0x00FF812D,
@@ -71,7 +77,7 @@ local profile = {
 			player1          = 0x00FF8400,
 			player2          = 0x00FF8800,
 			projectile       = 0x00FF9400,
-			left_screen_edge = 0x00FF8026,
+			left_screen_edge = 0x00FF8290,
 			top_screen_edge  = 0x00FF8028,
 			game_phase       = 0x00FF812D,
 		},
@@ -199,10 +205,10 @@ end
 
 function read_projectiles()
 	globals.num_projectiles = 0
-	for i = 0,MAX_GAME_PROJECTILES do
-		local base = address.projectile + (i * offset.projectile_space)
+	for i = 1,MAX_GAME_PROJECTILES do
+		local base = address.projectile + (i-1) * offset.projectile_space
 
-		if memory.readbyte(base) ~= 0 then
+		if memory.readbyte(base+1) ~= 0 then
 			projectiles[globals.num_projectiles] = {}
 			update_game_object(projectiles[globals.num_projectiles], base, true)
 			globals.num_projectiles = globals.num_projectiles+1
@@ -232,27 +238,30 @@ function draw_hitbox(hb, colour)
 	local hval   = game_x_to_mame(hb.hval)
 	local vval   = game_y_to_mame(hb.vval)
 
-	-- draw mini axis
---	gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, MINI_AXIS_COLOUR)
---	gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, MINI_AXIS_COLOUR)
+	if DRAW_MINI_AXIS then
+		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, MINI_AXIS_COLOUR)
+		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, MINI_AXIS_COLOUR)
+	end
 	gui.box(left, top, right, bottom, colour)
 end
 
 
-function draw_game_object(obj)
+function draw_game_object(obj, is_projectile)
 	if not obj then return end
 
 	local x = game_x_to_mame(obj.pos_x)
 	local y = game_y_to_mame(obj.pos_y)
 
+	draw_hitbox(obj[HITBOX_PUSH], is_projectile and P_HITBOX_PUSH_COLOUR or HITBOX_PUSH_COLOUR)
 	for i = 0, 2 do
-		draw_hitbox(obj[HITBOX_VULNERABILITY][i], HITBOX_VULNERABILITY_COLOUR)
+		draw_hitbox(obj[HITBOX_VULNERABILITY][i], is_projectile and P_HITBOX_VULNERABILITY_COLOUR or HITBOX_VULNERABILITY_COLOUR)
 	end
-	draw_hitbox(obj[HITBOX_ATTACK], HITBOX_ATTACK_COLOUR)
-	draw_hitbox(obj[HITBOX_PUSH], HITBOX_PUSH_COLOUR)
+	draw_hitbox(obj[HITBOX_ATTACK], is_projectile and P_HITBOX_ATTACK_COLOUR or HITBOX_ATTACK_COLOUR)
 
-	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOUR)
-	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOUR)
+	if DRAW_AXIS then
+		gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOUR)
+		gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOUR)
+	end
 end
 
 
@@ -309,7 +318,7 @@ function render_cps2_hitboxes()
 	draw_game_object(frame_buffer_array[1][player2])
 
 	for i = 0, globals.num_projectiles-1 do
-		draw_game_object(frame_buffer_array[1][projectiles][i])
+		draw_game_object(frame_buffer_array[1][projectiles][i], true)
 	end
 end
 
