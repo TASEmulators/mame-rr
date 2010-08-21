@@ -1,5 +1,5 @@
 print("CPS-2 hitbox display")
-print("August 20, 2010")
+print("August 21, 2010")
 print("http://code.google.com/p/mame-rr/") print()
 
 local DRAW_DELAY            = 2
@@ -45,7 +45,7 @@ local profile = {
 			use_animation_ptr= true,
 			projectile_ptr   = 0x60,
 			projectile_space = 0x80,
-			invulnerability  = nil,
+			invulnerability  = {},
 		},
 	},
 	{
@@ -68,7 +68,7 @@ local profile = {
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
 			projectile_space = 0x100,
-			invulnerability  = 0xD6,
+			invulnerability  = {0xD6,0x25D}
 		},
 	},
 	{
@@ -91,7 +91,7 @@ local profile = {
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
 			projectile_space = 0x100,
-			invulnerability  = 0x147,
+			invulnerability  = {0x147},
 		},
 	},
 }
@@ -148,6 +148,58 @@ function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
 end
 
 
+function get_vulnbox(obj, base, is_projectile, base_id)
+	-- Load the vulnerability hitboxes
+	obj[HITBOX_VULNERABILITY] = {}
+	if not is_projectile then
+		for _,addr in ipairs(offset.invulnerability) do
+			if memory.readbyte(base + addr) > 0 then
+				return
+			end
+		end
+	end
+	for i = 0, 2 do
+		local v_hb_addr_table
+		if is_projectile and offset.projectile_ptr then
+			v_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
+			v_hb_addr_table = memory.readwordsigned(v_hb_addr_table) + v_hb_addr_table
+		else
+			v_hb_addr_table = memory.readdword(base + offset.v_hb_addr_table + (i*4))
+		end
+		local v_hb_curr_id = memory.readbyte(base_id + offset.v_hb_curr_id + i)
+		hitbox_load(obj, i, HITBOX_VULNERABILITY, obj.facing_dir, obj.pos_x, obj.pos_y, v_hb_addr_table+(v_hb_curr_id*8))
+	end
+end
+
+
+function get_hurtbox(obj, base, is_projectile, animation_ptr)
+	-- Load the attack hitbox
+	local a_hb_addr_table
+	if is_projectile and offset.projectile_ptr then
+		a_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
+		a_hb_addr_table = memory.readwordsigned(a_hb_addr_table+2) + a_hb_addr_table
+	else
+		a_hb_addr_table = memory.readdword(base + offset.a_hb_addr_table)
+	end
+	local a_hb_curr_id = memory.readbyte(animation_ptr + offset.a_hb_curr_id)
+	hitbox_load(obj, 0, HITBOX_ATTACK, obj.facing_dir, obj.pos_x, obj.pos_y, a_hb_addr_table+(a_hb_curr_id*0x20))
+end
+
+
+function get_pushbox(obj, base, is_projectile, base_id)
+	-- Load the push hitbox
+	local p_hb_addr_table
+	if is_projectile and offset.projectile_ptr then
+		p_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
+		p_hb_addr_table = memory.readwordsigned(p_hb_addr_table+4) + p_hb_addr_table
+	else
+		p_hb_addr_table = memory.readdword(base + offset.p_hb_addr_table)
+	end
+	local p_hb_curr_id = memory.readbyte(base_id + offset.p_hb_curr_id)
+	hitbox_load(obj, 0, HITBOX_PUSH, obj.facing_dir, obj.pos_x, obj.pos_y, p_hb_addr_table+(p_hb_curr_id*8))
+end
+
+
 function update_game_object(obj, base, is_projectile)
 	obj.facing_dir   = memory.readbyte(base + 0xB)
 	obj.pos_x        = memory.readword(base + 0x10)
@@ -162,44 +214,9 @@ function update_game_object(obj, base, is_projectile)
 		base_id = base
 	end
 
-	-- Load the vulnerability hitboxes
-	obj[HITBOX_VULNERABILITY] = {}
-	for i = 0, 2 do
-		if not is_projectile and offset.invulnerability and memory.readbyte(base + offset.invulnerability) > 0 then
-			break
-		end
-		local v_hb_addr_table
-		if is_projectile and offset.projectile_ptr then
-			v_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
-			v_hb_addr_table = memory.readwordsigned(v_hb_addr_table) + v_hb_addr_table
-		else
-			v_hb_addr_table = memory.readdword(base + offset.v_hb_addr_table + (i*4))
-		end
-		local v_hb_curr_id = memory.readbyte(base_id + offset.v_hb_curr_id + i)
-		hitbox_load(obj, i, HITBOX_VULNERABILITY, obj.facing_dir, obj.pos_x, obj.pos_y, v_hb_addr_table+(v_hb_curr_id*8))
-	end
-
-	-- Load the attack hitbox
-	local a_hb_addr_table
-	if is_projectile and offset.projectile_ptr then
-		a_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
-		a_hb_addr_table = memory.readwordsigned(a_hb_addr_table+2) + a_hb_addr_table
-	else
-		a_hb_addr_table = memory.readdword(base + offset.a_hb_addr_table)
-	end
-	local a_hb_curr_id = memory.readbyte(animation_ptr + offset.a_hb_curr_id)
-	hitbox_load(obj, 0, HITBOX_ATTACK, obj.facing_dir, obj.pos_x, obj.pos_y, a_hb_addr_table+(a_hb_curr_id*0x20))
-
-	-- Load the push hitbox
-	local p_hb_addr_table
-	if is_projectile and offset.projectile_ptr then
-		p_hb_addr_table = memory.readdword(base + offset.projectile_ptr)
-		p_hb_addr_table = memory.readwordsigned(p_hb_addr_table+4) + p_hb_addr_table
-	else
-		p_hb_addr_table = memory.readdword(base + offset.p_hb_addr_table)
-	end
-	local p_hb_curr_id = memory.readbyte(base_id + offset.p_hb_curr_id)
-	hitbox_load(obj, 0, HITBOX_PUSH, obj.facing_dir, obj.pos_x, obj.pos_y, p_hb_addr_table+(p_hb_curr_id*8))
+	get_vulnbox(obj, base, is_projectile, base_id)
+	get_hurtbox(obj, base, is_projectile, animation_ptr)
+	get_pushbox(obj, base, is_projectile, base_id)
 end
 
 
