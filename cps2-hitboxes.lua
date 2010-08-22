@@ -27,100 +27,102 @@ local GAME_PHASE_NOT_PLAYING= 0
 local profile = {
 	{
 		games = {"sfa2","sfz2al"},
+		nplayers = 3,
 		address = {
-			player1          = 0x00FF8400,
-			player2          = 0x00FF8800,
-			projectile       = 0x00FF9900,
-			left_screen_edge = 0x00FF8026,
-			top_screen_edge  = 0x00FF8028,
-			game_phase       = 0x00FF812D,
+			player           = 0xFF8400,
+			projectile       = 0xFF9900,
+			left_screen_edge = 0xFF8026,
+			top_screen_edge  = 0xFF8028,
+			game_phase       = 0xFF812D,
 		},
 		offset = {
 			v_hb_addr_table  = 0x110,
 			v_hb_curr_id     = 0x08,
-			a_hb_addr_table  = 0x11c,
-			a_hb_curr_id     = 0x0b,
+			a_hb_addr_table  = 0x11C,
+			a_hb_curr_id     = 0x0B,
 			p_hb_addr_table  = 0x120,
-			p_hb_curr_id     = 0x0c,
+			p_hb_curr_id     = 0x0C,
 			use_animation_ptr= true,
 			projectile_ptr   = 0x60,
+			player_space     = 0x400,
 			projectile_space = 0x80,
 			invulnerability  = {},
 		},
 	},
 	{
 		games = {"sfa3"},
+		nplayers = 4,
 		address = {
-			player1          = 0x00FF8400,
-			player2          = 0x00FF8800,
-			projectile       = 0x00FF9D00,
-			left_screen_edge = 0x00FF8026,
-			top_screen_edge  = 0x00FF8028,
-			game_phase       = 0x00FF812D,
+			player           = 0xFF8400,
+			projectile       = 0xFF9D00,
+			left_screen_edge = 0xFF8026,
+			top_screen_edge  = 0xFF8028,
+			game_phase       = 0xFF812D,
 		},
 		offset = {
 			v_hb_addr_table  = 0x90,
 			v_hb_curr_id     = 0xC8,
 			a_hb_addr_table  = 0xA0,
 			a_hb_curr_id     = 0x09,
-			p_hb_addr_table  = 0x9c,
+			p_hb_addr_table  = 0x9C,
 			p_hb_curr_id     = 0xCB,
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
+			player_space     = 0x400,
 			projectile_space = 0x100,
 			invulnerability  = {0xD6,0x25D}
 		},
 	},
 	{
 		games = {"vsav","vhunt2","vsav2"},
+		nplayers = 2,
 		address = {
-			player1          = 0x00FF8400,
-			player2          = 0x00FF8800,
-			projectile       = 0x00FF9400,
-			left_screen_edge = 0x00FF8290,
-			top_screen_edge  = 0x00FF8028,
-			game_phase       = 0x00FF812D,
+			player           = 0xFF8400,
+			projectile       = 0xFF9400,
+			left_screen_edge = 0xFF8290,
+			top_screen_edge  = 0xFF8028,
+			game_phase       = 0xFF812D,
 		},
 		offset = {
 			v_hb_addr_table  = 0x80,
 			v_hb_curr_id     = 0x94,
-			a_hb_addr_table  = 0x8c,
+			a_hb_addr_table  = 0x8C,
 			a_hb_curr_id     = 0x0A,
 			p_hb_addr_table  = 0x90,
 			p_hb_curr_id     = 0x97,
 			use_animation_ptr= false,
 			projectile_ptr   = nil,
+			player_space     = 0x400,
 			projectile_space = 0x100,
 			invulnerability  = {0x147},
 		},
 	},
 }
 
-local address, offset
+local nplayers, address, offset
 local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
 	top_screen_edge  = 0,
-	num_projectiles  = 0
+	num_projectiles  = 0,
+	player           = {},
 }
-local player1     = {}
-local player2     = {}
+local player      = {}
 local projectiles = {}
 local frame_buffer_array = {}
-for f = 1, DRAW_DELAY + 1 do
-	frame_buffer_array[f] = {}
-	frame_buffer_array[f][projectiles] = {}
-end
 if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
 
-function update_globals()
+local function update_globals()
 	globals.left_screen_edge = memory.readword(address.left_screen_edge)
 	globals.top_screen_edge  = memory.readword(address.top_screen_edge)
 	globals.game_phase       = memory.readword(address.game_phase)
+	for p = 1, nplayers do
+		globals.player[p]      = memory.readbyte(address.player + (p-1) * offset.player_space)
+	end
 end
 
 
-function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
+local function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
 	local hval    = memory.readwordsigned(addr + 0)
 	local vval    = memory.readwordsigned(addr + 2)
 	local hrad    = memory.readwordsigned(addr + 4)
@@ -148,7 +150,7 @@ function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
 end
 
 
-function get_vulnbox(obj, base, is_projectile, base_id)
+local function get_vulnbox(obj, base, is_projectile, base_id)
 	-- Load the vulnerability hitboxes
 	obj[HITBOX_VULNERABILITY] = {}
 	if not is_projectile then
@@ -172,7 +174,7 @@ function get_vulnbox(obj, base, is_projectile, base_id)
 end
 
 
-function get_hurtbox(obj, base, is_projectile, animation_ptr)
+local function get_hurtbox(obj, base, is_projectile, animation_ptr)
 	-- Load the attack hitbox
 	local a_hb_addr_table
 	if is_projectile and offset.projectile_ptr then
@@ -186,7 +188,7 @@ function get_hurtbox(obj, base, is_projectile, animation_ptr)
 end
 
 
-function get_pushbox(obj, base, is_projectile, base_id)
+local function get_pushbox(obj, base, is_projectile, base_id)
 	-- Load the push hitbox
 	local p_hb_addr_table
 	if is_projectile and offset.projectile_ptr then
@@ -200,8 +202,8 @@ function get_pushbox(obj, base, is_projectile, base_id)
 end
 
 
-function update_game_object(obj, base, is_projectile)
-	obj.facing_dir   = memory.readbyte(base + 0xB)
+local function update_game_object(obj, base, is_projectile)
+	obj.facing_dir   = memory.readbyte(base + 0x0B)
 	obj.pos_x        = memory.readword(base + 0x10)
 	obj.pos_y        = memory.readword(base + 0x14)
 	obj.opponent_dir = memory.readbyte(base + 0x5D)
@@ -220,7 +222,7 @@ function update_game_object(obj, base, is_projectile)
 end
 
 
-function read_projectiles()
+local function read_projectiles()
 	globals.num_projectiles = 0
 	for i = 1,MAX_GAME_PROJECTILES do
 		local base = address.projectile + (i-1) * offset.projectile_space
@@ -234,18 +236,18 @@ function read_projectiles()
 end
 
 
-function game_x_to_mame(x)
+local function game_x_to_mame(x)
 	return (x - globals.left_screen_edge)
 end
 
 
-function game_y_to_mame(y)
+local function game_y_to_mame(y)
 	-- Why subtract 17? No idea, the game driver does the same thing.
 	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
 end
 
 
-function draw_hitbox(hb, colour)
+local function draw_hitbox(hb, colour)
 	if not hb then return end
 
 	local left   = game_x_to_mame(hb.left)
@@ -263,7 +265,7 @@ function draw_hitbox(hb, colour)
 end
 
 
-function draw_game_object(obj, is_projectile)
+local function draw_game_object(obj, is_projectile)
 	if not obj then return end
 
 	local x = game_x_to_mame(obj.pos_x)
@@ -283,13 +285,22 @@ end
 
 
 local function whatgame()
-	address, offset = nil, nil
+	nplayers, address, offset = nil, nil, nil
 	for n, module in ipairs(profile) do
 		for m, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. shortname .. " hitboxes")
+				nplayers = module.nplayers
 				address = module.address
 				offset = module.offset
+				for p = 1, nplayers do
+					player[p] = {}
+				end
+				for f = 1, DRAW_DELAY + 1 do
+					frame_buffer_array[f] = {}
+					frame_buffer_array[f][player] = {}
+					frame_buffer_array[f][projectiles] = {}
+				end
 				return
 			end
 		end
@@ -305,34 +316,42 @@ local function update_cps2_hitboxes()
 		return
 	end
 
-	update_game_object(player1, address.player1)
-	update_game_object(player2, address.player2)
+	for p = 1, nplayers do
+		--if globals.player[p] > 0 then
+			update_game_object(player[p], address.player + (p-1) * offset.player_space)
+		--end
+	end
 	read_projectiles()
 
 	for f = 1, DRAW_DELAY do
-		frame_buffer_array[f][player1] = copytable(frame_buffer_array[f+1][player1])
-		frame_buffer_array[f][player2] = copytable(frame_buffer_array[f+1][player2])
+		for p = 1, nplayers do
+			frame_buffer_array[f][player][p] = copytable(frame_buffer_array[f+1][player][p])
+		end
 		for i = 0, globals.num_projectiles-1 do
 			frame_buffer_array[f][projectiles][i] = copytable(frame_buffer_array[f+1][projectiles][i])
 		end
 	end
 
-	frame_buffer_array[DRAW_DELAY+1][player1] = copytable(player1)
-	frame_buffer_array[DRAW_DELAY+1][player2] = copytable(player2)
+	for p = 1, nplayers do
+		frame_buffer_array[DRAW_DELAY+1][player][p] = copytable(player[p])
+	end
 	for i = 0, globals.num_projectiles-1 do
 		frame_buffer_array[DRAW_DELAY+1][projectiles][i] = copytable(projectiles[i])
 	end
 end
 
 
-function render_cps2_hitboxes()
+local function render_cps2_hitboxes()
 	if not address or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		gui.clearuncommitted()
 		return
 	end
 
-	draw_game_object(frame_buffer_array[1][player1])
-	draw_game_object(frame_buffer_array[1][player2])
+	for p = 1, nplayers do
+		if globals.player[p] > 0 then
+			draw_game_object(frame_buffer_array[1][player][p])
+		end
+	end
 
 	for i = 0, globals.num_projectiles-1 do
 		draw_game_object(frame_buffer_array[1][projectiles][i], true)
