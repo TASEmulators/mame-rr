@@ -15,6 +15,8 @@ local DRAW_AXIS             = false
 local DRAW_MINI_AXIS        = false
 local AXIS_SIZE             = 16
 local MINI_AXIS_SIZE        = 2
+local BLANK_SCREEN          = false
+local BLANK_COLOUR          = 0xFFFFFFFF
 
 local SCREEN_WIDTH          = 384
 local SCREEN_HEIGHT         = 224
@@ -293,6 +295,10 @@ local function draw_hitbox(hb, colour)
 	local hval   = game_x_to_mame(hb.hval)
 	local vval   = game_y_to_mame(hb.vval)
 
+	if left - right == 0 and top - bottom == 0 then
+		return
+	end
+
 	if DRAW_MINI_AXIS then
 		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, MINI_AXIS_COLOUR)
 		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, MINI_AXIS_COLOUR)
@@ -380,6 +386,10 @@ local function render_sf2_hitboxes()
 	if not address or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		gui.clearuncommitted()
 		return
+	end
+
+	if BLANK_SCREEN then
+		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOUR)
 	end
 
 	for p = 1, NUMBER_OF_PLAYERS do
