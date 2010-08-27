@@ -15,7 +15,6 @@ local DRAW_AXIS             = false
 local DRAW_MINI_AXIS        = false
 local AXIS_SIZE             = 16
 local MINI_AXIS_SIZE        = 2
-local BLANK_SCREEN          = false
 local BLANK_COLOUR          = 0xFFFFFFFF
 
 local SCREEN_WIDTH          = 384
@@ -27,6 +26,7 @@ local HITBOX_ATTACK         = 1
 local HITBOX_PUSH           = 2
 local HITBOX_WEAK           = 3
 local GAME_PHASE_NOT_PLAYING= 0
+local BLANK_SCREEN          = false
 
 local profile = {
 	{
@@ -158,6 +158,12 @@ local player      = {}
 local projectiles = {}
 local frame_buffer_array = {}
 if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
+
+
+input.registerhotkey(1, function()
+	BLANK_SCREEN = not BLANK_SCREEN
+end)
+
 
 local function update_globals()
 	globals.left_screen_edge = memory.readword(address.left_screen_edge)
