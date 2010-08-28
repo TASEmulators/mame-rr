@@ -1,8 +1,10 @@
 print("Street Fighter II hitbox viewer")
-print("August 26, 2010")
-print("http://code.google.com/p/mame-rr/") print()
+print("August 27, 2010")
+print("http://code.google.com/p/mame-rr/")
+print("Lua hotkey 1: toggle blank screen")
+print("Lua hotkey 2: toggle object axis")
+print("Lua hotkey 3: toggle hitbox axis") print()
 
-local DRAW_DELAY            = 2
 local VULNERABILITY_COLOUR  = 0x0000FF40
 local ATTACK_COLOUR         = 0xFF000060
 local PUSH_COLOUR           = 0x00FF0060
@@ -10,12 +12,10 @@ local WEAK_COLOUR           = 0xFFFF0060
 local PROJ_ATTACK_COLOUR    = 0xFF000060
 local PROJ_PUSH_COLOUR      = 0x0000FF40
 local AXIS_COLOUR           = 0xFFFFFFFF
-local MINI_AXIS_COLOUR      = 0xFFFF00FF
-local DRAW_AXIS             = false
-local DRAW_MINI_AXIS        = false
+local BLANK_COLOUR          = 0xFFFFFFFF
 local AXIS_SIZE             = 16
 local MINI_AXIS_SIZE        = 2
-local BLANK_COLOUR          = 0xFFFFFFFF
+local DRAW_DELAY            = 2
 
 local SCREEN_WIDTH          = 384
 local SCREEN_HEIGHT         = 224
@@ -26,6 +26,8 @@ local HITBOX_ATTACK         = 1
 local HITBOX_PUSH           = 2
 local HITBOX_WEAK           = 3
 local GAME_PHASE_NOT_PLAYING= 0
+local DRAW_AXIS             = false
+local DRAW_MINI_AXIS        = false
 local BLANK_SCREEN          = false
 
 local profile = {
@@ -162,6 +164,19 @@ if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
 
 input.registerhotkey(1, function()
 	BLANK_SCREEN = not BLANK_SCREEN
+	print((BLANK_SCREEN and "activated" or "deactivated") .. " blank screen mode")
+end)
+
+
+input.registerhotkey(2, function()
+	DRAW_AXIS = not DRAW_AXIS
+	print((DRAW_AXIS and "showing" or "hiding") .. " object axis")
+end)
+
+
+input.registerhotkey(3, function()
+	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
+	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
 end)
 
 
@@ -212,57 +227,59 @@ local function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
 end
 
 
-local function get_vulnbox(obj, base, is_projectile, animation_ptr)
+local function get_vulnbox(obj, hitbox_ptr, animation_ptr)
 	-- Load the vulnerability hitboxes
 	obj[HITBOX_VULNERABILITY] = {}
 	for i = 0, 2 do
-		local v_hb_addr_table = memory.readdword(base + 0x34)
-		v_hb_addr_table = memory.readword(v_hb_addr_table + offset.v_hb_addr_table + i*2) + v_hb_addr_table
+		local v_hb_addr_table = memory.readword(hitbox_ptr + offset.v_hb_addr_table + i*2) + hitbox_ptr
 		local v_hb_curr_id = memory.readbyte(animation_ptr + offset.v_hb_curr_id + i)
 		hitbox_load(obj, i, HITBOX_VULNERABILITY, obj.facing_dir, obj.pos_x, obj.pos_y, v_hb_addr_table + v_hb_curr_id*4*offset.parameter_space)
 	end
 end
 
 
-local function get_weakbox(obj, base, is_projectile, animation_ptr)
-	local w_hb_addr_table = memory.readdword(base + 0x34)
-	w_hb_addr_table = memory.readword(w_hb_addr_table + offset.w_hb_addr_table) + w_hb_addr_table
-	local w_hb_curr_id = memory.readbyte(animation_ptr + offset.w_hb_curr_id)
+local function get_weakbox(obj, hitbox_ptr, animation_ptr)
+	local w_hb_addr_table = memory.readword(hitbox_ptr + offset.w_hb_addr_table) + hitbox_ptr
+	local w_hb_curr_id
+	if memory.readbyte(animation_ptr + 0x15) > 0 then
+		w_hb_curr_id = memory.readbyte(animation_ptr + offset.w_hb_curr_id)
+	else
+		w_hb_curr_id = 0
+	end
 	hitbox_load(obj, 0, HITBOX_WEAK, obj.facing_dir, obj.pos_x, obj.pos_y, w_hb_addr_table + w_hb_curr_id*4*offset.parameter_space)
 end
 
 
-local function get_hurtbox(obj, base, is_projectile, animation_ptr)
+local function get_hurtbox(obj, hitbox_ptr, animation_ptr)
 	-- Load the attack hitbox
-	local a_hb_addr_table = memory.readdword(base + 0x34)
-	a_hb_addr_table = memory.readword(a_hb_addr_table + offset.a_hb_addr_table) + a_hb_addr_table
+	local a_hb_addr_table = memory.readword(hitbox_ptr + offset.a_hb_addr_table) + hitbox_ptr
 	local a_hb_curr_id = memory.readbyte(animation_ptr + offset.a_hb_curr_id)
 	hitbox_load(obj, 0, HITBOX_ATTACK, obj.facing_dir, obj.pos_x, obj.pos_y, a_hb_addr_table + a_hb_curr_id*offset.a_hb_id_space)
 end
 
 
-local function get_pushbox(obj, base, is_projectile, animation_ptr)
+local function get_pushbox(obj, hitbox_ptr, animation_ptr)
 	-- Load the push hitbox
-	local p_hb_addr_table = memory.readdword(base + 0x34)
-	p_hb_addr_table = memory.readword(p_hb_addr_table + offset.p_hb_addr_table) + p_hb_addr_table
+	local p_hb_addr_table = memory.readword(hitbox_ptr + offset.p_hb_addr_table) + hitbox_ptr
 	local p_hb_curr_id = memory.readbyte(animation_ptr + offset.p_hb_curr_id)
 	hitbox_load(obj, 0, HITBOX_PUSH, obj.facing_dir, obj.pos_x, obj.pos_y, p_hb_addr_table + p_hb_curr_id*4*offset.parameter_space)
 end
 
 
-local function update_game_object(obj, base, is_projectile)
+local function update_game_object(obj, base)
 	obj.facing_dir   = memory.readbyte(base + 0x12)
 	obj.pos_x        = memory.readword(base + 0x06)
 	obj.pos_y        = memory.readword(base + 0x0A)
 
 	local animation_ptr = memory.readdword(base + 0x1A)
+	local hitbox_ptr    = memory.readdword(base + 0x34)
 
-	get_vulnbox(obj, base, is_projectile, animation_ptr)
+	get_vulnbox(obj, hitbox_ptr, animation_ptr)
+	get_hurtbox(obj, hitbox_ptr, animation_ptr)
+	get_pushbox(obj, hitbox_ptr, animation_ptr)
 	if offset.w_hb_addr_table then
-		get_weakbox(obj, base, is_projectile, animation_ptr)
+		get_weakbox(obj, hitbox_ptr, animation_ptr)
 	end
-	get_hurtbox(obj, base, is_projectile, animation_ptr)
-	get_pushbox(obj, base, is_projectile, animation_ptr)
 end
 
 
@@ -273,7 +290,7 @@ local function read_projectiles()
 
 		if memory.readbyte(base+1) ~= 0 then
 			projectiles[globals.num_projectiles] = {}
-			update_game_object(projectiles[globals.num_projectiles], base, true)
+			update_game_object(projectiles[globals.num_projectiles], base)
 			globals.num_projectiles = globals.num_projectiles+1
 		end
 	end
@@ -306,8 +323,8 @@ local function draw_hitbox(hb, colour)
 	end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, MINI_AXIS_COLOUR)
-		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, MINI_AXIS_COLOUR)
+		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(colour, 0xFF))
+		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, OR(colour, 0xFF))
 	end
 	gui.box(left, top, right, bottom, colour)
 end
