@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("August 27, 2010")
+print("August 29, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -21,10 +21,10 @@ local SCREEN_WIDTH          = 384
 local SCREEN_HEIGHT         = 224
 local NUMBER_OF_PLAYERS     = 2
 local MAX_GAME_PROJECTILES  = 8
-local HITBOX_VULNERABILITY  = 0
-local HITBOX_ATTACK         = 1
-local HITBOX_PUSH           = 2
-local HITBOX_WEAK           = 3
+local HITBOX_VULNERABILITY  = 1
+local HITBOX_ATTACK         = 2
+local HITBOX_PUSH           = 3
+local HITBOX_WEAK           = 4
 local GAME_PHASE_NOT_PLAYING= 0
 local DRAW_AXIS             = false
 local DRAW_MINI_AXIS        = false
@@ -80,28 +80,6 @@ local profile = {
 		},
 	},
 	{
-		games = {"ssf2"},
-		delay = 0,
-		address = {
-			player           = 0xFF83CE,
-			projectile       = 0xFF96A2,
-			left_screen_edge = 0xFF8DD4,
-			top_screen_edge  = 0xFF8DD8,
-			game_phase       = 0xFF83FF,
-		},
-		offset = {
-			player_space     = 0x400,
-			parameter_space  = 0x1,
-			v_hb_addr_table  = 0x0,
-			a_hb_addr_table  = 0x6,
-			p_hb_addr_table  = 0x8,
-			v_hb_curr_id     = 0x8,
-			a_hb_curr_id     = 0xC,
-			p_hb_curr_id     = 0xD,
-			a_hb_id_space    = 0x0C,
-		},
-	},
-	{
 		games = {"ssf2t"},
 		delay = 1,
 		address = {
@@ -121,6 +99,28 @@ local profile = {
 			a_hb_curr_id     = 0xC,
 			p_hb_curr_id     = 0xD,
 			a_hb_id_space    = 0x10,
+		},
+	},
+	{
+		games = {"ssf2"},
+		delay = 0,
+		address = {
+			player           = 0xFF83CE,
+			projectile       = 0xFF96A2,
+			left_screen_edge = 0xFF8DD4,
+			top_screen_edge  = 0xFF8DD8,
+			game_phase       = 0xFF83FF,
+		},
+		offset = {
+			player_space     = 0x400,
+			parameter_space  = 0x1,
+			v_hb_addr_table  = 0x0,
+			a_hb_addr_table  = 0x6,
+			p_hb_addr_table  = 0x8,
+			v_hb_curr_id     = 0x8,
+			a_hb_curr_id     = 0xC,
+			p_hb_curr_id     = 0xD,
+			a_hb_id_space    = 0x0C,
 		},
 	},
 	{
@@ -240,11 +240,9 @@ end
 
 local function get_weakbox(obj, hitbox_ptr, animation_ptr)
 	local w_hb_addr_table = memory.readword(hitbox_ptr + offset.w_hb_addr_table) + hitbox_ptr
-	local w_hb_curr_id
+	local w_hb_curr_id = 0
 	if memory.readbyte(animation_ptr + 0x15) > 0 then
 		w_hb_curr_id = memory.readbyte(animation_ptr + offset.w_hb_curr_id)
-	else
-		w_hb_curr_id = 0
 	end
 	hitbox_load(obj, 0, HITBOX_WEAK, obj.facing_dir, obj.pos_x, obj.pos_y, w_hb_addr_table + w_hb_curr_id*4*offset.parameter_space)
 end
