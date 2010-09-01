@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("August 29, 2010")
+print("September 1, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -33,7 +33,6 @@ local BLANK_SCREEN          = false
 local profile = {
 	{
 		games = {"sf2"},
-		delay = 0,
 		address = {
 			player           = 0xFF83C6,
 			projectile       = 0xFF938A,
@@ -57,7 +56,6 @@ local profile = {
 	},
 	{
 		games = {"sf2ce","sf2hf"},
-		delay = 0,
 		address = {
 			player           = 0xFF83BE,
 			projectile       = 0xFF9376,
@@ -81,7 +79,6 @@ local profile = {
 	},
 	{
 		games = {"ssf2t"},
-		delay = 1,
 		address = {
 			player           = 0xFF844E,
 			projectile       = 0xFF97A2,
@@ -103,7 +100,6 @@ local profile = {
 	},
 	{
 		games = {"ssf2"},
-		delay = 0,
 		address = {
 			player           = 0xFF83CE,
 			projectile       = 0xFF96A2,
@@ -125,7 +121,6 @@ local profile = {
 	},
 	{
 		games = {"hsf2"},
-		delay = 1,
 		address = {
 			player           = 0xFF833C,
 			projectile       = 0xFF9554,
@@ -149,7 +144,7 @@ local profile = {
 	},
 }
 
-local address, offset, effective_delay
+local address, offset
 local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
@@ -179,6 +174,41 @@ input.registerhotkey(3, function()
 	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
 end)
 
+
+--------------------------------------------------------------------------------
+-- initialize on game startup
+
+local function whatgame()
+	address, offset = nil, nil
+	for n, module in ipairs(profile) do
+		for m, shortname in ipairs(module.games) do
+			if emu.romname() == shortname or emu.parentname() == shortname then
+				print("drawing " .. shortname .. " hitboxes")
+				address = module.address
+				offset = module.offset
+				for p = 1, NUMBER_OF_PLAYERS do
+					player[p] = {}
+				end
+				for f = 1, DRAW_DELAY+1 do
+					frame_buffer_array[f] = {}
+					frame_buffer_array[f][player] = {}
+					frame_buffer_array[f][projectiles] = {}
+				end
+				return
+			end
+		end
+	end
+	print("not prepared for " .. emu.romname() .. " hitboxes")
+end
+
+
+emu.registerstart( function()
+	whatgame()
+end)
+
+
+--------------------------------------------------------------------------------
+-- prepare the hitboxes
 
 local function update_globals()
 	globals.left_screen_edge = memory.readword(address.left_screen_edge)
@@ -287,13 +317,51 @@ local function read_projectiles()
 		local base = address.projectile + (i-1) * 0xC0
 
 		if memory.readbyte(base+1) ~= 0 then
+			globals.num_projectiles = globals.num_projectiles+1
 			projectiles[globals.num_projectiles] = {}
 			update_game_object(projectiles[globals.num_projectiles], base)
-			globals.num_projectiles = globals.num_projectiles+1
 		end
 	end
 end
 
+
+local function update_sf2_hitboxes()
+	if not address then return end
+	update_globals()
+	if globals.game_phase == GAME_PHASE_NOT_PLAYING then
+		return
+	end
+
+	for p = 1, NUMBER_OF_PLAYERS do
+		update_game_object(player[p], address.player + (p-1) * offset.player_space)
+	end
+	read_projectiles()
+
+	for f = 1, DRAW_DELAY do
+		for p = 1, NUMBER_OF_PLAYERS do
+			frame_buffer_array[f][player][p] = copytable(frame_buffer_array[f+1][player][p])
+		end
+		for i = 1, globals.num_projectiles do
+			frame_buffer_array[f][projectiles][i] = copytable(frame_buffer_array[f+1][projectiles][i])
+		end
+	end
+
+	for p = 1, NUMBER_OF_PLAYERS do
+		frame_buffer_array[DRAW_DELAY+1][player][p] = copytable(player[p])
+	end
+	for i = 1, globals.num_projectiles do
+		frame_buffer_array[DRAW_DELAY+1][projectiles][i] = copytable(projectiles[i])
+	end
+end
+
+
+emu.registerafter( function()
+	update_sf2_hitboxes()
+end)
+
+
+--------------------------------------------------------------------------------
+-- draw the hitboxes
 
 local function game_x_to_mame(x)
 	return (x - globals.left_screen_edge)
@@ -348,61 +416,6 @@ local function draw_game_object(obj, is_projectile)
 end
 
 
-local function whatgame()
-	address, offset, effective_delay = nil, nil, nil
-	for n, module in ipairs(profile) do
-		for m, shortname in ipairs(module.games) do
-			if emu.romname() == shortname or emu.parentname() == shortname then
-				print("drawing " .. shortname .. " hitboxes")
-				address = module.address
-				offset = module.offset
-				effective_delay = DRAW_DELAY + module.delay
-				for p = 1, NUMBER_OF_PLAYERS do
-					player[p] = {}
-				end
-				for f = 1, effective_delay+1 do
-					frame_buffer_array[f] = {}
-					frame_buffer_array[f][player] = {}
-					frame_buffer_array[f][projectiles] = {}
-				end
-				return
-			end
-		end
-	end
-	print("not prepared for " .. emu.romname() .. " hitboxes")
-end
-
-
-local function update_sf2_hitboxes()
-	if not address then return end
-	update_globals()
-	if globals.game_phase == GAME_PHASE_NOT_PLAYING then
-		return
-	end
-
-	for p = 1, NUMBER_OF_PLAYERS do
-		update_game_object(player[p], address.player + (p-1) * offset.player_space)
-	end
-	read_projectiles()
-
-	for f = 1, effective_delay do
-		for p = 1, NUMBER_OF_PLAYERS do
-			frame_buffer_array[f][player][p] = copytable(frame_buffer_array[f+1][player][p])
-		end
-		for i = 0, globals.num_projectiles-1 do
-			frame_buffer_array[f][projectiles][i] = copytable(frame_buffer_array[f+1][projectiles][i])
-		end
-	end
-
-	for p = 1, NUMBER_OF_PLAYERS do
-		frame_buffer_array[effective_delay+1][player][p] = copytable(player[p])
-	end
-	for i = 0, globals.num_projectiles-1 do
-		frame_buffer_array[effective_delay+1][projectiles][i] = copytable(projectiles[i])
-	end
-end
-
-
 local function render_sf2_hitboxes()
 	if not address or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		gui.clearuncommitted()
@@ -417,20 +430,10 @@ local function render_sf2_hitboxes()
 		draw_game_object(frame_buffer_array[1][player][p])
 	end
 
-	for i = 0, globals.num_projectiles-1 do
+	for i = 1, globals.num_projectiles do
 		draw_game_object(frame_buffer_array[1][projectiles][i], true)
 	end
 end
-
-
-emu.registerstart( function()
-	whatgame()
-end)
-
-
-emu.registerafter( function()
-	update_sf2_hitboxes()
-end)
 
 
 gui.register( function()
