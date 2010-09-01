@@ -85,14 +85,13 @@ local profile = {
 			left_screen_edge = 0xFF8F18,
 			top_screen_edge  = 0xFF8F1C,
 			game_phase       = 0xFF988B,
-			special_projectiles = {0xFFA06E, 0xFFA76E}
 		},
 		offset = {
 			player_space     = 0x500,
 			projectile_space = 0xC0,
 			facing_dir       = 0x9,
 			hitbox_ptr       = 0x5C,
-			invulnerability  = {},
+			invulnerability  = {0x11D},
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
 		},
 		boxes = {
@@ -103,6 +102,7 @@ local profile = {
 			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, color = ATTACK_COLOR},
 			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, color = WEAK_COLOR},
 		},
+		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 32, exist_offset = 0x04, exist_value = 0x02},
 	},
 	{
 		games = {"vsav","vhunt2","vsav2"},
@@ -209,10 +209,12 @@ end
 
 
 local function define_box(obj, entry, base_obj, is_projectile)
-	for _,address in ipairs(game.offset.invulnerability) do
-		if memory.readbyte(base_obj + address) > 0 then
-			obj[entry] = nil
-			return
+	if not is_projectile then
+		for _,address in ipairs(game.offset.invulnerability) do
+			if memory.readbyte(base_obj + address) > 0 then
+				obj[entry] = nil
+				return
+			end
 		end
 	end
 
@@ -255,14 +257,14 @@ local function define_box(obj, entry, base_obj, is_projectile)
 end
 
 
-local function update_game_object(obj, base, is_projectile)
-	obj.facing_dir   = memory.readbyte(base + game.offset.facing_dir)
-	obj.pos_x        = memory.readword(base + 0x10)
-	obj.pos_y        = memory.readword(base + 0x14)
-	--obj.opponent_dir = memory.readbyte(base + 0x5D)
+local function update_game_object(obj, base_obj, is_projectile)
+	obj.facing_dir   = memory.readbyte(base_obj + game.offset.facing_dir)
+	obj.pos_x        = memory.readword(base_obj + 0x10)
+	obj.pos_y        = memory.readword(base_obj + 0x14)
+	--obj.opponent_dir = memory.readbyte(base_obj + 0x5D)
 
 	for n in ipairs(game.boxes) do
-		define_box(obj, n, base, is_projectile)
+		define_box(obj, n, base_obj, is_projectile)
 	end
 end
 
@@ -273,18 +275,19 @@ local function read_projectiles()
 		local base_obj = game.address.projectile + (i-1) * game.offset.projectile_space
 
 		if memory.readbyte(base_obj+1) ~= 0 then
+			globals.num_projectiles = globals.num_projectiles+1
 			projectiles[globals.num_projectiles] = {}
 			update_game_object(projectiles[globals.num_projectiles], base_obj, true)
-			globals.num_projectiles = globals.num_projectiles+1
 		end
 	end
 
-	if game.address.special_projectiles then
-		for _,base_obj in ipairs(game.address.special_projectiles) do
-			if memory.readbyte(base_obj+1) ~= 0 then
+	if game.special_projectiles then
+		for i = 1, game.special_projectiles.number do
+			local base_obj = game.special_projectiles.start + (i-1) * game.special_projectiles.space
+			if memory.readbyte(base_obj+game.special_projectiles.exist_offset) == game.special_projectiles.exist_value then
+				globals.num_projectiles = globals.num_projectiles+1
 				projectiles[globals.num_projectiles] = {}
 				update_game_object(projectiles[globals.num_projectiles], base_obj, true)
-				globals.num_projectiles = globals.num_projectiles+1
 			end
 		end
 	end
@@ -309,7 +312,7 @@ local function update_cps2_hitboxes()
 		for p = 1, game.nplayers do
 			frame_buffer_array[f][player][p] = copytable(frame_buffer_array[f+1][player][p])
 		end
-		for i = 0, globals.num_projectiles-1 do
+		for i = 1, globals.num_projectiles do
 			frame_buffer_array[f][projectiles][i] = copytable(frame_buffer_array[f+1][projectiles][i])
 		end
 	end
@@ -317,7 +320,7 @@ local function update_cps2_hitboxes()
 	for p = 1, game.nplayers do
 		frame_buffer_array[DRAW_DELAY+1][player][p] = copytable(player[p])
 	end
-	for i = 0, globals.num_projectiles-1 do
+	for i = 1, globals.num_projectiles do
 		frame_buffer_array[DRAW_DELAY+1][projectiles][i] = copytable(projectiles[i])
 	end
 end
@@ -352,12 +355,13 @@ local function draw_hitbox(hb, color)
 	local hval   = game_x_to_mame(hb.hval)
 	local vval   = game_y_to_mame(hb.vval)
 
-	if left - right == 0 and top - bottom == 0 then return end
+	if left >= right or bottom >= top then return end
 
 	if DRAW_MINI_AXIS then
 		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(color, 0xFF))
 		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, OR(color, 0xFF))
 	end
+
 	gui.box(left, top, right, bottom, color)
 end
 
@@ -393,7 +397,7 @@ local function render_cps2_hitboxes()
 		draw_game_object(frame_buffer_array[1][player][p])
 	end
 
-	for i = 0, globals.num_projectiles-1 do
+	for i = 1, globals.num_projectiles do
 		draw_game_object(frame_buffer_array[1][projectiles][i], true)
 	end
 end
