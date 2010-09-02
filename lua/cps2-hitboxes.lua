@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("August 31, 2010")
+print("September 1, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -25,6 +25,33 @@ local BLANK_SCREEN          = false
 
 local profile = {
 	{
+		games = {"sfa"},
+		nplayers = 3,
+		address = {
+			player           = 0xFF8400,
+			projectile       = 0xFF9000,
+			left_screen_edge = 0xFF802E,
+			top_screen_edge  = 0xFF8030,
+			game_phase       = 0xFF8280,
+		},
+		offset = {
+			player_space     = 0x400,
+			projectile_space = 0x80,
+			facing_dir       = 0xB,
+			hitbox_ptr       = {player = 0x50, projectile = 0x50},
+			invulnerability  = {},
+			parameter_space  = 0x1,
+			hval = 0x0, vval = 0x1, hrad = 0x2, vrad = 0x3,
+		},
+		boxes = {
+			{anim_ptr = 0x20, addr_table = 0x08, p_addr_table = 0x4, id_ptr = 0x0C, id_space = 0x04, color = PUSH_COLOR},
+			{anim_ptr = 0x20, addr_table = 0x00, p_addr_table = 0x0, id_ptr = 0x08, id_space = 0x04, color = VULNERABILITY_COLOR},
+			{anim_ptr = 0x20, addr_table = 0x02, p_addr_table = 0x0, id_ptr = 0x09, id_space = 0x04, color = VULNERABILITY_COLOR},
+			{anim_ptr = 0x20, addr_table = 0x04, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x04, color = VULNERABILITY_COLOR},
+			{anim_ptr = 0x20, addr_table = 0x06, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x10, color = ATTACK_COLOR},
+		},
+	},
+	{
 		games = {"sfa2","sfz2al"},
 		nplayers = 3,
 		address = {
@@ -38,8 +65,9 @@ local profile = {
 			player_space     = 0x400,
 			projectile_space = 0x80,
 			facing_dir       = 0xB,
-			hitbox_ptr       = 0x60,
+			hitbox_ptr       = {player = nil, projectile = 0x60},
 			invulnerability  = {},
+			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -64,8 +92,9 @@ local profile = {
 			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0xB,
-			hitbox_ptr       = nil,
-			invulnerability  = {0xD6,0x25D},
+			hitbox_ptr       = {player = nil, projectile = nil},
+			invulnerability  = {0xD6, 0x25D},
+			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -90,8 +119,9 @@ local profile = {
 			player_space     = 0x500,
 			projectile_space = 0xC0,
 			facing_dir       = 0x9,
-			hitbox_ptr       = 0x5C,
+			hitbox_ptr       = {player = 0x5C, projectile = 0x5C},
 			invulnerability  = {0x11D},
+			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
 		},
 		boxes = {
@@ -118,8 +148,9 @@ local profile = {
 			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0xB,
-			hitbox_ptr       = nil,
+			hitbox_ptr       = {player = nil, projectile = nil},
 			invulnerability  = {0x147},
+			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -208,27 +239,16 @@ local function update_globals()
 end
 
 
-local function define_box(obj, entry, base_obj, is_projectile)
-	if not is_projectile then
-		for _,address in ipairs(game.offset.invulnerability) do
-			if memory.readbyte(base_obj + address) > 0 then
-				obj[entry] = nil
-				return
-			end
-		end
-	end
-
+local function define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
 	local addr_table
-	if not game.offset.hitbox_ptr or (game.boxes[entry].p_addr_table and not is_projectile) then --vsav/sfa3 all; sfa2 players
+	if not hitbox_ptr then
 		addr_table = memory.readdword(base_obj + game.boxes[entry].addr_table)
-	elseif game.offset.hitbox_ptr and game.boxes[entry].p_addr_table then --sfa2 projectiles
-		addr_table = memory.readdword(base_obj + game.offset.hitbox_ptr)
-		addr_table = addr_table + memory.readwordsigned(addr_table + game.boxes[entry].p_addr_table)
-	else --nwarr all
-		addr_table = memory.readdword(base_obj + game.offset.hitbox_ptr)
-		addr_table = addr_table + memory.readwordsigned(addr_table + game.boxes[entry].addr_table)
+	else
+		local table_offset = is_projectile and game.boxes[entry].p_addr_table or game.boxes[entry].addr_table
+		addr_table = memory.readdword(base_obj + hitbox_ptr)
+		addr_table = addr_table + memory.readwordsigned(addr_table + table_offset)
 	end
-
+	
 	local base_id = base_obj
 	if game.boxes[entry].anim_ptr then
 		base_id = memory.readdword(base_obj + game.boxes[entry].anim_ptr)
@@ -237,10 +257,18 @@ local function define_box(obj, entry, base_obj, is_projectile)
 	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr)
 	local address = addr_table + curr_id * game.boxes[entry].id_space
 
-	local hval = memory.readwordsigned(address + game.offset.hval)
-	local vval = memory.readwordsigned(address + game.offset.vval)
-	local hrad = memory.readwordsigned(address + game.offset.hrad)
-	local vrad = memory.readwordsigned(address + game.offset.vrad)
+	local hval, vval, hrad, vrad
+	if game.offset.parameter_space == 1 then
+		hval   = memory.readbytesigned(address + game.offset.hval)
+		vval   = memory.readbytesigned(address + game.offset.vval)
+		hrad   = memory.readbytesigned(address + game.offset.hrad)
+		vrad   = memory.readbytesigned(address + game.offset.vrad)
+	elseif game.offset.parameter_space == 2 then
+		hval   = memory.readwordsigned(address + game.offset.hval)
+		vval   = memory.readwordsigned(address + game.offset.vval)
+		hrad   = memory.readwordsigned(address + game.offset.hrad)
+		vrad   = memory.readwordsigned(address + game.offset.vrad)
+	end
 
 	if obj.facing_dir == 1 then
 		hval  = -hval
@@ -263,8 +291,15 @@ local function update_game_object(obj, base_obj, is_projectile)
 	obj.pos_y        = memory.readword(base_obj + 0x14)
 	--obj.opponent_dir = memory.readbyte(base_obj + 0x5D)
 
+	local hitbox_ptr
+	if not is_projectile then
+		hitbox_ptr = game.offset.hitbox_ptr.player
+	else
+		hitbox_ptr = game.offset.hitbox_ptr.projectile
+	end
+
 	for n in ipairs(game.boxes) do
-		define_box(obj, n, base_obj, is_projectile)
+		define_box(obj, n, base_obj, is_projectile, hitbox_ptr)
 	end
 end
 
@@ -294,6 +329,16 @@ local function read_projectiles()
 end
 
 
+local function update_invulnerability(player, base_obj)
+	player.invulnerability = false
+	for _,address in ipairs(game.offset.invulnerability) do
+		if memory.readbyte(base_obj + address) > 0 then
+			player.invulnerability = true
+		end
+	end
+end
+
+
 local function update_cps2_hitboxes()
 	if not game then return end
 	update_globals()
@@ -303,7 +348,11 @@ local function update_cps2_hitboxes()
 
 	for p = 1, game.nplayers do
 		if globals.player[p] > 0 then
-			update_game_object(player[p], game.address.player + (p-1) * game.offset.player_space)
+			local base_obj = game.address.player + (p-1) * game.offset.player_space
+			update_game_object(player[p], base_obj)
+			update_invulnerability(player[p], base_obj)
+		else
+			player[p] = {}
 		end
 	end
 	read_projectiles()
@@ -366,14 +415,16 @@ local function draw_hitbox(hb, color)
 end
 
 
-local function draw_game_object(obj, is_projectile)
+local function draw_game_object(obj)
 	if not obj or not obj.pos_x then return end
 
 	local x = game_x_to_mame(obj.pos_x)
 	local y = game_y_to_mame(obj.pos_y)
 
-	for entry in ipairs(obj) do
-		draw_hitbox(obj[entry], game.boxes[entry].color)
+	for entry in pairs(game.boxes) do
+		if not (obj.invulnerability and game.boxes[entry].color == VULNERABILITY_COLOR) then
+			draw_hitbox(obj[entry], game.boxes[entry].color)
+		end
 	end
 
 	if DRAW_AXIS then
@@ -398,7 +449,7 @@ local function render_cps2_hitboxes()
 	end
 
 	for i = 1, globals.num_projectiles do
-		draw_game_object(frame_buffer_array[1][projectiles][i], true)
+		draw_game_object(frame_buffer_array[1][projectiles][i])
 	end
 end
 
