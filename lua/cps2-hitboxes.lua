@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("September 2, 2010")
+print("September 3, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -30,17 +30,15 @@ local profile = {
 			player           = 0xFF8400,
 			projectile       = 0xFF9000,
 			left_screen_edge = 0xFF8290,
-			top_screen_edge  = 0xFF8294,
 			game_phase       = 0xFF8280,
 		},
 		offset = {
 			player_space     = 0x400,
 			projectile_space = 0x80,
 			facing_dir       = 0x0B,
-			position         = {x = 0x10, y = 0x14},
+			x_position       = 0x10,
 			hitbox_ptr       = {player = 0x50, projectile = 0x50},
 			invulnerability  = {},
-			parameter_space  = 0x1,
 			hval = 0x0, vval = 0x1, hrad = 0x2, vrad = 0x3,
 		},
 		boxes = {
@@ -50,6 +48,7 @@ local profile = {
 			{anim_ptr = 0x20, addr_table = 0x04, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x04, color = VULNERABILITY_COLOR},
 			{anim_ptr = 0x20, addr_table = 0x06, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x10, color = ATTACK_COLOR},
 		},
+		box_parameter = {func = memory.readbytesigned, radscale = 1},
 	},
 	{
 		games = {"sfa2","sfz2al"},
@@ -58,17 +57,15 @@ local profile = {
 			player           = 0xFF8400,
 			projectile       = 0xFF9400,
 			left_screen_edge = 0xFF8290,
-			top_screen_edge  = 0xFF8294,
 			game_phase       = 0xFF812D,
 		},
 		offset = {
 			player_space     = 0x400,
 			projectile_space = 0x80,
 			facing_dir       = 0x0B,
-			position         = {x = 0x10, y = 0x14},
+			x_position       = 0x10,
 			hitbox_ptr       = {player = nil, projectile = 0x60},
 			invulnerability  = {},
-			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -78,6 +75,7 @@ local profile = {
 			{anim_ptr = 0x1C, addr_table = 0x118, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x08, color = VULNERABILITY_COLOR},
 			{anim_ptr = 0x1C, addr_table = 0x11C, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x20, color = ATTACK_COLOR},
 		},
+		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
 	{
 		games = {"sfa3"},
@@ -86,17 +84,15 @@ local profile = {
 			player           = 0xFF8400,
 			projectile       = 0xFF9400,
 			left_screen_edge = 0xFF8290,
-			top_screen_edge  = 0xFF8294,
 			game_phase       = 0xFF812D,
 		},
 		offset = {
 			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0x0B,
-			position         = {x = 0x10, y = 0x14},
+			x_position       = 0x10,
 			hitbox_ptr       = {player = nil, projectile = nil},
 			invulnerability  = {0xD6, 0x25D},
-			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -106,6 +102,7 @@ local profile = {
 			{anim_ptr =  nil, addr_table = 0x98, id_ptr = 0xCA, id_space = 0x08, color = VULNERABILITY_COLOR},
 			{anim_ptr = 0x1C, addr_table = 0xA0, id_ptr = 0x09, id_space = 0x20, color = ATTACK_COLOR},
 		},
+		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
 	{
 		games = {"dstlk"},
@@ -114,17 +111,15 @@ local profile = {
 			player           = 0xFF8388,
 			projectile       = 0xFFAA2E,
 			left_screen_edge = 0xFF9518,
-			top_screen_edge  = 0xFF951C,
 			game_phase       = 0xFF9475,
 		},
 		offset = {
 			player_space     = 0x400,
 			projectile_space = 0xC0,
 			facing_dir       = 0x09,
-			position         = {x = 0x10, y = 0x14},
+			x_position       = 0x10,
 			hitbox_ptr       = {player = 0x5C, projectile = 0x5C},
 			invulnerability  = {0x11D},
-			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
 		},
 		boxes = {
@@ -135,6 +130,7 @@ local profile = {
 			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, color = ATTACK_COLOR},
 			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, color = WEAK_COLOR},
 		},
+		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
 	{
 		games = {"nwarr"},
@@ -143,17 +139,15 @@ local profile = {
 			player           = 0xFF8388,
 			projectile       = 0xFFA86E,
 			left_screen_edge = 0xFF8F18,
-			top_screen_edge  = 0xFF8F1C,
 			game_phase       = 0xFF988B,
 		},
 		offset = {
 			player_space     = 0x500,
 			projectile_space = 0xC0,
 			facing_dir       = 0x09,
-			position         = {x = 0x10, y = 0x14},
+			x_position       = 0x10,
 			hitbox_ptr       = {player = 0x5C, projectile = 0x5C},
 			invulnerability  = {0x11D},
-			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
 		},
 		boxes = {
@@ -164,6 +158,7 @@ local profile = {
 			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, color = ATTACK_COLOR},
 			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, color = WEAK_COLOR},
 		},
+		box_parameter = {func = memory.readwordsigned, radscale = 1},
 		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28, exist_offset = 0x04, exist_value = 0x02},
 	},
 	{
@@ -173,17 +168,15 @@ local profile = {
 			player           = 0xFF8400,
 			projectile       = 0xFF9400,
 			left_screen_edge = 0xFF8290,
-			top_screen_edge  = 0xFF8294,
 			game_phase       = 0xFF812D,
 		},
 		offset = {
 			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0x0B,
-			position         = {x = 0x10, y = 0x14},
+			x_position       = 0x10,
 			hitbox_ptr       = {player = nil, projectile = nil},
 			invulnerability  = {0x147},
-			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -193,6 +186,7 @@ local profile = {
 			{anim_ptr =  nil, addr_table = 0x88, id_ptr = 0x96, id_space = 0x08, color = VULNERABILITY_COLOR},
 			{anim_ptr = 0x1C, addr_table = 0x8C, id_ptr = 0x0A, id_space = 0x20, color = ATTACK_COLOR},
 		},
+		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
 	{
 		games = {"cybots"},
@@ -201,17 +195,15 @@ local profile = {
 			player           = 0xFF81A0,
 			projectile       = 0xFF92A0,
 			left_screen_edge = 0xFFECF4,
-			top_screen_edge  = 0xFFECF8,
 			game_phase       = 0xFF89A0,
 		},
 		offset = {
 			player_space     = 0x400,
 			projectile_space = 0xC0,
 			facing_dir       = 0x09,
-			position         = {x = 0x1A, y = 0x1E},
+			x_position       = 0x1A,
 			hitbox_ptr       = {player = 0x32, projectile = 0x32},
 			invulnerability  = {},
-			parameter_space  = 0x2,
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -221,6 +213,33 @@ local profile = {
 			{anim_ptr = nil, addr_table = 0x06, id_ptr = 0x65, id_space = 0x08, color = VULNERABILITY_COLOR},
 			{anim_ptr = nil, addr_table = 0x00, id_ptr = 0x62, id_space = 0x10, color = ATTACK_COLOR},
 		},
+		box_parameter = {func = memory.readwordsigned, radscale = 1},
+	},
+	{
+		games = {"sgemf"},
+		number = {players = 2, projectiles = 14},
+		address = {
+			player           = 0xFF8400,
+			projectile       = 0xFF8C00,
+			left_screen_edge = 0xFF8290,
+			game_phase       = 0xFFCBBC,
+		},
+		offset = {
+			player_space     = 0x400,
+			projectile_space = 0x100,
+			facing_dir       = 0x0B,
+			x_position       = 0x10,
+			hitbox_ptr       = {player = nil, projectile = nil},
+			invulnerability  = {0x147},
+			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
+		},
+		boxes = {
+			{anim_ptr =  nil, addr_table = 0x8C, id_ptr = 0x93, id_space = 0x08, color = PUSH_COLOR},
+			{anim_ptr =  nil, addr_table = 0x80, id_ptr = 0x90, id_space = 0x08, color = VULNERABILITY_COLOR},
+			{anim_ptr =  nil, addr_table = 0x84, id_ptr = 0x91, id_space = 0x08, color = VULNERABILITY_COLOR},
+			{anim_ptr =  nil, addr_table = 0x88, id_ptr = 0x92, id_space = 0x20, color = ATTACK_COLOR},
+		},
+		box_parameter = {func = memory.readwordsigned, radscale = 2},
 	},
 }
 
@@ -292,7 +311,7 @@ end)
 
 local function update_globals()
 	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
-	globals.top_screen_edge  = memory.readword(game.address.top_screen_edge)
+	globals.top_screen_edge  = memory.readword(game.address.left_screen_edge + 0x4)
 	globals.game_phase       = memory.readword(game.address.game_phase)
 	for p = 1, game.number.players do
 		globals.player[p]      = memory.readbyte(game.address.player + (p-1) * game.offset.player_space)
@@ -318,18 +337,10 @@ local function define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
 	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr)
 	local address = addr_table + curr_id * game.boxes[entry].id_space
 
-	local hval, vval, hrad, vrad
-	if game.offset.parameter_space == 1 then
-		hval   = memory.readbytesigned(address + game.offset.hval)
-		vval   = memory.readbytesigned(address + game.offset.vval)
-		hrad   = memory.readbytesigned(address + game.offset.hrad)
-		vrad   = memory.readbytesigned(address + game.offset.vrad)
-	elseif game.offset.parameter_space == 2 then
-		hval   = memory.readwordsigned(address + game.offset.hval)
-		vval   = memory.readwordsigned(address + game.offset.vval)
-		hrad   = memory.readwordsigned(address + game.offset.hrad)
-		vrad   = memory.readwordsigned(address + game.offset.vrad)
-	end
+	local hval = game.box_parameter.func(address + game.offset.hval)
+	local vval = game.box_parameter.func(address + game.offset.vval)
+	local hrad = game.box_parameter.func(address + game.offset.hrad)/game.box_parameter.radscale
+	local vrad = game.box_parameter.func(address + game.offset.vrad)/game.box_parameter.radscale
 
 	if obj.facing_dir == 1 then
 		hval  = -hval
@@ -348,8 +359,8 @@ end
 
 local function update_game_object(obj, base_obj, is_projectile)
 	obj.facing_dir   = memory.readbyte(base_obj + game.offset.facing_dir)
-	obj.pos_x        = memory.readword(base_obj + game.offset.position.x)
-	obj.pos_y        = memory.readword(base_obj + game.offset.position.y)
+	obj.pos_x        = memory.readword(base_obj + game.offset.x_position)
+	obj.pos_y        = memory.readword(base_obj + game.offset.x_position + 0x4)
 	--obj.opponent_dir = memory.readbyte(base_obj + 0x5D)
 
 	local hitbox_ptr
