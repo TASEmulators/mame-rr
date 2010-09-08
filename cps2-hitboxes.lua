@@ -1,26 +1,30 @@
 print("CPS-2 hitbox viewer")
-print("September 3, 2010")
+print("September 7, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis") print()
 
-local VULNERABILITY_COLOR   = 0x0000FF40
-local ATTACK_COLOR          = 0xFF000060
-local PUSH_COLOR            = 0x00FF0060
-local WEAK_COLOR            = 0xFFFF0060
-local AXIS_COLOR            = 0xFFFFFFFF
-local BLANK_COLOR           = 0xFFFFFFFF
-local AXIS_SIZE             = 16
-local MINI_AXIS_SIZE        = 2
-local DRAW_DELAY            = 2
+local VULNERABILITY_COLOR    = 0x0000FF40
+local ATTACK_COLOR           = 0xFF000060
+local PUSH_COLOR             = 0x00FF0060
+local WEAK_COLOR             = 0xFFFF0060
+local AXIS_COLOR             = 0xFFFFFFFF
+local BLANK_COLOR            = 0xFFFFFFFF
+local AXIS_SIZE              = 16
+local MINI_AXIS_SIZE         = 2
+local DRAW_DELAY             = 2
 
-local SCREEN_WIDTH          = 384
-local SCREEN_HEIGHT         = 224
-local GAME_PHASE_NOT_PLAYING= 0
-local DRAW_AXIS             = false
-local DRAW_MINI_AXIS        = false
-local BLANK_SCREEN          = false
+local SCREEN_WIDTH           = 384
+local SCREEN_HEIGHT          = 224
+local VULNERABILITY_BOX      = 1
+local WEAK_BOX               = 2
+local ATTACK_BOX             = 3
+local PUSH_BOX               = 4
+local GAME_PHASE_NOT_PLAYING = 0
+local DRAW_AXIS              = false
+local DRAW_MINI_AXIS         = false
+local BLANK_SCREEN           = false
 
 local profile = {
 	{
@@ -42,11 +46,11 @@ local profile = {
 			hval = 0x0, vval = 0x1, hrad = 0x2, vrad = 0x3,
 		},
 		boxes = {
-			{anim_ptr = 0x20, addr_table = 0x08, p_addr_table = 0x4, id_ptr = 0x0C, id_space = 0x04, color = PUSH_COLOR},
-			{anim_ptr = 0x20, addr_table = 0x00, p_addr_table = 0x0, id_ptr = 0x08, id_space = 0x04, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x20, addr_table = 0x02, p_addr_table = 0x0, id_ptr = 0x09, id_space = 0x04, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x20, addr_table = 0x04, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x04, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x20, addr_table = 0x06, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x10, color = ATTACK_COLOR},
+			{anim_ptr = 0x20, addr_table = 0x08, p_addr_table = 0x4, id_ptr = 0x0C, id_space = 0x04, type = PUSH_BOX},
+			{anim_ptr = 0x20, addr_table = 0x00, p_addr_table = 0x0, id_ptr = 0x08, id_space = 0x04, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x20, addr_table = 0x02, p_addr_table = 0x0, id_ptr = 0x09, id_space = 0x04, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x20, addr_table = 0x04, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x04, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x20, addr_table = 0x06, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x10, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readbytesigned, radscale = 1},
 	},
@@ -69,11 +73,11 @@ local profile = {
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr = 0x1C, addr_table = 0x120, p_addr_table = 0x4, id_ptr = 0x0C, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x110, p_addr_table = 0x0, id_ptr = 0x08, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x114, p_addr_table = 0x0, id_ptr = 0x09, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x118, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x11C, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x20, color = ATTACK_COLOR},
+			{anim_ptr = 0x1C, addr_table = 0x120, p_addr_table = 0x4, id_ptr = 0x0C, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x110, p_addr_table = 0x0, id_ptr = 0x08, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x114, p_addr_table = 0x0, id_ptr = 0x09, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x118, p_addr_table = 0x0, id_ptr = 0x0A, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x11C, p_addr_table = 0x2, id_ptr = 0x0B, id_space = 0x20, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
@@ -96,11 +100,11 @@ local profile = {
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr =  nil, addr_table = 0x9C, id_ptr = 0xCB, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr =  nil, addr_table = 0x90, id_ptr = 0xC8, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr =  nil, addr_table = 0x94, id_ptr = 0xC9, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr =  nil, addr_table = 0x98, id_ptr = 0xCA, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0xA0, id_ptr = 0x09, id_space = 0x20, color = ATTACK_COLOR},
+			{anim_ptr =  nil, addr_table = 0x9C, id_ptr = 0xCB, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr =  nil, addr_table = 0x90, id_ptr = 0xC8, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table = 0x94, id_ptr = 0xC9, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table = 0x98, id_ptr = 0xCA, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0xA0, id_ptr = 0x09, id_space = 0x20, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
@@ -123,12 +127,12 @@ local profile = {
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr = 0x1C, addr_table = 0x0A, id_ptr = 0x15, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x10, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x02, id_ptr = 0x11, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x04, id_ptr = 0x12, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, color = ATTACK_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, color = WEAK_COLOR},
+			{anim_ptr = 0x1C, addr_table = 0x0A, id_ptr = 0x15, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x10, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x02, id_ptr = 0x11, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x04, id_ptr = 0x12, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, type = WEAK_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
@@ -151,12 +155,12 @@ local profile = {
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr = 0x1C, addr_table = 0x0A, id_ptr = 0x15, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x10, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x02, id_ptr = 0x11, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x04, id_ptr = 0x12, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, color = ATTACK_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, color = WEAK_COLOR},
+			{anim_ptr = 0x1C, addr_table = 0x0A, id_ptr = 0x15, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x10, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x02, id_ptr = 0x11, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x04, id_ptr = 0x12, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x06, id_ptr = 0x13, id_space = 0x08, type = WEAK_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
 		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28, exist_offset = 0x04, exist_value = 0x02},
@@ -180,11 +184,11 @@ local profile = {
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr =  nil, addr_table = 0x90, id_ptr = 0x97, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr =  nil, addr_table = 0x80, id_ptr = 0x94, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr =  nil, addr_table = 0x84, id_ptr = 0x95, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr =  nil, addr_table = 0x88, id_ptr = 0x96, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = 0x1C, addr_table = 0x8C, id_ptr = 0x0A, id_space = 0x20, color = ATTACK_COLOR},
+			{anim_ptr =  nil, addr_table = 0x90, id_ptr = 0x97, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr =  nil, addr_table = 0x80, id_ptr = 0x94, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table = 0x84, id_ptr = 0x95, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table = 0x88, id_ptr = 0x96, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = 0x1C, addr_table = 0x8C, id_ptr = 0x0A, id_space = 0x20, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
@@ -207,11 +211,11 @@ local profile = {
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr = nil, addr_table = 0x08, id_ptr = 0x66, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr = nil, addr_table = 0x02, id_ptr = 0x63, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = nil, addr_table = 0x04, id_ptr = 0x64, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = nil, addr_table = 0x06, id_ptr = 0x65, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr = nil, addr_table = 0x00, id_ptr = 0x62, id_space = 0x10, color = ATTACK_COLOR},
+			{anim_ptr = nil, addr_table = 0x08, id_ptr = 0x66, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr = nil, addr_table = 0x02, id_ptr = 0x63, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = nil, addr_table = 0x04, id_ptr = 0x64, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = nil, addr_table = 0x06, id_ptr = 0x65, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = nil, addr_table = 0x00, id_ptr = 0x62, id_space = 0x10, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
 	},
@@ -234,14 +238,29 @@ local profile = {
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
-			{anim_ptr =  nil, addr_table = 0x8C, id_ptr = 0x93, id_space = 0x08, color = PUSH_COLOR},
-			{anim_ptr =  nil, addr_table = 0x80, id_ptr = 0x90, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr =  nil, addr_table = 0x84, id_ptr = 0x91, id_space = 0x08, color = VULNERABILITY_COLOR},
-			{anim_ptr =  nil, addr_table = 0x88, id_ptr = 0x92, id_space = 0x20, color = ATTACK_COLOR},
+			{anim_ptr =  nil, addr_table = 0x8C, id_ptr = 0x93, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr =  nil, addr_table = 0x80, id_ptr = 0x90, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table = 0x84, id_ptr = 0x91, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table = 0x88, id_ptr = 0x92, id_space = 0x20, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 2},
 	},
 }
+
+for game in ipairs(profile) do
+	for entry in ipairs(profile[game].boxes) do
+		local box = profile[game].boxes[entry]
+		if box.type == VULNERABILITY_BOX then
+			box.color = VULNERABILITY_COLOR
+		elseif box.type == WEAK_BOX then
+			box.color = WEAK_COLOR
+		elseif box.type == ATTACK_BOX then
+			box.color = ATTACK_COLOR
+		elseif box.type == PUSH_BOX then
+			box.color = PUSH_COLOR
+		end
+	end
+end
 
 local game
 local globals = {
@@ -370,8 +389,8 @@ local function update_game_object(obj, base_obj, is_projectile)
 		hitbox_ptr = game.offset.hitbox_ptr.projectile
 	end
 
-	for n in ipairs(game.boxes) do
-		define_box(obj, n, base_obj, is_projectile, hitbox_ptr)
+	for entry in ipairs(game.boxes) do
+		define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
 	end
 end
 
@@ -466,8 +485,8 @@ local function game_y_to_mame(y)
 end
 
 
-local function draw_hitbox(hb, color)
-	if not hb then return end
+local function draw_hitbox(hb, color, invulnerability)
+	if invulnerability and color == VULNERABILITY_COLOR then return end
 
 	local left   = game_x_to_mame(hb.left)
 	local bottom = game_y_to_mame(hb.bottom)
@@ -489,20 +508,11 @@ end
 
 local function draw_game_object(obj)
 	if not obj or not obj.pos_x then return end
-
+	
 	local x = game_x_to_mame(obj.pos_x)
 	local y = game_y_to_mame(obj.pos_y)
-
-	for entry in pairs(game.boxes) do
-		if not (obj.invulnerability and game.boxes[entry].color == VULNERABILITY_COLOR) then
-			draw_hitbox(obj[entry], game.boxes[entry].color)
-		end
-	end
-
-	if DRAW_AXIS then
-		gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOR)
-		gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOR)
-	end
+	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOR)
+	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOR)
 end
 
 
@@ -516,12 +526,29 @@ local function render_cps2_hitboxes()
 		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOR)
 	end
 
-	for p = 1, game.number.players do
-		draw_game_object(frame_buffer_array[1][player][p])
+	if DRAW_AXIS then
+		for p = 1, game.number.players do
+			draw_game_object(frame_buffer_array[1][player][p])
+		end
+		for i = 1, globals.num_projectiles do
+			draw_game_object(frame_buffer_array[1][projectiles][i])
+		end
 	end
 
-	for i = 1, globals.num_projectiles do
-		draw_game_object(frame_buffer_array[1][projectiles][i])
+	for entry in ipairs(game.boxes) do
+		for p = 1, game.number.players do
+			local obj = frame_buffer_array[1][player][p]
+			if obj and obj[entry] then
+				draw_hitbox(obj[entry], game.boxes[entry].color, obj.invulnerability)
+			end
+		end
+
+		for i = 1, globals.num_projectiles do
+			local obj = frame_buffer_array[1][projectiles][i]
+			if obj and obj[entry] then
+				draw_hitbox(obj[entry], game.boxes[entry].color)
+			end
+		end
 	end
 end
 

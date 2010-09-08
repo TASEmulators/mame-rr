@@ -1,34 +1,56 @@
-print("Street Fighter II hitbox viewer")
-print("September 1, 2010")
+print("CPS-2 hitbox viewer")
+print("September 7, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis") print()
 
-local VULNERABILITY_COLOUR  = 0x0000FF40
-local ATTACK_COLOUR         = 0xFF000060
-local PUSH_COLOUR           = 0x00FF0060
-local WEAK_COLOUR           = 0xFFFF0060
-local PROJ_ATTACK_COLOUR    = 0xFF000060
-local PROJ_PUSH_COLOUR      = 0x0000FF40
-local AXIS_COLOUR           = 0xFFFFFFFF
-local BLANK_COLOUR          = 0xFFFFFFFF
-local AXIS_SIZE             = 16
-local MINI_AXIS_SIZE        = 2
-local DRAW_DELAY            = 2
+local VULNERABILITY_COLOR     = 0x0000FF40
+local ATTACK_COLOR            = 0xFF000060
+local PUSH_COLOR              = 0x00FF0060
+local WEAK_COLOR              = 0xFFFF0060
+local PROJECTILE_ATTACK_COLOR = 0xFF000060
+local PROJECTILE_PUSH_COLOR   = 0x0000FF40
+local AXIS_COLOR              = 0xFFFFFFFF
+local BLANK_COLOR             = 0xFFFFFFFF
+local AXIS_SIZE               = 16
+local MINI_AXIS_SIZE          = 2
+local DRAW_DELAY              = 2
 
-local SCREEN_WIDTH          = 384
-local SCREEN_HEIGHT         = 224
-local NUMBER_OF_PLAYERS     = 2
-local MAX_GAME_PROJECTILES  = 8
-local HITBOX_VULNERABILITY  = 1
-local HITBOX_ATTACK         = 2
-local HITBOX_PUSH           = 3
-local HITBOX_WEAK           = 4
-local GAME_PHASE_NOT_PLAYING= 0
-local DRAW_AXIS             = false
-local DRAW_MINI_AXIS        = false
-local BLANK_SCREEN          = false
+local SCREEN_WIDTH            = 384
+local SCREEN_HEIGHT           = 224
+local NUMBER_OF_PLAYERS       = 2
+local MAX_GAME_PROJECTILES    = 8
+local VULNERABILITY_BOX       = 1
+local WEAK_BOX                = 2
+local ATTACK_BOX              = 3
+local PUSH_BOX                = 4
+local GAME_PHASE_NOT_PLAYING  = 0
+local DRAW_AXIS               = false
+local DRAW_MINI_AXIS          = false
+local BLANK_SCREEN            = false
+
+
+local function onebyte(address, type)
+	local hval   = memory.readbytesigned(address + 0)
+	local hval2  = memory.readbyte(address + 5)
+	if hval2 >= 0x80 and type == ATTACK_BOX then
+		hval = -hval2
+	end
+	local vval   = memory.readbytesigned(address + 1)
+	local hrad   = memory.readbytesigned(address + 2)
+	local vrad   = memory.readbytesigned(address + 3)
+	return hval, vval, hrad, vrad
+end
+
+local function twobyte(address)
+	local hval   = memory.readwordsigned(address + 0)
+	local vval   = memory.readwordsigned(address + 2)
+	local hrad   = memory.readwordsigned(address + 4)
+	local vrad   = memory.readwordsigned(address + 6)
+	return hval, vval, hrad, vrad
+end
+
 
 local profile = {
 	{
@@ -37,22 +59,18 @@ local profile = {
 			player           = 0xFF83C6,
 			projectile       = 0xFF938A,
 			left_screen_edge = 0xFF8BD8,
-			top_screen_edge  = 0xFF8BDC,
 			game_phase       = 0xFF83F7,
 		},
-		offset = {
-			player_space     = 0x300,
-			parameter_space  = 0x1,
-			v_hb_addr_table  = 0x0,
-			w_hb_addr_table  = 0x6,
-			a_hb_addr_table  = 0x8,
-			p_hb_addr_table  = 0xA,
-			v_hb_curr_id     = 0x8,
-			w_hb_curr_id     = 0xB,
-			a_hb_curr_id     = 0xC,
-			p_hb_curr_id     = 0xD,
-			a_hb_id_space    = 0x0C,
+		player_space       = 0x300,
+		boxes = {
+			{addr_table = 0xA, id_ptr = 0xD, id_space = 0x04, type = PUSH_BOX},
+			{addr_table = 0x0, id_ptr = 0x8, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x2, id_ptr = 0x9, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x4, id_ptr = 0xA, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x6, id_ptr = 0xB, id_space = 0x04, type = WEAK_BOX},
+			{addr_table = 0x8, id_ptr = 0xC, id_space = 0x0C, type = ATTACK_BOX},
 		},
+		box_parameter_func = onebyte,
 	},
 	{
 		games = {"sf2ce","sf2hf"},
@@ -60,22 +78,18 @@ local profile = {
 			player           = 0xFF83BE,
 			projectile       = 0xFF9376,
 			left_screen_edge = 0xFF8BC4,
-			top_screen_edge  = 0xFF8BC8,
 			game_phase       = 0xFF83EF,
 		},
-		offset = {
-			player_space     = 0x300,
-			parameter_space  = 0x1,
-			v_hb_addr_table  = 0x0,
-			w_hb_addr_table  = 0x6,
-			a_hb_addr_table  = 0x8,
-			p_hb_addr_table  = 0xA,
-			v_hb_curr_id     = 0x8,
-			w_hb_curr_id     = 0xB,
-			a_hb_curr_id     = 0xC,
-			p_hb_curr_id     = 0xD,
-			a_hb_id_space    = 0x0C,
+		player_space       = 0x300,
+		boxes = {
+			{addr_table = 0xA, id_ptr = 0xD, id_space = 0x04, type = PUSH_BOX},
+			{addr_table = 0x0, id_ptr = 0x8, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x2, id_ptr = 0x9, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x4, id_ptr = 0xA, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x6, id_ptr = 0xB, id_space = 0x04, type = WEAK_BOX},
+			{addr_table = 0x8, id_ptr = 0xC, id_space = 0x0C, type = ATTACK_BOX},
 		},
+		box_parameter_func = onebyte,
 	},
 	{
 		games = {"ssf2t"},
@@ -83,20 +97,17 @@ local profile = {
 			player           = 0xFF844E,
 			projectile       = 0xFF97A2,
 			left_screen_edge = 0xFF8ED4,
-			top_screen_edge  = 0xFF8ED8,
 			game_phase       = 0xFF847F,
 		},
-		offset = {
-			player_space     = 0x400,
-			parameter_space  = 0x1,
-			v_hb_addr_table  = 0x0,
-			a_hb_addr_table  = 0x6,
-			p_hb_addr_table  = 0x8,
-			v_hb_curr_id     = 0x8,
-			a_hb_curr_id     = 0xC,
-			p_hb_curr_id     = 0xD,
-			a_hb_id_space    = 0x10,
+		player_space       = 0x400,
+		boxes = {
+			{addr_table = 0x8, id_ptr = 0xD, id_space = 0x04, type = PUSH_BOX},
+			{addr_table = 0x0, id_ptr = 0x8, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x2, id_ptr = 0x9, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x4, id_ptr = 0xA, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x6, id_ptr = 0xC, id_space = 0x10, type = ATTACK_BOX},
 		},
+		box_parameter_func = onebyte,
 	},
 	{
 		games = {"ssf2"},
@@ -104,20 +115,17 @@ local profile = {
 			player           = 0xFF83CE,
 			projectile       = 0xFF96A2,
 			left_screen_edge = 0xFF8DD4,
-			top_screen_edge  = 0xFF8DD8,
 			game_phase       = 0xFF83FF,
 		},
-		offset = {
-			player_space     = 0x400,
-			parameter_space  = 0x1,
-			v_hb_addr_table  = 0x0,
-			a_hb_addr_table  = 0x6,
-			p_hb_addr_table  = 0x8,
-			v_hb_curr_id     = 0x8,
-			a_hb_curr_id     = 0xC,
-			p_hb_curr_id     = 0xD,
-			a_hb_id_space    = 0x0C,
+		player_space       = 0x400,
+		boxes = {
+			{addr_table = 0x8, id_ptr = 0xD, id_space = 0x04, type = PUSH_BOX},
+			{addr_table = 0x0, id_ptr = 0x8, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x2, id_ptr = 0x9, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x4, id_ptr = 0xA, id_space = 0x04, type = VULNERABILITY_BOX},
+			{addr_table = 0x6, id_ptr = 0xC, id_space = 0x0C, type = ATTACK_BOX},
 		},
+		box_parameter_func = onebyte,
 	},
 	{
 		games = {"hsf2"},
@@ -125,26 +133,39 @@ local profile = {
 			player           = 0xFF833C,
 			projectile       = 0xFF9554,
 			left_screen_edge = 0xFF8CC2,
-			top_screen_edge  = 0xFF8CC6,
 			game_phase       = 0xFF836D,
 		},
-		offset = {
-			player_space     = 0x400,
-			parameter_space  = 0x2,
-			v_hb_addr_table  = 0x0,
-			w_hb_addr_table  = 0x6,
-			a_hb_addr_table  = 0x8,
-			p_hb_addr_table  = 0xA,
-			v_hb_curr_id     = 0x8,
-			w_hb_curr_id     = 0xB,
-			a_hb_curr_id     = 0xC,
-			p_hb_curr_id     = 0xD,
-			a_hb_id_space    = 0x14,
+		player_space       = 0x400,
+		boxes = {
+			{addr_table = 0xA, id_ptr = 0xD, id_space = 0x08, type = PUSH_BOX},
+			{addr_table = 0x0, id_ptr = 0x8, id_space = 0x08, type = VULNERABILITY_BOX},
+			{addr_table = 0x2, id_ptr = 0x9, id_space = 0x08, type = VULNERABILITY_BOX},
+			{addr_table = 0x4, id_ptr = 0xA, id_space = 0x08, type = VULNERABILITY_BOX},
+			{addr_table = 0x6, id_ptr = 0xB, id_space = 0x08, type = WEAK_BOX},
+			{addr_table = 0x8, id_ptr = 0xC, id_space = 0x14, type = ATTACK_BOX},
 		},
+		box_parameter_func = twobyte,
 	},
 }
 
-local address, offset
+for game in ipairs(profile) do
+	for entry in ipairs(profile[game].boxes) do
+		local box = profile[game].boxes[entry]
+		if box.type == VULNERABILITY_BOX then
+			box.color = VULNERABILITY_COLOR
+		elseif box.type == WEAK_BOX then
+			box.color = WEAK_COLOR
+		elseif box.type == ATTACK_BOX then
+			box.color = ATTACK_COLOR
+			box.projectile_color = PROJECTILE_ATTACK_COLOR
+		elseif box.type == PUSH_BOX then
+			box.color = PUSH_COLOR
+			box.projectile_color = PROJECTILE_PUSH_COLOR
+		end
+	end
+end
+
+local game
 local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
@@ -179,17 +200,16 @@ end)
 -- initialize on game startup
 
 local function whatgame()
-	address, offset = nil, nil
+	game = nil
 	for n, module in ipairs(profile) do
 		for m, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. shortname .. " hitboxes")
-				address = module.address
-				offset = module.offset
+				game = module
 				for p = 1, NUMBER_OF_PLAYERS do
 					player[p] = {}
 				end
-				for f = 1, DRAW_DELAY+1 do
+				for f = 1, DRAW_DELAY + 1 do
 					frame_buffer_array[f] = {}
 					frame_buffer_array[f][player] = {}
 					frame_buffer_array[f][projectiles] = {}
@@ -211,129 +231,75 @@ end)
 -- prepare the hitboxes
 
 local function update_globals()
-	globals.left_screen_edge = memory.readword(address.left_screen_edge)
-	globals.top_screen_edge  = memory.readword(address.top_screen_edge)
-	globals.game_phase       = memory.readword(address.game_phase)
+	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
+	globals.top_screen_edge  = memory.readword(game.address.left_screen_edge + 0x4)
+	globals.game_phase       = memory.readword(game.address.game_phase)
 end
 
 
-local function hitbox_load(obj, i, type, facing_dir, offset_x, offset_y, addr)
-	local hval, hval2, vval, hrad, vrad
+local function define_box(obj, entry, animation_ptr, hitbox_ptr)
+	local addr_table = hitbox_ptr + memory.readwordsigned(hitbox_ptr + game.boxes[entry].addr_table)
+	local curr_id = memory.readbyte(animation_ptr + game.boxes[entry].id_ptr)
+	if game.boxes[entry].type == WEAK_BOX and memory.readbyte(animation_ptr + 0x15) ~= 2 then
+		curr_id = 0
+	end
+	local address = addr_table + curr_id * game.boxes[entry].id_space
 
-	if offset.parameter_space == 1 then
-		hval   = memory.readbytesigned(addr + 0)
-		hval2  = memory.readbyte(addr + 5)
-		if type == HITBOX_ATTACK and hval2 >= 0x80 then
-			hval = -hval2
-		end
-		vval   = memory.readbytesigned(addr + 1)
-		hrad   = memory.readbytesigned(addr + 2)
-		vrad   = memory.readbytesigned(addr + 3)
-	elseif offset.parameter_space == 2 then
-		hval   = memory.readwordsigned(addr + 0)
-		vval   = memory.readwordsigned(addr + 2)
-		hrad   = memory.readwordsigned(addr + 4)
-		vrad   = memory.readwordsigned(addr + 6)
+	local hval, vval, hrad, vrad = game.box_parameter_func(address, game.boxes[entry].type)
+
+	if obj.facing_dir == 1 then
+		hval  = -hval
 	end
 
-	if facing_dir == 1 then
-		hval   = -hval
-	end
-
-	local box_dimensions  = {
-		left   = offset_x + hval - hrad,
-		right  = offset_x + hval + hrad,
-		bottom = offset_y + vval + vrad,
-		top    = offset_y + vval - vrad,
-		hval   = offset_x + hval,
-		vval   = offset_y + vval,
+	obj[entry] = {
+		left   = obj.pos_x + hval - hrad,
+		right  = obj.pos_x + hval + hrad,
+		bottom = obj.pos_y + vval + vrad,
+		top    = obj.pos_y + vval - vrad,
+		hval   = obj.pos_x + hval,
+		vval   = obj.pos_y + vval,
 	}
-
-	if type == HITBOX_VULNERABILITY then
-		obj[HITBOX_VULNERABILITY][i] = box_dimensions
-	else
-		obj[type] = box_dimensions
-	end
 end
 
 
-local function get_vulnbox(obj, hitbox_ptr, animation_ptr)
-	-- Load the vulnerability hitboxes
-	obj[HITBOX_VULNERABILITY] = {}
-	for i = 0, 2 do
-		local v_hb_addr_table = memory.readword(hitbox_ptr + offset.v_hb_addr_table + i*2) + hitbox_ptr
-		local v_hb_curr_id = memory.readbyte(animation_ptr + offset.v_hb_curr_id + i)
-		hitbox_load(obj, i, HITBOX_VULNERABILITY, obj.facing_dir, obj.pos_x, obj.pos_y, v_hb_addr_table + v_hb_curr_id*4*offset.parameter_space)
-	end
-end
+local function update_game_object(obj, base_obj)
+	obj.facing_dir   = memory.readbyte(base_obj + 0x12)
+	obj.pos_x        = memory.readword(base_obj + 0x06)
+	obj.pos_y        = memory.readword(base_obj + 0x0A)
 
+	local animation_ptr = memory.readdword(base_obj + 0x1A)
+	local hitbox_ptr    = memory.readdword(base_obj + 0x34)
 
-local function get_weakbox(obj, hitbox_ptr, animation_ptr)
-	local w_hb_addr_table = memory.readword(hitbox_ptr + offset.w_hb_addr_table) + hitbox_ptr
-	local w_hb_curr_id = 0
-	if memory.readbyte(animation_ptr + 0x15) > 0 then
-		w_hb_curr_id = memory.readbyte(animation_ptr + offset.w_hb_curr_id)
-	end
-	hitbox_load(obj, 0, HITBOX_WEAK, obj.facing_dir, obj.pos_x, obj.pos_y, w_hb_addr_table + w_hb_curr_id*4*offset.parameter_space)
-end
-
-
-local function get_hurtbox(obj, hitbox_ptr, animation_ptr)
-	-- Load the attack hitbox
-	local a_hb_addr_table = memory.readword(hitbox_ptr + offset.a_hb_addr_table) + hitbox_ptr
-	local a_hb_curr_id = memory.readbyte(animation_ptr + offset.a_hb_curr_id)
-	hitbox_load(obj, 0, HITBOX_ATTACK, obj.facing_dir, obj.pos_x, obj.pos_y, a_hb_addr_table + a_hb_curr_id*offset.a_hb_id_space)
-end
-
-
-local function get_pushbox(obj, hitbox_ptr, animation_ptr)
-	-- Load the push hitbox
-	local p_hb_addr_table = memory.readword(hitbox_ptr + offset.p_hb_addr_table) + hitbox_ptr
-	local p_hb_curr_id = memory.readbyte(animation_ptr + offset.p_hb_curr_id)
-	hitbox_load(obj, 0, HITBOX_PUSH, obj.facing_dir, obj.pos_x, obj.pos_y, p_hb_addr_table + p_hb_curr_id*4*offset.parameter_space)
-end
-
-
-local function update_game_object(obj, base)
-	obj.facing_dir   = memory.readbyte(base + 0x12)
-	obj.pos_x        = memory.readword(base + 0x06)
-	obj.pos_y        = memory.readword(base + 0x0A)
-
-	local animation_ptr = memory.readdword(base + 0x1A)
-	local hitbox_ptr    = memory.readdword(base + 0x34)
-
-	get_vulnbox(obj, hitbox_ptr, animation_ptr)
-	get_hurtbox(obj, hitbox_ptr, animation_ptr)
-	get_pushbox(obj, hitbox_ptr, animation_ptr)
-	if offset.w_hb_addr_table then
-		get_weakbox(obj, hitbox_ptr, animation_ptr)
+	for entry in ipairs(game.boxes) do
+		define_box(obj, entry, animation_ptr, hitbox_ptr)
 	end
 end
 
 
 local function read_projectiles()
 	globals.num_projectiles = 0
-	for i = 1,MAX_GAME_PROJECTILES do
-		local base = address.projectile + (i-1) * 0xC0
+	for i = 1, MAX_GAME_PROJECTILES do
+		local base_obj = game.address.projectile + (i-1) * 0xC0
 
-		if memory.readbyte(base+1) ~= 0 then
+		if memory.readbyte(base_obj+1) ~= 0 then
 			globals.num_projectiles = globals.num_projectiles+1
 			projectiles[globals.num_projectiles] = {}
-			update_game_object(projectiles[globals.num_projectiles], base)
+			update_game_object(projectiles[globals.num_projectiles], base_obj)
 		end
 	end
 end
 
 
-local function update_sf2_hitboxes()
-	if not address then return end
+local function update_cps2_hitboxes()
+	if not game then return end
 	update_globals()
 	if globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		return
 	end
 
 	for p = 1, NUMBER_OF_PLAYERS do
-		update_game_object(player[p], address.player + (p-1) * offset.player_space)
+		local base_obj = game.address.player + (p-1) * game.player_space
+		update_game_object(player[p], base_obj)
 	end
 	read_projectiles()
 
@@ -356,7 +322,7 @@ end
 
 
 emu.registerafter( function()
-	update_sf2_hitboxes()
+	update_cps2_hitboxes()
 end)
 
 
@@ -374,9 +340,7 @@ local function game_y_to_mame(y)
 end
 
 
-local function draw_hitbox(hb, colour)
-	if not hb then return end
-
+local function draw_hitbox(hb, color)
 	local left   = game_x_to_mame(hb.left)
 	local bottom = game_y_to_mame(hb.bottom)
 	local right  = game_x_to_mame(hb.right)
@@ -384,58 +348,64 @@ local function draw_hitbox(hb, colour)
 	local hval   = game_x_to_mame(hb.hval)
 	local vval   = game_y_to_mame(hb.vval)
 
-	if left - right == 0 and top - bottom == 0 then
-		return
-	end
+	if left >= right or bottom >= top then return end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(colour, 0xFF))
-		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, OR(colour, 0xFF))
+		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(color, 0xFF))
+		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, OR(color, 0xFF))
 	end
-	gui.box(left, top, right, bottom, colour)
+
+	gui.box(left, top, right, bottom, color)
 end
 
 
-local function draw_game_object(obj, is_projectile)
-	if not obj then return end
-
+local function draw_game_object(obj)
+	if not obj or not obj.pos_x then return end
+	
 	local x = game_x_to_mame(obj.pos_x)
 	local y = game_y_to_mame(obj.pos_y)
-
-	draw_hitbox(obj[HITBOX_PUSH], is_projectile and PROJ_PUSH_COLOUR or PUSH_COLOUR)
-	for i = 0, 2 do
-		draw_hitbox(obj[HITBOX_VULNERABILITY][i], VULNERABILITY_COLOUR)
-	end
-	draw_hitbox(obj[HITBOX_WEAK], WEAK_COLOUR)
-	draw_hitbox(obj[HITBOX_ATTACK], is_projectile and PROJ_ATTACK_COLOUR or ATTACK_COLOUR)
-
-	if DRAW_AXIS then
-		gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOUR)
-		gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOUR)
-	end
+	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOR)
+	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOR)
 end
 
 
-local function render_sf2_hitboxes()
-	if not address or globals.game_phase == GAME_PHASE_NOT_PLAYING then
+local function render_cps2_hitboxes()
+	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		gui.clearuncommitted()
 		return
 	end
 
 	if BLANK_SCREEN then
-		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOUR)
+		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOR)
 	end
 
-	for p = 1, NUMBER_OF_PLAYERS do
-		draw_game_object(frame_buffer_array[1][player][p])
+	if DRAW_AXIS then
+		for p = 1, NUMBER_OF_PLAYERS do
+			draw_game_object(frame_buffer_array[1][player][p])
+		end
+		for i = 1, globals.num_projectiles do
+			draw_game_object(frame_buffer_array[1][projectiles][i])
+		end
 	end
 
-	for i = 1, globals.num_projectiles do
-		draw_game_object(frame_buffer_array[1][projectiles][i], true)
+	for entry in ipairs(game.boxes) do
+		for p = 1, NUMBER_OF_PLAYERS do
+			local obj = frame_buffer_array[1][player][p]
+			if obj and obj[entry] then
+				draw_hitbox(obj[entry], game.boxes[entry].color)
+			end
+		end
+
+		for i = 1, globals.num_projectiles do
+			local obj = frame_buffer_array[1][projectiles][i]
+			if obj and obj[entry] then
+				draw_hitbox(obj[entry], game.boxes[entry].projectile_color)
+			end
+		end
 	end
 end
 
 
 gui.register( function()
-	render_sf2_hitboxes()
+	render_cps2_hitboxes()
 end)
