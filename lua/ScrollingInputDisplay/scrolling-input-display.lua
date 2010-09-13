@@ -1,4 +1,4 @@
-local version = "9/6/2010"
+local version = "9/9/2010"
 
 --[[
 Scrolling input display Lua script
@@ -13,26 +13,25 @@ http://code.google.com/p/snes9x-rr/downloads/list
 http://code.google.com/p/gens-rerecording/downloads/list
 
 You may tweak the parameters above the dashed line.
-
-Key bindings below only apply if Lua hotkeys are not supported.
 ]]
 
-local playerswitch = "Q"                 --key pressed to toggle players on/off
-local clearkey     = "tilde"             --key pressed to clear screen
-local sizekey      = "semicolon"         --key pressed to change icon size
-local scalekey     = "quote"             --key pressed to toggle icon stretching
-local recordkey    = "numpad/"           --key pressed to start/stop recording video
-local recordpath   = "framedump"         --folder to place recordings (relative to this lua file)
+local buffersize        = 10         --how many lines to show
+local margin_left       = 1          --space from the left of the screen, in tiles, for player 1
+local margin_right      = 3          --space from the right of the screen, in tiles, for player 2
+local margin_top        = 2          --space from the top of the screen, in tiles
+local timeout           = 240        --how many idle frames until old lines are cleared
+local opacity           = 1.0        -- 1 = fully opaque; 0 = fully transparent
+local minimum_tile_size = 16
+local maximum_tile_size = 32
+local sourcefile = "scrolling-input-icons-32.png"
+local recordpath = "framedump"       --folder to place recordings (relative to this lua file)
 
-local buffersize   = 10                  --how many lines to show
-local margin_left  = 1                   --space from the left of the screen, in tiles, for player 1
-local margin_right = 3                   --space from the right of the screen, in tiles, for player 2
-local margin_top   = 2                   --space from the top of the screen, in tiles
-local timeout      = 240                 --how many idle frames until old lines are cleared
-local opacity      = 1.0                 -- 1 = fully opaque; 0 = fully transparent
-
-local sourcefile   = "scrolling-input-icons.png"
-local bgfile       = "scrolling-input-bg.png"
+--Key bindings below only apply if the emulator does not support Lua hotkeys.
+local playerswitch = "Q"             --key pressed to toggle players on/off
+local clearkey     = "tilde"         --key pressed to clear screen
+local sizekey      = "semicolon"     --key pressed to change icon size
+local scalekey     = "quote"         --key pressed to toggle icon stretching
+local recordkey    = "numpad/"       --key pressed to start/stop recording video
 
 ----------------------------------------------------------------------------------------------------
 print("Scrolling input display Lua script, " .. version)
@@ -44,7 +43,6 @@ print("Press " .. (input.registerhotkey and "Lua hotkey 5" or recordkey) .. " to
 print()
 
 require "gd"
-local minimum_tile_size = 16
 local thisframe, lastframe, keyset, changed = {}, {}
 local margin, rescale_icons, recording, display, start, effective_width = {}, true, false
 local icon_size, image_icon_size = minimum_tile_size
@@ -82,6 +80,32 @@ end
 emu = emu or gens
 
 ----------------------------------------------------------------------------------------------------
+-- image-string conversion functions
+
+local function hexdump_to_string(hexdump)
+	local str = ""
+	for n = 1, hexdump:len(), 2 do
+		str = str .. string.char("0x" .. hexdump:sub(n,n+1))
+	end
+	return str
+end
+
+local function string_to_hexdump(str)
+	local hexdump = ""
+	for n = 1, str:len() do
+		hexdump = hexdump .. string.format("%02X",str:sub(n,n):byte())
+	end
+	return hexdump
+end
+--example usage:
+--local image = gd.createFromPng("image.png")
+--local str = image:pngStr()
+--local hexdump = string_to_hexdump(str)
+
+local blank_img_hexdump = "89504E470D0A1A0A0000000D49484452000000400000002001030000009853ECC700000003504C5445000000A77A3DDA0000000174524E530040E6D8660000000D49444154189563601805F8000001200001BFC1B1A80000000049454E44AE426082"
+local blank_img_string = hexdump_to_string(blank_img_hexdump)
+
+----------------------------------------------------------------------------------------------------
 -- display functions
 
 local function text(x, y, row)
@@ -94,15 +118,9 @@ end
 
 display = image
 if not io.open(sourcefile, "rb") then
-	print("Image file not found: " .. sourcefile)
-	display = text
-end
-if not io.open(bgfile, "rb") then
-	print("Image file not found: " .. bgfile)
-	display = text
-end
-if display == text then
+	print("Icon file " .. sourcefile .. " not found.")
 	print("Falling back on text mode.")
+	display = text
 end
 
 local function readimages()
@@ -114,7 +132,7 @@ local function readimages()
 		local sourceimg = gd.createFromPng(sourcefile)
 		image_icon_size = sourceimg:sizeX()/2
 		for n, key in ipairs(gamekeys) do
-			key.img = gd.createFromPng(bgfile)
+			key.img = gd.createFromPngStr(blank_img_string)
 			gd.copyResampled(key.img, sourceimg, 0,0, 0,(n-1)*image_icon_size, scaled_width,icon_size, image_icon_size,image_icon_size)
 		end
 	end
@@ -146,7 +164,6 @@ local function filterinput(p, frame)
 			or pressed == "P" .. p .. " " .. tostring(name[keyset])
 		--MAME also has unusual names for the start buttons.
 			or pressed == p .. (p == 1 and " Player " or " Players ") .. tostring(name[keyset]) then
-				--frame[name[1]] = state
 				frame[row] = state
 				break
 			end
@@ -157,9 +174,7 @@ end
 local function compositeinput(frame)          --Convert individual directions to diagonals.
 	for _,v in pairs({ {1,3,5},{2,3,6},{1,4,7},{2,4,8} }) do --ul, ur, dl, dr
 		if frame[v[1]] and frame[v[2]] then
-			frame[v[1]], frame[v[2]] = nil, nil
-			frame[v[3]] = true
-			break
+			frame[v[1]], frame[v[2]], frame[v[3]] = nil, nil, true
 		end
 	end
 end
@@ -257,10 +272,8 @@ local function clear()
 	emu.message("Cleared screen.")
 end
 
-local function resize(image_icon_size)
-	if not image_icon_size then return end
-
-	if icon_size < image_icon_size then
+local function resize()
+	if icon_size < maximum_tile_size then
 		icon_size = icon_size + minimum_tile_size/4
 	else
 		icon_size = minimum_tile_size
@@ -305,7 +318,7 @@ if input.registerhotkey then
 	end)
 
 	input.registerhotkey(3, function()
-		resize(image_icon_size)
+		resize()
 	end)
 
 	input.registerhotkey(4, function()
@@ -334,7 +347,7 @@ emu.registerbefore( function()
 
 		local nowsizekey = input.get()[sizekey]
 		if nowsizekey and not oldsizekey then
-			resize(image_icon_size)
+			resize()
 		end
 		oldsizekey = nowsizekey
 
