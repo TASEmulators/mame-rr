@@ -1,13 +1,14 @@
 print("CPS-2 hitbox viewer")
-print("September 7, 2010")
+print("September 14, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
-print("Lua hotkey 3: toggle hitbox axis") print()
+print("Lua hotkey 3: toggle hitbox axis")
+print("Lua hotkey 4: toggle pushboxes") print()
 
-local VULNERABILITY_COLOR    = 0x0000FF40
+local VULNERABILITY_COLOR    = 0x7777FF40
 local ATTACK_COLOR           = 0xFF000060
-local PUSH_COLOR             = 0x00FF0060
+local PUSH_COLOR             = 0x00FF0040
 local WEAK_COLOR             = 0xFFFF0060
 local AXIS_COLOR             = 0xFFFFFFFF
 local BLANK_COLOR            = 0xFFFFFFFF
@@ -22,9 +23,10 @@ local WEAK_BOX               = 2
 local ATTACK_BOX             = 3
 local PUSH_BOX               = 4
 local GAME_PHASE_NOT_PLAYING = 0
+local BLANK_SCREEN           = false
 local DRAW_AXIS              = false
 local DRAW_MINI_AXIS         = false
-local BLANK_SCREEN           = false
+local DRAW_PUSHBOXES         = true
 
 local profile = {
 	{
@@ -69,7 +71,7 @@ local profile = {
 			facing_dir       = 0x0B,
 			x_position       = 0x10,
 			hitbox_ptr       = {player = nil, projectile = 0x60},
-			invulnerability  = {},
+			invulnerability  = {0x273},
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
@@ -294,6 +296,12 @@ input.registerhotkey(3, function()
 end)
 
 
+input.registerhotkey(4, function()
+	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
+	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
+end)
+
+
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
@@ -365,14 +373,18 @@ local function define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
 		hval  = -hval
 	end
 
-	obj[entry] = {
-		left   = obj.pos_x + hval - hrad,
-		right  = obj.pos_x + hval + hrad,
-		bottom = obj.pos_y + vval + vrad,
-		top    = obj.pos_y + vval - vrad,
-		hval   = obj.pos_x + hval,
-		vval   = obj.pos_y + vval,
-	}
+	if (hval == 0 and vval == 0 and hrad == 0 and vrad == 0) or (hrad == 0 and game.boxes[entry].type ~= ATTACK_BOX) then
+		obj[entry] = nil
+	else
+		obj[entry] = {
+			left   = obj.pos_x + hval - hrad,
+			right  = obj.pos_x + hval + hrad,
+			bottom = obj.pos_y + vval + vrad,
+			top    = obj.pos_y + vval - vrad,
+			hval   = obj.pos_x + hval,
+			vval   = obj.pos_y + vval,
+		}
+	end
 end
 
 
@@ -495,7 +507,7 @@ local function draw_hitbox(hb, color, invulnerability)
 	local hval   = game_x_to_mame(hb.hval)
 	local vval   = game_y_to_mame(hb.vval)
 
-	if left >= right or bottom >= top then return end
+	if left > right or bottom > top then return end
 
 	if DRAW_MINI_AXIS then
 		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(color, 0xFF))
@@ -538,7 +550,7 @@ local function render_cps2_hitboxes()
 	for entry in ipairs(game.boxes) do
 		for p = 1, game.number.players do
 			local obj = frame_buffer_array[1][player][p]
-			if obj and obj[entry] then
+			if obj and obj[entry] and not (not DRAW_PUSHBOXES and game.boxes[entry].type == PUSH_BOX) then
 				draw_hitbox(obj[entry], game.boxes[entry].color, obj.invulnerability)
 			end
 		end

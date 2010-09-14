@@ -1,16 +1,17 @@
-print("CPS-2 hitbox viewer")
-print("September 7, 2010")
+print("Street Fighter II hitbox viewer")
+print("September 14, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
-print("Lua hotkey 3: toggle hitbox axis") print()
+print("Lua hotkey 3: toggle hitbox axis")
+print("Lua hotkey 4: toggle pushboxes") print()
 
-local VULNERABILITY_COLOR     = 0x0000FF40
+local VULNERABILITY_COLOR     = 0x7777FF40
 local ATTACK_COLOR            = 0xFF000060
-local PUSH_COLOR              = 0x00FF0060
+local PUSH_COLOR              = 0x00FF0040
 local WEAK_COLOR              = 0xFFFF0060
 local PROJECTILE_ATTACK_COLOR = 0xFF000060
-local PROJECTILE_PUSH_COLOR   = 0x0000FF40
+local PROJECTILE_PUSH_COLOR   = 0x7777FF40
 local AXIS_COLOR              = 0xFFFFFFFF
 local BLANK_COLOR             = 0xFFFFFFFF
 local AXIS_SIZE               = 16
@@ -26,9 +27,10 @@ local WEAK_BOX                = 2
 local ATTACK_BOX              = 3
 local PUSH_BOX                = 4
 local GAME_PHASE_NOT_PLAYING  = 0
+local BLANK_SCREEN            = false
 local DRAW_AXIS               = false
 local DRAW_MINI_AXIS          = false
-local BLANK_SCREEN            = false
+local DRAW_PUSHBOXES          = true
 
 
 local function onebyte(address, type)
@@ -193,6 +195,12 @@ end)
 input.registerhotkey(3, function()
 	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
 	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
+end)
+
+
+input.registerhotkey(4, function()
+	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
+	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
 end)
 
 
@@ -391,7 +399,7 @@ local function render_cps2_hitboxes()
 	for entry in ipairs(game.boxes) do
 		for p = 1, NUMBER_OF_PLAYERS do
 			local obj = frame_buffer_array[1][player][p]
-			if obj and obj[entry] then
+			if obj and obj[entry] and not (not DRAW_PUSHBOXES and game.boxes[entry].type == PUSH_BOX) then
 				draw_hitbox(obj[entry], game.boxes[entry].color)
 			end
 		end
