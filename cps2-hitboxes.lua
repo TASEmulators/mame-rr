@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("September 14, 2010")
+print("September 16, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -14,7 +14,7 @@ local AXIS_COLOR             = 0xFFFFFFFF
 local BLANK_COLOR            = 0xFFFFFFFF
 local AXIS_SIZE              = 16
 local MINI_AXIS_SIZE         = 2
-local DRAW_DELAY             = 2
+local DRAW_DELAY             = 1
 
 local SCREEN_WIDTH           = 384
 local SCREEN_HEIGHT          = 224
@@ -269,14 +269,17 @@ local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
 	top_screen_edge  = 0,
-	num_projectiles  = 0,
-	player           = {},
 }
-local player      = {}
-local projectiles = {}
-local frame_buffer_array = {}
-if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
+local player       = {}
+local projectiles  = {}
+local frame_buffer = {}
+if fba then
+	DRAW_DELAY = DRAW_DELAY + 1
+end
 
+
+--------------------------------------------------------------------------------
+-- hotkey functions
 
 input.registerhotkey(1, function()
 	BLANK_SCREEN = not BLANK_SCREEN
@@ -316,9 +319,9 @@ local function whatgame()
 					player[p] = {}
 				end
 				for f = 1, DRAW_DELAY + 1 do
-					frame_buffer_array[f] = {}
-					frame_buffer_array[f][player] = {}
-					frame_buffer_array[f][projectiles] = {}
+					frame_buffer[f] = {}
+					frame_buffer[f][player] = {}
+					frame_buffer[f][projectiles] = {}
 				end
 				return
 			end
@@ -340,13 +343,32 @@ local function update_globals()
 	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
 	globals.top_screen_edge  = memory.readword(game.address.left_screen_edge + 0x4)
 	globals.game_phase       = memory.readword(game.address.game_phase)
-	for p = 1, game.number.players do
-		globals.player[p]      = memory.readbyte(game.address.player + (p-1) * game.offset.player_space)
-	end
+end
+
+
+local function game_x_to_mame(x)
+	return (x - globals.left_screen_edge)
+end
+
+
+local function game_y_to_mame(y)
+	-- Why subtract 17? No idea, the game driver does the same thing.
+	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
 end
 
 
 local function define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
+	local base_id = base_obj
+	if game.boxes[entry].anim_ptr then
+		base_id = memory.readdword(base_obj + game.boxes[entry].anim_ptr)
+	end
+	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr)
+
+	if curr_id == 0 then
+		obj[entry] = nil
+		return
+	end
+	
 	local addr_table
 	if not hitbox_ptr then
 		addr_table = memory.readdword(base_obj + game.boxes[entry].addr_table)
@@ -355,13 +377,6 @@ local function define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
 		addr_table = memory.readdword(base_obj + hitbox_ptr)
 		addr_table = addr_table + memory.readwordsigned(addr_table + table_offset)
 	end
-	
-	local base_id = base_obj
-	if game.boxes[entry].anim_ptr then
-		base_id = memory.readdword(base_obj + game.boxes[entry].anim_ptr)
-	end
-
-	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr)
 	local address = addr_table + curr_id * game.boxes[entry].id_space
 
 	local hval = game.box_parameter.func(address + game.offset.hval)
@@ -373,18 +388,16 @@ local function define_box(obj, entry, base_obj, is_projectile, hitbox_ptr)
 		hval  = -hval
 	end
 
-	if (hval == 0 and vval == 0 and hrad == 0 and vrad == 0) or (hrad == 0 and game.boxes[entry].type ~= ATTACK_BOX) then
-		obj[entry] = nil
-	else
-		obj[entry] = {
-			left   = obj.pos_x + hval - hrad,
-			right  = obj.pos_x + hval + hrad,
-			bottom = obj.pos_y + vval + vrad,
-			top    = obj.pos_y + vval - vrad,
-			hval   = obj.pos_x + hval,
-			vval   = obj.pos_y + vval,
-		}
-	end
+	obj[entry] = {
+		left   = game_x_to_mame(obj.pos_x + hval - hrad),
+		right  = game_x_to_mame(obj.pos_x + hval + hrad),
+		bottom = game_y_to_mame(obj.pos_y + vval + vrad),
+		top    = game_y_to_mame(obj.pos_y + vval - vrad),
+		hval   = game_x_to_mame(obj.pos_x + hval),
+		vval   = game_y_to_mame(obj.pos_y + vval),
+		type   = game.boxes[entry].type,
+		color  = game.boxes[entry].color,
+	}
 end
 
 
@@ -408,14 +421,14 @@ end
 
 
 local function read_projectiles()
-	globals.num_projectiles = 0
+	local current_projectiles = {}
+
 	for i = 1, game.number.projectiles do
 		local base_obj = game.address.projectile + (i-1) * game.offset.projectile_space
-
-		if memory.readbyte(base_obj+1) ~= 0 then
-			globals.num_projectiles = globals.num_projectiles+1
-			projectiles[globals.num_projectiles] = {}
-			update_game_object(projectiles[globals.num_projectiles], base_obj, true)
+		if memory.readword(base_obj) == 0x0101 then
+			local obj = {}
+			update_game_object(obj, base_obj, true)
+			table.insert(current_projectiles, obj)
 		end
 	end
 
@@ -423,12 +436,14 @@ local function read_projectiles()
 		for i = 1, game.special_projectiles.number do
 			local base_obj = game.special_projectiles.start + (i-1) * game.special_projectiles.space
 			if memory.readbyte(base_obj+game.special_projectiles.exist_offset) == game.special_projectiles.exist_value then
-				globals.num_projectiles = globals.num_projectiles+1
-				projectiles[globals.num_projectiles] = {}
-				update_game_object(projectiles[globals.num_projectiles], base_obj, true)
+				local obj = {}
+				update_game_object(obj, base_obj, true)
+				table.insert(current_projectiles, obj)
 			end
 		end
 	end
+
+	return current_projectiles
 end
 
 
@@ -445,36 +460,29 @@ end
 local function update_cps2_hitboxes()
 	if not game then return end
 	update_globals()
-	if globals.game_phase == GAME_PHASE_NOT_PLAYING then
-		return
-	end
 
 	for p = 1, game.number.players do
-		if globals.player[p] > 0 then
-			local base_obj = game.address.player + (p-1) * game.offset.player_space
+		local base_obj = game.address.player + (p-1) * game.offset.player_space
+		if memory.readbyte(base_obj) > 0 then
 			update_game_object(player[p], base_obj)
 			update_invulnerability(player[p], base_obj)
 		else
 			player[p] = {}
 		end
 	end
-	read_projectiles()
 
 	for f = 1, DRAW_DELAY do
 		for p = 1, game.number.players do
-			frame_buffer_array[f][player][p] = copytable(frame_buffer_array[f+1][player][p])
+			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
 		end
-		for i = 1, globals.num_projectiles do
-			frame_buffer_array[f][projectiles][i] = copytable(frame_buffer_array[f+1][projectiles][i])
-		end
+		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
 	end
 
 	for p = 1, game.number.players do
-		frame_buffer_array[DRAW_DELAY+1][player][p] = copytable(player[p])
+		frame_buffer[DRAW_DELAY+1][player][p] = copytable(player[p])
 	end
-	for i = 1, globals.num_projectiles do
-		frame_buffer_array[DRAW_DELAY+1][projectiles][i] = copytable(projectiles[i])
-	end
+	frame_buffer[DRAW_DELAY+1][projectiles] = read_projectiles()
+
 end
 
 
@@ -486,35 +494,16 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function game_x_to_mame(x)
-	return (x - globals.left_screen_edge)
-end
-
-
-local function game_y_to_mame(y)
-	-- Why subtract 17? No idea, the game driver does the same thing.
-	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
-end
-
-
-local function draw_hitbox(hb, color, invulnerability)
-	if invulnerability and color == VULNERABILITY_COLOR then return end
-
-	local left   = game_x_to_mame(hb.left)
-	local bottom = game_y_to_mame(hb.bottom)
-	local right  = game_x_to_mame(hb.right)
-	local top    = game_y_to_mame(hb.top)
-	local hval   = game_x_to_mame(hb.hval)
-	local vval   = game_y_to_mame(hb.vval)
-
-	if left > right or bottom > top then return end
+local function draw_hitbox(hb, invulnerability)
+	if invulnerability and hb.type == VULNERABILITY_BOX then return end
+	if hb.left > hb.right or hb.bottom > hb.top then return end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(color, 0xFF))
-		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, OR(color, 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(hb.color, 0xFF))
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(hb.color, 0xFF))
 	end
 
-	gui.box(left, top, right, bottom, color)
+	gui.box(hb.left, hb.top, hb.right, hb.bottom, hb.color)
 end
 
 
@@ -540,25 +529,25 @@ local function render_cps2_hitboxes()
 
 	if DRAW_AXIS then
 		for p = 1, game.number.players do
-			draw_game_object(frame_buffer_array[1][player][p])
+			draw_game_object(frame_buffer[1][player][p])
 		end
-		for i = 1, globals.num_projectiles do
-			draw_game_object(frame_buffer_array[1][projectiles][i])
+		for i in ipairs(frame_buffer[1][projectiles]) do
+			draw_game_object(frame_buffer[1][projectiles][i])
 		end
 	end
 
 	for entry in ipairs(game.boxes) do
 		for p = 1, game.number.players do
-			local obj = frame_buffer_array[1][player][p]
+			local obj = frame_buffer[1][player][p]
 			if obj and obj[entry] and not (not DRAW_PUSHBOXES and game.boxes[entry].type == PUSH_BOX) then
-				draw_hitbox(obj[entry], game.boxes[entry].color, obj.invulnerability)
+				draw_hitbox(obj[entry], obj.invulnerability)
 			end
 		end
 
-		for i = 1, globals.num_projectiles do
-			local obj = frame_buffer_array[1][projectiles][i]
-			if obj and obj[entry] then
-				draw_hitbox(obj[entry], game.boxes[entry].color)
+		for i in ipairs(frame_buffer[1][projectiles]) do
+			local obj = frame_buffer[1][projectiles][i]
+			if obj[entry] then
+				draw_hitbox(obj[entry])
 			end
 		end
 	end
