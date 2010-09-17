@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("September 14, 2010")
+print("September 16, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -16,7 +16,7 @@ local AXIS_COLOR              = 0xFFFFFFFF
 local BLANK_COLOR             = 0xFFFFFFFF
 local AXIS_SIZE               = 16
 local MINI_AXIS_SIZE          = 2
-local DRAW_DELAY              = 2
+local DRAW_DELAY              = 1
 
 local SCREEN_WIDTH            = 384
 local SCREEN_HEIGHT           = 224
@@ -100,6 +100,7 @@ local profile = {
 			projectile       = 0xFF97A2,
 			left_screen_edge = 0xFF8ED4,
 			game_phase       = 0xFF847F,
+			stage            = 0xFFE18B,
 		},
 		player_space       = 0x400,
 		boxes = {
@@ -118,6 +119,7 @@ local profile = {
 			projectile       = 0xFF96A2,
 			left_screen_edge = 0xFF8DD4,
 			game_phase       = 0xFF83FF,
+			stage            = 0xFFE08B,
 		},
 		player_space       = 0x400,
 		boxes = {
@@ -136,6 +138,7 @@ local profile = {
 			projectile       = 0xFF9554,
 			left_screen_edge = 0xFF8CC2,
 			game_phase       = 0xFF836D,
+			stage            = 0xFF8B65,
 		},
 		player_space       = 0x400,
 		boxes = {
@@ -167,18 +170,22 @@ for game in ipairs(profile) do
 	end
 end
 
-local game
+local game, effective_delay
 local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
 	top_screen_edge  = 0,
-	num_projectiles  = 0,
 }
-local player      = {}
-local projectiles = {}
-local frame_buffer_array = {}
-if mame ~= nil then DRAW_DELAY = DRAW_DELAY - 1 end
+local player       = {}
+local projectiles  = {}
+local frame_buffer = {}
+if fba then
+	DRAW_DELAY = DRAW_DELAY + 1
+end
 
+
+--------------------------------------------------------------------------------
+-- hotkey functions
 
 input.registerhotkey(1, function()
 	BLANK_SCREEN = not BLANK_SCREEN
@@ -217,10 +224,10 @@ local function whatgame()
 				for p = 1, NUMBER_OF_PLAYERS do
 					player[p] = {}
 				end
-				for f = 1, DRAW_DELAY + 1 do
-					frame_buffer_array[f] = {}
-					frame_buffer_array[f][player] = {}
-					frame_buffer_array[f][projectiles] = {}
+				for f = 1, DRAW_DELAY + 2 do
+					frame_buffer[f] = {}
+					frame_buffer[f][player] = {}
+					frame_buffer[f][projectiles] = {}
 				end
 				return
 			end
@@ -238,6 +245,20 @@ end)
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
+local function adjust_delay(address)
+	if not address or not mame then
+		return DRAW_DELAY
+	end
+	local stage = memory.readbyte(address)
+	for _, val in ipairs({0xA, 0xC, 0xD, 0xF}) do
+		if stage == val then
+			return DRAW_DELAY + 1
+		end
+	end
+	return DRAW_DELAY
+end
+
+
 local function update_globals()
 	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
 	globals.top_screen_edge  = memory.readword(game.address.left_screen_edge + 0x4)
@@ -245,12 +266,29 @@ local function update_globals()
 end
 
 
+local function game_x_to_mame(x)
+	return (x - globals.left_screen_edge)
+end
+
+
+local function game_y_to_mame(y)
+	-- Why subtract 17? No idea, the game driver does the same thing.
+	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
+end
+
+
 local function define_box(obj, entry, animation_ptr, hitbox_ptr)
-	local addr_table = hitbox_ptr + memory.readwordsigned(hitbox_ptr + game.boxes[entry].addr_table)
 	local curr_id = memory.readbyte(animation_ptr + game.boxes[entry].id_ptr)
 	if game.boxes[entry].type == WEAK_BOX and memory.readbyte(animation_ptr + 0x15) ~= 2 then
 		curr_id = 0
 	end
+
+	if curr_id == 0 then
+		obj[entry] = nil
+		return
+	end
+	
+	local addr_table = hitbox_ptr + memory.readwordsigned(hitbox_ptr + game.boxes[entry].addr_table)
 	local address = addr_table + curr_id * game.boxes[entry].id_space
 
 	local hval, vval, hrad, vrad = game.box_parameter_func(address, game.boxes[entry].type)
@@ -260,12 +298,12 @@ local function define_box(obj, entry, animation_ptr, hitbox_ptr)
 	end
 
 	obj[entry] = {
-		left   = obj.pos_x + hval - hrad,
-		right  = obj.pos_x + hval + hrad,
-		bottom = obj.pos_y + vval + vrad,
-		top    = obj.pos_y + vval - vrad,
-		hval   = obj.pos_x + hval,
-		vval   = obj.pos_y + vval,
+		left   = game_x_to_mame(obj.pos_x + hval - hrad),
+		right  = game_x_to_mame(obj.pos_x + hval + hrad),
+		bottom = game_y_to_mame(obj.pos_y + vval + vrad),
+		top    = game_y_to_mame(obj.pos_y + vval - vrad),
+		hval   = game_x_to_mame(obj.pos_x + hval),
+		vval   = game_y_to_mame(obj.pos_y + vval),
 	}
 end
 
@@ -285,85 +323,61 @@ end
 
 
 local function read_projectiles()
-	globals.num_projectiles = 0
+	local current_projectiles = {}
+
 	for i = 1, MAX_GAME_PROJECTILES do
 		local base_obj = game.address.projectile + (i-1) * 0xC0
-
-		if memory.readbyte(base_obj+1) ~= 0 then
-			globals.num_projectiles = globals.num_projectiles+1
-			projectiles[globals.num_projectiles] = {}
-			update_game_object(projectiles[globals.num_projectiles], base_obj)
+		if memory.readword(base_obj) == 0x0101 then
+			local obj = {}
+			update_game_object(obj, base_obj, true)
+			table.insert(current_projectiles, obj)
 		end
 	end
+
+	return current_projectiles
 end
 
 
-local function update_cps2_hitboxes()
+local function update_sf2_hitboxes()
 	if not game then return end
+	effective_delay = adjust_delay(game.address.stage)
 	update_globals()
-	if globals.game_phase == GAME_PHASE_NOT_PLAYING then
-		return
-	end
 
 	for p = 1, NUMBER_OF_PLAYERS do
 		local base_obj = game.address.player + (p-1) * game.player_space
 		update_game_object(player[p], base_obj)
 	end
-	read_projectiles()
 
-	for f = 1, DRAW_DELAY do
+	for f = 1, effective_delay do
 		for p = 1, NUMBER_OF_PLAYERS do
-			frame_buffer_array[f][player][p] = copytable(frame_buffer_array[f+1][player][p])
+			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
 		end
-		for i = 1, globals.num_projectiles do
-			frame_buffer_array[f][projectiles][i] = copytable(frame_buffer_array[f+1][projectiles][i])
-		end
+		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
 	end
 
 	for p = 1, NUMBER_OF_PLAYERS do
-		frame_buffer_array[DRAW_DELAY+1][player][p] = copytable(player[p])
+		frame_buffer[effective_delay+1][player][p] = copytable(player[p])
 	end
-	for i = 1, globals.num_projectiles do
-		frame_buffer_array[DRAW_DELAY+1][projectiles][i] = copytable(projectiles[i])
-	end
+	frame_buffer[effective_delay+1][projectiles] = read_projectiles()
 end
 
-
 emu.registerafter( function()
-	update_cps2_hitboxes()
+	update_sf2_hitboxes()
 end)
 
 
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function game_x_to_mame(x)
-	return (x - globals.left_screen_edge)
-end
-
-
-local function game_y_to_mame(y)
-	-- Why subtract 17? No idea, the game driver does the same thing.
-	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
-end
-
-
 local function draw_hitbox(hb, color)
-	local left   = game_x_to_mame(hb.left)
-	local bottom = game_y_to_mame(hb.bottom)
-	local right  = game_x_to_mame(hb.right)
-	local top    = game_y_to_mame(hb.top)
-	local hval   = game_x_to_mame(hb.hval)
-	local vval   = game_y_to_mame(hb.vval)
-
-	if left >= right or bottom >= top then return end
+	if hb.left > hb.right or hb.bottom > hb.top then return end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hval, vval-MINI_AXIS_SIZE, hval, vval+MINI_AXIS_SIZE, OR(color, 0xFF))
-		gui.drawline(hval-MINI_AXIS_SIZE, vval, hval+MINI_AXIS_SIZE, vval, OR(color, 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(color, 0xFF))
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(color, 0xFF))
 	end
 
-	gui.box(left, top, right, bottom, color)
+	gui.box(hb.left, hb.top, hb.right, hb.bottom, color)
 end
 
 
@@ -377,7 +391,7 @@ local function draw_game_object(obj)
 end
 
 
-local function render_cps2_hitboxes()
+local function render_sf2_hitboxes()
 	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		gui.clearuncommitted()
 		return
@@ -389,24 +403,24 @@ local function render_cps2_hitboxes()
 
 	if DRAW_AXIS then
 		for p = 1, NUMBER_OF_PLAYERS do
-			draw_game_object(frame_buffer_array[1][player][p])
+			draw_game_object(frame_buffer[1][player][p])
 		end
-		for i = 1, globals.num_projectiles do
-			draw_game_object(frame_buffer_array[1][projectiles][i])
+		for i in ipairs(frame_buffer[1][projectiles]) do
+			draw_game_object(frame_buffer[1][projectiles][i])
 		end
 	end
 
 	for entry in ipairs(game.boxes) do
 		for p = 1, NUMBER_OF_PLAYERS do
-			local obj = frame_buffer_array[1][player][p]
+			local obj = frame_buffer[1][player][p]
 			if obj and obj[entry] and not (not DRAW_PUSHBOXES and game.boxes[entry].type == PUSH_BOX) then
 				draw_hitbox(obj[entry], game.boxes[entry].color)
 			end
 		end
 
-		for i = 1, globals.num_projectiles do
-			local obj = frame_buffer_array[1][projectiles][i]
-			if obj and obj[entry] then
+		for i in ipairs(frame_buffer[1][projectiles]) do
+			local obj = frame_buffer[1][projectiles][i]
+			if obj[entry] then
 				draw_hitbox(obj[entry], game.boxes[entry].projectile_color)
 			end
 		end
@@ -415,5 +429,5 @@ end
 
 
 gui.register( function()
-	render_cps2_hitboxes()
+	render_sf2_hitboxes()
 end)
