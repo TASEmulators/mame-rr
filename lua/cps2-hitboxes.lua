@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("September 16, 2010")
+print("September 18, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -165,7 +165,7 @@ local profile = {
 			{anim_ptr = 0x1C, addr_table = 0x08, id_ptr = 0x14, id_space = 0x10, type = ATTACK_BOX},
 		},
 		box_parameter = {func = memory.readwordsigned, radscale = 1},
-		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28, exist_offset = 0x04, exist_value = 0x02},
+		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28},
 	},
 	{
 		games = {"vsav","vhunt2","vsav2"},
@@ -425,7 +425,7 @@ local function read_projectiles()
 
 	for i = 1, game.number.projectiles do
 		local base_obj = game.address.projectile + (i-1) * game.offset.projectile_space
-		if memory.readword(base_obj) == 0x0101 then
+		if memory.readword(base_obj) > 0x0100 then
 			local obj = {}
 			update_game_object(obj, base_obj, true)
 			table.insert(current_projectiles, obj)
@@ -435,7 +435,9 @@ local function read_projectiles()
 	if game.special_projectiles then
 		for i = 1, game.special_projectiles.number do
 			local base_obj = game.special_projectiles.start + (i-1) * game.special_projectiles.space
-			if memory.readbyte(base_obj+game.special_projectiles.exist_offset) == game.special_projectiles.exist_value then
+			if memory.readword(base_obj) >= 0x0100 and 
+			memory.readdword(base_obj + game.boxes[1].anim_ptr) > 0 and
+			memory.readdword(base_obj + game.offset.hitbox_ptr.projectile) > 0 then
 				local obj = {}
 				update_game_object(obj, base_obj, true)
 				table.insert(current_projectiles, obj)
