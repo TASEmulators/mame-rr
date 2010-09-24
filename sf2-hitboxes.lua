@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("September 16, 2010")
+print("September 24, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -339,6 +339,7 @@ end
 
 
 local function update_sf2_hitboxes()
+	gui.clearuncommitted()
 	if not game then return end
 	effective_delay = adjust_delay(game.address.stage)
 	update_globals()
@@ -393,7 +394,6 @@ end
 
 local function render_sf2_hitboxes()
 	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
-		gui.clearuncommitted()
 		return
 	end
 
