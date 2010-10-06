@@ -1,14 +1,12 @@
 print("Capcom beat 'em up hitbox viewer")
-print("October 1, 2010")
+print("October 5, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
-print("Lua hotkey 3: toggle hitbox axis")
-print("Lua hotkey 4: toggle pushboxes") print()
+print("Lua hotkey 3: toggle hitbox axis") print()
 
 local VULNERABILITY_COLOR    = 0x7777FF40
 local ATTACK_COLOR           = 0xFF000040
-local PUSH_COLOR             = 0x00FF0040
 local AXIS_COLOR             = 0xFFFFFFFF
 local BLANK_COLOR            = 0xFFFFFFFF
 local AXIS_SIZE              = 16
@@ -20,12 +18,10 @@ local SCREEN_HEIGHT          = 224
 local VULNERABILITY_BOX      = 1
 local WEAK_BOX               = 2
 local ATTACK_BOX             = 3
-local PUSH_BOX               = 4
 local GAME_PHASE_NOT_PLAYING = 0
 local BLANK_SCREEN           = false
 local DRAW_AXIS              = false
 local DRAW_MINI_AXIS         = false
-local DRAW_PUSHBOXES         = true
 
 local profile = {
 	{
@@ -69,8 +65,8 @@ local profile = {
 			{address = 0xFFAD94, number = 0x50, offset = 0x0C0}, --etc
 		},
 		boxes = {
-			{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x04, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x05, id_space = 0x10, type = ATTACK_BOX},
+			--{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x04, id_space = 0x08, type = VULNERABILITY_BOX},
+			--{anim_ptr = 0x1C, addr_table = 0x00, id_ptr = 0x05, id_space = 0x10, type = ATTACK_BOX},
 		},
 		id_read  = memory.readbyte,--?
 		box_read = memory.readwordsigned,--?
@@ -99,6 +95,38 @@ local profile = {
 			{anim_ptr = nil, addr_table = 0x00, id_ptr = 0x49, id_space = 0x0C, type = ATTACK_BOX},
 		},
 		id_read  = memory.readbyte,
+		box_read = memory.readwordsigned,
+		no_double_radius = true,
+	},
+	{
+		games = {"punisher"},
+		address = {
+			left_screen_edge = 0xFF7376,
+			game_phase       = 0xFF4E80,
+		},
+		offset = {
+			facing_dir       = 0x07,
+			x_position       = 0x20,
+			z_position       = 0x28,
+			hitbox_ptr       = 0x30,
+			hval = 0x4, vval = 0x8, hrad = 0x6, vrad = 0xA,
+		},
+		objects = {
+			{address = 0xFF8E68, number = 0x02, offset = 0x100}, --players
+			{address = 0xFF9068, number = 0x90, offset = 0x0C0}, --etc
+		},
+		boxes = {
+			{anim_ptr = nil, addr_table = nil, id_ptr = 0x3E, id_space = 0x01, type = VULNERABILITY_BOX,
+				invalid = {
+					{offset = 0x4D, value = 0x00, equal = false}, 
+					{offset = 0xC3, value = 0x00, equal = false},
+				}
+			},
+			{anim_ptr = nil, addr_table = nil, id_ptr = 0x3C, id_space = 0x01, type = ATTACK_BOX,
+				invalid = {{offset = 0x1B, value = 0x00, equal = true}}
+			},
+		},
+		id_read  = memory.readword,
 		box_read = memory.readwordsigned,
 		no_double_radius = true,
 	},
@@ -139,9 +167,8 @@ for game in ipairs(profile) do
 			box.color = WEAK_COLOR
 		elseif box.type == ATTACK_BOX then
 			box.color = ATTACK_COLOR
-		elseif box.type == PUSH_BOX then
-			box.color = PUSH_COLOR
 		end
+		box.invalid = box.invalid or {}
 	end
 end
 
@@ -180,12 +207,6 @@ input.registerhotkey(3, function()
 end)
 
 
-input.registerhotkey(4, function()
-	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
-	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
-end)
-
-
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
@@ -216,8 +237,8 @@ end)
 -- prepare the hitboxes
 
 local function update_globals()
-	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
-	globals.top_screen_edge  = memory.readword(game.address.left_screen_edge + 0x4)
+	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
+	globals.top_screen_edge  = memory.readwordsigned(game.address.left_screen_edge + 0x4)
 	globals.game_phase       = memory.readword(game.address.game_phase)
 end
 
@@ -233,7 +254,17 @@ local function game_y_to_mame(y)
 end
 
 
-local function define_box(obj, entry, base_obj)
+local function define_box(obj, base_obj, entry, space)
+	for _,check in ipairs(game.boxes[entry].invalid) do
+		local no_draw = memory.readbyte(base_obj + check.offset) == check.value
+		if not check.equal then
+			no_draw = not no_draw
+		end
+		if no_draw and check.offset < space then
+			return nil
+		end
+	end
+
 	local base_id = base_obj
 	if game.boxes[entry].anim_ptr then
 		base_id = memory.readdword(base_obj + game.boxes[entry].anim_ptr)
@@ -250,7 +281,9 @@ local function define_box(obj, entry, base_obj)
 		addr_table = memory.readdword(base_obj + game.boxes[entry].addr_table)
 	else
 		addr_table = memory.readdword(base_obj + game.offset.hitbox_ptr)
-		addr_table = addr_table + memory.readwordsigned(addr_table + game.boxes[entry].addr_table)
+		if game.boxes[entry].addr_table then
+			addr_table = addr_table + memory.readwordsigned(addr_table + game.boxes[entry].addr_table)
+		end
 	end
 	local address = addr_table + curr_id * game.boxes[entry].id_space
 	--local address = 0xf4d8a + memory.readword(base_obj+0x26)*4 + memory.readword(base_obj+0x7A) --captcomm test
@@ -296,19 +329,19 @@ local function define_box(obj, entry, base_obj)
 end
 
 
-local function update_game_object(obj, base_obj)
+local function update_game_object(obj, base_obj, space)
 	obj.facing_dir = memory.readbyte(base_obj + game.offset.facing_dir)
-	obj.pos_z      = game.offset.z_position and memory.readword(base_obj + game.offset.z_position) or 0
-	obj.pos_x      = memory.readword(base_obj + game.offset.x_position)
-	obj.pos_y      = memory.readword(base_obj + game.offset.x_position + 4) + obj.pos_z
+	obj.pos_z      = game.offset.z_position and memory.readwordsigned(base_obj + game.offset.z_position) or 0
+	obj.pos_x      = memory.readwordsigned(base_obj + game.offset.x_position)
+	obj.pos_y      = memory.readwordsigned(base_obj + game.offset.x_position + 4) + obj.pos_z
 
 	for entry in ipairs(game.boxes) do
-		define_box(obj, entry, base_obj)
+		define_box(obj, base_obj, entry, space)
 	end
 end
 
 
-local function update_cps2_hitboxes()
+local function update_beatemup_hitboxes()
 	gui.clearuncommitted()
 	if not game then return end
 	update_globals()
@@ -320,7 +353,7 @@ local function update_cps2_hitboxes()
 			if memory.readword(base_obj) >= 0x0100 then
 				local new_obj = {}
 				new_obj.harmless = set.harmless
-				update_game_object(new_obj, base_obj)
+				update_game_object(new_obj, base_obj, set.offset)
 				table.insert(objects, new_obj)
 			end
 		end
@@ -335,7 +368,7 @@ end
 
 
 emu.registerafter( function()
-	update_cps2_hitboxes()
+	update_beatemup_hitboxes()
 end)
 
 
@@ -366,7 +399,7 @@ local function draw_game_object(obj)
 end
 
 
-local function render_cps2_hitboxes()
+local function render_beatemup_hitboxes()
 	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		return
 	end
@@ -392,5 +425,5 @@ end
 
 
 gui.register( function()
-	render_cps2_hitboxes()
+	render_beatemup_hitboxes()
 end)
