@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("October 3, 2010")
+print("October 5, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -298,10 +298,10 @@ for game in ipairs(profile) do
 			box.color = ATTACK_COLOR
 		elseif box.type == PUSH_BOX then
 			box.color = PUSH_COLOR
-			box.outline = OR(box.color, 0x80)
+			box.outline = OR(box.color, 0xC0)
 		elseif box.type == THROWABLE_BOX then
 			box.color = THROWABLE_COLOR
-			box.outline = OR(box.color, 0x80)
+			box.outline = OR(box.color, 0xC0)
 		end
 	end
 end
@@ -515,7 +515,7 @@ local function read_projectiles()
 		end
 	end
 
-	for i = 1, game.special_projectiles.number do
+	for i = 1, game.special_projectiles.number do --for nwarr only
 		local base_obj = game.special_projectiles.start + (i-1) * game.special_projectiles.space
 		if memory.readword(base_obj) >= 0x0100 and 
 		memory.readdword(base_obj + game.boxes[1].anim_ptr) > 0 and
