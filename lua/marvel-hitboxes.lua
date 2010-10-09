@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 8, 2010")
+print("October 9, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -25,37 +25,75 @@ local THROW_BOX              = 4
 local THROWABLE_BOX          = 5
 local GAME_PHASE_NOT_PLAYING = 0
 local BLANK_SCREEN           = false
---local DRAW_AXIS              = false
-local DRAW_AXIS              = true
+local DRAW_AXIS              = false
 local DRAW_MINI_AXIS         = false
 local DRAW_PUSHBOXES         = true
 
 local profile = {
 	{
+		games = {"xmvsf"},
+		number = {players = 4, projectiles = 0x40},
+		address = {
+			player           = 0xFF4000,
+			projectile       = 0xFFAC80,
+			game_phase       = 0xFF9FD0,
+			stage            = 0xFF5113,
+			stage_camera = {
+				[0x0] = 0xFF534C, --Apocalypse Now!
+				[0x1] = 0xFF524C, --Showdown in the Park
+				[0x2] = 0xFF524C, --Death Valley
+				[0x3] = 0xFF52CC, --The Cataract
+				[0x4] = 0xFF524C, --The Temple of Fists
+				[0x5] = 0xFF524C, --On the Hilltop
+				[0x6] = 0xFF534C, --Manhattan
+				[0x7] = 0xFF524C, --Raging Inferno
+				[0x8] = 0xFF52CC, --Code Red
+				[0x9] = 0xFF524C, --Dead or Live: The Show
+				[0xA] = 0xFF524C, --Mall Mayhem
+			},
+		},
+		offset = {
+			player_space     = 0x400,
+			projectile_space = 0x0C0,
+			facing_dir       = 0x4B,
+			x_position       = 0x0C,
+			hitbox_ptr       = nil,
+			invulnerability  = {},
+			hval = 0x0, hrad = 0x2, vval = 0x4, vrad = 0x6,
+		},
+		boxes = {
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x7C, id_space = 0x08, type = PUSH_BOX}, --?
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x74, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x76, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x78, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x7A, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x70, id_space = 0x08, type = ATTACK_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x6C, id_ptr = 0x72, id_space = 0x08, type = ATTACK_BOX},
+		},
+	},
+	{
 		games = {"mshvsf"},
 		number = {players = 4, projectiles = 0x40},
-		stage_offset = {
-			[0x0] = {x = 0x340, y = 0x210}, --Apocalypse Now!
-			[0x1] = {x =  0x40, y =   0x0}, --Showdown in the Park
-			[0x2] = {x =  0x40, y =   0x0}, --Death Valley 1
-			[0x3] = {x =  0x40, y =   0x0}, --The Cataract
-			[0x4] = {x =  0x40, y =   0x0}, --The Temple of Fists
-			[0x5] = {x =  0x40, y =   0x0}, --On the Hilltop
-			[0x6] = {x =  0x40, y =   0x0}, --Manhattan
-			[0x7] = {x = -0x80, y =   0x0}, --Raging Inferno 1
-			[0x8] = {x =  0x40, y =   0x0}, --Code Red
-			[0x9] = {x =  0x40, y =   0x0}, --Dead or Live: The Show
-			[0xA] = {x =  0x40, y =   0x0}, --Mall Mayhem
-			[0xB] = {x = -0x80, y =   0x0}, --Raging Inferno 2
-			[0xC] = {x =  0x40, y =   0x0}, --Death Valley 2
-		},
 		address = {
 			player           = 0xFF3800,
 			projectile       = 0xFFAB96,
-			left_screen_edge = 0xFF4C1A,
-			top_screen_edge  = 0xFF4C1C,
-			game_phase       = 0xFF9CA6,
+			game_phase       = 0xFF9BD8,
 			stage            = 0xFF4913,
+			stage_camera = {
+				[0x0] = 0xFF4B4C, --Apocalypse Now!
+				[0x1] = 0xFF4A4C, --Showdown in the Park
+				[0x2] = 0xFF4A4C, --Death Valley
+				[0x3] = 0xFF4ACC, --The Cataract
+				[0x4] = 0xFF4A4C, --The Temple of Fists
+				[0x5] = 0xFF4A4C, --On the Hilltop
+				[0x6] = 0xFF4B4C, --Manhattan
+				[0x7] = 0xFF4A4C, --Raging Inferno
+				[0x8] = 0xFF4ACC, --Code Red
+				[0x9] = 0xFF4A4C, --Dead or Live: The Show
+				[0xA] = 0xFF4A4C, --Mall Mayhem
+				[0xB] = 0xFF4A4C, --Raging Inferno 2
+				[0xC] = 0xFF4A4C, --Death Valley 2
+			},
 		},
 		offset = {
 			player_space     = 0x400,
@@ -84,10 +122,9 @@ for game in ipairs(profile) do
 		local ptr = g.offset.hitbox_ptr
 		g.offset.hitbox_ptr = {player = ptr, projectile = ptr}
 	end
-	g.offset.hitbox_ptr       = g.offset.hitbox_ptr       or {}
-	g.offset.y_position       = g.offset.y_position       or g.offset.x_position + 0x4
-	g.address.top_screen_edge = g.address.top_screen_edge or g.address.left_screen_edge + 0x4
-	g.box_parameter_func      = g.box_parameter_func      or memory.readwordsigned
+	g.offset.hitbox_ptr  = g.offset.hitbox_ptr  or {}
+	g.offset.y_position  = g.offset.y_position  or g.offset.x_position + 0x4
+	g.box_parameter_func = g.box_parameter_func or memory.readwordsigned
 	for entry in ipairs(g.boxes) do
 		local box = profile[game].boxes[entry]
 		if box.type == VULNERABILITY_BOX then
@@ -180,15 +217,11 @@ end)
 
 local function update_globals()
 	local curr_stage = memory.readbyte(game.address.stage)
-	if not game.stage_offset[curr_stage] then
+	if not game.address.stage_camera[curr_stage] then
 		curr_stage = 1
 	end
-	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
-	if globals.left_screen_edge > 320 then
-		globals.left_screen_edge = globals.left_screen_edge - 0x300
-	end
-	globals.left_screen_edge = globals.left_screen_edge + game.stage_offset[curr_stage].x
-	globals.top_screen_edge  = memory.readwordsigned(game.address.top_screen_edge) + game.stage_offset[curr_stage].y
+	globals.left_screen_edge = memory.readwordsigned(game.address.stage_camera[curr_stage]) + 0x40
+	globals.top_screen_edge  = memory.readwordsigned(game.address.stage_camera[curr_stage] + 0x4)
 	globals.game_phase       = memory.readbyte(game.address.game_phase)
 end
 
@@ -360,11 +393,9 @@ local function render_marvel_hitboxes()
 		for p = 1, game.number.players do
 			draw_game_object(frame_buffer[1][player][p])
 		end
-		for i in ipairs(frame_buffer[1][projectiles]) do
+		for i,obj in ipairs(frame_buffer[1][projectiles]) do
 			draw_game_object(frame_buffer[1][projectiles][i])
-		end
-		for _,obj in ipairs(frame_buffer[1][projectiles]) do
-			gui.text(game_x_to_mame(obj.pos_x),game_y_to_mame(obj.pos_y),string.format("%X",obj.base)) --debug
+			gui.text(game_x_to_mame(obj.pos_x), game_y_to_mame(obj.pos_y), string.format("%X",obj.base)) --debug
 		end
 	end
 
