@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 9, 2010")
+print("October 10, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -30,6 +30,90 @@ local DRAW_MINI_AXIS         = false
 local DRAW_PUSHBOXES         = true
 
 local profile = {
+	{
+		games = {"xmcota"},
+		number = {players = 2, projectiles = 0x40},--
+		address = {
+			player           = 0xFF4000,
+			projectile       = 0xFF9924,
+			game_phase       = 0xFF6F14,
+			stage            = 0xFF488F,
+			stage_camera = {
+				[0x0] = 0xFF498C, --Wolverine
+				[0x1] = 0xFF4A0C, --Psylocke
+				[0x2] = 0xFF4A0C, --Colossus
+				[0x3] = 0xFF4A0C, --Cyclops
+				[0x4] = 0xFF4A0C, --Storm
+				[0x5] = 0xFF4A0C, --Iceman
+				[0x6] = 0xFF4A0C, --Spiral
+				[0x7] = 0xFF4A0C, --Silver Samurai
+				[0x8] = 0xFF4A0C, --Omega Red
+				[0x9] = 0xFF4A0C, --Sentinel
+				[0xA] = 0xFF4A0C, --Juggernaut
+				[0xB] = 0xFF498C, --Magneto
+			},
+		},
+		offset = {
+			player_space     = 0x400,
+			projectile_space = 0x0E0,
+			facing_dir       = 0x4D,
+			x_position       = 0x0C,
+			hitbox_ptr       = nil,
+			invulnerability  = {},
+			hval = 0x0, hrad = 0x2, vval = 0x4, vrad = 0x6,
+		},
+		boxes = {
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x7C, id_space = 0x08, type = PUSH_BOX}, --?
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x74, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x76, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x78, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x7A, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x70, id_space = 0x08, type = ATTACK_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x72, id_space = 0x08, type = ATTACK_BOX},
+		},
+	},
+	{
+		games = {"msh"},
+		number = {players = 2, projectiles = 0x40},--
+		address = {
+			player           = 0xFF4000,
+			projectile       = 0xFFAB50,
+			game_phase       = 0xFF8EA0,
+			stage            = 0xFF4893,
+			stage_camera = {
+				[0x0] = 0xFF4A0C, --Spider-Man
+				[0x1] = 0xFF4A0C, --Captain America
+				[0x2] = 0xFF4A0C, --Hulk
+				[0x3] = 0xFF4A0C, --Iron Man
+				[0x4] = 0xFF498C, --Wolverine
+				[0x5] = 0xFF4A0C, --Psylocke
+				[0x6] = 0xFF4B0C, --BlackHeart
+				[0x7] = 0xFF4A0C, --Shuma-Gorath
+				[0x8] = 0xFF4A0C, --Juggernaut
+				[0x9] = 0xFF4A0C, --Magneto
+				[0xA] = 0xFF4A0C, --Dr.Doom
+				[0xA] = 0xFF4A0C, --Thanos
+			},
+		},
+		offset = {
+			player_space     = 0x400,
+			projectile_space = 0x0E0,
+			facing_dir       = 0x4D,
+			x_position       = 0x0C,
+			hitbox_ptr       = nil,
+			invulnerability  = {},
+			hval = 0x0, hrad = 0x2, vval = 0x4, vrad = 0x6,
+		},
+		boxes = {
+			--{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x80, id_space = 0x08, type = PUSH_BOX}, --?
+			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x78, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x7A, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x7C, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x7E, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x74, id_space = 0x08, type = ATTACK_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x76, id_space = 0x08, type = ATTACK_BOX},
+		},
+	},
 	{
 		games = {"xmvsf"},
 		number = {players = 4, projectiles = 0x40},
@@ -244,7 +328,7 @@ local function define_box(obj, entry, hitbox_ptr, is_projectile)
 	end
 	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr + 1)
 
-	if curr_id == 0 or memory.readbyte(base_id + game.boxes[entry].id_ptr) == 0x80 then
+	if curr_id == 0 or math.floor(memory.readbyte(base_id + game.boxes[entry].id_ptr)/0x10) == 0x8 then
 		return nil
 	end
 	
@@ -328,7 +412,8 @@ local function update_marvel_hitboxes()
 
 	for p = 1, game.number.players do
 		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
-		if memory.readword(player[p].base) >= 0x0100 then
+		--if memory.readword(player[p].base) >= 0x0100 then
+		if true then
 			update_game_object(player[p])
 			update_invulnerability(player[p])
 		end
