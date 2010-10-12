@@ -4,7 +4,8 @@ print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis")
-print("Lua hotkey 4: toggle pushboxes") print()
+print("Lua hotkey 4: toggle pushboxes")
+print("Lua hotkey 5: toggle throwboxes") print()
 
 local VULNERABILITY_COLOR    = 0x7777FF40
 local ATTACK_COLOR           = 0xFF000060
@@ -29,6 +30,23 @@ local BLANK_SCREEN           = false
 local DRAW_AXIS              = false
 local DRAW_MINI_AXIS         = false
 local DRAW_PUSHBOXES         = true
+local DRAW_THROWBOXES        = false
+
+local fill = {
+	[VULNERABILITY_BOX] = VULNERABILITY_COLOR,
+	[ATTACK_BOX]        = ATTACK_COLOR,
+	[PUSH_BOX]          = PUSH_COLOR,
+	[THROW_BOX]         = THROW_COLOR,
+	[THROWABLE_BOX]     = THROWABLE_COLOR,
+}
+
+local outline = {
+	[VULNERABILITY_BOX] = OR(VULNERABILITY_COLOR, 0xFF),
+	[ATTACK_BOX]        = OR(ATTACK_COLOR,        0xFF),
+	[PUSH_BOX]          = OR(PUSH_COLOR,          0xC0),
+	[THROW_BOX]         = OR(THROW_COLOR,         0xFF),
+	[THROWABLE_BOX]     = OR(THROWABLE_COLOR,     0xE0),
+}
 
 local profile = {
 	{
@@ -37,7 +55,7 @@ local profile = {
 		address = {
 			player           = 0xFF4000,
 			projectile       = 0xFF9924,
-			game_phase       = 0xFF6F14,
+			game_phase       = 0xFF4BA4,
 			stage            = 0xFF488F,
 			stage_camera = {
 				[0x0] = 0xFF498C, --Savage Land (Wolverine)
@@ -61,7 +79,7 @@ local profile = {
 		},
 		boxes = {
 			{addr_table = 0x0C15E2, id_ptr = 0xA2, type = PUSH_BOX},
-			--{addr_table_ptr = 0x88, id_ptr = 0x7C, type = THROWABLE_BOX}, --?
+			{addr_table_ptr = 0x88, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x76, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x78, type = VULNERABILITY_BOX},
@@ -100,7 +118,7 @@ local profile = {
 		},
 		boxes = {
 			{addr_table = 0x09E82C, id_ptr = 0xA2, type = PUSH_BOX},
-			--{addr_table_ptr = 0x90, id_ptr = 0x80, type = THROWABLE_BOX}, --?
+			{addr_table_ptr = 0x90, id_ptr = 0x80, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x78, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x7A, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x7C, type = VULNERABILITY_BOX},
@@ -138,7 +156,7 @@ local profile = {
 		},
 		boxes = {
 			{addr_table = 0x08B022, id_ptr = 0xA4, type = PUSH_BOX},
-			--{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX}, --?
+			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
@@ -178,7 +196,7 @@ local profile = {
 		},
 		boxes = {
 			{addr_table = 0x137EE2, id_ptr = 0xA4, type = PUSH_BOX},
-			--{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX}, --?
+			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
@@ -197,8 +215,8 @@ local profile = {
 			stage            = 0xFF4113,
 			stage_camera = {
 				[0x0] = 0xFF426C, --Bath house
-				[0x1] = 0xFF426C, --Rapter
-				[0x2] = 0xFF426C, --Strider
+				[0x1] = 0xFF426C, --Rapter stage
+				[0x2] = 0xFF426C, --Strider mosque
 				[0x3] = 0xFF42EC, --Dr. Wily
 				[0x4] = 0xFF42EC, --Marvel stuff
 				[0x5] = 0xFF426C, --Avengers HQ
@@ -215,7 +233,7 @@ local profile = {
 		},
 		boxes = {
 			{addr_table = 0x0E6FEE, id_ptr = 0xB4, type = PUSH_BOX},
-			--{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX}, --?
+			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
@@ -232,26 +250,11 @@ for game in ipairs(profile) do
 	g.offset.player_space = g.offset.player_space or 0x400
 	g.offset.x_position   = g.offset.x_position   or 0x0C
 	g.offset.y_position   = g.offset.y_position   or 0x10
+	g.offset.hurt         = g.offset.hurt         or 0x06
 	g.offset.hval         = g.offset.hval         or 0x0
 	g.offset.hrad         = g.offset.hvad         or 0x2
 	g.offset.vval         = g.offset.vval         or 0x4
 	g.offset.vrad         = g.offset.vrad         or 0x6
-	for entry in ipairs(g.boxes) do
-		local box = profile[game].boxes[entry]
-		if box.type == VULNERABILITY_BOX then
-			box.color = VULNERABILITY_COLOR
-		elseif box.type == THROW_BOX then
-			box.color = THROW_COLOR
-		elseif box.type == ATTACK_BOX then
-			box.color = ATTACK_COLOR
-		elseif box.type == PUSH_BOX then
-			box.color = PUSH_COLOR
-			box.outline = OR(box.color, 0xC0)
-		elseif box.type == THROWABLE_BOX then
-			box.color = THROWABLE_COLOR
-			box.outline = OR(box.color, 0xC0)
-		end
-	end
 end
 
 local game
@@ -292,6 +295,12 @@ end)
 input.registerhotkey(4, function()
 	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
 	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
+end)
+
+
+input.registerhotkey(5, function()
+	DRAW_THROWBOXES = not DRAW_THROWBOXES
+	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes")
 end)
 
 
@@ -352,18 +361,26 @@ end
 
 
 local function define_box(obj, entry, is_projectile)
-	local address
-	if not game.boxes[entry].addr_table then
+	local address, box_type
 
-		local curr_id = memory.readbyte(obj.base + game.boxes[entry].id_ptr + 1)
-		if curr_id == 0 or math.floor(memory.readbyte(obj.base + game.boxes[entry].id_ptr)/0x10) == 0x8 then
+	if game.boxes[entry].addr_table_ptr then
+		local curr_id = memory.readword(obj.base + game.boxes[entry].id_ptr)
+		if curr_id == 0 then
 			return nil
 		end
-		
+
+		if game.boxes[entry].type == ATTACK_BOX and math.floor(curr_id/0x1000) == 0x8 then
+			box_type = THROW_BOX
+			if memory.readword(obj.base + game.offset.hurt) > 0 then
+				return nil
+			end
+		end
+		curr_id = curr_id % 0x1000
+
 		local addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table_ptr)
 		address = addr_table + curr_id * 8
 
-	else
+	else --pushbox
 		if is_projectile then--or memory.readbytesigned(obj.base + 0xE3) >= 0 then
 			return nil
 		end
@@ -389,9 +406,7 @@ local function define_box(obj, entry, is_projectile)
 		top    = game_y_to_mame(obj.pos_y + vval - vrad),
 		hval   = game_x_to_mame(obj.pos_x + hval),
 		vval   = game_y_to_mame(obj.pos_y + vval),
-		type   = game.boxes[entry].type,
-		color  = game.boxes[entry].color,
-		outline= game.boxes[entry].outline,
+		type   = box_type or game.boxes[entry].type,
 	}
 end
 
@@ -482,14 +497,19 @@ end)
 -- draw the hitboxes
 
 local function draw_hitbox(hb)
+	if not DRAW_PUSHBOXES and hb.type == PUSH_BOX then
+		return
+	elseif not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX) then
+		return
+	end
 	--if hb.left > hb.right or hb.bottom > hb.top then return end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(hb.color, 0xFF))
-		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(hb.color, 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(fill[hb.type], 0xFF))
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(fill[hb.type], 0xFF))
 	end
 
-	gui.box(hb.left, hb.top, hb.right, hb.bottom, hb.color, hb.outline)
+	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
 end
 
 
@@ -512,20 +532,10 @@ local function render_marvel_hitboxes()
 		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOR)
 	end
 
-	if DRAW_AXIS then
-		for p = 1, game.number.players do
-			draw_game_object(frame_buffer[1][player][p])
-		end
-		for i,obj in ipairs(frame_buffer[1][projectiles]) do
-			draw_game_object(frame_buffer[1][projectiles][i])
-			gui.text(game_x_to_mame(obj.pos_x), game_y_to_mame(obj.pos_y), string.format("%X",obj.base)) --debug
-		end
-	end
-
 	for entry in ipairs(game.boxes) do
 		for p = 1, game.number.players do
 			local obj = frame_buffer[1][player][p]
-			if obj and obj[entry] and not (not DRAW_PUSHBOXES and game.boxes[entry].type == PUSH_BOX) then
+			if obj and obj[entry] then
 				draw_hitbox(obj[entry])
 			end
 		end
@@ -535,6 +545,16 @@ local function render_marvel_hitboxes()
 			if obj[entry] then
 				draw_hitbox(obj[entry])
 			end
+		end
+	end
+
+	if DRAW_AXIS then
+		for p = 1, game.number.players do
+			draw_game_object(frame_buffer[1][player][p])
+		end
+		for i,obj in ipairs(frame_buffer[1][projectiles]) do
+			draw_game_object(frame_buffer[1][projectiles][i])
+			gui.text(game_x_to_mame(obj.pos_x), game_y_to_mame(obj.pos_y), string.format("%X",obj.base)) --debug
 		end
 	end
 
