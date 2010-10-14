@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("October 13, 2010")
+print("October 14, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -30,7 +30,7 @@ local BLANK_SCREEN           = false
 local DRAW_AXIS              = false
 local DRAW_MINI_AXIS         = false
 local DRAW_PUSHBOXES         = true
-local DRAW_THROWBOXES        = false
+local DRAW_THROWBOXES        = true
 
 local fill = {
 	[VULNERABILITY_BOX] = VULNERABILITY_COLOR,
@@ -59,10 +59,8 @@ local profile = {
 			game_phase       = 0xFF8280,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0x80,
 			facing_dir       = 0x0B,
-			x_position       = 0x10,
 			hitbox_ptr       = 0x50,
 			invulnerability  = {},
 			hval = 0x0, vval = 0x1, hrad = 0x2, vrad = 0x3,
@@ -86,10 +84,8 @@ local profile = {
 			game_phase       = 0xFF812D,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0x80,
 			facing_dir       = 0x0B,
-			x_position       = 0x10,
 			hitbox_ptr       = {player = nil, projectile = 0x60},
 			invulnerability  = {0x273},
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
@@ -112,10 +108,9 @@ local profile = {
 			game_phase       = 0xFF812D,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0x100,
+			status           = 0x04,
 			facing_dir       = 0x0B,
-			x_position       = 0x10,
 			hitbox_ptr       = nil,
 			invulnerability  = {0xD6, 0x25D},
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
@@ -127,6 +122,11 @@ local profile = {
 			{anim_ptr =  nil, addr_table_ptr = 0x98, id_ptr =  0xCA, id_space = 0x08, type = VULNERABILITY_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0xA0, id_ptr =   0x9, id_space = 0x20, type = ATTACK_BOX},
 			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_space = 0x20, type = THROW_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr =  0x82, id_space = 0x20, type = ATTACK_BOX, tripwire = 0x1E4},
+		},
+		zero_out = {
+			{kill_offset = 0x32F, kill_func = memory.writebyte, cond_offset = 0x000, cond_value = 0x1}, --throw ID
+			{kill_offset = 0x1E4, kill_func = memory.writeword, cond_offset = 0x216, cond_value = 0x0}, --tripwire distance
 		},
 	},
 	{
@@ -139,10 +139,8 @@ local profile = {
 			game_phase       = 0xFF9475,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0xC0,
 			facing_dir       = 0x09,
-			x_position       = 0x10,
 			hitbox_ptr       = 0x5C,
 			invulnerability  = {0x11D},
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
@@ -169,7 +167,6 @@ local profile = {
 			player_space     = 0x500,
 			projectile_space = 0xC0,
 			facing_dir       = 0x09,
-			x_position       = 0x10,
 			hitbox_ptr       = 0x5C,
 			invulnerability  = {0x11D},
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
@@ -194,10 +191,8 @@ local profile = {
 			game_phase       = 0xFF812D,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0x0B,
-			x_position       = 0x10,
 			hitbox_ptr       = nil,
 			invulnerability  = {0x147},
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
@@ -223,10 +218,8 @@ local profile = {
 		},
 		offset = {
 			top_screen_edge  = 23,
-			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0x38,
-			x_position       = 0x10,
 			id_ptr           = 0x4A,
 			invulnerability  = {},
 			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
@@ -251,7 +244,6 @@ local profile = {
 			game_phase       = 0xFF89A0,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0xC0,
 			facing_dir       = 0x09,
 			x_position       = 0x1A,
@@ -277,19 +269,19 @@ local profile = {
 			game_phase       = 0xFFCBBC,
 		},
 		offset = {
-			player_space     = 0x400,
 			projectile_space = 0x100,
 			facing_dir       = 0x0B,
-			x_position       = 0x10,
 			hitbox_ptr       = nil,
 			invulnerability  = {0x147},
 			hval = 0x0, vval = 0x2, hrad = 0x4, vrad = 0x6,
 		},
 		boxes = {
 			{anim_ptr =  nil, addr_table_ptr = 0x8C, id_ptr = 0x93, id_space = 0x08, type = PUSH_BOX},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x8C, id_ptr = 0x0B, id_space = 0x08, type = THROWABLE_BOX}, --same as pushbox?
 			{anim_ptr =  nil, addr_table_ptr = 0x80, id_ptr = 0x90, id_space = 0x08, type = VULNERABILITY_BOX},
 			{anim_ptr =  nil, addr_table_ptr = 0x84, id_ptr = 0x91, id_space = 0x08, type = VULNERABILITY_BOX},
 			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x92, id_space = 0x20, type = ATTACK_BOX},
+			--{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = "?", id_space = 0x20, type = THROW_BOX},
 		},
 		box_parameter_radscale = 2,
 	},
@@ -301,13 +293,16 @@ for game in ipairs(profile) do
 		local ptr = g.offset.hitbox_ptr
 		g.offset.hitbox_ptr = {player = ptr, projectile = ptr}
 	end
-	g.offset.hitbox_ptr       = g.offset.hitbox_ptr       or {}
-	g.offset.top_screen_edge  = g.offset.top_screen_edge  or -17
-	g.offset.y_position       = g.offset.y_position       or g.offset.x_position + 0x4
 	g.address.top_screen_edge = g.address.top_screen_edge or g.address.left_screen_edge + 0x4
+	g.offset.top_screen_edge  = g.offset.top_screen_edge  or -17
+	g.offset.player_space     = g.offset.player_space     or 0x400
+	g.offset.x_position       = g.offset.x_position       or 0x10
+	g.offset.y_position       = g.offset.y_position       or g.offset.x_position + 0x4
+	g.offset.hitbox_ptr       = g.offset.hitbox_ptr       or {}
 	g.box_parameter_func      = g.box_parameter_func      or memory.readwordsigned
 	g.box_parameter_radscale  = g.box_parameter_radscale  or 1
 	g.special_projectiles     = g.special_projectiles     or {number = 0}
+	g.zero_out                = g.zero_out                or {}
 end
 
 local game, prepare_boxes
@@ -382,9 +377,6 @@ local function define_box(obj, entry, hitbox_ptr, is_projectile)
 	if game.boxes[entry].type == THROW_BOX and is_projectile then
 		return nil
 	end
-	--[[if game.boxes[entry].type == THROW_BOX and (memory.readword(obj.base + 0x6) % 0x1000 ~= 0x6) then --only works for Gen
-		return nil
-	end]]
 
 	local base_id = obj.base
 	if game.boxes[entry].anim_ptr then
@@ -392,7 +384,12 @@ local function define_box(obj, entry, hitbox_ptr, is_projectile)
 	end
 	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr)
 
-	if curr_id == 0 and game.boxes[entry].type ~= THROW_BOX then
+	local wire_pos
+	if game.boxes[entry].tripwire then
+		curr_id = curr_id / 2 + 0x3E
+		wire_pos = memory.readwordsigned(obj.base + game.boxes[entry].tripwire)
+	end
+	if curr_id == 0 or wire_pos == 0 then
 		return nil
 	end
 	
@@ -414,6 +411,7 @@ local function define_box(obj, entry, hitbox_ptr, is_projectile)
 	if obj.facing_dir == 1 then
 		hval  = -hval
 	end
+	hval = hval + (wire_pos or 0)
 
 	return {
 		left   = game_x_to_mame(obj.pos_x + hval - hrad),
@@ -466,7 +464,7 @@ local function define_id_offset_box(obj, entry, id_offset, is_projectile) --for 
 end
 
 
-local function prepare_normal_boxes(obj)
+local function prepare_normal_boxes(obj, is_projectile)
 	local hitbox_ptr = is_projectile and game.offset.hitbox_ptr.projectile or game.offset.hitbox_ptr.player
 	for entry in ipairs(game.boxes) do
 		obj[entry] = define_box(obj, entry, hitbox_ptr, is_projectile)
@@ -474,7 +472,7 @@ local function prepare_normal_boxes(obj)
 end
 
 
-local function prepare_id_offset_boxes(obj)
+local function prepare_id_offset_boxes(obj, is_projectile)
 	local id_offset = memory.readword(obj.base + game.offset.id_ptr)
 	for entry in ipairs(game.boxes) do
 		obj[entry] = define_id_offset_box(obj, entry, id_offset, is_projectile)
@@ -486,7 +484,7 @@ local function update_game_object(obj, is_projectile)
 	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
 	obj.pos_x        = memory.readwordsigned(obj.base + game.offset.x_position)
 	obj.pos_y        = memory.readwordsigned(obj.base + game.offset.y_position)
-	prepare_boxes(obj)
+	prepare_boxes(obj, is_projectile)
 end
 
 
@@ -552,6 +550,13 @@ local function update_cps2_hitboxes()
 	end
 	frame_buffer[DRAW_DELAY+1][projectiles] = read_projectiles()
 
+	for _,z in ipairs(game.zero_out) do
+		for p = 1, game.number.players do
+			if memory.readbyte(game.address.player + (p-1) * game.offset.player_space + z.cond_offset) == z.cond_value then
+				z.kill_func(game.address.player + (p-1) * game.offset.player_space + z.kill_offset, 0)
+			end
+		end
+	end
 end
 
 
@@ -564,11 +569,9 @@ end)
 -- draw the hitboxes
 
 local function draw_hitbox(hb, invulnerability)
-	if not DRAW_PUSHBOXES and hb.type == PUSH_BOX then
-		return
-	elseif not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX) then
-		return
-	elseif invulnerability and hb.type == VULNERABILITY_BOX then
+	if (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
+	or (not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX))
+	or (invulnerability and hb.type == VULNERABILITY_BOX) then
 		return
 	end
 	--if hb.left > hb.right or hb.bottom > hb.top then return end
