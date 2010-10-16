@@ -121,12 +121,8 @@ local profile = {
 			{anim_ptr =  nil, addr_table_ptr = 0x94, id_ptr =  0xC9, id_space = 0x08, type = VULNERABILITY_BOX},
 			{anim_ptr =  nil, addr_table_ptr = 0x98, id_ptr =  0xCA, id_space = 0x08, type = VULNERABILITY_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0xA0, id_ptr =   0x9, id_space = 0x20, type = ATTACK_BOX},
-			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_space = 0x20, type = THROW_BOX},
+			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_space = 0x20, type = THROW_BOX, zero = 0x32F},
 			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr =  0x82, id_space = 0x20, type = ATTACK_BOX, tripwire = 0x1E4},
-		},
-		zero_out = {
-			{kill_offset = 0x32F, kill_func = memory.writebyte, cond_offset = 0x000, cond_value = 0x1}, --throw ID
-			{kill_offset = 0x1E4, kill_func = memory.writeword, cond_offset = 0x216, cond_value = 0x0}, --tripwire distance
 		},
 	},
 	{
@@ -302,7 +298,6 @@ for game in ipairs(profile) do
 	g.box_parameter_func      = g.box_parameter_func      or memory.readwordsigned
 	g.box_parameter_radscale  = g.box_parameter_radscale  or 1
 	g.special_projectiles     = g.special_projectiles     or {number = 0}
-	g.zero_out                = g.zero_out                or {}
 end
 
 local game, prepare_boxes
@@ -384,15 +379,25 @@ local function define_box(obj, entry, hitbox_ptr, is_projectile)
 	end
 	local curr_id = memory.readbyte(base_id + game.boxes[entry].id_ptr)
 
+	if game.boxes[entry].zero then
+		memory.writebyte(base_id + game.boxes[entry].zero, 0x0)
+	end
+
 	local wire_pos
 	if game.boxes[entry].tripwire then
 		curr_id = curr_id / 2 + 0x3E
 		wire_pos = memory.readwordsigned(obj.base + game.boxes[entry].tripwire)
+		if wire_pos == 0 or memory.readbyte(obj.base + 0x102) ~= 0xE then
+			return nil
+		elseif memory.readbyte(obj.base + 0x216) == 0x0 then
+			memory.writeword(obj.base + game.boxes[entry].tripwire, 0x0)
+		end
 	end
-	if curr_id == 0 or wire_pos == 0 then
+
+	if curr_id == 0 then
 		return nil
 	end
-	
+
 	local addr_table
 	if not hitbox_ptr then
 		addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table_ptr)
@@ -550,13 +555,6 @@ local function update_cps2_hitboxes()
 	end
 	frame_buffer[DRAW_DELAY+1][projectiles] = read_projectiles()
 
-	for _,z in ipairs(game.zero_out) do
-		for p = 1, game.number.players do
-			if memory.readbyte(game.address.player + (p-1) * game.offset.player_space + z.cond_offset) == z.cond_value then
-				z.kill_func(game.address.player + (p-1) * game.offset.player_space + z.kill_offset, 0)
-			end
-		end
-	end
 end
 
 

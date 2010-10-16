@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 11, 2010")
+print("October 15, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -76,6 +76,7 @@ local profile = {
 			projectile_space = 0xE0,
 			facing_dir       = 0x4D,
 			char_id          = 0x50,
+			no_push          = 0x10A,
 		},
 		boxes = {
 			{addr_table = 0x0C15E2, id_ptr = 0xA2, type = PUSH_BOX},
@@ -115,6 +116,7 @@ local profile = {
 			projectile_space = 0xE0,
 			facing_dir       = 0x4D,
 			char_id          = 0x50,
+			no_push          = 0x10A,
 		},
 		boxes = {
 			{addr_table = 0x09E82C, id_ptr = 0xA2, type = PUSH_BOX},
@@ -153,6 +155,7 @@ local profile = {
 			projectile_space = 0xC0,
 			facing_dir       = 0x4B,
 			char_id          = 0x52,
+			no_push          = 0x105,
 		},
 		boxes = {
 			{addr_table = 0x08B022, id_ptr = 0xA4, type = PUSH_BOX},
@@ -193,6 +196,7 @@ local profile = {
 			projectile_space = 0xC0,
 			facing_dir       = 0x4B,
 			char_id          = 0x52,
+			no_push          = 0x105,
 		},
 		boxes = {
 			{addr_table = 0x137EE2, id_ptr = 0xA4, type = PUSH_BOX},
@@ -214,14 +218,14 @@ local profile = {
 			game_phase       = 0xFF6120,
 			stage            = 0xFF4113,
 			stage_camera = {
-				[0x0] = 0xFF426C, --Bath house
-				[0x1] = 0xFF426C, --Rapter stage
-				[0x2] = 0xFF426C, --Strider mosque
-				[0x3] = 0xFF42EC, --Dr. Wily
+				[0x0] = 0xFF426C, --Honda's bath house
+				[0x1] = 0xFF426C, --Lord Rapter concert
+				[0x2] = 0xFF426C, --Strider Kazakh SSR
+				[0x3] = 0xFF42EC, --Dr. Wily's lab
 				[0x4] = 0xFF42EC, --Marvel stuff
 				[0x5] = 0xFF426C, --Avengers HQ
 				[0x6] = 0xFF426C, --Moon base
-				[0x7] = 0xFF41EC, --Daily Bugle
+				[0x7] = 0xFF41EC, --Daily Bugle rooftop
 				[0x8] = 0xFF41EC, --Mountain
 				[0x9] = 0xFF436C, --Onslaught
 			},
@@ -230,6 +234,7 @@ local profile = {
 			projectile_space = 0xD0,
 			facing_dir       = 0x4B,
 			char_id          = 0x52,
+			no_push          = 0x115,
 		},
 		boxes = {
 			{addr_table = 0x0E6FEE, id_ptr = 0xB4, type = PUSH_BOX},
@@ -247,14 +252,14 @@ local profile = {
 for game in ipairs(profile) do
 	local g = profile[game]
 	g.player_status = g.number.players > 2 and 0x100 or 0x1
-	g.offset.player_space = g.offset.player_space or 0x400
-	g.offset.x_position   = g.offset.x_position   or 0x0C
-	g.offset.y_position   = g.offset.y_position   or 0x10
-	g.offset.hurt         = g.offset.hurt         or 0x06
-	g.offset.hval         = g.offset.hval         or 0x0
-	g.offset.hrad         = g.offset.hvad         or 0x2
-	g.offset.vval         = g.offset.vval         or 0x4
-	g.offset.vrad         = g.offset.vrad         or 0x6
+	g.offset.player_space = 0x400
+	g.offset.x_position   = 0x0C
+	g.offset.y_position   = 0x10
+	g.offset.hurt         = 0x06
+	g.offset.hval         = 0x0
+	g.offset.hrad         = 0x2
+	g.offset.vval         = 0x4
+	g.offset.vrad         = 0x6
 end
 
 local game
@@ -375,19 +380,18 @@ local function define_box(obj, entry, is_projectile)
 				return nil
 			end
 		end
-		curr_id = curr_id % 0x1000
 
 		local addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table_ptr)
-		address = addr_table + curr_id * 8
+		address = addr_table + AND(curr_id, 0x0FFF) * 0x8
 
 	else --pushbox
-		if is_projectile then--or memory.readbytesigned(obj.base + 0xE3) >= 0 then
+		if is_projectile or (memory.readbyte(obj.base + game.offset.no_push) > 0) then
 			return nil
 		end
 
 		local curr_id = memory.readbyte(obj.base + game.boxes[entry].id_ptr)
 		local addr_table = game.boxes[entry].addr_table
-		address = memory.readdword(addr_table + curr_id * 2) + memory.readword(obj.base + game.offset.char_id) * 4
+		address = memory.readdword(addr_table + curr_id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
 	end
 
 	local hval = memory.readwordsigned(address + game.offset.hval)
@@ -497,9 +501,8 @@ end)
 -- draw the hitboxes
 
 local function draw_hitbox(hb)
-	if not DRAW_PUSHBOXES and hb.type == PUSH_BOX then
-		return
-	elseif not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX) then
+	if (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
+	or not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX) then
 		return
 	end
 	--if hb.left > hb.right or hb.bottom > hb.top then return end
@@ -535,7 +538,9 @@ local function render_marvel_hitboxes()
 	for entry in ipairs(game.boxes) do
 		for p = 1, game.number.players do
 			local obj = frame_buffer[1][player][p]
-			if obj and obj[entry] then
+			local obj_next = frame_buffer[2][player][p]
+			--if obj and obj[entry] then
+			if obj and obj[entry] and not (game.boxes[entry].type == PUSH_BOX and not obj_next[entry]) then
 				draw_hitbox(obj[entry])
 			end
 		end
