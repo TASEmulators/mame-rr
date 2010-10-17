@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 15, 2010")
+print("October 17, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -50,11 +50,11 @@ local outline = {
 
 local profile = {
 	{
-		games = {"xmcota"},
-		number = {players = 2, projectiles = 0x40},--
+		game = "xmcota",
+		number_players = 2,
 		address = {
 			player           = 0xFF4000,
-			projectile       = 0xFF9924,
+			projectile_ptr   = 0xFFD6C4,
 			game_phase       = 0xFF4BA4,
 			stage            = 0xFF488F,
 			stage_camera = {
@@ -73,10 +73,11 @@ local profile = {
 			},
 		},
 		offset = {
-			projectile_space = 0xE0,
-			facing_dir       = 0x4D,
-			char_id          = 0x50,
-			no_push          = 0x10A,
+			facing_dir           = 0x4D,
+			char_id              = 0x50,
+			invulnerable         = 0xF7,
+			no_push              = 0x10A,
+			projectile_ptr_space = 0x1C8,
 		},
 		boxes = {
 			{addr_table = 0x0C15E2, id_ptr = 0xA2, type = PUSH_BOX},
@@ -90,12 +91,12 @@ local profile = {
 		},
 	},
 	{
-		games = {"msh"},
-		number = {players = 2, projectiles = 0x40},--
+		game = "msh",
+		number_players = 2,
 		address = {
 			player           = 0xFF4000,
-			projectile       = 0xFFAB50,
-			game_phase       = 0xFF8EA0,
+			projectile_ptr   = 0xFFE400,
+			game_phase       = 0xFF8EC3,
 			stage            = 0xFF4893,
 			stage_camera = {
 				[0x0] = 0xFF4A0C, --Spider-Man
@@ -113,10 +114,11 @@ local profile = {
 			},
 		},
 		offset = {
-			projectile_space = 0xE0,
-			facing_dir       = 0x4D,
-			char_id          = 0x50,
-			no_push          = 0x10A,
+			facing_dir           = 0x4D,
+			char_id              = 0x50,
+			invulnerable         = 0xF7,
+			no_push              = 0x10A,
+			projectile_ptr_space = 0x148,
 		},
 		boxes = {
 			{addr_table = 0x09E82C, id_ptr = 0xA2, type = PUSH_BOX},
@@ -130,12 +132,12 @@ local profile = {
 		},
 	},
 	{
-		games = {"xmvsf"},
-		number = {players = 4, projectiles = 0x40},
+		game = "xmvsf",
+		number_players = 4,
 		address = {
 			player           = 0xFF4000,
-			projectile       = 0xFFAC80,
-			game_phase       = 0xFF9FD0,
+			projectile_ptr   = 0xFFE3D8,
+			game_phase       = 0xFFA015,
 			stage            = 0xFF5113,
 			stage_camera = {
 				[0x0] = 0xFF534C, --Apocalypse Now!
@@ -152,10 +154,11 @@ local profile = {
 			},
 		},
 		offset = {
-			projectile_space = 0xC0,
-			facing_dir       = 0x4B,
-			char_id          = 0x52,
-			no_push          = 0x105,
+			facing_dir           = 0x4B,
+			char_id              = 0x52,
+			invulnerable         = 0xF7,
+			no_push              = 0x105,
+			projectile_ptr_space = 0x150,
 		},
 		boxes = {
 			{addr_table = 0x08B022, id_ptr = 0xA4, type = PUSH_BOX},
@@ -164,17 +167,18 @@ local profile = {
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX},
+			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX, active = 0x82},
 			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
 		},
+		apoc_fist = {offset = 0xAC, value = 0x05D0FA}
 	},
 	{
-		games = {"mshvsf"},
-		number = {players = 4, projectiles = 0x40},
+		game = "mshvsf",
+		number_players = 4,
 		address = {
 			player           = 0xFF3800,
-			projectile       = 0xFFAB96,
-			game_phase       = 0xFF9BD8,--
+			projectile_ptr   = 0xFFE32E,
+			game_phase       = 0xFF48C9,
 			stage            = 0xFF4913,
 			stage_camera = {
 				[0x0] = 0xFF4B4C, --Apocalypse Now!
@@ -193,10 +197,11 @@ local profile = {
 			},
 		},
 		offset = {
-			projectile_space = 0xC0,
-			facing_dir       = 0x4B,
-			char_id          = 0x52,
-			no_push          = 0x105,
+			facing_dir           = 0x4B,
+			char_id              = 0x52,
+			invulnerable         = 0xF7,
+			no_push              = 0x105,
+			projectile_ptr_space = 0x150,
 		},
 		boxes = {
 			{addr_table = 0x137EE2, id_ptr = 0xA4, type = PUSH_BOX},
@@ -205,17 +210,18 @@ local profile = {
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX},
+			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX, active = 0x82},
 			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
 		},
+		apoc_fist = {offset = 0xAC, value = 0x087610}
 	},
 	{
-		games = {"mvsc"},
-		number = {players = 4, projectiles = 0x40},
+		game = "mvsc",
+		number_players = 4,
 		address = {
 			player           = 0xFF3000,
-			projectile       = 0xFFA3BA,
-			game_phase       = 0xFF6120,
+			projectile_ptr   = 0xFFDF1A,
+			game_phase       = 0xFF62B7,
 			stage            = 0xFF4113,
 			stage_camera = {
 				[0x0] = 0xFF426C, --Honda's bath house
@@ -231,10 +237,11 @@ local profile = {
 			},
 		},
 		offset = {
-			projectile_space = 0xD0,
-			facing_dir       = 0x4B,
-			char_id          = 0x52,
-			no_push          = 0x115,
+			facing_dir           = 0x4B,
+			char_id              = 0x52,
+			invulnerable         = 0x107,
+			no_push              = 0x115,
+			projectile_ptr_space = 0x158,
 		},
 		boxes = {
 			{addr_table = 0x0E6FEE, id_ptr = 0xB4, type = PUSH_BOX},
@@ -251,15 +258,16 @@ local profile = {
 
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.player_status = g.number.players > 2 and 0x100 or 0x1
+	g.player_status = g.number_players > 2 and 0x100 or 0x1
 	g.offset.player_space = 0x400
 	g.offset.x_position   = 0x0C
 	g.offset.y_position   = 0x10
-	g.offset.hurt         = 0x06
+	g.offset.hurt         = 0x07
 	g.offset.hval         = 0x0
 	g.offset.hrad         = 0x2
 	g.offset.vval         = 0x4
 	g.offset.vrad         = 0x6
+	g.address.projectile_limit = g.address.player + g.offset.player_space * g.number_players
 end
 
 local game
@@ -315,20 +323,18 @@ end)
 local function whatgame()
 	game = nil
 	for n, module in ipairs(profile) do
-		for m, shortname in ipairs(module.games) do
-			if emu.romname() == shortname or emu.parentname() == shortname then
-				print("drawing " .. shortname .. " hitboxes")
-				game = module
-				for p = 1, game.number.players do
-					player[p] = {}
-				end
-				for f = 1, DRAW_DELAY + 1 do
-					frame_buffer[f] = {}
-					frame_buffer[f][player] = {}
-					frame_buffer[f][projectiles] = {}
-				end
-				return
+		if emu.romname() == module.game or emu.parentname() == module.game then
+			print("drawing " .. module.game .. " hitboxes")
+			game = module
+			for p = 1, game.number_players do
+				player[p] = {}
 			end
+			for f = 1, DRAW_DELAY + 1 do
+				frame_buffer[f] = {}
+				frame_buffer[f][player] = {}
+				frame_buffer[f][projectiles] = {}
+			end
+			return
 		end
 	end
 	print("not prepared for " .. emu.romname() .. " hitboxes")
@@ -370,22 +376,20 @@ local function define_box(obj, entry, is_projectile)
 
 	if game.boxes[entry].addr_table_ptr then
 		local curr_id = memory.readword(obj.base + game.boxes[entry].id_ptr)
-		if curr_id == 0 then
+		if curr_id == 0
+		or (obj.apoc_fist and game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
 			return nil
 		end
 
-		if game.boxes[entry].type == ATTACK_BOX and math.floor(curr_id/0x1000) == 0x8 then
+		if game.boxes[entry].type == ATTACK_BOX and AND(curr_id, 0xF000) == 0x8000 then
 			box_type = THROW_BOX
-			if memory.readword(obj.base + game.offset.hurt) > 0 then
-				return nil
-			end
 		end
 
 		local addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table_ptr)
 		address = addr_table + AND(curr_id, 0x0FFF) * 0x8
 
 	else --pushbox
-		if is_projectile or (memory.readbyte(obj.base + game.offset.no_push) > 0) then
+		if is_projectile and not obj.apoc_fist then
 			return nil
 		end
 
@@ -429,38 +433,21 @@ end
 local function read_projectiles()
 	local current_projectiles = {}
 
-	for i = 1, game.number.projectiles do
-		local obj = {base = game.address.projectile + (i-1) * game.offset.projectile_space}
-		if memory.readword(obj.base + 0x04) == 0x0002 then
-			update_game_object(obj, true)
-			table.insert(current_projectiles, obj)
-		end
-	end
-
---[[
-	for i = 1, 0x20 do
-		local obj = {base = memory.readdword(0xFFE32E - i * 4)} --mshvsf
-		if obj.base == 0 then
-			break
-		elseif obj.base ~= 0xFF3800 and obj.base ~= 0xFF4000 then
-			update_game_object(obj, true)
-			table.insert(current_projectiles, obj)
-			if DRAW_AXIS then
-				gui.text(0,(i-1)*8,i .. "\t" .. string.format("%X",obj.base),"yellow")
+	for player = 0, 1 do
+		local i = 1
+		while i do
+			local obj = {base = memory.readdword(game.address.projectile_ptr + player * game.offset.projectile_ptr_space - i * 4)}
+			if obj.base < game.address.projectile_limit then
+				i = nil
+			else
+				obj.apoc_fist = game.apoc_fist and memory.readdword(obj.base + game.apoc_fist.offset) == game.apoc_fist.value and true
+				update_game_object(obj, true)
+				table.insert(current_projectiles, obj)
+				i = i + 1
 			end
 		end
 	end
 
-	local address = 0xFFDE16 --mshvsf
-	for i = 1, 0xE0 do
-		local obj = {base = memory.readdword(address + (i-1)*4)}
-		if obj.base > 0xFF0000 and obj.base < 0xFFFFFF and memory.readword(obj.base + 0x02) > 0 then
-			update_game_object(obj, true)
-			table.insert(current_projectiles, obj)
-		end
-	end
-
-]]
 	return current_projectiles
 end
 
@@ -470,21 +457,24 @@ local function update_marvel_hitboxes()
 	if not game then return end
 	update_globals()
 
-	for p = 1, game.number.players do
+	for p = 1, game.number_players do
 		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
 		if memory.readword(player[p].base) >= game.player_status then
+			player[p].hurt = (memory.readbyte(player[p].base + game.offset.hurt) > 0) and true
+			player[p].invulnerable = (memory.readbyte(player[p].base + game.offset.invulnerable) > 0) and true
+			player[p].no_push = (memory.readbyte(player[p].base + game.offset.no_push) > 0) and true
 			update_game_object(player[p])
 		end
 	end
 
 	for f = 1, DRAW_DELAY do
-		for p = 1, game.number.players do
+		for p = 1, game.number_players do
 			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
 		end
 		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
 	end
 
-	for p = 1, game.number.players do
+	for p = 1, game.number_players do
 		frame_buffer[DRAW_DELAY+1][player][p] = copytable(player[p])
 	end
 	frame_buffer[DRAW_DELAY+1][projectiles] = read_projectiles()
@@ -500,12 +490,22 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(hb)
-	if (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
-	or not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX) then
-		return
+local function draw_hitbox(obj, entry, no_push_next_frame)
+	local hb = obj[entry]
+	local no_draw = {
+		not DRAW_PUSHBOXES and hb.type == PUSH_BOX,
+		not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX),
+		obj.invulnerable and hb.type == VULNERABILITY_BOX,
+		obj.hurt and hb.type == THROW_BOX,
+		obj.no_push and hb.type == PUSH_BOX,
+		no_push_next_frame and hb.type == PUSH_BOX, --deprecate ASAP
+		--hb.left > hb.right or hb.bottom > hb.top,
+	}
+	for _,condition in ipairs(no_draw) do
+		if condition == true then
+			return
+		end
 	end
-	--if hb.left > hb.right or hb.bottom > hb.top then return end
 
 	if DRAW_MINI_AXIS then
 		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(fill[hb.type], 0xFF))
@@ -536,30 +536,28 @@ local function render_marvel_hitboxes()
 	end
 
 	for entry in ipairs(game.boxes) do
-		for p = 1, game.number.players do
+		for p = 1, game.number_players do
 			local obj = frame_buffer[1][player][p]
-			local obj_next = frame_buffer[2][player][p]
-			--if obj and obj[entry] then
-			if obj and obj[entry] and not (game.boxes[entry].type == PUSH_BOX and not obj_next[entry]) then
-				draw_hitbox(obj[entry])
+			local no_push_next_frame = frame_buffer[2][player][p] and frame_buffer[2][player][p].no_push --deprecate ASAP
+			if obj and obj[entry] then
+				draw_hitbox(obj, entry, no_push_next_frame)
 			end
 		end
 
 		for i in ipairs(frame_buffer[1][projectiles]) do
 			local obj = frame_buffer[1][projectiles][i]
 			if obj[entry] then
-				draw_hitbox(obj[entry])
+				draw_hitbox(obj, entry)
 			end
 		end
 	end
 
 	if DRAW_AXIS then
-		for p = 1, game.number.players do
+		for p = 1, game.number_players do
 			draw_game_object(frame_buffer[1][player][p])
 		end
 		for i,obj in ipairs(frame_buffer[1][projectiles]) do
 			draw_game_object(frame_buffer[1][projectiles][i])
-			gui.text(game_x_to_mame(obj.pos_x), game_y_to_mame(obj.pos_y), string.format("%X",obj.base)) --debug
 		end
 	end
 
