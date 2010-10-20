@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 17, 2010")
+print("October 19, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -80,7 +80,7 @@ local profile = {
 			projectile_ptr_space = 0x1C8,
 		},
 		boxes = {
-			{addr_table = 0x0C15E2, id_ptr = 0xA2, type = PUSH_BOX},
+			{id_ptr = 0xA2, type = PUSH_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x76, type = VULNERABILITY_BOX},
@@ -88,6 +88,14 @@ local profile = {
 			{addr_table_ptr = 0x88, id_ptr = 0x7A, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x70, type = ATTACK_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x72, type = ATTACK_BOX},
+		},
+		pushbox_base = {
+			[0x0B7642] = {"xmcotajr"}, --941208
+			[0x0C08F6] = {"xmcotaa", "xmcotaj3"}, --941217
+			[0x0C0A90] = {"xmcotaj2"}, --941219
+			[0x0C0ABE] = {"xmcotaj1"}, --941222
+			[0x0C15E2] = {"xmcota", "xmcotad", "xmcotahr1", "xmcotaj", "xmcotau"}, --950105
+			[0x0C1618] = {"xmcotah"}, --950331
 		},
 	},
 	{
@@ -121,7 +129,7 @@ local profile = {
 			projectile_ptr_space = 0x148,
 		},
 		boxes = {
-			{addr_table = 0x09E82C, id_ptr = 0xA2, type = PUSH_BOX},
+			{id_ptr = 0xA2, type = PUSH_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x80, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x78, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x7A, type = VULNERABILITY_BOX},
@@ -129,6 +137,10 @@ local profile = {
 			{addr_table_ptr = 0x90, id_ptr = 0x7E, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x74, type = ATTACK_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x76, type = ATTACK_BOX},
+		},
+		pushbox_base = {
+			[0x09E82C] = {"msh", "msha", "mshjr1", "mshud", "mshu"}, --951024
+			[0x09E95E] = {"mshb", "mshh", "mshj"}, --951117
 		},
 	},
 	{
@@ -161,7 +173,7 @@ local profile = {
 			projectile_ptr_space = 0x150,
 		},
 		boxes = {
-			{addr_table = 0x08B022, id_ptr = 0xA4, type = PUSH_BOX},
+			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = PUSH_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
@@ -170,7 +182,12 @@ local profile = {
 			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX, active = 0x82},
 			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
 		},
-		apoc_fist = {offset = 0xAC, value = 0x05D0FA}
+		pushbox_base = {
+			[0x08AEB4] = {"xmvsfjr2", apoc = 0x05D08C}, --960909
+			[0x08AEEE] = {"xmvsfar2", "xmvsfr1", "xmvsfjr1", apoc = 0x05D092}, --960910
+			[0x08B022] = {"xmvsf", "xmvsfar1", "xmvsfh", "xmvsfj", "xmvsfu1d", "xmvsfur1", apoc = 0x05D0FA}, --960919, 961004
+			[0x08B050] = {"xmvsfa", "xmvsfb", "xmvsfu", apoc = 0x05D10C}, --961023
+		},
 	},
 	{
 		game = "mshvsf",
@@ -204,7 +221,7 @@ local profile = {
 			projectile_ptr_space = 0x150,
 		},
 		boxes = {
-			{addr_table = 0x137EE2, id_ptr = 0xA4, type = PUSH_BOX},
+			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = PUSH_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
@@ -213,7 +230,13 @@ local profile = {
 			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX, active = 0x82},
 			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
 		},
-		apoc_fist = {offset = 0xAC, value = 0x087610}
+		pushbox_base = {
+			[0x137E90] = {"mshvsfa1", apoc = 0x0875DC}, --970620
+			[0x137EE2] = {"mshvsf", "mshvsfa", "mshvsfb1", "mshvsfh", "mshvsfj2", "mshvsfu1", "mshvsfu1d", apoc = 0x087610}, --970625
+			[0x138158] = {"mshvsfj1", apoc = 0x087606}, --970702
+			[0x1381E4] = {"mshvsfj", apoc = 0x087606}, --970707
+			[0x1381C6] = {"mshvsfu", "mshvsfb", apoc = 0x0875E4}, --970827
+		},
 	},
 	{
 		game = "mvsc",
@@ -244,7 +267,7 @@ local profile = {
 			projectile_ptr_space = 0x158,
 		},
 		boxes = {
-			{addr_table = 0x0E6FEE, id_ptr = 0xB4, type = PUSH_BOX},
+			{id_ptr = 0xB4, type = PUSH_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
@@ -252,6 +275,11 @@ local profile = {
 			{addr_table_ptr = 0x6C, id_ptr = 0x7A, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
+		},
+		pushbox_base = {
+			[0x0E5DA6] = {"mvscur1"}, --971222
+			[0x0E5EF4] = {"mvscar1", "mvscr1", "mvscjr1"}, --980112
+			[0x0E6FEE] = {"mvsc", "mvsca", "mvscb", "mvsch", "mvscj", "mvscud", "mvscu"}, --980123
 		},
 	},
 }
@@ -270,7 +298,7 @@ for game in ipairs(profile) do
 	g.address.projectile_limit = g.address.player + g.offset.player_space * g.number_players
 end
 
-local game
+local game, pushbox_base, apoc_value
 local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
@@ -320,12 +348,26 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
+local function whatversion(game)
+	for base,version_set in pairs(game.pushbox_base) do
+		for _,version in ipairs(version_set) do
+			if emu.romname() == version then
+				return base, version_set.apoc
+			end
+		end
+	end
+	print("unrecognized version (" .. emu.romname() .. "): cannot draw pushboxes")
+	return nil
+end
+
+
 local function whatgame()
 	game = nil
 	for n, module in ipairs(profile) do
 		if emu.romname() == module.game or emu.parentname() == module.game then
 			print("drawing " .. module.game .. " hitboxes")
 			game = module
+			pushbox_base, apoc_value = whatversion(game)
 			for p = 1, game.number_players do
 				player[p] = {}
 			end
@@ -389,13 +431,12 @@ local function define_box(obj, entry, is_projectile)
 		address = addr_table + AND(curr_id, 0x0FFF) * 0x8
 
 	else --pushbox
-		if is_projectile and not obj.apoc_fist then
+		if not pushbox_base or (is_projectile and not obj.apoc_fist) then
 			return nil
 		end
 
-		local curr_id = memory.readbyte(obj.base + game.boxes[entry].id_ptr)
-		local addr_table = game.boxes[entry].addr_table
-		address = memory.readdword(addr_table + curr_id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
+		local curr_id = memory.readbyte(obj.base + (is_projectile and game.boxes[entry].projectile_id_ptr or game.boxes[entry].id_ptr))
+		address = memory.readdword(pushbox_base + curr_id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
 	end
 
 	local hval = memory.readwordsigned(address + game.offset.hval)
@@ -440,7 +481,7 @@ local function read_projectiles()
 			if obj.base < game.address.projectile_limit then
 				i = nil
 			else
-				obj.apoc_fist = game.apoc_fist and memory.readdword(obj.base + game.apoc_fist.offset) == game.apoc_fist.value and true
+				obj.apoc_fist = apoc_value and memory.readdword(obj.base + 0xAC) == apoc_value and true
 				update_game_object(obj, true)
 				table.insert(current_projectiles, obj)
 				i = i + 1
