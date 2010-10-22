@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 19, 2010")
+print("October 22, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -146,6 +146,7 @@ local profile = {
 	{
 		game = "xmvsf",
 		number_players = 4,
+		pushable_players = 2,
 		address = {
 			player           = 0xFF4000,
 			projectile_ptr   = 0xFFE3D8,
@@ -287,6 +288,7 @@ local profile = {
 for game in ipairs(profile) do
 	local g = profile[game]
 	g.player_status = g.number_players > 2 and 0x100 or 0x1
+	g.pushable_players = g.pushable_players or g.number_players
 	g.offset.player_space = 0x400
 	g.offset.x_position   = 0x0C
 	g.offset.y_position   = 0x10
@@ -503,7 +505,7 @@ local function update_marvel_hitboxes()
 		if memory.readword(player[p].base) >= game.player_status then
 			player[p].hurt = (memory.readbyte(player[p].base + game.offset.hurt) > 0) and true
 			player[p].invulnerable = (memory.readbyte(player[p].base + game.offset.invulnerable) > 0) and true
-			player[p].no_push = (memory.readbyte(player[p].base + game.offset.no_push) > 0) and true
+			player[p].no_push = (memory.readbyte(player[p].base + game.offset.no_push) > 0 or p > game.pushable_players) and true
 			update_game_object(player[p])
 		end
 	end
@@ -540,7 +542,6 @@ local function draw_hitbox(obj, entry, no_push_next_frame)
 		obj.hurt and hb.type == THROW_BOX,
 		obj.no_push and hb.type == PUSH_BOX,
 		no_push_next_frame and hb.type == PUSH_BOX, --deprecate ASAP
-		--hb.left > hb.right or hb.bottom > hb.top,
 	}
 	for _,condition in ipairs(no_draw) do
 		if condition == true then
