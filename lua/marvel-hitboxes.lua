@@ -131,11 +131,11 @@ local profile = {
 		boxes = {
 			{id_ptr = 0xA2, type = PUSH_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x80, type = THROWABLE_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x78, type = VULNERABILITY_BOX},
+			{addr_table_ptr = 0x90, id_ptr = 0x78, type = VULNERABILITY_BOX, active = 0x86},
 			{addr_table_ptr = 0x90, id_ptr = 0x7A, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x7C, type = VULNERABILITY_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x7E, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x74, type = ATTACK_BOX},
+			{addr_table_ptr = 0x90, id_ptr = 0x74, type = ATTACK_BOX, active = 0x86},
 			{addr_table_ptr = 0x90, id_ptr = 0x76, type = ATTACK_BOX},
 		},
 		pushbox_base = {
@@ -287,7 +287,6 @@ local profile = {
 
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.player_status = g.number_players > 2 and 0x100 or 0x1
 	g.pushable_players = g.pushable_players or g.number_players
 	g.offset.player_space = 0x400
 	g.offset.x_position   = 0x0C
@@ -415,13 +414,14 @@ local function game_y_to_mame(y)
 end
 
 
-local function define_box(obj, entry, is_projectile)
+local function define_box(obj, entry)
 	local address, box_type
 
 	if game.boxes[entry].addr_table_ptr then
 		local curr_id = memory.readword(obj.base + game.boxes[entry].id_ptr)
 		if curr_id == 0
-		or (obj.apoc_fist and game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
+		--or (obj.apoc_fist and game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
+		or (game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
 			return nil
 		end
 
@@ -433,11 +433,11 @@ local function define_box(obj, entry, is_projectile)
 		address = addr_table + AND(curr_id, 0x0FFF) * 0x8
 
 	else --pushbox
-		if not pushbox_base or (is_projectile and not obj.apoc_fist) then
+		if not pushbox_base or (obj.projectile and not obj.apoc_fist) then
 			return nil
 		end
 
-		local curr_id = memory.readbyte(obj.base + (is_projectile and game.boxes[entry].projectile_id_ptr or game.boxes[entry].id_ptr))
+		local curr_id = memory.readbyte(obj.base + (obj.projectile and game.boxes[entry].projectile_id_ptr or game.boxes[entry].id_ptr))
 		address = memory.readdword(pushbox_base + curr_id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
 	end
 
@@ -462,13 +462,13 @@ local function define_box(obj, entry, is_projectile)
 end
 
 
-local function update_game_object(obj, is_projectile)
+local function update_game_object(obj)
 	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
 	obj.pos_x        = memory.readwordsigned(obj.base + game.offset.x_position)
 	obj.pos_y        = memory.readwordsigned(obj.base + game.offset.y_position)
 
 	for entry in ipairs(game.boxes) do
-		obj[entry] = define_box(obj, entry, is_projectile)
+		obj[entry] = define_box(obj, entry)
 	end
 end
 
@@ -483,8 +483,9 @@ local function read_projectiles()
 			if obj.base < game.address.projectile_limit then
 				i = nil
 			else
+				obj.projectile = true
 				obj.apoc_fist = apoc_value and memory.readdword(obj.base + 0xAC) == apoc_value and true
-				update_game_object(obj, true)
+				update_game_object(obj)
 				table.insert(current_projectiles, obj)
 				i = i + 1
 			end
@@ -502,7 +503,7 @@ local function update_marvel_hitboxes()
 
 	for p = 1, game.number_players do
 		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
-		if memory.readword(player[p].base) >= game.player_status then
+		if game.number_players <= 2 or memory.readword(player[p].base) >= 0x100 then
 			player[p].hurt = (memory.readbyte(player[p].base + game.offset.hurt) > 0) and true
 			player[p].invulnerable = (memory.readbyte(player[p].base + game.offset.invulnerable) > 0) and true
 			player[p].no_push = (memory.readbyte(player[p].base + game.offset.no_push) > 0 or p > game.pushable_players) and true
