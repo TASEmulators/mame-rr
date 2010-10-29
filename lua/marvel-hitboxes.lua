@@ -1,5 +1,5 @@
 print("CPS-2 Marvel hitbox viewer")
-print("October 22, 2010")
+print("October 28, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -48,6 +48,16 @@ local outline = {
 	[THROWABLE_BOX]     = OR(THROWABLE_COLOR,     0xE0),
 }
 
+local function beq(func, val)
+	return (func(val) == 0)
+end
+
+
+local function bne(func, val)
+	return (func(val) ~= 0)
+end
+
+
 local profile = {
 	{
 		game = "xmcota",
@@ -77,6 +87,7 @@ local profile = {
 			char_id              = 0x50,
 			invulnerable         = 0xF7,
 			no_push              = 0x10A,
+			throw_count          = 0x11E,
 			projectile_ptr_space = 0x1C8,
 		},
 		boxes = {
@@ -97,6 +108,11 @@ local profile = {
 			[0x0C15E2] = {"xmcota", "xmcotad", "xmcotahr1", "xmcotaj", "xmcotau"}, --950105
 			[0x0C1618] = {"xmcotah"}, --950331
 		},
+		unthrowable = {
+			{offset = 0x125, compfunc = bne, readfunc = memory.readbyte},
+			{offset = 0x137, compfunc = bne, readfunc = memory.readbyte},
+		},
+		unthrowable_status = {},
 	},
 	{
 		game = "msh",
@@ -126,6 +142,7 @@ local profile = {
 			char_id              = 0x50,
 			invulnerable         = 0xF7,
 			no_push              = 0x10A,
+			throw_count          = 0x11E,
 			projectile_ptr_space = 0x148,
 		},
 		boxes = {
@@ -142,6 +159,11 @@ local profile = {
 			[0x09E82C] = {"msh", "msha", "mshjr1", "mshud", "mshu"}, --951024
 			[0x09E95E] = {"mshb", "mshh", "mshj"}, --951117
 		},
+		unthrowable = {
+			{offset = 0x125, compfunc = bne, readfunc = memory.readbyte},
+			{offset = 0x137, compfunc = bne, readfunc = memory.readbyte},
+		},
+		unthrowable_status = {},
 	},
 	{
 		game = "xmvsf",
@@ -171,6 +193,7 @@ local profile = {
 			char_id              = 0x52,
 			invulnerable         = 0xF7,
 			no_push              = 0x105,
+			throw_count          = 0x10A,
 			projectile_ptr_space = 0x150,
 		},
 		boxes = {
@@ -189,6 +212,12 @@ local profile = {
 			[0x08B022] = {"xmvsf", "xmvsfar1", "xmvsfh", "xmvsfj", "xmvsfu1d", "xmvsfur1", apoc = 0x05D0FA}, --960919, 961004
 			[0x08B050] = {"xmvsfa", "xmvsfb", "xmvsfu", apoc = 0x05D10C}, --961023
 		},
+		unthrowable = {
+			{offset = 0x083, compfunc = beq, readfunc = memory.readbyte},
+			{offset = 0x120, compfunc = bne, readfunc = memory.readbyte},
+			{offset = 0x221, compfunc = bne, readfunc = memory.readbyte},
+		},
+		unthrowable_status = {0xC},
 	},
 	{
 		game = "mshvsf",
@@ -219,6 +248,7 @@ local profile = {
 			char_id              = 0x52,
 			invulnerable         = 0xF7,
 			no_push              = 0x105,
+			throw_count          = 0x10A,
 			projectile_ptr_space = 0x150,
 		},
 		boxes = {
@@ -238,6 +268,12 @@ local profile = {
 			[0x1381E4] = {"mshvsfj", apoc = 0x087606}, --970707
 			[0x1381C6] = {"mshvsfu", "mshvsfb", apoc = 0x0875E4}, --970827
 		},
+		unthrowable = {
+			{offset = 0x083, compfunc = beq, readfunc = memory.readbyte},
+			{offset = 0x120, compfunc = bne, readfunc = memory.readbyte},
+			{offset = 0x261, compfunc = bne, readfunc = memory.readbyte},
+		},
+		unthrowable_status = {0x8, 0xC},
 	},
 	{
 		game = "mvsc",
@@ -265,6 +301,7 @@ local profile = {
 			char_id              = 0x52,
 			invulnerable         = 0x107,
 			no_push              = 0x115,
+			throw_count          = 0x11A,
 			projectile_ptr_space = 0x158,
 		},
 		boxes = {
@@ -282,6 +319,13 @@ local profile = {
 			[0x0E5EF4] = {"mvscar1", "mvscr1", "mvscjr1"}, --980112
 			[0x0E6FEE] = {"mvsc", "mvsca", "mvscb", "mvsch", "mvscj", "mvscud", "mvscu"}, --980123
 		},
+		unthrowable = {
+			{offset = 0x000, compfunc = beq, readfunc = memory.readbyte},
+			{offset = 0x083, compfunc = beq, readfunc = memory.readbyte},
+			{offset = 0x130, compfunc = bne, readfunc = memory.readbyte},
+			{offset = 0x270, compfunc = beq, readfunc = memory.readword},
+		},
+		unthrowable_status = {0x8, 0xC},
 	},
 }
 
@@ -291,7 +335,7 @@ for game in ipairs(profile) do
 	g.offset.player_space = 0x400
 	g.offset.x_position   = 0x0C
 	g.offset.y_position   = 0x10
-	g.offset.hurt         = 0x07
+	g.offset.status       = 0x06
 	g.offset.hval         = 0x0
 	g.offset.hrad         = 0x2
 	g.offset.vval         = 0x4
@@ -419,9 +463,7 @@ local function define_box(obj, entry)
 
 	if game.boxes[entry].addr_table_ptr then
 		local curr_id = memory.readword(obj.base + game.boxes[entry].id_ptr)
-		if curr_id == 0
-		--or (obj.apoc_fist and game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
-		or (game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
+		if curr_id == 0 or (game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
 			return nil
 		end
 
@@ -451,12 +493,12 @@ local function define_box(obj, entry)
 	end
 
 	return {
-		left   = game_x_to_mame(obj.pos_x + hval - hrad),
-		right  = game_x_to_mame(obj.pos_x + hval + hrad),
-		bottom = game_y_to_mame(obj.pos_y + vval + vrad),
-		top    = game_y_to_mame(obj.pos_y + vval - vrad),
-		hval   = game_x_to_mame(obj.pos_x + hval),
-		vval   = game_y_to_mame(obj.pos_y + vval),
+		left   = obj.pos_x + hval - hrad,
+		right  = obj.pos_x + hval + hrad,
+		bottom = obj.pos_y + vval + vrad,
+		top    = obj.pos_y + vval - vrad,
+		hval   = obj.pos_x + hval,
+		vval   = obj.pos_y + vval,
 		type   = box_type or game.boxes[entry].type,
 	}
 end
@@ -464,8 +506,8 @@ end
 
 local function update_game_object(obj)
 	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
-	obj.pos_x        = memory.readwordsigned(obj.base + game.offset.x_position)
-	obj.pos_y        = memory.readwordsigned(obj.base + game.offset.y_position)
+	obj.pos_x        = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
+	obj.pos_y        = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.y_position))
 
 	for entry in ipairs(game.boxes) do
 		obj[entry] = define_box(obj, entry)
@@ -496,6 +538,24 @@ local function read_projectiles()
 end
 
 
+local function update_unthrowable(base)
+	for _, value in ipairs(game.unthrowable_status) do
+		if memory.readword(base + game.offset.status) == value then
+			return true
+		end
+	end
+	for _, case in ipairs(game.unthrowable) do
+		if case.compfunc(case.readfunc, base + case.offset) then
+			return true
+		end
+	end
+	if memory.readbyte(base + game.offset.throw_count) > 1 then
+		return true
+	end
+	return false
+end
+
+
 local function update_marvel_hitboxes()
 	gui.clearuncommitted()
 	if not game then return end
@@ -504,9 +564,10 @@ local function update_marvel_hitboxes()
 	for p = 1, game.number_players do
 		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
 		if game.number_players <= 2 or memory.readword(player[p].base) >= 0x100 then
-			player[p].hurt = (memory.readbyte(player[p].base + game.offset.hurt) > 0) and true
-			player[p].invulnerable = (memory.readbyte(player[p].base + game.offset.invulnerable) > 0) and true
-			player[p].no_push = (memory.readbyte(player[p].base + game.offset.no_push) > 0 or p > game.pushable_players) and true
+			player[p].hurt = memory.readword(player[p].base + game.offset.status) > 0
+			player[p].invulnerable = memory.readbyte(player[p].base + game.offset.invulnerable) > 0
+			player[p].unthrowable = update_unthrowable(player[p].base)
+			player[p].no_push = memory.readbyte(player[p].base + game.offset.no_push) > 0 or p > game.pushable_players
 			update_game_object(player[p])
 		end
 	end
@@ -540,11 +601,12 @@ local function draw_hitbox(obj, entry, no_push_next_frame)
 		not DRAW_PUSHBOXES and hb.type == PUSH_BOX,
 		not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX),
 		obj.invulnerable and hb.type == VULNERABILITY_BOX,
+		obj.unthrowable and hb.type == THROWABLE_BOX,
 		obj.hurt and hb.type == THROW_BOX,
 		obj.no_push and hb.type == PUSH_BOX,
 		no_push_next_frame and hb.type == PUSH_BOX, --deprecate ASAP
 	}
-	for _,condition in ipairs(no_draw) do
+	for _, condition in ipairs(no_draw) do
 		if condition == true then
 			return
 		end
@@ -562,10 +624,8 @@ end
 local function draw_game_object(obj)
 	if not obj or not obj.pos_x then return end
 	
-	local x = game_x_to_mame(obj.pos_x)
-	local y = game_y_to_mame(obj.pos_y)
-	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOR)
-	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOR)
+	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
+	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
 end
 
 
@@ -601,6 +661,7 @@ local function render_marvel_hitboxes()
 		end
 		for i,obj in ipairs(frame_buffer[1][projectiles]) do
 			draw_game_object(frame_buffer[1][projectiles][i])
+			gui.text(obj.pos_x, obj.pos_y, string.format("%X", obj.base))
 		end
 	end
 
