@@ -1,5 +1,5 @@
-print("CPS-2 Marvel hitbox viewer")
-print("October 28, 2010")
+print("CPS-2 Marvel series hitbox viewer")
+print("October 30, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -488,8 +488,11 @@ local function define_box(obj, entry)
 	local hrad = memory.readwordsigned(address + game.offset.hrad)
 	local vrad = memory.readwordsigned(address + game.offset.vrad)
 
-	if obj.facing_dir == 1 then
+	if AND(obj.facing_dir, 1) > 0 then
 		hval  = -hval
+	end
+	if AND(obj.facing_dir, 2) > 0 and game.boxes[entry].addr_table_ptr then
+		vval  = -vval
 	end
 
 	return {
