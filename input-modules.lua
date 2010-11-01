@@ -6,8 +6,8 @@ You may add new modules and comment out any inputs you never want displayed.
 
 Format:
 games = rom, parent, or driver names that the module applies to
-x,y = offset in pixels of the upper left corner of the first player's symbols
-dx,dy = offset in pixels to shift the next player's symbols
+x, y = offset in pixels of the upper left corner of the first player's symbols
+dx, dy = offset in pixels to shift the next player's symbols
 i = array containing a subarray for each symbol to be drawn
 i[player..symbol] = {
 	[1] = x position to draw the symbol
@@ -17,28 +17,28 @@ i[player..symbol] = {
 	[5] = x position to draw the value (for analog controls only)
 	[6] = y position to draw the value (for analog controls only)
 }
-table.insert(inp,{games,i}) = command to add the module
+table.insert(inp, {games, i}) = command to add the module
 ]]
 
 col = { --colors:
 	on1  = 0xffff00ff, --pressed: yellow inside
 	on2  = 0x000000ff, --pressed: black border
 	off1 = 0x00000000, --unpressed: clear inside
-	off2 = 0x00000033  --unpressed: mostly clear black border
+	off2 = 0x00000033, --unpressed: mostly clear black border
 }
 
-local games,x,dx,y,dy,i
+local games, x, dx, y, dy, i
 --------------------------------------------------------------------------------
 --Capcom 6-button fighters (CPS systems)
 
-games = {"sf2","sf2ce","sf2hf",
-	"ssf2","ssf2t","hsf2","sfa","sfa2","sfa3","sfz2al",
-	"sfiii","sfiii2","sfiii3","redearth","jojo","jojoba",
-	"xmcota","xmvsf","msh","mshvsf","mvsc","dstlk","nwarr","vsav","vhunt2","vsav2"}
-x,dx = 0x8,0x128
-y,dy = 0xd0,0
+games = {"sf2", "sf2ce", "sf2hf",
+	"ssf2", "ssf2t", "hsf2", "sfa", "sfa2", "sfa3", "sfz2al",
+	"sfiii", "sfiii2", "sfiii3", "redearth", "jojo", "jojoba",
+	"xmcota", "xmvsf", "msh", "mshvsf", "mvsc", "dstlk", "nwarr", "vsav", "vhunt2", "vsav2"}
+x, dx = 0x08, 0x128
+y, dy = 0xD0, 0x0
 i = {}
-for n=1,2 do
+for n = 1, 2 do
 	i[n.."^" ] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x0, "P"..n.." Up"}
 	i[n.."v" ] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x8, "P"..n.." Down"}
 	i[n.."<" ] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x4, "P"..n.." Left"}
@@ -52,16 +52,16 @@ for n=1,2 do
 	i[n.."S" ] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start",        n..(n==1 and " Player" or " Players").." Start"}
 	i[n.."c" ] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",         "Coin "..n}
 end
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
 --Capcom 6-button fighters (non-CPS systems)
 
 games = {"sf", "sftm", "sfex", "sfexp", "sfex2", "sfex2p"}
-x,dx = 0x8,0x128
-y,dy = 0xd0,0
+x, dx = 0x08, 0x128
+y, dy = 0xD0, 0x0
 i = {}
-for n=1,2 do
+for n = 1, 2 do
 	i[n.."^" ] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x0, "P"..n.." Up"}
 	i[n.."v" ] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x8, "P"..n.." Down"}
 	i[n.."<" ] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x4, "P"..n.." Left"}
@@ -75,16 +75,16 @@ for n=1,2 do
 	i[n.."S" ] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start", n..(n==1 and " Player" or " Players").." Start"}
 	i[n.."c" ] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "Coin "..n}
 end
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
 --NeoGeo
 
-games = {"neodrvr.c","neogeo"}
-x,dx = 0x10,0xe0
-y,dy = 0xc8,0
+games = {"neodrvr.c", "neogeo"}
+x, dx = 0x10, 0xE0
+y, dy = 0xC8, 0x0
 i = {}
-for n=1,2 do
+for n = 1, 2 do
 	i[n.."^"] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x0, "P"..n.." Up"}
 	i[n.."v"] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x8, "P"..n.." Down"}
 	i[n.."<"] = {x+dx*(n-1)+0x08, y+dy*(n-1)+0x4, "P"..n.." Left"}
@@ -96,16 +96,16 @@ for n=1,2 do
 	i[n.."S"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start",    n..(n==1 and " Player" or " Players").." Start"}
 	i[n.."c"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",     "Coin "..n}
 end
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
 --PGM
 
-games = {"pgm.c","pgm"}
-x,dx = 0x10,0x70
-y,dy = 0xc0,0
+games = {"pgm.c", "pgm"}
+x, dx = 0x10, 0x70
+y, dy = 0xC0, 0x0
 i = {}
-for n=1,4 do
+for n = 1, 4 do
 	i[n.."^"] = {x+dx*(n-1)+0x14, y+dy*(n-1)+0x0, "P"..n.." Up"}
 	i[n.."v"] = {x+dx*(n-1)+0x14, y+dy*(n-1)+0x8, "P"..n.." Down"}
 	i[n.."<"] = {x+dx*(n-1)+0x0c, y+dy*(n-1)+0x4, "P"..n.." Left"}
@@ -117,16 +117,16 @@ for n=1,4 do
 	i[n.."S"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start", n..(n==1 and " Player" or " Players").." Start"}
 	i[n.."c"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",  "Coin "..n}
 end
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
 --Dungeons & Dragons (Capcom)
 
-games = {"ddtod","ddsom"}
-x,dx = 0x24,0xc0
-y,dy = 0,0xd0
+games = {"ddtod", "ddsom"}
+x, dx = 0x24, 0xC0
+y, dy = 0x00, 0xD0
 i = {}
-for n=1,4 do
+for n = 1, 4 do
 	i[n.."^"] = {x+(n-1)%2*dx+0x18, y+math.floor((n-1)/2)*dy+0x0, "P"..n.." Up"}
 	i[n.."v"] = {x+(n-1)%2*dx+0x18, y+math.floor((n-1)/2)*dy+0x8, "P"..n.." Down"}
 	i[n.."<"] = {x+(n-1)%2*dx+0x10, y+math.floor((n-1)/2)*dy+0x4, "P"..n.." Left"}
@@ -138,16 +138,36 @@ for n=1,4 do
 	i[n.."s"] = {x+(n-1)%2*dx+0x00, y+math.floor((n-1)/2)*dy+0x8, "P"..n.." Start",  n..(n==1 and " Player" or " Players").." Start"}
 	i[n.."c"] = {x+(n-1)%2*dx+0x00, y+math.floor((n-1)/2)*dy+0x0, "P"..n.." Coin",   "Coin "..n}
 end
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
+
+--------------------------------------------------------------------------------
+--Mega Man: The Power Battle; Mega Man 2: The Power Fighters (Capcom)
+
+games = {"megaman", "megaman2"}
+x, dx = 0x08, 0x128
+y, dy = 0xD0, 0x0
+i = {}
+for n = 1, 2 do
+	i[n.."^"] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x0, "P"..n.." Up"}
+	i[n.."v"] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x8, "P"..n.." Down"}
+	i[n.."<"] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x4, "P"..n.." Left"}
+	i[n..">"] = {x+dx*(n-1)+0x20, y+dy*(n-1)+0x4, "P"..n.." Right"}
+	i[n.."A"] = {x+dx*(n-1)+0x30, y+dy*(n-1)+0x4, "P"..n.." Fire",   "P"..n.." Button 1"}
+	i[n.."J"] = {x+dx*(n-1)+0x38, y+dy*(n-1)+0x4, "P"..n.." Jump",   "P"..n.." Button 2"}
+	i[n.."S"] = {x+dx*(n-1)+0x40, y+dy*(n-1)+0x4, "P"..n.." Select", "P"..n.." Button 3"}
+	i[n.."s"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start",  n..(n==1 and " Player" or " Players").." Start"}
+	i[n.."c"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",   "Coin "..n}
+end
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
 --TMNT games (Konami)
 
-games = {"tmnt","tmnt2"}
-x,dx = 0x10,0x48
-y,dy = 0x20,0
+games = {"tmnt", "tmnt2"}
+x, dx = 0x10, 0x48
+y, dy = 0x20, 0x0
 i = {}
-for n=1,4 do
+for n = 1, 4 do
 	i[n.."^"] = {x+dx*(n-1)+0x14, y+dy*(n-1)+0x0, "P"..n.." Up"}
 	i[n.."v"] = {x+dx*(n-1)+0x14, y+dy*(n-1)+0x8, "P"..n.." Down"}
 	i[n.."<"] = {x+dx*(n-1)+0x0c, y+dy*(n-1)+0x4, "P"..n.." Left"}
@@ -156,14 +176,14 @@ for n=1,4 do
 	i[n.."2"] = {x+dx*(n-1)+0x34, y+dy*(n-1)+0x4, "P"..n.." Fire 2", "P"..n.." Button 2"}
 	i[n.."c"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x4, "Coin "..n}
 end
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
 --After Burner (Sega)
 
 games = {"aburner2"}
-x,dx = 0x80,0x10
-y,dy = 0xc8,0
+x, dx = 0x80, 0x10
+y, dy = 0xC8, 0x0
 i = {
 	["1X"] = {x+0x10, y+0x00, "Left/Right", "AD Stick X", dx, dy},
 	["1Y"] = {x+0x10, y+0x08, "Up/Down",    "AD Stick Y", dx, dy},
@@ -173,6 +193,6 @@ i = {
 	["1C"] = {x+0x00, y+0x00, "Coin 1"},
 	["1S"] = {x+0x00, y+0x10, "Start 1",    "1 Player Start"},
 }
-table.insert(inp,{games,i})
+table.insert(inp, {games, i})
 
 --------------------------------------------------------------------------------
