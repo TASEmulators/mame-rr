@@ -1,5 +1,5 @@
 --[[
-This file is intended to be run by input-display.lua
+This file is required by input-display.lua.
 
 Define input abbreviations and on-screen positions for each module.
 You may add new modules and comment out any inputs you never want displayed.
@@ -24,7 +24,7 @@ col = { --colors:
 	on1  = 0xffff00ff, --pressed: yellow inside
 	on2  = 0x000000ff, --pressed: black border
 	off1 = 0x00000000, --unpressed: clear inside
-	off2 = 0x00000033, --unpressed: mostly clear black border
+	off2 = 0x00000040, --unpressed: mostly clear black border
 }
 
 local games, x, dx, y, dy, i
@@ -116,6 +116,48 @@ for n = 1, 4 do
 	i[n.."4"] = {x+dx*(n-1)+0x44, y+dy*(n-1)+0x4, "P"..n.." Button 4"}
 	i[n.."S"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start", n..(n==1 and " Player" or " Players").." Start"}
 	i[n.."c"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",  "Coin "..n}
+end
+table.insert(inp, {games, i})
+
+--------------------------------------------------------------------------------
+--Ring of Destruction: Slam Masters II; Super Muscle Bomber (Capcom)
+
+games = {"ringdest"}
+x, dx = 0x08, 0x128
+y, dy = 0xD0, 0x0
+i = {}
+for n = 1, 2 do
+	i[n.."^" ] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x0, "P"..n.." Up"}
+	i[n.."v" ] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x8, "P"..n.." Down"}
+	i[n.."<" ] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x4, "P"..n.." Left"}
+	i[n..">" ] = {x+dx*(n-1)+0x20, y+dy*(n-1)+0x4, "P"..n.." Right"}
+	i[n.."H" ] = {x+dx*(n-1)+0x3A, y+dy*(n-1)+0x4, "P"..n.." Hold",         "P"..n.." Button 1"}
+	i[n.."WP"] = {x+dx*(n-1)+0x30, y+dy*(n-1)+0x0, "P"..n.." Weak punch",   "P"..n.." Button 2"}
+	i[n.."SP"] = {x+dx*(n-1)+0x40, y+dy*(n-1)+0x0, "P"..n.." Strong punch", "P"..n.." Button 3"}
+	i[n.."WK"] = {x+dx*(n-1)+0x30, y+dy*(n-1)+0x8, "P"..n.." Weak kick",    "P"..n.." Button 5"}
+	i[n.."SK"] = {x+dx*(n-1)+0x40, y+dy*(n-1)+0x8, "P"..n.." Strong kick",  "P"..n.." Button 6"}
+	i[n.."s" ] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start",  n..(n==1 and " Player" or " Players").." Start"}
+	i[n.."c" ] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",   "Coin "..n}
+end
+table.insert(inp, {games, i})
+
+--------------------------------------------------------------------------------
+--Super Gem Fighter Mini Mix; Pocket Fighter (Capcom)
+
+games = {"sgemf"}
+x, dx = 0x08, 0x128
+y, dy = 0xD0, 0x0
+i = {}
+for n = 1, 2 do
+	i[n.."^"] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x0, "P"..n.." Up"}
+	i[n.."v"] = {x+dx*(n-1)+0x18, y+dy*(n-1)+0x8, "P"..n.." Down"}
+	i[n.."<"] = {x+dx*(n-1)+0x10, y+dy*(n-1)+0x4, "P"..n.." Left"}
+	i[n..">"] = {x+dx*(n-1)+0x20, y+dy*(n-1)+0x4, "P"..n.." Right"}
+	i[n.."P"] = {x+dx*(n-1)+0x30, y+dy*(n-1)+0x4, "P"..n.." Punch",   "P"..n.." Button 1"}
+	i[n.."K"] = {x+dx*(n-1)+0x38, y+dy*(n-1)+0x4, "P"..n.." Kick",    "P"..n.." Button 2"}
+	i[n.."S"] = {x+dx*(n-1)+0x40, y+dy*(n-1)+0x4, "P"..n.." Special", "P"..n.." Button 3"}
+	i[n.."s"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x0, "P"..n.." Start",  n..(n==1 and " Player" or " Players").." Start"}
+	i[n.."c"] = {x+dx*(n-1)+0x00, y+dy*(n-1)+0x8, "P"..n.." Coin",   "Coin "..n}
 end
 table.insert(inp, {games, i})
 
