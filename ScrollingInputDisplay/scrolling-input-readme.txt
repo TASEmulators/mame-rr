@@ -1,9 +1,11 @@
 This is a Lua script to show the player's inputs, "Training Mode" style.
 The icons scroll down the screen as the keys are pressed.
-It's configured for 6-button fighting games.
+It works with 6-button games, NeoGeo games and Tekken games, and more can easily be added.
+It works with MAME-rr, FBA-rr, PCSX-rr and any other emulator with Lua.
 
 Instructions:
 Extract the contents of the archive to your emulator folder.
+Pick the icon set you want and put the filename as "iconfile" in scrolling-input-display.lua.
 Open the emulator, run your game, and find Lua scripting in the menu.
 Browse to the script and click "Run".
 
@@ -12,6 +14,21 @@ http://luaforge.net/projects/lua-gd/
 
 The gd dlls are copied from:
 http://luaforge.net/frs/download.php/1594/lua-gd-2.0.33r2-win32.zip
+
+
+New to v006:
+* Modularized the icon selection. Now you can easily switch between multiple icon/control modules and add new modules.
+* Renamed icon sets:
+  * scrolling-input-icons-16.png to icons-capcom-16.png
+  * scrolling-input-icons-32.png to icons-capcom-32.png
+* Added icon sets:
+  * icons-neogeo-16.png
+  * icons-neogeo-32.png
+  * icons-tekken-32.png
+* The actual code has been separated into another file named scrolling-input-code.lua.
+* The scrolling-input-display.lua file contains only the modules and user settings and may be edited by the user.
+* The code file, the icon files, and the framedump folder have been moved into the scrolling-input folder. This was done to reduce file clutter.
+* Added a user parameter, screenwidth, which lets you specify the size of the screen for determining where P2's icons go. This setting only applies if the emu doesn't have emu.screenwidth(). It's useful for PSX games because they have various screen dimensions.
 
 
 New to v005:
