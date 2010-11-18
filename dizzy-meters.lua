@@ -1,6 +1,6 @@
 print("Dizzy/Stun meter viewer")
 print("written by Dammit")
-print("November 17, 2010")
+print("November 18, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers") print()
 
@@ -30,6 +30,9 @@ local POINTER           = 2
 local NORMAL            = 1
 local SF2               = 2
 local SFA               = 3
+local NO_SUPER          = 1
+local DRAW_SUPER        = 2
+local MODAL_SUPER       = 3
 
 local profile = {
 	{
@@ -56,16 +59,27 @@ local profile = {
 		bar_height   = 0x04,
 		max_timeout  = 180,
 		max_duration = 180,
+		life         = 0x02B,
+		super        = 0x2B4,
+		life_X       = 0xA4,
+		life_Y       = 0x16,
+		super_X      = 0x68,
+		super_Y      = 0xCE,
+		max_super    = 48,
+		super_mode   = MODAL_SUPER,
 	},
 	{
 		games        = {"ssf2t"},
 		active       = 0xFF847F,
 		player       = 0xFF844E,
+		char_mode    = 0x3B6,
 		limit_func   = PTR_LIMIT_BASE,
 		limit_base_array = {
 			[0x07F1C6] = {"ssf2t", "ssf2ta", "ssf2tur1", "ssf2xjd", "ssf2xj", "ssf2tu"}, --940223, 940323
 		},
 		limit_read   = memory.readbyte,
+		max_super    = 48,
+		super_mode   = MODAL_SUPER,
 	},
 	{
 		games        = {"ssf2"},
@@ -73,6 +87,7 @@ local profile = {
 		player       = 0xFF83CE,
 		limit_func   = HARD_LIMIT,
 		limit        = 0x1F,
+		super_mode   = NO_SUPER,
 	},
 	{
 		games        = {"sf2ce","sf2hf"},
@@ -82,6 +97,7 @@ local profile = {
 		dizzy        = 0x123,
 		countdown    = 0x124,
 		countdown_check = SF2,
+		super_mode   = NO_SUPER,
 	},
 	{
 		games        = {"sf2"},
@@ -90,6 +106,7 @@ local profile = {
 		space        = 0x300,
 		limit        = 0x1E,
 		countdown_check = SF2,
+		super_mode   = NO_SUPER,
 	},
 	{
 		games        = {"sfa"},
@@ -105,9 +122,14 @@ local profile = {
 		read_func    = memory.readbyte,
 		duration_func = memory.readbyte,
 		countdown_check = SFA,
-		bar_X        = 0x10,
-		bar_Y        = 0x22,
+		bar_X        = 0x0E,
+		bar_Y        = 0x06,
 		max_timeout  = 210,
+		life         = 0x041,
+		super        = 0x0BF,
+		life_Y       = 0x08,
+		super_X      = 0x20,
+		super_Y      = 0xD8,
 	},
 	{
 		games        = {"sfa2","sfz2al"},
@@ -117,8 +139,11 @@ local profile = {
 		countdown    = 0x006,
 		duration_func = memory.readbyte,
 		countdown_check = SFA,
-		bar_X        = 0x60,
-		bar_Y        = 0x1C,
+		bar_X        = 0x20,
+		bar_Y        = 0x26,
+		life         = 0x051,
+		super        = 0x09F,
+		life_X       = 0x98,
 	},
 	{
 		games        = {"sfa3"},
@@ -130,10 +155,18 @@ local profile = {
 		duration     = 0x03B,
 		dizzy        = 0x2CF,
 		countdown    = 0x2CF, --dummy
+		char_mode    = 0x15E,
 		duration_func = memory.readbyte,
-		bar_X        = 0x48,
+		bar_X        = 0x46,
 		bar_Y        = 0x06,
 		max_timeout  = 180,
+		life         = 0x051,
+		super        = 0x11F,
+		life_X       = 0xA4,
+		life_Y       = 0x24,
+		super_X      = 0xA4,
+		super_Y      = 0xC2,
+		super_mode   = MODAL_SUPER,
 	},
 	{
 		games        = {"xmcota"},
@@ -155,8 +188,16 @@ local profile = {
 			[0x0C1DE4] = {"xmcotah"}, --950331
 		},
 		limit_read   = memory.readword,
-		bar_X        = 0x60,
-		bar_Y        = 0x28,
+		bar_X        = 0x18,
+		bar_Y        = 0xD0,
+		life         = 0x191,
+		super        = 0x195,
+		life_X       = 0x80,
+		life_Y       = 0x08,
+		super_X      = 0x62,
+		super_Y      = 0x2A,
+		max_life     = 143,
+		max_super    = 142,
 	},
 	{
 		games        = {"msh"},
@@ -168,8 +209,10 @@ local profile = {
 			[0x09F47C] = {"mshb", "mshh", "mshj"}, --951117
 		},
 		limit_read   = memory.readword,
-		bar_X        = 0x10,
-		bar_Y        = 0x24,
+		life_X       = 0xA4,
+		life_Y       = 0x02,
+		super_Y      = 0x24,
+		max_super    = 142,
 	},
 	{
 		games        = {"xmvsf"},
@@ -187,7 +230,11 @@ local profile = {
 		duration     = 0x138,
 		dizzy        = 0x135,
 		bar_X        = 0x14,
-		bar_Y        = 0x0A,
+		bar_Y        = 0x08,
+		life         = 0x211,
+		super        = 0x213,
+		super_X      = 0xA4,
+		super_Y      = 0xD8,
 	},
 	{
 		games        = {"mshvsf"},
@@ -205,6 +252,12 @@ local profile = {
 		},
 		limit_read   = memory.readword,
 		bar_Y        = 0x20,
+		life         = 0x251,
+		super        = 0x253,
+		life_X       = 0xA4,
+		life_Y       = 0x22,
+		super_X      = 0x88,
+		super_Y      = 0xC8,
 	},
 	{
 		games        = {"mvsc"},
@@ -225,6 +278,9 @@ local profile = {
 		limit_read   = memory.readword,
 		bar_Y        = 0x2C,
 		max_timeout  = 60,
+		life         = 0x271,
+		super        = 0x273,
+		life_Y       = 0x08,
 	},
 	{
 		games        = {"sgemf"},
@@ -241,6 +297,13 @@ local profile = {
 		bar_X        = 0x20,
 		bar_Y        = 0x08,
 		max_timeout  = 180,
+		life         = 0x041,
+		super        = 0x195,
+		life_X       = 0xA0,
+		life_Y       = 0x0C,
+		super_X      = 0x74,
+		super_Y      = 0x28,
+		max_super    = 96,
 	},
 	{
 		games        = {"ringdest"},
@@ -256,14 +319,23 @@ local profile = {
 		bar_X        = 0x18,
 		bar_Y        = 0x0C,
 		max_timeout  = 80,
+		life         = 0x02C,
+		life_X       = 0xA4,
+		life_Y       = 0x30,
+		max_life     = 278,
+		super_mode   = NO_SUPER,
 	},
 }
 
 for n, g in ipairs(profile) do
 	local last = profile[n-1]
 	g.space           = g.space           or 0x400
+	g.max_life        = g.max_life        or 144
+	g.max_super       = g.max_super       or 144
+	g.life_func       = g.max_life < 0x100 and memory.readbyte or memory.readword
 	g.duration_func   = g.duration_func   or memory.readword
 	g.countdown_check = g.countdown_check or NORMAL
+	g.super_mode      = g.super_mode      or DRAW_SUPER
 	g.base            = g.player_ptr and POINTER or DIRECT
 	g.level           = g.level           or last.level
 	g.limit           = g.limit           or last.limit
@@ -279,6 +351,12 @@ for n, g in ipairs(profile) do
 	g.bar_Y           = g.bar_Y           or last.bar_Y
 	g.bar_length      = g.bar_length      or last.bar_length
 	g.bar_height      = g.bar_height      or last.bar_height
+	g.life            = g.life            or last.life
+	g.super           = g.super           or last.super
+	g.life_X          = g.life_X          or last.life_X
+	g.life_Y          = g.life_Y          or last.life_Y
+	g.super_X         = g.super_X         or last.super_X
+	g.super_Y         = g.super_Y         or last.super_Y
 end
 
 --------------------------------------------------------------------------------
@@ -348,6 +426,21 @@ local get_countdown_status = {
 	end,
 }
 
+
+local draw_super = {
+	[NO_SUPER] = function(p, str)
+		return ""
+	end,
+
+	[DRAW_SUPER] = function(p, str)
+		return str
+	end,
+
+	[MODAL_SUPER] = function(p, str)
+		return memory.readbyte(player[p].base + game.char_mode) == 0 and str or ""
+	end,
+}
+
 --------------------------------------------------------------------------------
 
 local function whatversion(game)
@@ -377,7 +470,8 @@ local function whatgame()
 					game.limit_base = whatversion(game)
 				end
 				for p = 1, 2 do
-					player[p] = {timeout = {}, level = {}, duration = {}, side = p%2 == 1 and -1 or 1, bg = {}}
+					player[p] = {bg = {}, timeout = {}, level = {}, duration = {}, life = {}, super = {}}
+					player[p].side = p%2 == 1 and -1 or 1
 					player[p].inner = center + game.bar_X * player[p].side
 					for n = 1, 2 do
 						player[p].bg[n] = {
@@ -391,6 +485,8 @@ local function whatgame()
 					player[p].stun_X = player[p].inner + game.bar_length/2 * player[p].side - 13
 					player[p].stun_Y = player[p].bg[1].top - 1
 					player[p].text_X = center + (game.bar_X + game.bar_length + 8) * player[p].side
+					player[p].life_X = center + game.life_X * player[p].side
+					player[p].super_X = center + game.super_X * player[p].side
 				end
 				level = {
 					offset = game.level,
@@ -451,8 +547,8 @@ local function load_bar(p, ref)
 end
 
 
-local function set_text_X(p, str)
-	return player[p].text_X - (p%2 == 1 and 4 * string.len(str) or 0)
+local function set_text_X(base, p, str)
+	return base - (p%2 == 1 and 4 * string.len(str) or 0)
 end
 
 
@@ -479,8 +575,17 @@ local function update_dizzy()
 			player[p].level.val = "-"
 		end
 
-		player[p].level.text_X = set_text_X(p, player[p].level.val .. "/" .. player[p].level.max)
-		player[p].timeout.text_X = set_text_X(p, player[p].timeout.val)
+		player[p].level.text_X = set_text_X(player[p].text_X, p, player[p].level.val .. "/" .. player[p].level.max)
+		player[p].timeout.text_X = set_text_X(player[p].text_X, p, player[p].timeout.val)
+
+		player[p].life.val = game.life_func(player[p].base + game.life)
+		player[p].life.val = (player[p].life.val > game.max_life and "-" or player[p].life.val) .. "/" .. game.max_life
+		player[p].life.text_X = set_text_X(player[p].life_X, p, player[p].life.val)
+
+		player[p].super.val = memory.readbyte(player[p].base + game.super) .. "/" .. game.max_super
+		player[p].super.text_X = set_text_X(player[p].super_X, p, player[p].super.val)
+
+		player[p].super.val = draw_super[game.super_mode](p, player[p].super.val)
 	end
 end
 
@@ -553,6 +658,9 @@ local function draw_dizzy()
 		if show_numbers and player[p].level.text_X then
 			gui.text(player[p].level.text_X, game.bar_Y - 2, player[p].level.val .. "/" .. player[p].level.max)
 			gui.text(player[p].timeout.text_X, game.bar_Y + 6, player[p].timeout.val)
+
+			gui.text(player[p].life.text_X, game.life_Y, player[p].life.val)
+			gui.text(player[p].super.text_X, game.super_Y, player[p].super.val)
 		end
 	end
 end
