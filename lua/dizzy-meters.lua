@@ -1,12 +1,12 @@
 print("Dizzy/Stun meter viewer")
 print("written by Dammit")
-print("November 20, 2010")
+print("November 21, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers") print()
 
 local color = {
 	bar = {
-		back          = 0x00000060,
+		back          = 0x00000040,
 		border        = 0x000000FF,
 		level         = 0xFF0000FF,
 		long_level    = 0xFFAAAAFF,
@@ -22,9 +22,9 @@ local color = {
 		super         = 0xFFFF00FF,
 	},
 	STUN = {
-		fill   = 0xF8B000FF,
-		shade  = 0xB06000FF,
-		border = 0x500000FF,
+		fill          = 0xF8B000FF,
+		shade         = 0xB06000FF,
+		border        = 0x500000FF,
 	},
 }
 
@@ -38,6 +38,8 @@ local POINTER           = 2
 local NORMAL            = 1
 local SF2               = 2
 local SFA               = 3
+local SFA3              = 4
+local RINGDEST          = 5
 local NO_SUPER          = 1
 local DRAW_SUPER        = 2
 local MODAL_SUPER       = 3
@@ -77,9 +79,9 @@ local profile = {
 			bar_Y      = 0x20,
 			bar_length = 0x40,
 			bar_height = 0x04,
-			life_X     = 0xA4,
-			life_Y     = 0x16,
-			super_X    = 0x68,
+			life_X     = 0x10,
+			life_Y     = 0x0E,
+			super_X    = 0x64,
 			super_Y    = 0xCE,
 		},
 		super_mode = MODAL_SUPER,
@@ -161,11 +163,12 @@ local profile = {
 		max = {timeout = 210},
 		pos = {
 			bar_X   = 0x0E,
-			bar_Y   = 0x06,
+			bar_Y   = 0x26,
 			life_Y  = 0x08,
 			super_X = 0x20,
 			super_Y = 0xD8,
 		},
+		base_type = SFA,
 		countdown_check = SFA,
 	},
 	{
@@ -180,10 +183,11 @@ local profile = {
 		},
 		read = {duration = memory.readbyte},
 		pos = {
-			bar_X  = 0x20,
+			bar_X  = 0x10,
 			bar_Y  = 0x26,
 			life_X = 0x98,
 		},
+		base_type = SFA,
 		countdown_check = SFA,
 	},
 	{
@@ -197,6 +201,7 @@ local profile = {
 			duration  = 0x03B,
 			dizzy     = 0x2CF,
 			countdown = 0x2CF, --dummy
+			knockdown = 0x2CA,
 			char_mode = 0x15E,
 			life      = 0x051,
 			super     = 0x11F,
@@ -204,13 +209,15 @@ local profile = {
 		read = {duration = memory.readbyte},
 		max = {timeout = 180},
 		pos = {
-			bar_X   = 0x46,
-			bar_Y   = 0x06,
-			life_X  = 0xA4,
-			life_Y  = 0x24,
-			super_X = 0xA4,
-			super_Y = 0xC2,
+			bar_X   = 0x10,
+			bar_Y   = 0x24,
+			life_X  = 0x84,
+			life_Y  = 0x08,
+			super_X = 0x66,
+			super_Y = 0xCA,
 		},
+		base_type = SFA,
+		countdown_check = SFA3,
 		super_mode = MODAL_SUPER,
 	},
 	{
@@ -282,8 +289,8 @@ local profile = {
 		},
 		read = {limit = memory.readword},
 		pos = {
-			bar_X        = 0x14,
-			bar_Y        = 0x08,
+			bar_X        = 0x18,
+			bar_Y        = 0x2A,
 			super_X      = 0xA4,
 			super_Y      = 0xD8,
 		},
@@ -307,7 +314,7 @@ local profile = {
 		},
 		read = {limit = memory.readword},
 		pos = {
-			bar_Y   = 0x20,
+			bar_Y   = 0x24,
 			life_X  = 0xA4,
 			life_Y  = 0x22,
 			super_X = 0x88,
@@ -339,7 +346,7 @@ local profile = {
 		read = {limit = memory.readword},
 		max = {timeout = 60},
 		pos = {
-			bar_Y  = 0x2C,
+			bar_Y  = 0x2E,
 			life_Y = 0x08,
 		},
 		limit_base_array = {
@@ -388,7 +395,7 @@ local profile = {
 			duration      = 0x0CE,
 			grace         = 0x108,
 			dizzy         = 0x0AB,
-			countdown     = 0x0AB, --dummy
+			countdown     = 0x0CE,
 			life          = 0x02C,
 			rage          = 0x0B1,
 			rage_level    = 0x0B4,
@@ -414,6 +421,7 @@ local profile = {
 			rage_length = 0x80,
 			rage_height = 0x04,
 		},
+		countdown_check = RINGDEST,
 		super_mode = NO_SUPER,
 	},
 }
@@ -453,7 +461,7 @@ for n, g in ipairs(profile) do
 	g.countdown_check = g.countdown_check or NORMAL
 	g.super_mode      = g.super_mode or DRAW_SUPER
 	g.rage_mode       = g.offset.rage and DRAW_RAGE or NO_RAGE
-	g.base            = g.player_ptr and POINTER or DIRECT
+	g.base_type       = g.base_type or g.player_ptr and POINTER or DIRECT
 	g.limit_type      = g.limit_type or g.hard_limit and HARD_LIMIT or g.limit_base_array and PTR_LIMIT_BASE or PTR_LIMIT
 end
 
@@ -466,19 +474,8 @@ input.registerhotkey(1, function()
 end)
 
 
-local game, limit_read, center, level, timeout, duration
+local game, nplayers, limit_read, center, level, timeout, duration
 local player = {}
-
-local get_player_base = {
-	[DIRECT] = function(p)
-		return game.player + (p-1)*game.offset.space
-	end,
-
-	[POINTER] = function(p)
-		return memory.readdword(game.player_ptr + (p-1)*game.offset.space)
-	end,
-}
-
 
 local get_limit = {
 	[HARD_LIMIT] = function(p)
@@ -498,7 +495,7 @@ local get_limit = {
 	end,
 
 	[HSF2_LIMIT] = function(p)
-		player[p].opponent = memory.readbyte(game.player + (p == 1 and 1 or 0)*game.offset.space + game.offset.char_mode)
+		player[p].opponent = memory.readbyte(game.player + bit.band(p,1)*game.offset.space + game.offset.char_mode)
 		if player[p].opponent == 4 then --WW
 			return 0x1E
 		elseif player[p].opponent == 6 or player[p].opponent == 8 then --CE or HF
@@ -509,35 +506,6 @@ local get_limit = {
 	end,
 }
 
-
-local get_countdown_status = {
-	[NORMAL] = function(p)
-		return player[p].dizzy and memory.readbyte(player[p].base + game.offset.countdown) ~= 0
-	end,
-
-	[SF2] = function(p)
-		return memory.readbyte(player[p].base + game.offset.countdown) ~= 0
-	end,
-
-	[SFA] = function(p)
-		return memory.readbyte(player[p].base + game.offset.countdown) == 0x12
-	end,
-}
-
-
-local draw_super = {
-	[NO_SUPER] = function(p, str)
-		return ""
-	end,
-
-	[DRAW_SUPER] = function(p, str)
-		return str
-	end,
-
-	[MODAL_SUPER] = function(p, str)
-		return memory.readbyte(player[p].base + game.offset.char_mode) == 0 and str or ""
-	end,
-}
 
 --------------------------------------------------------------------------------
 
@@ -562,30 +530,33 @@ local function whatgame()
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. emu.romname() .. " dizzy meters")
 				game = module
+				nplayers = game.base_type == SFA and 4 or 2
 				center = emu.screenwidth and emu.screenwidth()/2 or 128
 				limit_read = get_limit[game.limit_type]
 				if game.limit_base_array then
 					game.limit_base = whatversion(game)
 				end
-				for p = 1, 2 do
+				for p = 1, nplayers do
 					player[p] = {bg = {}, timeout = {}, level = {}, duration = {}, life = {}, super = {}}
 					player[p].side = p%2 == 1 and -1 or 1
+					player[p].tier = bit.band(p-1, 2)/2 * ((game.pos.bar_X + game.pos.bar_length) * player[p].side)
 					player[p].inner = center + game.pos.bar_X * player[p].side
 					for n = 1, 2 do
 						player[p].bg[n] = {
-							inner  = center + (game.pos.bar_X - 1) * player[p].side,
+							inner  = center + (game.pos.bar_X - 1) * player[p].side + player[p].tier,
 							top    = game.pos.bar_Y + game.pos.bar_height*(n-1),
-							outer  = center + (game.pos.bar_X + game.pos.bar_length + 1) * player[p].side,
+							outer  = center + (game.pos.bar_X + game.pos.bar_length + 1) * player[p].side + player[p].tier,
 							bottom = game.pos.bar_Y + game.pos.bar_height*n,
 							X      = game.pos.bar_X,
 							length = game.pos.bar_length,
 							border = color.bar.border,
 						}
 					end
-					player[p].stun_X = player[p].inner + game.pos.bar_length/2 * player[p].side - 13
+					player[p].stun_X = player[p].inner + game.pos.bar_length/2 * player[p].side + player[p].tier - 13
 					player[p].stun_Y = player[p].bg[1].top - 1
-					player[p].text_X = center + (game.pos.bar_X + game.pos.bar_length + 8) * player[p].side
+					player[p].text_X = center + (game.pos.bar_X + game.pos.bar_length + 4) * player[p].side + player[p].tier
 					player[p].life_X = center + game.pos.life_X * player[p].side
+					player[p].life.text_Y = game.pos.life_Y - bit.band(p-1, 2)/2*8
 					player[p].super_X = center + game.pos.super_X * player[p].side
 				end
 				level = {
@@ -628,7 +599,7 @@ local function whatgame()
 					long_color   = color.bar.long_grace,
 				}
 				if game.rage_mode == DRAW_RAGE then
-					for p = 1, 2 do
+					for p = 1, nplayers do
 						player[p].rage_level, player[p].rage_timeout = {}, {}
 						for n = 3, 4 do
 							player[p].bg[n] = {
@@ -690,11 +661,10 @@ local function load_bar(p, ref)
 	local b = {}
 	b.val = ref.func(player[p].base + ref.offset)
 	b.max = ref.max
-	local outer = b.val%b.max
-	outer = ref.X + (outer == 0 and b.max or outer)/b.max*ref.length
-	outer = center + outer * player[p].side
-	b.outer  = outer
-	b.inner  = player[p].inner
+	b.outer = b.val%b.max
+	b.outer = ref.X + (b.outer == 0 and b.max or b.outer)/b.max*ref.length
+	b.outer  = center + b.outer * player[p].side + player[p].tier
+	b.inner  = player[p].inner + player[p].tier
 	b.top    = player[p].bg[ref.position].top + 1
 	b.bottom = player[p].bg[ref.position].bottom - 1
 	if b.val > b.max then
@@ -709,8 +679,78 @@ end
 
 
 local function set_text_X(base, p, str)
-	return base - (p%2 == 1 and 4 * string.len(str) or 0)
+	return base - bit.band(p,1) * 4 * string.len(str)
 end
+
+
+local get_player_base = {
+	[DIRECT] = function(p)
+		for p = 1, 2 do
+			player[p].base = game.player + (p-1)*game.offset.space
+		end
+	end,
+
+	[POINTER] = function(p)
+		for p = 1, 2 do
+			player[p].base = memory.readdword(game.player_ptr + (p-1)*game.offset.space)
+		end
+	end,
+
+	[SFA] = function(p)
+		for p = 1, 4 do
+			player[p].base = game.player + (p-1)*game.offset.space
+			player[p].null = memory.readword(player[p].base) == 0
+		end
+		if not (player[3].null and player[4].null) then
+			local temp = player[2].base
+			player[2].base = player[3].base
+			player[3].base = temp
+		end
+	end,
+}
+
+
+local get_countdown_status = {
+	[NORMAL] = function(p)
+		return player[p].dizzy and memory.readbyte(player[p].base + game.offset.countdown) ~= 0
+	end,
+
+	[SF2] = function(p)
+		return memory.readbyte(player[p].base + game.offset.countdown) ~= 0
+	end,
+
+	[SFA] = function(p)
+		return memory.readbyte(player[p].base + game.offset.countdown) == 0x12
+	end,
+
+	[SFA3] = function(p)
+		local countdown = memory.readbyte(player[p].base + game.offset.countdown) ~= 0
+		if countdown and memory.readbyte(player[p].base + game.offset.knockdown) == 0 then
+			countdown = false
+			memory.writebyte(player[p].base + game.offset.countdown, 0)
+		end
+		return countdown
+	end,
+
+	[RINGDEST] = function(p)
+		return player[p].dizzy and memory.readbyte(player[p].base + game.offset.countdown) == 0
+	end,
+}
+
+
+local draw_super = {
+	[NO_SUPER] = function(p, str)
+		return ""
+	end,
+
+	[DRAW_SUPER] = function(p, str)
+		return str
+	end,
+
+	[MODAL_SUPER] = function(p, str)
+		return memory.readbyte(player[p].base + game.offset.char_mode) == 0 and str or ""
+	end,
+}
 
 
 local get_rage = {
@@ -737,10 +777,8 @@ local get_rage = {
 local function update_dizzy()
 	if not game then return end
 	active = memory.readword(game.active) > 0
-	for p = 1, 2 do
-		player[p].base = get_player_base[game.base](p)
-	end
-	for p = 1, 2 do
+	get_player_base[game.base_type]()
+	for p = 1, nplayers do
 		player[p].dizzy = memory.readbyte(player[p].base + game.offset.dizzy) ~= 0
 		player[p].countdown = get_countdown_status[game.countdown_check](p)
 		player[p].grace = game.offset.grace and game.read.grace(player[p].base + game.offset.grace) > 0
@@ -757,7 +795,7 @@ local function update_dizzy()
 		end
 
 		if player[p].dizzy or player[p].countdown then
-			player[p].level.outer = center + (game.pos.bar_X + game.pos.bar_length) * player[p].side
+			player[p].level.outer = center + (game.pos.bar_X + game.pos.bar_length) * player[p].side + player[p].tier
 			player[p].level.val = "-"
 		end
 
@@ -832,22 +870,49 @@ end
 
 
 local draw_rage = {
-	[NO_RAGE] = function()
+	[NO_RAGE] = function(p)
 	end,
 
-	[DRAW_RAGE] = function()
-		for p = 1, 2 do
-			draw_bar(player[p].bg[3])
-			draw_bar(player[p].bg[4])
-			draw_bar(player[p].rage_level)
-			draw_bar(player[p].rage_timeout)
-			if show_numbers and player[p].level.text_X then
-				gui.text(player[p].rage_level.text_X, game.pos.rage_Y - 2, player[p].rage_level.val .. "/" .. player[p].rage_level.max)
-				gui.text(player[p].rage_timeout.text_X, game.pos.rage_Y + 6, player[p].rage_timeout.val)
-			end
+	[DRAW_RAGE] = function(p)
+		draw_bar(player[p].bg[3])
+		draw_bar(player[p].bg[4])
+		draw_bar(player[p].rage_level)
+		draw_bar(player[p].rage_timeout)
+		if show_numbers and player[p].level.text_X then
+			gui.text(player[p].rage_level.text_X, game.pos.rage_Y - 2, player[p].rage_level.val .. "/" .. player[p].rage_level.max)
+			gui.text(player[p].rage_timeout.text_X, game.pos.rage_Y + 6, player[p].rage_timeout.val)
 		end
 	end,
 }
+
+
+local function draw_player_bars(p)
+	if player[p].null then
+		return
+	end
+
+	draw_bar(player[p].bg[1])
+	draw_bar(player[p].bg[2])
+	draw_bar(player[p].level)
+	draw_bar(player[p].timeout)
+	if (player[p].dizzy or player[p].countdown) and bit.band(emu.framecount(), 2) > 0 then
+		drawstun(player[p].stun_X, player[p].stun_Y)
+	end
+
+	draw_rage[game.rage_mode](p)
+end
+
+
+local function draw_player_text(p)
+	if player[p].null then
+		return
+	end
+
+	gui.text(player[p].level.text_X, game.pos.bar_Y - 2, player[p].level.val .. "/" .. player[p].level.max)
+	gui.text(player[p].timeout.text_X, game.pos.bar_Y + 6, player[p].timeout.val)
+	gui.text(player[p].life.text_X, player[p].life.text_Y, player[p].life.val, color.text.life)
+	gui.text(player[p].super.text_X, game.pos.super_Y, player[p].super.val, color.text.super)
+end
 
 
 local function draw_dizzy()
@@ -856,24 +921,13 @@ local function draw_dizzy()
 		return
 	end
 
-	for p = 1, 2 do
-		draw_bar(player[p].bg[1])
-		draw_bar(player[p].bg[2])
-		draw_bar(player[p].level)
-		draw_bar(player[p].timeout)
-		if (player[p].dizzy or player[p].countdown) and bit.band(emu.framecount(), 2) > 0 then
-			drawstun(player[p].stun_X, player[p].stun_Y)
+	for p = 1, nplayers do
+		draw_player_bars(p)
+	end
+	if show_numbers and player[1].level.text_X then
+		for p = 1, nplayers do
+			draw_player_text(p)
 		end
-
-		if show_numbers and player[p].level.text_X then
-			gui.text(player[p].level.text_X, game.pos.bar_Y - 2, player[p].level.val .. "/" .. player[p].level.max)
-			gui.text(player[p].timeout.text_X, game.pos.bar_Y + 6, player[p].timeout.val)
-
-			gui.text(player[p].life.text_X, game.pos.life_Y, player[p].life.val, color.text.life)
-			gui.text(player[p].super.text_X, game.pos.super_Y, player[p].super.val, color.text.super)
-		end
-
-		draw_rage[game.rage_mode]()
 	end
 end
 
