@@ -1,6 +1,6 @@
 print("Dizzy/Stun meter viewer")
 print("written by Dammit")
-print("November 21, 2010")
+print("November 23, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers") print()
 
@@ -20,6 +20,7 @@ local color = {
 	text = {
 		life          = 0x00FF00FF,
 		super         = 0xFFFF00FF,
+		claw          = 0xFF80FFFF,
 		guard         = 0x00FFFFFF,
 	},
 	STUN = {
@@ -85,6 +86,7 @@ local profile = {
 			life_Y     = 0x0E,
 			super_X    = 0x64,
 			super_Y    = 0xCE,
+			claw_Y     = 0xD8,
 		},
 		super_mode = MODAL_SUPER,
 		limit_type = HSF2_LIMIT,
@@ -232,7 +234,10 @@ local profile = {
 			guard_limit = 0x24C,
 			char_id     = 0x102,
 			claw_status = 0x06A,
-			claw_level  = 0x162,
+			mask_status = 0x06B,
+			claw_ptr    = 0x028,
+			mask_ptr    = 0x02A,
+			item_level  = 0x6C,
 		},
 		read = {duration = memory.readbyte},
 		max = {timeout = 180},
@@ -243,6 +248,7 @@ local profile = {
 			life_Y  = 0x08,
 			super_X = 0x66,
 			super_Y = 0xCA,
+			claw_Y  = 0xB8,
 			guard_X = 0x28,
 			guard_Y = 0x1A,
 		},
@@ -489,9 +495,11 @@ for n, g in ipairs(profile) do
 	g.pos.life_Y     = g.pos.life_Y     or last.pos.life_Y
 	g.pos.super_X    = g.pos.super_X    or last.pos.super_X
 	g.pos.super_Y    = g.pos.super_Y    or last.pos.super_Y
+	g.pos.claw_Y     = g.pos.claw_Y     or last.pos.claw_Y
 	g.countdown_check = g.countdown_check or NORMAL
 	g.super_mode      = g.super_mode or DRAW_SUPER
 	g.guard_mode      = g.offset.guard_level and true or false
+	g.claw_mode       = g.offset.mask_status and SFA or g.offset.claw_status and SF2 or NORMAL
 	g.rage_mode       = g.offset.rage and true or false
 	g.base_type       = g.base_type or g.player_ptr and POINTER or DIRECT
 	g.limit_type      = g.limit_type or g.hard_limit and HARD_LIMIT or g.limit_base_array and PTR_LIMIT_BASE or PTR_LIMIT
@@ -637,6 +645,51 @@ local get_super = {
 }
 
 
+local get_claw = {
+	[NORMAL] = function(p)
+	end,
+
+	[SF2] = function(p)
+		if memory.readbyte(player[p].base + game.offset.char_id) ~= game.claw_id then
+			player[p].claw_val = ""
+		else
+			if memory.readbyte(player[p].base + game.offset.claw_status) == 0 then
+				player[p].claw_val = "-"
+			else
+				player[p].claw_val = 8 - memory.readbyte(player[p].base + game.offset.claw_level)
+			end
+			player[p].claw_val = "claw: " .. player[p].claw_val .. "/8"
+		end
+		player[p].claw_text_X = bit.band(p+1, 1) * (emu.screenwidth() - 4 * string.len(player[p].claw_val)) - 4 * player[p].side
+	end,
+
+	[SFA] = function(p)
+		if memory.readbyte(player[p].base + game.offset.char_id) ~= game.claw_id then
+			player[p].claw_val, player[p].mask_val = "", ""
+		else
+			if memory.readbyte(player[p].base + game.offset.claw_status) == 0 then
+				player[p].claw_val = "-"
+			else
+				player[p].claw_val = 0xFF0000 + memory.readword(player[p].base + game.offset.claw_ptr)
+				player[p].claw_val = memory.readbyte(player[p].claw_val + game.offset.item_level)
+			end
+			player[p].claw_val = "claw: " .. player[p].claw_val .. "/8"
+			if memory.readbyte(player[p].base + game.offset.mask_status) == 0 then
+				player[p].mask_val = "-"
+			else
+				player[p].mask_val = 0xFF0000 + memory.readword(player[p].base + game.offset.mask_ptr)
+				player[p].mask_val = memory.readbyte(player[p].mask_val + game.offset.item_level)
+			end
+			player[p].mask_val = "mask: " .. player[p].mask_val .. "/32"
+		end
+		player[p].claw_text_X = bit.band(p+1, 1) * (emu.screenwidth() - 4 * string.len(player[p].claw_val)) - 4 * player[p].side
+		player[p].claw_text_Y = bit.band(p-1, 2)/2 * -16 + game.pos.claw_Y
+		player[p].mask_text_X = bit.band(p+1, 1) * (emu.screenwidth() - 4 * string.len(player[p].mask_val)) - 4 * player[p].side
+		player[p].mask_text_Y = bit.band(p-1, 2)/2 * -16 + game.pos.claw_Y + 8
+	end,
+}
+
+
 local get_guard = {
 	[false] = function(p)
 	end,
@@ -646,7 +699,7 @@ local get_guard = {
 		player[p].guard_val =
 			player[p].guard_limit - memory.readbyte(player[p].base + game.offset.guard_level) .. "/" .. player[p].guard_limit
 		player[p].guard_text_X =
-			set_text_X(player[p].guard_X + math.floor(player[p].guard_limit/0x8)*0x8 * player[p].side, p, player[p].guard_val)
+			set_text_X(player[p].guard_X + math.floor(player[p].guard_limit/0x4)*0x4 * player[p].side, p, player[p].guard_val)
 		player[p].guard_val = (not player[p].super.active or player[3].active or player[4].active) and "" or player[p].guard_val
 	end,
 }
@@ -711,6 +764,7 @@ local update_dizzy = {
 			player[p].super.val = get_super[game.super_mode](p)
 			player[p].super.text_X = set_text_X(player[p].super_X, p, player[p].super.val)
 
+			get_claw[game.claw_mode](p)
 			get_guard[game.guard_mode](p)
 			get_rage[game.rage_mode](p)
 		end
@@ -777,6 +831,21 @@ local draw_bar = {
 }
 
 
+local draw_claw = {
+	[NORMAL] = function(p)
+	end,
+
+	[SF2] = function(p)
+		gui.text(player[p].claw_text_X, game.pos.claw_Y, player[p].claw_val, color.text.claw)
+	end,
+
+	[SFA] = function(p)
+		gui.text(player[p].claw_text_X, player[p].claw_text_Y, player[p].claw_val, color.text.claw)
+		gui.text(player[p].mask_text_X, player[p].mask_text_Y, player[p].mask_val, color.text.claw)
+	end,
+}
+
+
 local draw_guard = {
 	[false] = function(p)
 	end,
@@ -813,7 +882,6 @@ local draw_player_bars = {
 		draw_bar[player[p].level.val ~= 0](player[p].level)
 		draw_bar[player[p].timeout.val ~= 0](player[p].timeout)
 		draw_stun[(player[p].dizzy or player[p].countdown) and bit.band(emu.framecount(), 2) > 0](player[p].stun_X, player[p].stun_Y)
-		draw_guard[game.guard_mode](p)
 		draw_rage[game.rage_mode](p)
 	end,
 }
@@ -828,6 +896,8 @@ local draw_player_text = {
 		gui.text(player[p].timeout.text_X, game.pos.bar_Y + 6, player[p].timeout.val)
 		gui.text(player[p].life.text_X, player[p].life.text_Y, player[p].life.val, color.text.life)
 		gui.text(player[p].super.text_X, game.pos.super_Y, player[p].super.val, color.text.super)
+		draw_guard[game.guard_mode](p)
+		draw_claw[game.claw_mode](p)
 	end,
 }
 
