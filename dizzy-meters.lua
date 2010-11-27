@@ -1,6 +1,6 @@
 print("Dizzy/Stun meter viewer")
 print("written by Dammit")
-print("November 23, 2010")
+print("November 26, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers") print()
 
@@ -20,7 +20,7 @@ local color = {
 	text = {
 		life          = 0x00FF00FF,
 		super         = 0xFFFF00FF,
-		claw          = 0xFF80FFFF,
+		claw          = 0xFFB0FFFF,
 		guard         = 0x00FFFFFF,
 	},
 	STUN = {
@@ -219,6 +219,7 @@ local profile = {
 		games  = {"sfa3"},
 		active = 0xFF812D,
 		player = 0xFF8400,
+		base   = 0xFF8000,
 		offset = {
 			level       = 0x2CC,
 			limit       = 0x2CD,
@@ -238,6 +239,9 @@ local profile = {
 			claw_ptr    = 0x028,
 			mask_ptr    = 0x02A,
 			item_level  = 0x6C,
+			combo_count = 0x05E,
+			base_flip   = {0x10E, 0x10D, 0x08A},
+			player_flip = {0x2CE, 0x26A, 0x26B},
 		},
 		read = {duration = memory.readbyte},
 		max = {timeout = 180},
@@ -251,6 +255,8 @@ local profile = {
 			claw_Y  = 0xB8,
 			guard_X = 0x28,
 			guard_Y = 0x1A,
+			flip_X  = 0x88,
+			flip_Y  = 0x34,
 		},
 		base_type = SFA,
 		countdown_check = SFA3,
@@ -498,8 +504,9 @@ for n, g in ipairs(profile) do
 	g.pos.claw_Y     = g.pos.claw_Y     or last.pos.claw_Y
 	g.countdown_check = g.countdown_check or NORMAL
 	g.super_mode      = g.super_mode or DRAW_SUPER
-	g.guard_mode      = g.offset.guard_level and true or false
 	g.claw_mode       = g.offset.mask_status and SFA or g.offset.claw_status and SF2 or NORMAL
+	g.guard_mode      = g.offset.guard_level and true or false
+	g.flip_mode       = g.offset.player_flip and true or false
 	g.rage_mode       = g.offset.rage and true or false
 	g.base_type       = g.base_type or g.player_ptr and POINTER or DIRECT
 	g.limit_type      = g.limit_type or g.hard_limit and HARD_LIMIT or g.limit_base_array and PTR_LIMIT_BASE or PTR_LIMIT
@@ -705,6 +712,30 @@ local get_guard = {
 }
 
 
+local get_flip = {
+	[false] = function(p)
+	end,
+
+	[true] = function(p)
+		player[p].flip_val = ""
+		if memory.readbyte(player[p].base + game.offset.combo_count) < 2 then
+			return
+		end
+		for _, v in ipairs(game.offset.player_flip) do
+			if memory.readbyte(player[p].base + v) > 0 then
+				return
+			end
+		end
+		for _, v in ipairs(game.offset.base_flip) do
+			if memory.readbyte(game.base + v) > 0 then
+				return
+			end
+		end
+		player[p].flip_val = "*"
+	end,
+}
+
+
 local get_rage = {
 	[false] = function(p)
 	end,
@@ -766,6 +797,7 @@ local update_dizzy = {
 
 			get_claw[game.claw_mode](p)
 			get_guard[game.guard_mode](p)
+			get_flip[game.flip_mode](p)
 			get_rage[game.rage_mode](p)
 		end
 	end,
@@ -855,6 +887,17 @@ local draw_guard = {
 	end,
 }
 
+
+local draw_flip = {
+	[false] = function(p)
+	end,
+
+	[true] = function(p)
+		gui.text(player[p].flip_text_X, game.pos.flip_Y, player[p].flip_val)
+	end,
+}
+
+
 local draw_rage = {
 	[false] = function(p)
 	end,
@@ -897,6 +940,7 @@ local draw_player_text = {
 		gui.text(player[p].life.text_X, player[p].life.text_Y, player[p].life.val, color.text.life)
 		gui.text(player[p].super.text_X, game.pos.super_Y, player[p].super.val, color.text.super)
 		draw_guard[game.guard_mode](p)
+		draw_flip[game.flip_mode](p)
 		draw_claw[game.claw_mode](p)
 	end,
 }
@@ -975,6 +1019,7 @@ local function whatgame()
 					player[p].life.text_Y = game.pos.life_Y - bit.band(p-1, 2)/2*8
 					player[p].super_X = center + game.pos.super_X * player[p].side
 					player[p].guard_X = game.guard_mode and center + game.pos.guard_X * player[p].side
+					player[p].flip_text_X = game.flip_mode and center + game.pos.flip_X * -player[p].side + 0x1C
 				end
 				level = {
 					offset       = game.offset.level,
