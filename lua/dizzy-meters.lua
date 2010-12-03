@@ -1,6 +1,6 @@
 print("Dizzy/Stun meter viewer")
 print("written by Dammit")
-print("November 26, 2010")
+print("December 3, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers") print()
 
@@ -224,9 +224,9 @@ local profile = {
 			level       = 0x2CC,
 			limit       = 0x2CD,
 			timeout     = 0x2CB,
-			duration    = 0x03B,
+			duration    = 0x03A,
 			dizzy       = 0x2CF,
-			countdown   = 0x2CF, --dummy
+			countdown   = 0x054,
 			knockdown   = 0x2CA,
 			char_mode   = 0x15E,
 			life        = 0x051,
@@ -239,24 +239,25 @@ local profile = {
 			claw_ptr    = 0x028,
 			mask_ptr    = 0x02A,
 			item_level  = 0x6C,
+			status      = 0x006,
 			combo_count = 0x05E,
 			base_flip   = {0x10E, 0x10D, 0x08A},
 			player_flip = {0x2CE, 0x26A, 0x26B},
 		},
-		read = {duration = memory.readbyte},
+		read = {duration = memory.readword},
 		max = {timeout = 180},
 		pos = {
-			bar_X   = 0x10,
-			bar_Y   = 0x24,
-			life_X  = 0x84,
-			life_Y  = 0x08,
-			super_X = 0x66,
-			super_Y = 0xCA,
-			claw_Y  = 0xB8,
-			guard_X = 0x28,
-			guard_Y = 0x1A,
-			flip_X  = 0x88,
-			flip_Y  = 0x34,
+			bar_X         = 0x10,
+			bar_Y         = 0x24,
+			life_X        = 0x84,
+			life_Y        = 0x08,
+			super_X       = 0x66,
+			super_Y       = 0xCA,
+			claw_Y        = 0xB8,
+			guard_X       = 0x28,
+			guard_Y       = 0x1A,
+			pseudocombo_X = 0x88,
+			pseudocombo_Y = 0x34,
 		},
 		base_type = SFA,
 		countdown_check = SFA3,
@@ -597,12 +598,15 @@ local get_player_base = {
 	[SFA] = function(p)
 		for p = 1, 4 do
 			player[p].base = game.player + (p-1)*game.offset.space
-			player[p].active = memory.readword(player[p].base) ~= 0
+			player[p].active = memory.readbyte(player[p].base) ~= 0
 		end
-		if player[3].active or player[4].active then
-			local temp = player[2].base
+		if player[3].active or player[4].active then --swap player 2-3 bases and active states for Dramatic Battle
+			local temp_base = player[2].base
 			player[2].base = player[3].base
-			player[3].base = temp
+			player[3].base = temp_base
+			local temp_active = player[2].active
+			player[2].active = player[3].active
+			player[3].active = temp_active
 		end
 	end,
 }
@@ -622,10 +626,10 @@ local get_countdown_status = {
 	end,
 
 	[SFA3] = function(p)
-		local countdown = memory.readbyte(player[p].base + game.offset.countdown) ~= 0
-		if countdown and memory.readbyte(player[p].base + game.offset.knockdown) == 0 then
+		local countdown = memory.readbyte(player[p].base + game.offset.countdown) == 0x0C
+		if memory.readbyte(player[p].base + game.offset.knockdown) == 0 then
 			countdown = false
-			memory.writebyte(player[p].base + game.offset.countdown, 0)
+			memory.writebyte(player[p].base + game.offset.dizzy, 0) --hack for R.Mika's 720+P
 		end
 		return countdown
 	end,
@@ -712,26 +716,44 @@ local get_guard = {
 }
 
 
+local function get_player_flip(player)
+	for _, v in ipairs({
+		player.combo < 1,
+		memory.readword(player.base + game.offset.status) ~= 0x0202,
+		memory.readbyte(player.base + game.offset.countdown) > 0x08,
+	}) do
+		if v then
+			return false
+		end
+	end
+	for _, v in ipairs(game.offset.player_flip) do
+		if memory.readbyte(player.base + v) > 0 then
+			return false
+		end
+	end
+	for _, v in ipairs(game.offset.base_flip) do
+		if memory.readbyte(game.base + v) > 0 then
+			return false
+		end
+	end
+	return true
+end
+
+
 local get_flip = {
 	[false] = function(p)
 	end,
 
 	[true] = function(p)
-		player[p].flip_val = ""
-		if memory.readbyte(player[p].base + game.offset.combo_count) < 2 then
-			return
+		player[p].combo = memory.readbyte(player[p].base + game.offset.combo_count)
+		if player[p].combo > player[p].combo_old then
+			player[p].pseudocombo = player[p].pseudocombo or (player[p].combo > 1 and player[p].flip)
+		elseif player[p].combo == 0 then
+			player[p].pseudocombo = false
 		end
-		for _, v in ipairs(game.offset.player_flip) do
-			if memory.readbyte(player[p].base + v) > 0 then
-				return
-			end
-		end
-		for _, v in ipairs(game.offset.base_flip) do
-			if memory.readbyte(game.base + v) > 0 then
-				return
-			end
-		end
-		player[p].flip_val = "*"
+		player[p].pseudocombo_text_X = player[p].pseudocombo_X + string.len(player[p].combo) * 8
+		player[p].flip = get_player_flip(player[p])
+		player[p].combo_old = player[p].combo
 	end,
 }
 
@@ -893,7 +915,12 @@ local draw_flip = {
 	end,
 
 	[true] = function(p)
-		gui.text(player[p].flip_text_X, game.pos.flip_Y, player[p].flip_val)
+		if player[p].flip then
+			gui.text(player[p].flip_text_X, player[p].life.text_Y, "!")
+		end
+		if player[p].pseudocombo then
+			gui.text(player[p].pseudocombo_text_X, game.pos.pseudocombo_Y, "*")
+		end
 	end,
 }
 
@@ -1019,7 +1046,11 @@ local function whatgame()
 					player[p].life.text_Y = game.pos.life_Y - bit.band(p-1, 2)/2*8
 					player[p].super_X = center + game.pos.super_X * player[p].side
 					player[p].guard_X = game.guard_mode and center + game.pos.guard_X * player[p].side
-					player[p].flip_text_X = game.flip_mode and center + game.pos.flip_X * -player[p].side + 0x1C
+					if game.flip_mode then
+						player[p].pseudocombo_X = center + game.pos.pseudocombo_X * -player[p].side + 0x14
+						player[p].flip_text_X = player[p].life_X - bit.band(p, 1) * 4 - player[p].side * 8
+						player[p].combo_old = 0
+					end
 				end
 				level = {
 					offset       = game.offset.level,
