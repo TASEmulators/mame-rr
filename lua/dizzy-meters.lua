@@ -1,6 +1,6 @@
 print("Dizzy/Stun meter viewer")
 print("written by Dammit")
-print("December 3, 2010")
+print("December 4, 2010")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers") print()
 
@@ -175,16 +175,13 @@ local profile = {
 			level     = 0x137,
 			limit     = 0x13A,
 			timeout   = 0x136,
-			duration  = 0x02D,
+			duration  = 0x02C,
 			countdown = 0x006,
 			dizzy     = 0x13B,
 			life      = 0x041,
 			super     = 0x0BF,
 		},
-		read = {
-			timeout  = memory.readbyte,
-			duration = memory.readbyte,
-		},
+		read = {timeout  = memory.readbyte},
 		max = {timeout = 210},
 		pos = {
 			bar_X   = 0x0E,
@@ -193,7 +190,7 @@ local profile = {
 			super_X = 0x20,
 			super_Y = 0xD8,
 		},
-		base_type = SFA,
+		nplayers = 3,
 		countdown_check = SFA,
 	},
 	{
@@ -201,18 +198,17 @@ local profile = {
 		active = 0xFF812D,
 		player = 0xFF8400,
 		offset = {
-			duration  = 0x03B,
+			duration  = 0x03A,
 			countdown = 0x006,
 			life      = 0x051,
 			super     = 0x09F,
 		},
-		read = {duration = memory.readbyte},
 		pos = {
 			bar_X  = 0x10,
 			bar_Y  = 0x26,
 			life_X = 0x98,
 		},
-		base_type = SFA,
+		nplayers = 3,
 		countdown_check = SFA,
 	},
 	{
@@ -241,10 +237,10 @@ local profile = {
 			item_level  = 0x6C,
 			status      = 0x006,
 			combo_count = 0x05E,
+			airborne    = 0x031,
 			base_flip   = {0x10E, 0x10D, 0x08A},
 			player_flip = {0x2CE, 0x26A, 0x26B},
 		},
-		read = {duration = memory.readword},
 		max = {timeout = 180},
 		pos = {
 			bar_X         = 0x10,
@@ -259,7 +255,7 @@ local profile = {
 			pseudocombo_X = 0x88,
 			pseudocombo_Y = 0x34,
 		},
-		base_type = SFA,
+		nplayers = 4,
 		countdown_check = SFA3,
 		super_mode = MODAL_SUPER,
 		claw_id = 0x1C,
@@ -509,7 +505,7 @@ for n, g in ipairs(profile) do
 	g.guard_mode      = g.offset.guard_level and true or false
 	g.flip_mode       = g.offset.player_flip and true or false
 	g.rage_mode       = g.offset.rage and true or false
-	g.base_type       = g.base_type or g.player_ptr and POINTER or DIRECT
+	g.base_type       = g.nplayers and SFA or g.player_ptr and POINTER or DIRECT
 	g.limit_type      = g.limit_type or g.hard_limit and HARD_LIMIT or g.limit_base_array and PTR_LIMIT_BASE or PTR_LIMIT
 end
 
@@ -596,11 +592,11 @@ local get_player_base = {
 	end,
 
 	[SFA] = function(p)
-		for p = 1, 4 do
+		for p = 1, nplayers do
 			player[p].base = game.player + (p-1)*game.offset.space
 			player[p].active = memory.readbyte(player[p].base) ~= 0
 		end
-		if player[3].active or player[4].active then --swap player 2-3 bases and active states for Dramatic Battle
+		if player[3].active then --swap player 2-3 bases and active states for Dramatic Battle
 			local temp_base = player[2].base
 			player[2].base = player[3].base
 			player[3].base = temp_base
@@ -721,6 +717,7 @@ local function get_player_flip(player)
 		player.combo < 1,
 		memory.readword(player.base + game.offset.status) ~= 0x0202,
 		memory.readbyte(player.base + game.offset.countdown) > 0x08,
+		memory.readbyte(player.base + game.offset.airborne) == 0x00,
 	}) do
 		if v then
 			return false
@@ -1016,7 +1013,7 @@ local function whatgame()
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. emu.romname() .. " dizzy meters")
 				game = module
-				nplayers = game.base_type == SFA and 4 or 2
+				nplayers = game.nplayers or 2
 				center = emu.screenwidth and emu.screenwidth()/2 or 128
 				limit_read = get_limit[game.limit_type]
 				if game.limit_base_array then
