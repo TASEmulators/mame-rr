@@ -1,5 +1,5 @@
 print("CPS-2 Marvel series hitbox viewer")
-print("October 30, 2010")
+print("January 19, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -453,8 +453,7 @@ end
 
 
 local function game_y_to_mame(y)
-	-- Why subtract 17? No idea, the game driver does the same thing.
-	return y - globals.top_screen_edge - 17
+	return y - globals.top_screen_edge - 15
 end
 
 
@@ -498,8 +497,8 @@ local function define_box(obj, entry)
 	return {
 		left   = obj.pos_x + hval - hrad,
 		right  = obj.pos_x + hval + hrad,
-		bottom = obj.pos_y + vval + vrad,
 		top    = obj.pos_y + vval - vrad,
+		bottom = obj.pos_y + vval + vrad,
 		hval   = obj.pos_x + hval,
 		vval   = obj.pos_y + vval,
 		type   = box_type or game.boxes[entry].type,
@@ -629,6 +628,7 @@ local function draw_game_object(obj)
 	
 	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
+	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
 end
 
 
@@ -664,7 +664,6 @@ local function render_marvel_hitboxes()
 		end
 		for i,obj in ipairs(frame_buffer[1][projectiles]) do
 			draw_game_object(frame_buffer[1][projectiles][i])
-			gui.text(obj.pos_x, obj.pos_y, string.format("%X", obj.base))
 		end
 	end
 

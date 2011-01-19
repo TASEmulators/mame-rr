@@ -1,5 +1,5 @@
 print("CPS-2 hitbox viewer")
-print("December 10, 2010")
+print("January 19, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -295,7 +295,7 @@ for game in ipairs(profile) do
 		g.offset.hitbox_ptr = {player = ptr, projectile = ptr}
 	end
 	g.address.top_screen_edge = g.address.top_screen_edge or g.address.left_screen_edge + 0x4
-	g.offset.top_screen_edge  = g.offset.top_screen_edge  or -17
+	g.offset.top_screen_edge  = g.offset.top_screen_edge  or -15
 	g.offset.player_space     = g.offset.player_space     or 0x400
 	g.offset.x_position       = g.offset.x_position       or 0x10
 	g.offset.y_position       = g.offset.y_position       or g.offset.x_position + 0x4
@@ -364,12 +364,11 @@ end
 
 
 local function game_x_to_mame(x)
-	return (x - globals.left_screen_edge)
+	return x - globals.left_screen_edge
 end
 
 
 local function game_y_to_mame(y)
-	-- Why subtract 17? No idea, the game driver does the same thing.
 	return SCREEN_HEIGHT - (y + game.offset.top_screen_edge) + globals.top_screen_edge
 end
 
@@ -427,10 +426,10 @@ local function define_box(obj, entry, hitbox_ptr)
 	return {
 		left   = obj.pos_x + hval - hrad,
 		right  = obj.pos_x + hval + hrad,
-		bottom = obj.pos_y - vval + vrad,
 		top    = obj.pos_y - vval - vrad,
+		bottom = obj.pos_y - vval + vrad,
 		hval   = obj.pos_x + hval,
-		vval   = obj.pos_y + vval,
+		vval   = obj.pos_y - vval,
 		type   = game.boxes[entry].type,
 	}
 end
@@ -469,7 +468,7 @@ local function define_id_offset_box(obj, entry, id_offset) --for ringdest only
 		top    = obj.pos_y - vval - vrad,
 		bottom = obj.pos_y - vval,
 		hval   = obj.pos_x + hval + hrad/2,
-		vval   = obj.pos_y + vval + vrad/2,
+		vval   = obj.pos_y - vval - vrad/2,
 		type   = game.boxes[entry].type,
 	}
 end
@@ -492,9 +491,9 @@ end
 
 
 local function update_game_object(obj)
-	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
-	obj.pos_x        = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
-	obj.pos_y        = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.y_position))
+	obj.facing_dir = memory.readbyte(obj.base + game.offset.facing_dir)
+	obj.pos_x      = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
+	obj.pos_y      = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.y_position))
 	prepare_boxes(obj)
 end
 

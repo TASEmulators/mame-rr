@@ -1,5 +1,5 @@
 print("Capcom beat 'em up hitbox viewer")
-print("October 5, 2010")
+print("January 19, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -16,12 +16,21 @@ local DRAW_DELAY             = 1
 local SCREEN_WIDTH           = 384
 local SCREEN_HEIGHT          = 224
 local VULNERABILITY_BOX      = 1
-local WEAK_BOX               = 2
-local ATTACK_BOX             = 3
+local ATTACK_BOX             = 2
 local GAME_PHASE_NOT_PLAYING = 0
 local BLANK_SCREEN           = false
 local DRAW_AXIS              = false
 local DRAW_MINI_AXIS         = false
+
+local fill = {
+	[VULNERABILITY_BOX] = VULNERABILITY_COLOR,
+	[ATTACK_BOX]        = ATTACK_COLOR,
+}
+
+local outline = {
+	[VULNERABILITY_BOX] = OR(VULNERABILITY_COLOR, 0xFF),
+	[ATTACK_BOX]        = OR(ATTACK_COLOR,        0xFF),
+}
 
 local profile = {
 	{
@@ -161,13 +170,6 @@ local profile = {
 for game in ipairs(profile) do
 	for entry in ipairs(profile[game].boxes) do
 		local box = profile[game].boxes[entry]
-		if box.type == VULNERABILITY_BOX then
-			box.color = VULNERABILITY_COLOR
-		elseif box.type == WEAK_BOX then
-			box.color = WEAK_COLOR
-		elseif box.type == ATTACK_BOX then
-			box.color = ATTACK_COLOR
-		end
 		box.invalid = box.invalid or {}
 	end
 end
@@ -244,19 +246,18 @@ end
 
 
 local function game_x_to_mame(x)
-	return (x - globals.left_screen_edge)
+	return x - globals.left_screen_edge
 end
 
 
 local function game_y_to_mame(y)
-	-- Why subtract 17? No idea, the game driver does the same thing.
-	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
+	return SCREEN_HEIGHT - (y - 15) + globals.top_screen_edge
 end
 
 
-local function define_box(obj, base_obj, entry, space)
+local function define_box(obj, entry, space)
 	for _,check in ipairs(game.boxes[entry].invalid) do
-		local no_draw = memory.readbyte(base_obj + check.offset) == check.value
+		local no_draw = memory.readbyte(obj.base + check.offset) == check.value
 		if not check.equal then
 			no_draw = not no_draw
 		end
@@ -265,9 +266,9 @@ local function define_box(obj, base_obj, entry, space)
 		end
 	end
 
-	local base_id = base_obj
+	local base_id = obj.base
 	if game.boxes[entry].anim_ptr then
-		base_id = memory.readdword(base_obj + game.boxes[entry].anim_ptr)
+		base_id = memory.readdword(obj.base + game.boxes[entry].anim_ptr)
 	end
 	local curr_id = game.id_read(base_id + game.boxes[entry].id_ptr)
 
@@ -278,16 +279,16 @@ local function define_box(obj, base_obj, entry, space)
 	
 	local addr_table
 	if not game.offset.hitbox_ptr then
-		addr_table = memory.readdword(base_obj + game.boxes[entry].addr_table)
+		addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table)
 	else
-		addr_table = memory.readdword(base_obj + game.offset.hitbox_ptr)
+		addr_table = memory.readdword(obj.base + game.offset.hitbox_ptr)
 		if game.boxes[entry].addr_table then
 			addr_table = addr_table + memory.readwordsigned(addr_table + game.boxes[entry].addr_table)
 		end
 	end
 	local address = addr_table + curr_id * game.boxes[entry].id_space
-	--local address = 0xf4d8a + memory.readword(base_obj+0x26)*4 + memory.readword(base_obj+0x7A) --captcomm test
-	--emu.message(string.format("%X",0xf4d8a + memory.readword(base_obj+0x26)*4 + memory.readword(base_obj+0x7A)))
+	--local address = 0xf4d8a + memory.readword(obj.base+0x26)*4 + memory.readword(obj.base+0x7A) --captcomm test
+	--emu.message(string.format("%X",0xf4d8a + memory.readword(obj.base+0x26)*4 + memory.readword(obj.base+0x7A)))
 
 	local hval = game.box_read(address + game.offset.hval)
 	local vval = game.box_read(address + game.offset.vval)
@@ -301,14 +302,13 @@ local function define_box(obj, base_obj, entry, space)
 		end
 
 		obj[entry] = {
-			left   = game_x_to_mame(obj.pos_x + hval),
-			right  = game_x_to_mame(obj.pos_x + hval + hrad),
-			top    = game_y_to_mame(obj.pos_y + vval),
-			bottom = game_y_to_mame(obj.pos_y + vval + vrad),
-			hval   = game_x_to_mame(obj.pos_x + hval + hrad/2),
-			vval   = game_y_to_mame(obj.pos_y + vval + vrad/2),
+			left   = obj.pos_x + hval,
+			right  = obj.pos_x + hval + hrad,
+			top    = obj.pos_y - vval - vrad,
+			bottom = obj.pos_y - vval,
+			hval   = obj.pos_x + hval + hrad/2,
+			vval   = obj.pos_y - vval - vrad/2,
 			type   = game.boxes[entry].type,
-			color  = game.boxes[entry].color,
 		}
 	else
 		if obj.facing_dir > 0 then
@@ -316,27 +316,26 @@ local function define_box(obj, base_obj, entry, space)
 		end
 
 		obj[entry] = {
-			left   = game_x_to_mame(obj.pos_x + hval - hrad),
-			right  = game_x_to_mame(obj.pos_x + hval + hrad),
-			top    = game_y_to_mame(obj.pos_y + vval - vrad),
-			bottom = game_y_to_mame(obj.pos_y + vval + vrad),
-			hval   = game_x_to_mame(obj.pos_x + hval),
-			vval   = game_y_to_mame(obj.pos_y + vval),
+			left   = obj.pos_x + hval - hrad,
+			right  = obj.pos_x + hval + hrad,
+			top    = obj.pos_y - vval - vrad,
+			bottom = obj.pos_y - vval + vrad,
+			hval   = obj.pos_x + hval,
+			vval   = obj.pos_y - vval,
 			type   = game.boxes[entry].type,
-			color  = game.boxes[entry].color,
 		}
 	end
 end
 
 
-local function update_game_object(obj, base_obj, space)
-	obj.facing_dir = memory.readbyte(base_obj + game.offset.facing_dir)
-	obj.pos_z      = game.offset.z_position and memory.readwordsigned(base_obj + game.offset.z_position) or 0
-	obj.pos_x      = memory.readwordsigned(base_obj + game.offset.x_position)
-	obj.pos_y      = memory.readwordsigned(base_obj + game.offset.x_position + 4) + obj.pos_z
+local function update_game_object(obj, space)
+	obj.facing_dir = memory.readbyte(obj.base + game.offset.facing_dir)
+	obj.pos_z      = game.offset.z_position and memory.readwordsigned(obj.base + game.offset.z_position) or 0
+	obj.pos_x      = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
+	obj.pos_y      = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.x_position + 4) + obj.pos_z)
 
 	for entry in ipairs(game.boxes) do
-		define_box(obj, base_obj, entry, space)
+		define_box(obj, entry, space)
 	end
 end
 
@@ -349,12 +348,11 @@ local function update_beatemup_hitboxes()
 	local objects = {}
 	for _,set in ipairs(game.objects) do
 		for n = 1, set.number do
-			local base_obj = set.address + (n-1)*set.offset
-			if memory.readword(base_obj) >= 0x0100 then
-				local new_obj = {}
-				new_obj.harmless = set.harmless
-				update_game_object(new_obj, base_obj, set.offset)
-				table.insert(objects, new_obj)
+			local obj = {base = set.address + (n-1) * set.offset}
+			if memory.readword(obj.base) >= 0x0100 then
+				obj.harmless = set.harmless
+				update_game_object(obj, set.offset)
+				table.insert(objects, obj)
 			end
 		end
 	end
@@ -379,11 +377,11 @@ local function draw_hitbox(hb)
 	--if hb.left > hb.right or hb.bottom > hb.top then return end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(hb.color, 0xFF))
-		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(hb.color, 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(fill[hb.type], 0xFF))
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(fill[hb.type], 0xFF))
 	end
 
-	gui.box(hb.left, hb.top, hb.right, hb.bottom, hb.color)
+	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
 end
 
 
@@ -392,10 +390,8 @@ local function draw_game_object(obj)
 		return
 	end
 	
-	local x = game_x_to_mame(obj.pos_x)
-	local y = game_y_to_mame(obj.pos_y)
-	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOR)
-	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOR)
+	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
+	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
 end
 
 
@@ -408,17 +404,17 @@ local function render_beatemup_hitboxes()
 		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOR)
 	end
 
-	if DRAW_AXIS then
-		for _,obj in ipairs(frame_buffer[1]) do
-			draw_game_object(obj)
-		end
-	end
-
 	for entry in ipairs(game.boxes) do
 		for _,obj in ipairs(frame_buffer[1]) do
 			if obj[entry] and not (obj.harmless and game.boxes[entry].type == ATTACK_BOX) then
 				draw_hitbox(obj[entry])
 			end
+		end
+	end
+
+	if DRAW_AXIS then
+		for _,obj in ipairs(frame_buffer[1]) do
+			draw_game_object(obj)
 		end
 	end
 end

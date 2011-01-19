@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("September 24, 2010")
+print("January 19, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -23,15 +23,34 @@ local SCREEN_HEIGHT           = 224
 local NUMBER_OF_PLAYERS       = 2
 local MAX_GAME_PROJECTILES    = 8
 local VULNERABILITY_BOX       = 1
-local WEAK_BOX                = 2
-local ATTACK_BOX              = 3
-local PUSH_BOX                = 4
+local ATTACK_BOX              = 2
+local PUSH_BOX                = 3
+local WEAK_BOX                = 4
+local PROJECTILE_ATTACK_BOX   = 5
+local PROJECTILE_PUSH_BOX     = 6
 local GAME_PHASE_NOT_PLAYING  = 0
 local BLANK_SCREEN            = false
 local DRAW_AXIS               = false
 local DRAW_MINI_AXIS          = false
 local DRAW_PUSHBOXES          = true
 
+local fill = {
+	[VULNERABILITY_BOX]     = VULNERABILITY_COLOR,
+	[ATTACK_BOX]            = ATTACK_COLOR,
+	[PUSH_BOX]              = PUSH_COLOR,
+	[WEAK_BOX]              = WEAK_COLOR,
+	[PROJECTILE_ATTACK_BOX] = PROJECTILE_ATTACK_COLOR,
+	[PROJECTILE_PUSH_BOX]   = PROJECTILE_PUSH_COLOR,
+}
+
+local outline = {
+	[VULNERABILITY_BOX]     = OR(VULNERABILITY_COLOR,     0xFF),
+	[ATTACK_BOX]            = OR(ATTACK_COLOR,            0xFF),
+	[PUSH_BOX]              = OR(PUSH_COLOR,              0xC0),
+	[WEAK_BOX]              = OR(WEAK_COLOR,              0xFF),
+	[PROJECTILE_ATTACK_BOX] = OR(PROJECTILE_ATTACK_COLOR, 0xFF),
+	[PROJECTILE_PUSH_BOX]   = OR(PROJECTILE_PUSH_COLOR,   0xC0),
+}
 
 local function onebyte(address, type)
 	local hval   = memory.readbytesigned(address + 0)
@@ -153,23 +172,6 @@ local profile = {
 	},
 }
 
-for game in ipairs(profile) do
-	for entry in ipairs(profile[game].boxes) do
-		local box = profile[game].boxes[entry]
-		if box.type == VULNERABILITY_BOX then
-			box.color = VULNERABILITY_COLOR
-		elseif box.type == WEAK_BOX then
-			box.color = WEAK_COLOR
-		elseif box.type == ATTACK_BOX then
-			box.color = ATTACK_COLOR
-			box.projectile_color = PROJECTILE_ATTACK_COLOR
-		elseif box.type == PUSH_BOX then
-			box.color = PUSH_COLOR
-			box.projectile_color = PROJECTILE_PUSH_COLOR
-		end
-	end
-end
-
 local game, effective_delay
 local globals = {
 	game_phase       = 0,
@@ -267,13 +269,12 @@ end
 
 
 local function game_x_to_mame(x)
-	return (x - globals.left_screen_edge)
+	return x - globals.left_screen_edge
 end
 
 
 local function game_y_to_mame(y)
-	-- Why subtract 17? No idea, the game driver does the same thing.
-	return (SCREEN_HEIGHT - (y - 17) + globals.top_screen_edge)
+	return SCREEN_HEIGHT - (y - 15) + globals.top_screen_edge
 end
 
 
@@ -297,27 +298,37 @@ local function define_box(obj, entry, animation_ptr, hitbox_ptr)
 		hval  = -hval
 	end
 
-	obj[entry] = {
-		left   = game_x_to_mame(obj.pos_x + hval - hrad),
-		right  = game_x_to_mame(obj.pos_x + hval + hrad),
-		bottom = game_y_to_mame(obj.pos_y + vval + vrad),
-		top    = game_y_to_mame(obj.pos_y + vval - vrad),
-		hval   = game_x_to_mame(obj.pos_x + hval),
-		vval   = game_y_to_mame(obj.pos_y + vval),
+	local box_type
+	if obj.is_projectile then
+		if game.boxes[entry].type == ATTACK_BOX then
+			box_type = PROJECTILE_ATTACK_BOX
+		else
+			box_type = PROJECTILE_PUSH_BOX
+		end
+	end
+
+	return {
+		left   = obj.pos_x + hval - hrad,
+		right  = obj.pos_x + hval + hrad,
+		top    = obj.pos_y - vval - vrad,
+		bottom = obj.pos_y - vval + vrad,
+		hval   = obj.pos_x + hval,
+		vval   = obj.pos_y - vval,
+		type   = box_type or game.boxes[entry].type,
 	}
 end
 
 
-local function update_game_object(obj, base_obj)
-	obj.facing_dir   = memory.readbyte(base_obj + 0x12)
-	obj.pos_x        = memory.readword(base_obj + 0x06)
-	obj.pos_y        = memory.readword(base_obj + 0x0A)
+local function update_game_object(obj)
+	obj.facing_dir   = memory.readbyte(obj.base + 0x12)
+	obj.pos_x        = game_x_to_mame(memory.readword(obj.base + 0x06))
+	obj.pos_y        = game_y_to_mame(memory.readword(obj.base + 0x0A))
 
-	local animation_ptr = memory.readdword(base_obj + 0x1A)
-	local hitbox_ptr    = memory.readdword(base_obj + 0x34)
+	local animation_ptr = memory.readdword(obj.base + 0x1A)
+	local hitbox_ptr    = memory.readdword(obj.base + 0x34)
 
 	for entry in ipairs(game.boxes) do
-		define_box(obj, entry, animation_ptr, hitbox_ptr)
+		obj[entry] = define_box(obj, entry, animation_ptr, hitbox_ptr)
 	end
 end
 
@@ -326,10 +337,10 @@ local function read_projectiles()
 	local current_projectiles = {}
 
 	for i = 1, MAX_GAME_PROJECTILES do
-		local base_obj = game.address.projectile + (i-1) * 0xC0
-		if memory.readword(base_obj) == 0x0101 then
-			local obj = {}
-			update_game_object(obj, base_obj, true)
+		local obj = {base = game.address.projectile + (i-1) * 0xC0}
+		if memory.readword(obj.base) == 0x0101 then
+			obj.is_projectile = true
+			update_game_object(obj)
 			table.insert(current_projectiles, obj)
 		end
 	end
@@ -340,13 +351,15 @@ end
 
 local function update_sf2_hitboxes()
 	gui.clearuncommitted()
-	if not game then return end
+	if not game then
+		return
+	end
 	effective_delay = adjust_delay(game.address.stage)
 	update_globals()
 
 	for p = 1, NUMBER_OF_PLAYERS do
-		local base_obj = game.address.player + (p-1) * game.player_space
-		update_game_object(player[p], base_obj)
+		player[p] = {base = game.address.player + (p-1) * game.player_space}
+		update_game_object(player[p])
 	end
 
 	for f = 1, effective_delay do
@@ -370,25 +383,24 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(hb, color)
-	if hb.left > hb.right or hb.bottom > hb.top then return end
+local function draw_hitbox(obj, entry)
+	local hb = obj[entry]
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(color, 0xFF))
-		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(color, 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(fill[hb.type], 0xFF))
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(fill[hb.type], 0xFF))
 	end
 
-	gui.box(hb.left, hb.top, hb.right, hb.bottom, color)
+	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
 end
 
 
 local function draw_game_object(obj)
 	if not obj or not obj.pos_x then return end
 	
-	local x = game_x_to_mame(obj.pos_x)
-	local y = game_y_to_mame(obj.pos_y)
-	gui.drawline(x, y-AXIS_SIZE, x, y+AXIS_SIZE, AXIS_COLOR)
-	gui.drawline(x-AXIS_SIZE, y, x+AXIS_SIZE, y, AXIS_COLOR)
+	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
+	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
+	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X",obj.base)) --debug
 end
 
 
@@ -401,28 +413,28 @@ local function render_sf2_hitboxes()
 		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOR)
 	end
 
-	if DRAW_AXIS then
-		for p = 1, NUMBER_OF_PLAYERS do
-			draw_game_object(frame_buffer[1][player][p])
-		end
-		for i in ipairs(frame_buffer[1][projectiles]) do
-			draw_game_object(frame_buffer[1][projectiles][i])
-		end
-	end
-
 	for entry in ipairs(game.boxes) do
 		for p = 1, NUMBER_OF_PLAYERS do
 			local obj = frame_buffer[1][player][p]
 			if obj and obj[entry] and not (not DRAW_PUSHBOXES and game.boxes[entry].type == PUSH_BOX) then
-				draw_hitbox(obj[entry], game.boxes[entry].color)
+				draw_hitbox(obj, entry)
 			end
 		end
 
 		for i in ipairs(frame_buffer[1][projectiles]) do
 			local obj = frame_buffer[1][projectiles][i]
 			if obj[entry] then
-				draw_hitbox(obj[entry], game.boxes[entry].projectile_color)
+				draw_hitbox(obj, entry)
 			end
+		end
+	end
+
+	if DRAW_AXIS then
+		for p = 1, NUMBER_OF_PLAYERS do
+			draw_game_object(frame_buffer[1][player][p])
+		end
+		for i in ipairs(frame_buffer[1][projectiles]) do
+			draw_game_object(frame_buffer[1][projectiles][i])
 		end
 	end
 end
