@@ -1,5 +1,5 @@
 print("Capcom beat 'em up hitbox viewer")
-print("January 19, 2011")
+print("January 23, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -122,13 +122,13 @@ local profile = {
 		},
 		objects = {
 			{address = 0xFF8E68, number = 0x02, offset = 0x100}, --players
-			{address = 0xFF9068, number = 0x90, offset = 0x0C0}, --etc
+			{address = 0xFF9068, number = 0x90, offset = 0x0C0, hp = 0x36}, --etc
 		},
 		boxes = {
 			{anim_ptr = nil, addr_table = nil, id_ptr = 0x3E, id_space = 0x01, type = VULNERABILITY_BOX,
 				invalid = {
 					{offset = 0x4D, value = 0x00, equal = false}, 
-					{offset = 0xC3, value = 0x00, equal = false},
+					--{offset = 0xC3, value = 0x00, equal = false},
 				}
 			},
 			{anim_ptr = nil, addr_table = nil, id_ptr = 0x3C, id_space = 0x01, type = ATTACK_BOX,
@@ -165,16 +165,99 @@ local profile = {
 		id_read  = memory.readbyte,
 		box_read = memory.readbytesigned,
 	},
+	{
+		games = {"ddtod"},
+		address = {
+			left_screen_edge = 0xFF8630,
+			game_phase       = 0xFF805F,
+		},
+		offset = {
+			facing_dir       = 0x3C,
+			x_position       = 0x08,
+			z_position       = 0x10,
+			hitbox_ptr       = nil,
+			hval = 0x4, vval = 0x8, hrad = 0x6, vrad = 0xA,
+		},
+		objects = {
+			{address = 0xFF86C8, number = 0x04, offset = 0x100}, --players
+			{address = 0xFF8AC8, number = 0x18, offset = 0x060}, --player projectiles
+			{address = 0xFFA5C8, number = 0x18, offset = 0x0C0, hp = 0x62}, --enemies
+			{address = 0xFFB7C8, number = 0x20, offset = 0x060}, --enemies projectiles
+			{address = 0xFFE7C8, number = 0x10, offset = 0x080}, --chests, etc.
+		},
+		boxes = {
+			{anim_ptr = nil, addr_table = 0x13050A, id_ptr = 0x22, id_space = 0x01, type = VULNERABILITY_BOX},
+			{anim_ptr = nil, addr_table = 0x13164A, id_ptr = 0x24, id_space = 0x01, type = ATTACK_BOX},
+		},
+		base_offset = {
+			[0x000] = {"ddtodj"}, --940412
+			[0x130] = {"ddtodjr2"}, --940113
+			[0x138] = {"ddtodjr1"}, --940125
+			[0x86C] = {"ddtodh"}, --940412
+			[0x902] = {"ddtodur1"}, --940113
+			[0x90A] = {"ddtodu"}, --940125
+			[0x936] = {"ddtoda"}, --940113
+			[0x948] = {"ddtod","ddtodd"}, --940412
+			[0x99C] = {"ddtodhr2"}, --940113
+			[0x9A4] = {"ddtodhr1"}, --940125
+			[0xA78] = {"ddtodr1"}, --940113
+		},
+		id_read  = memory.readword,
+		box_read = memory.readwordsigned,
+	},
+	{
+		games = {"ddsom"},
+		address = {
+			camera_mode      = 0xFF8036,
+			left_screen_edge = {[0] = 0xFF8506, [1] = 0xFF8556},
+			game_phase       = 0xFF8043,
+		},
+		offset = {
+			facing_dir       = 0x2C,
+			x_position       = 0x08,
+			z_position       = 0x10,
+			hitbox_ptr       = nil,
+			char_id          = 0x2E,
+			invulnerable     = 0x196, -- P-image timer
+			hval = 0x0, vval = 0x2, hrad = 0x1, vrad = 0x3,
+		},
+		objects = {
+			{address = 0xFF85DE, number = 0x04, offset = 0x200}, --players
+			{address = 0xFF90DE, number = 0x40, offset = 0x060, addr_table = 0x11EFA2}, --player projectiles
+			{address = 0xFFA99E, number = 0x18, offset = 0x0C0, hp = 0x62}, --enemies
+			{address = 0xFFBC5E, number = 0x40, offset = 0x060}, --enemies projectiles
+		},
+		boxes = {
+			{anim_ptr = nil, addr_table = 0x118FD4, id_ptr = 0x38, id_space = 0x08, type = VULNERABILITY_BOX},
+			{anim_ptr = nil, addr_table = 0x119214, id_ptr = 0x3A, id_space = 0x08, type = ATTACK_BOX},
+		},
+		base_offset = {
+			[0x0000] = {"ddsomh","ddsomb"}, --960223
+			[0x1952] = {"ddsomjr1"}, --960206
+			[0x1D18] = {"ddsomur1"}, --960209
+			[0x215A] = {"ddsoma","ddsomj","ddsomu","ddsomud"}, --960619
+			[0x2AAA] = {"ddsomr3"}, --960208
+			[0x2BA8] = {"ddsomr2"}, --960209
+			[0x301A] = {"ddsomr1"}, --960223
+			[0x3026] = {"ddsom"}, --960619
+		},
+		id_read  = memory.readbyte,
+		box_read = memory.readbytesigned,
+	},
 }
 
 for game in ipairs(profile) do
-	for entry in ipairs(profile[game].boxes) do
-		local box = profile[game].boxes[entry]
-		box.invalid = box.invalid or {}
+	local g = profile[game]
+	g.rad_read = g.box_read == memory.readbytesigned and memory.readbyte or memory.readword
+	for entry in ipairs(g.boxes) do
+		g.boxes[entry].invalid = g.boxes[entry].invalid or {}
+	end
+	if type(g.address.left_screen_edge) ~= "table" then
+		g.address.left_screen_edge = {g.address.left_screen_edge}
 	end
 end
 
-local game
+local game, base_offset
 local globals = {
 	game_phase       = 0,
 	left_screen_edge = 0,
@@ -212,15 +295,31 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
+local function whatversion(game)
+	for base,version_set in pairs(game.base_offset) do
+		for _,version in ipairs(version_set) do
+			if emu.romname() == version then
+				return base
+			end
+		end
+	end
+	print("unrecognized version (" .. emu.romname() .. "): cannot draw boxes")
+	return nil
+end
+
+
 local function whatgame()
 	game = nil
 	for n, module in ipairs(profile) do
 		for m, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
-				print("drawing " .. shortname .. " hitboxes")
+				print("drawing " .. emu.romname() .. " hitboxes")
 				game = module
 				for f = 1, DRAW_DELAY + 1 do
 					frame_buffer[f] = {}
+				end
+				if game.base_offset then
+					base_offset = whatversion(game)
 				end
 				return
 			end
@@ -239,8 +338,9 @@ end)
 -- prepare the hitboxes
 
 local function update_globals()
-	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
-	globals.top_screen_edge  = memory.readwordsigned(game.address.left_screen_edge + 0x4)
+	local camera_mode = game.address.camera_mode and memory.readbyte(game.address.camera_mode) or 1
+	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge[camera_mode])
+	globals.top_screen_edge  = memory.readwordsigned(game.address.left_screen_edge[camera_mode] + 0x4)
 	globals.game_phase       = memory.readword(game.address.game_phase)
 end
 
@@ -278,8 +378,12 @@ local function define_box(obj, entry, space)
 	end
 	
 	local addr_table
-	if not game.offset.hitbox_ptr then
-		addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table)
+	if obj.addr_table then --ddsom player projectiles
+		addr_table = obj.addr_table + base_offset
+	elseif game.offset.char_id then --ddsom other
+		addr_table = memory.readdword(game.boxes[entry].addr_table + base_offset + memory.readbyte(obj.base + game.offset.char_id) * 4)
+	elseif not game.offset.hitbox_ptr then --ddtod
+		addr_table = game.boxes[entry].addr_table + base_offset
 	else
 		addr_table = memory.readdword(obj.base + game.offset.hitbox_ptr)
 		if game.boxes[entry].addr_table then
@@ -292,8 +396,8 @@ local function define_box(obj, entry, space)
 
 	local hval = game.box_read(address + game.offset.hval)
 	local vval = game.box_read(address + game.offset.vval)
-	local hrad = game.box_read(address + game.offset.hrad)
-	local vrad = game.box_read(address + game.offset.vrad)
+	local hrad = game.rad_read(address + game.offset.hrad)
+	local vrad = game.rad_read(address + game.offset.vrad)
 
 	if game.no_double_radius then
 		if obj.facing_dir > 0 then
@@ -342,15 +446,21 @@ end
 
 local function update_beatemup_hitboxes()
 	gui.clearuncommitted()
-	if not game then return end
+	if not game then
+		return
+	end
 	update_globals()
 
 	local objects = {}
 	for _,set in ipairs(game.objects) do
 		for n = 1, set.number do
 			local obj = {base = set.address + (n-1) * set.offset}
+			obj.hp = set.hp and memory.readwordsigned(obj.base + set.hp) or 0xFFFF
 			if memory.readword(obj.base) >= 0x0100 then
+				obj.invulnerable = game.offset.invulnerable and game.offset.invulnerable < set.offset and
+					memory.readword(obj.base + game.offset.invulnerable) > 0
 				obj.harmless = set.harmless
+				obj.addr_table = set.addr_table
 				update_game_object(obj, set.offset)
 				table.insert(objects, obj)
 			end
@@ -392,6 +502,7 @@ local function draw_game_object(obj)
 	
 	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
+	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X",obj.base)) --debug
 end
 
 
@@ -406,7 +517,8 @@ local function render_beatemup_hitboxes()
 
 	for entry in ipairs(game.boxes) do
 		for _,obj in ipairs(frame_buffer[1]) do
-			if obj[entry] and not (obj.harmless and game.boxes[entry].type == ATTACK_BOX) then
+			if obj[entry] and not (obj.invulnerable or obj.hp <= 0 and game.boxes[entry].type == VULNERABILITY_BOX)
+				and not (obj.harmless and game.boxes[entry].type == ATTACK_BOX) then
 				draw_hitbox(obj[entry])
 			end
 		end
