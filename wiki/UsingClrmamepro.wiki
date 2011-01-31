@@ -7,6 +7,8 @@ This is important because MAME and its variants refuse to run any software that 
 
 *This guide only explains the core functions and basic usage of the program. See index.htm in its docs folder for more detail.*
 
+Another guide can be found here:
+[http://www.mameworld.info/easyemu/clrmameguide/clrmame-menu.html]
 ----
 <wiki:toc max_depth="1" />
 
