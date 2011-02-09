@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("January 19, 2011")
+print("February 8, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -22,6 +22,7 @@ local SCREEN_WIDTH            = 384
 local SCREEN_HEIGHT           = 224
 local NUMBER_OF_PLAYERS       = 2
 local MAX_GAME_PROJECTILES    = 8
+local MAX_BONUS_OBJECTS       = 16
 local VULNERABILITY_BOX       = 1
 local ATTACK_BOX              = 2
 local PUSH_BOX                = 3
@@ -107,7 +108,7 @@ local profile = {
 			{addr_table = 0x0, id_ptr = 0x8, id_space = 0x04, type = VULNERABILITY_BOX},
 			{addr_table = 0x2, id_ptr = 0x9, id_space = 0x04, type = VULNERABILITY_BOX},
 			{addr_table = 0x4, id_ptr = 0xA, id_space = 0x04, type = VULNERABILITY_BOX},
-			{addr_table = 0x6, id_ptr = 0xB, id_space = 0x04, type = WEAK_BOX},
+			--{addr_table = 0x6, id_ptr = 0xB, id_space = 0x04, type = WEAK_BOX},
 			{addr_table = 0x8, id_ptr = 0xC, id_space = 0x0C, type = ATTACK_BOX},
 		},
 		box_parameter_func = onebyte,
@@ -159,6 +160,7 @@ local profile = {
 			game_phase       = 0xFF836D,
 			stage            = 0xFF8B65,
 		},
+		char_mode          = 0x32A,
 		player_space       = 0x400,
 		boxes = {
 			{addr_table = 0xA, id_ptr = 0xD, id_space = 0x08, type = PUSH_BOX},
@@ -278,25 +280,21 @@ local function game_y_to_mame(y)
 end
 
 
-local function define_box(obj, entry, animation_ptr, hitbox_ptr)
-	local curr_id = memory.readbyte(animation_ptr + game.boxes[entry].id_ptr)
-	if game.boxes[entry].type == WEAK_BOX and memory.readbyte(animation_ptr + 0x15) ~= 2 then
-		curr_id = 0
-	end
+local function define_box(obj, entry)
+	local curr_id = memory.readbyte(obj.animation_ptr + game.boxes[entry].id_ptr)
 
-	if curr_id == 0 then
+	if curr_id == 0 or
+		(game.boxes[entry].type == ATTACK_BOX and obj.no_attack) or
+		(game.boxes[entry].type == WEAK_BOX and (obj.no_weak or memory.readbyte(obj.animation_ptr + 0x15) ~= 2)) then
 		obj[entry] = nil
 		return
 	end
 	
-	local addr_table = hitbox_ptr + memory.readwordsigned(hitbox_ptr + game.boxes[entry].addr_table)
+	local addr_table = obj.hitbox_ptr + memory.readwordsigned(obj.hitbox_ptr + game.boxes[entry].addr_table)
 	local address = addr_table + curr_id * game.boxes[entry].id_space
 
 	local hval, vval, hrad, vrad = game.box_parameter_func(address, game.boxes[entry].type)
-
-	if obj.facing_dir == 1 then
-		hval  = -hval
-	end
+	hval = hval * obj.facing_dir
 
 	local box_type
 	if obj.is_projectile then
@@ -320,12 +318,11 @@ end
 
 
 local function update_game_object(obj)
-	obj.facing_dir   = memory.readbyte(obj.base + 0x12)
-	obj.pos_x        = game_x_to_mame(memory.readword(obj.base + 0x06))
-	obj.pos_y        = game_y_to_mame(memory.readword(obj.base + 0x0A))
-
-	local animation_ptr = memory.readdword(obj.base + 0x1A)
-	local hitbox_ptr    = memory.readdword(obj.base + 0x34)
+	obj.facing_dir    = memory.readbyte(obj.base + 0x12) == 1 and -1 or 1
+	obj.pos_x         = game_x_to_mame(memory.readwordsigned(obj.base + 0x06))
+	obj.pos_y         = game_y_to_mame(memory.readwordsigned(obj.base + 0x0A))
+	obj.animation_ptr = memory.readdword(obj.base + 0x1A)
+	obj.hitbox_ptr    = memory.readdword(obj.base + 0x34)
 
 	for entry in ipairs(game.boxes) do
 		obj[entry] = define_box(obj, entry, animation_ptr, hitbox_ptr)
@@ -339,6 +336,16 @@ local function read_projectiles()
 	for i = 1, MAX_GAME_PROJECTILES do
 		local obj = {base = game.address.projectile + (i-1) * 0xC0}
 		if memory.readword(obj.base) == 0x0101 then
+			obj.is_projectile = true
+			update_game_object(obj)
+			table.insert(current_projectiles, obj)
+		end
+	end
+
+	for i = 1, MAX_BONUS_OBJECTS do
+		local obj = {base = game.address.projectile + (MAX_GAME_PROJECTILES + i-1) * 0xC0}
+		if AND(0xff00, memory.readword(obj.base)) == 0x0100 then
+			obj.no_attack = memory.readbyte(obj.base + 0x03) == 0
 			obj.is_projectile = true
 			update_game_object(obj)
 			table.insert(current_projectiles, obj)
@@ -359,7 +366,10 @@ local function update_sf2_hitboxes()
 
 	for p = 1, NUMBER_OF_PLAYERS do
 		player[p] = {base = game.address.player + (p-1) * game.player_space}
-		update_game_object(player[p])
+		if memory.readword(player[p].base) > 0x0100 then
+			player[p].no_weak = game.char_mode and memory.readbyte(player[p].base + game.char_mode) ~= 0x4
+			update_game_object(player[p])
+		end
 	end
 
 	for f = 1, effective_delay do
