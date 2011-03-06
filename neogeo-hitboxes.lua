@@ -7,43 +7,51 @@ print("Lua hotkey 3: toggle hitbox axis")
 print("Lua hotkey 4: toggle pushboxes")
 print("Lua hotkey 5: toggle throwboxes") print()
 
-local VULNERABILITY_COLOR    = 0x7777FF40
-local ATTACK_COLOR           = 0xFF000060
-local PUSH_COLOR             = 0x00FF0040
-local THROW_COLOR            = 0xFFFF0060
-local THROWABLE_COLOR        = 0xFFFFFF00
-local AXIS_COLOR             = 0xFFFFFFFF
-local BLANK_COLOR            = 0xFFFFFFFF
-local AXIS_SIZE              = 16
-local MINI_AXIS_SIZE         = 2
-local DRAW_DELAY             = 0
+local VULNERABILITY_COLOR      = 0x7777FF40
+local ATTACK_COLOR             = 0xFF000060
+local PUSH_COLOR               = 0x00FF0040
+local THROW_COLOR              = 0xFFFF0060
+local THROWABLE_COLOR          = 0xFFFFFF00
+local PROJ_VULNERABILITY_COLOR = 0x77CCFF40
+local PROJ_ATTACK_COLOR        = 0xFF66FF60
+local AXIS_COLOR               = 0xFFFFFFFF
+local BLANK_COLOR              = 0xFFFFFFFF
+local AXIS_SIZE                = 16
+local MINI_AXIS_SIZE           = 2
+local DRAW_DELAY               = 0
+local BLANK_SCREEN             = false
+local DRAW_AXIS                = false
+local DRAW_MINI_AXIS           = false
+local DRAW_PUSHBOXES           = true
+local DRAW_THROWBOXES          = true
 
+local GAME_PHASE_NOT_PLAYING = 0
 local VULNERABILITY_BOX      = 1
 local ATTACK_BOX             = 2
 local PUSH_BOX               = 3
 local THROW_BOX              = 4
 local THROWABLE_BOX          = 5
-local GAME_PHASE_NOT_PLAYING = 0
-local BLANK_SCREEN           = false
-local DRAW_AXIS              = false
-local DRAW_MINI_AXIS         = false
-local DRAW_PUSHBOXES         = true
-local DRAW_THROWBOXES        = true
+local PROJ_VULNERABILITY_BOX = 6
+local PROJ_ATTACK_BOX        = 7
 
 local fill = {
-	[VULNERABILITY_BOX] = VULNERABILITY_COLOR,
-	[ATTACK_BOX]        = ATTACK_COLOR,
-	[PUSH_BOX]          = PUSH_COLOR,
-	[THROW_BOX]         = THROW_COLOR,
-	[THROWABLE_BOX]     = THROWABLE_COLOR,
+	VULNERABILITY_COLOR,
+	ATTACK_COLOR,
+	PUSH_COLOR,
+	THROW_COLOR,
+	THROWABLE_COLOR,
+	PROJ_VULNERABILITY_COLOR,
+	PROJ_ATTACK_COLOR,
 }
 
 local outline = {
-	[VULNERABILITY_BOX] = bit.bor(VULNERABILITY_COLOR, 0xFF),
-	[ATTACK_BOX]        = bit.bor(ATTACK_COLOR,        0xFF),
-	[PUSH_BOX]          = bit.bor(PUSH_COLOR,          0xC0),
-	[THROW_BOX]         = bit.bor(THROW_COLOR,         0xFF),
-	[THROWABLE_BOX]     = bit.bor(THROWABLE_COLOR,     0xE0),
+	bit.bor(0xFF, VULNERABILITY_COLOR),
+	bit.bor(0xFF, ATTACK_COLOR),
+	bit.bor(0xC0, PUSH_COLOR),
+	bit.bor(0xFF, THROW_COLOR),
+	bit.bor(0xE0, THROWABLE_COLOR),
+	bit.bor(0xFF, PROJ_VULNERABILITY_COLOR),
+	bit.bor(0xFF, PROJ_ATTACK_COLOR),
 }
 
 local profile = {
@@ -73,8 +81,9 @@ local profile = {
 			{offset = 0x9F, active_bit = 3, type = VULNERABILITY_BOX},
 			{offset = 0x90, active_bit = 0, type = ATTACK_BOX},
 		},
-		box_radius_read = memory.readbyte,
+		active_state = 0x02,
 		inactive_projectile = 0x80,
+		box_radius_read = memory.readbyte,
 	},
 }
 
@@ -141,13 +150,6 @@ end)
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
-local function update_globals()
-	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
-	globals.top_screen_edge  = memory.readword(game.address.top_screen_edge)
-	globals.game_phase       = memory.readword(game.address.game_phase)
-end
-
-
 local function game_x_to_mame(x)
 	return x - globals.left_screen_edge
 end
@@ -178,6 +180,12 @@ local function define_box(obj, entry)
 		hval = -hval
 	end
 
+	local box_type = game.boxes[entry].type
+	if obj.projectile then
+		box_type = box_type == VULNERABILITY_BOX and PROJ_VULNERABILITY_BOX or box_type
+		box_type = box_type == ATTACK_BOX and PROJ_ATTACK_BOX or box_type
+	end
+
 	return {
 		left   = obj.pos_x + hval - hrad,
 		right  = obj.pos_x + hval + hrad,
@@ -185,15 +193,15 @@ local function define_box(obj, entry)
 		bottom = obj.pos_y + vval + vrad,
 		hval   = obj.pos_x + hval,
 		vval   = obj.pos_y + vval,
-		type   = game.boxes[entry].type,
+		type   = box_type,
 	}
 end
 
 
 local function add_object(address, projectile)
-	local obj = {base = address}
+	local obj = {base = address, projectile = projectile}
 	obj.status = memory.readbyte(obj.base + game.offset.status)
-	if projectile and bit.band(obj.status, game.inactive_projectile) > 0 then
+	if obj.projectile and bit.band(obj.status, game.inactive_projectile) > 0 then
 		return nil
 	end
 	obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
@@ -229,16 +237,16 @@ end
 local function read_objects()
 	local offset, objects = 0, {}
 	while true do
-		local address = 0x100000 + memory.readword(game.address.obj_ptr_list + offset)
-		if address == 0x100000 then
+		local address = memory.readword(game.address.obj_ptr_list + offset)
+		if address == 0 then
 			return objects
 		end
 		for _, object in ipairs(objects) do
-			if address == object.base then
+			if address == bit.band(object.base, 0xFFFF) then
 				return objects
 			end
 		end
-		table.insert(objects, add_object(address, true))
+		table.insert(objects, add_object(bit.bor(0x100000, address), true))
 		offset = offset + 2
 	end
 end
@@ -246,10 +254,12 @@ end
 
 local function update_neogeo_hitboxes()
 	gui.clearuncommitted()
-	if not game then
+	globals.game_phase = memory.readbyte(game.address.game_phase)
+	if not game or globals.game_phase ~= game.active_state then
 		return
 	end
-	update_globals()
+	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
+	globals.top_screen_edge  = memory.readword(game.address.top_screen_edge)
 
 	for f = 1, DRAW_DELAY do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
@@ -262,7 +272,7 @@ local function update_neogeo_hitboxes()
 end
 
 
-emu.registerafter( function()
+emu.registerbefore( function()
 	update_neogeo_hitboxes()
 end)
 
@@ -280,8 +290,8 @@ local function draw_hitbox(obj, entry)
 	end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, bit.bor(fill[hb.type], 0xFF))
-		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, bit.bor(fill[hb.type], 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, outline[hb.type])
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, outline[hb.type])
 	end
 
 	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
@@ -296,12 +306,13 @@ local function draw_axis(obj)
 	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
 	gui.text(obj.pos_x, obj.pos_y, string.format("%06X",obj.base)) --debug
-	gui.text(obj.pos_x, obj.pos_y+8, string.format("%X",obj.status)) --debug
+	gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X",obj.status)) --debug
 end
 
 
 local function render_neogeo_hitboxes()
-	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
+	--if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
+	if not game or globals.game_phase ~= game.active_state then
 		return
 	end
 
