@@ -1,5 +1,5 @@
 print("NeoGeo hitbox viewer")
-print("March 5, 2011")
+print("March 7, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -56,46 +56,63 @@ local outline = {
 
 local profile = {
 	{
-		games = {"kof2002"},
-		nplayers = 2,
-		address = {
-			player           = 0x108100,
-			obj_ptr_list     = 0x10BEE6,
-			left_screen_edge = 0x10B08E,
-			top_screen_edge  = 0x10B096,
-			game_phase       = 0x10B056,
-		},
-		offset = {
-			player_space     = 0x200,
-			x_position       = 0x18,
-			y_position       = 0x20,
-			facing_dir       = 0x31,
-			status           = 0x7C,
-			invulnerability  = {},
-			hval = 0x1, vval = 0x2, hrad = 0x3, vrad = 0x4,
-		},
-		boxes = {
-			{offset = 0xA4, type = PUSH_BOX},
-			{offset = 0x95, active_bit = 1, type = VULNERABILITY_BOX},
-			{offset = 0x9A, active_bit = 2, type = VULNERABILITY_BOX},
-			{offset = 0x9F, active_bit = 3, type = VULNERABILITY_BOX},
-			{offset = 0x90, active_bit = 0, type = ATTACK_BOX},
-		},
-		active_state = 0x02,
-		inactive_projectile = 0x80,
-		box_radius_read = memory.readbyte,
+		games = {"kof95"},
+		game_phase = 0x10B088,
+	},
+	{
+		games = {"kof96"},
+		game_phase = 0x10B08E,
+	},
+	{
+		games = {"kof97"},
+		game_phase = 0x10B092,
+	},
+	{
+		games = {"kof98"},
+		game_phase = 0x10B094,
+	},
+	{
+		games = {"kof99", "kof2000"},
+		game_phase = 0x10B048,
+	},
+	{
+		games = {"kof2001", "kof2002"},
+		game_phase = 0x10B056,
 	},
 }
 
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.address.top_screen_edge = g.address.top_screen_edge or g.address.left_screen_edge + 0x4
-	g.offset.top_screen_edge  = g.offset.top_screen_edge  or 21
-	g.offset.x_position       = g.offset.x_position       or 0x10
-	g.offset.y_position       = g.offset.y_position       or g.offset.x_position + 0x4
-	g.offset.unpushability    = g.offset.unpushability    or {}
-	g.box_offset_read         = g.box_radius_read == memory.readbyte and memory.readbytesigned or memory.readwordsigned
-	for _,box in ipairs(g.boxes) do
+	g.address = g.address or {
+		player           = 0x108100,
+		game_phase       = g.game_phase,
+		left_screen_edge = g.game_phase + 0x038,
+		top_screen_edge  = g.game_phase + 0x040,
+		obj_ptr_list     = g.game_phase + 0xE90,
+	}
+	g.offset = g.offset or {
+		player_space     = 0x200,
+		x_position       = 0x18,
+		--y_position       = 0x20,
+		y_position       = 0x26,
+		facing_dir       = 0x31,
+		status           = 0x7C,
+		invulnerability  = {},
+		unpushability    = {},
+		hval = 0x1, vval = 0x2, hrad = 0x3, vrad = 0x4,
+	}
+	g.boxes = g.boxes or {
+		{offset = 0xA4, type = PUSH_BOX},
+		{offset = 0x95, active_bit = 1, type = VULNERABILITY_BOX},
+		{offset = 0x9A, active_bit = 2, type = VULNERABILITY_BOX},
+		{offset = 0x9F, active_bit = 3, type = VULNERABILITY_BOX},
+		{offset = 0x90, active_bit = 0, type = ATTACK_BOX},
+	}
+	g.nplayers        = g.nplayers or 2
+	g.ground_level    = g.ground_level or 16
+	g.box_radius_read = g.box_radius_read or memory.readbyte
+	g.box_offset_read = g.box_radius_read == memory.readbyte and memory.readbytesigned or memory.readwordsigned
+	for _, box in ipairs(g.boxes) do
 		box.active = box.active_bit and bit.lshift(1, box.active_bit)
 	end
 end
@@ -112,7 +129,7 @@ local frame_buffer = {}
 if fba then
 	DRAW_DELAY = DRAW_DELAY + 1
 end
-
+--memory.writebyte(0x100000, 2)
 
 --------------------------------------------------------------------------------
 -- hotkey functions
@@ -156,13 +173,14 @@ end
 
 
 local function game_y_to_mame(y)
-	return emu.screenheight() - (y + game.offset.top_screen_edge) + globals.top_screen_edge
+	--return emu.screenheight() - (y + game.ground_level) + globals.top_screen_edge
+	return y - game.ground_level
 end
 
 
 local function define_box(obj, entry)
 	if game.boxes[entry].type == PUSH_BOX then
-		if memory.readbytesigned(obj.base + game.boxes[entry].offset) < 0 then
+		if memory.readbytesigned(obj.base + game.boxes[entry].offset) <= 0 then
 			return nil
 		end
 	elseif game.boxes[entry].active and bit.band(obj.status, game.boxes[entry].active) == 0 then
@@ -170,43 +188,65 @@ local function define_box(obj, entry)
 	end
 
 	local address = obj.base + game.boxes[entry].offset
-
 	local hval = game.box_offset_read(address + game.offset.hval)
 	local vval = game.box_offset_read(address + game.offset.vval)
 	local hrad = game.box_radius_read(address + game.offset.hrad)
 	local vrad = game.box_radius_read(address + game.offset.vrad)
-
-	if bit.band(obj.facing_dir, 1) > 0 then
-		hval = -hval
-	end
+	hval = hval * (bit.band(obj.facing_dir, 1) > 0 and -1 or 1)
 
 	local box_type = game.boxes[entry].type
-	if obj.projectile then
-		box_type = box_type == VULNERABILITY_BOX and PROJ_VULNERABILITY_BOX or box_type
-		box_type = box_type == ATTACK_BOX and PROJ_ATTACK_BOX or box_type
+	if obj.projectile and box_type == VULNERABILITY_BOX then
+		box_type = PROJ_VULNERABILITY_BOX
+	elseif obj.projectile and box_type == ATTACK_BOX then
+		box_type = PROJ_ATTACK_BOX
+	elseif box_type == ATTACK_BOX then
+		local id = memory.readbyte(address)
+		for _, value in ipairs({0x2,0x3,0x4,0x9,0xA}) do
+			if id == value then
+				box_type = VULNERABILITY_BOX
+				break
+			end
+		end
 	end
 
 	return {
-		left   = obj.pos_x + hval - hrad,
-		right  = obj.pos_x + hval + hrad,
-		top    = obj.pos_y + vval - vrad,
-		bottom = obj.pos_y + vval + vrad,
+		type   = box_type,
 		hval   = obj.pos_x + hval,
 		vval   = obj.pos_y + vval,
-		type   = box_type,
+		left   = obj.pos_x + hval - hrad,
+		right  = obj.pos_x + hval + hrad - 1,
+		top    = obj.pos_y + vval - vrad,
+		bottom = obj.pos_y + vval + vrad - 1,
 	}
+end
+
+
+local function update_invulnerability(obj)
+	obj.invulnerability = false
+	for _, address in ipairs(game.offset.invulnerability) do
+		if memory.readbyte(obj.base + address) > 0 then
+			obj.invulnerability = true
+		end
+	end
+end
+
+
+local function update_unpushability(obj)
+	obj.unpushability = false
+	for _, address in ipairs(game.offset.unpushability) do
+		if memory.readbyte(obj.base + address) > 0 then
+			obj.unpushability = true
+		end
+	end
 end
 
 
 local function add_object(address, projectile)
 	local obj = {base = address, projectile = projectile}
 	obj.status = memory.readbyte(obj.base + game.offset.status)
-	if obj.projectile and bit.band(obj.status, game.inactive_projectile) > 0 then
-		return nil
-	end
-	obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
 	obj.pos_x = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
 	obj.pos_y = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.y_position))
+	obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
 	for entry in ipairs(game.boxes) do
 		obj[entry] = define_box(obj, entry)
 	end
@@ -214,36 +254,16 @@ local function add_object(address, projectile)
 end
 
 
-local function update_invulnerability(player)
-	player.invulnerability = false
-	for _,address in ipairs(game.offset.invulnerability) do
-		if memory.readbyte(player.base + address) > 0 then
-			player.invulnerability = true
-		end
-	end
-end
-
-
-local function update_unpushability(player)
-	player.unpushability = false
-	for _,address in ipairs(game.offset.unpushability) do
-		if memory.readbyte(player.base + address) > 0 then
-			player.unpushability = true
-		end
-	end
-end
-
-
-local function read_objects()
-	local offset, objects = 0, {}
+local function read_objects(objects)
+	local offset = 0
 	while true do
 		local address = memory.readword(game.address.obj_ptr_list + offset)
-		if address == 0 then
-			return objects
+		if address == 0 or memory.readwordsigned(bit.bor(0x100000, address) + 0x6) < 0 then
+			return
 		end
 		for _, object in ipairs(objects) do
 			if address == bit.band(object.base, 0xFFFF) then
-				return objects
+				return
 			end
 		end
 		table.insert(objects, add_object(bit.bor(0x100000, address), true))
@@ -252,23 +272,34 @@ local function read_objects()
 end
 
 
+local function bios_test(address)
+	local ram_value = memory.readword(address)
+	for _, test_value in ipairs({0x5555, 0xAAAA, bit.band(0xFFFF, address)}) do
+		if ram_value == test_value then
+			return true
+		end
+	end
+end
+
+
 local function update_neogeo_hitboxes()
 	gui.clearuncommitted()
-	globals.game_phase = memory.readbyte(game.address.game_phase)
-	if not game or globals.game_phase ~= game.active_state then
+	if not game or bios_test(game.address.obj_ptr_list) then
 		return
 	end
+	globals.game_phase       = memory.readbyte(game.address.game_phase)
 	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
 	globals.top_screen_edge  = memory.readword(game.address.top_screen_edge)
 
 	for f = 1, DRAW_DELAY do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
-	frame_buffer[DRAW_DELAY+1] = read_objects()
 
+	frame_buffer[DRAW_DELAY+1] = {}
 	for p = 1, game.nplayers do
 		table.insert(frame_buffer[DRAW_DELAY+1], add_object(game.address.player + game.offset.player_space * (p-1)))
 	end
+	read_objects(frame_buffer[DRAW_DELAY+1])
 end
 
 
@@ -311,8 +342,7 @@ end
 
 
 local function render_neogeo_hitboxes()
-	--if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
-	if not game or globals.game_phase ~= game.active_state then
+	if not game or not globals.game_phase or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		return
 	end
 
