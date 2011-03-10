@@ -1,5 +1,5 @@
 print("NeoGeo hitbox viewer")
-print("March 8, 2011")
+print("March 10, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -12,8 +12,9 @@ local ATTACK_COLOR             = 0xFF000060
 local PROJ_VULNERABILITY_COLOR = 0x77CCFF40
 local PROJ_ATTACK_COLOR        = 0xFF66FF60
 local PUSH_COLOR               = 0x00FF0040
-local AUTOGUARD_COLOR          = 0xCCCCCC60
+local AUTOGUARD_COLOR          = 0x00FFFF60
 local THROW_COLOR              = 0xFFFF0060
+local THROWABLE_COLOR          = 0xFFFFFF60
 local AXIS_COLOR               = 0xFFFFFFFF
 local BLANK_COLOR              = 0xFFFFFFFF
 local AXIS_SIZE                = 16
@@ -23,7 +24,7 @@ local BLANK_SCREEN             = false
 local DRAW_AXIS                = false
 local DRAW_MINI_AXIS           = false
 local DRAW_PUSHBOXES           = true
-local DRAW_THROWBOXES          = true
+local DRAW_THROWBOXES          = false
 
 local GAME_PHASE_NOT_PLAYING = 0
 local VULNERABILITY_BOX      = 1
@@ -33,6 +34,7 @@ local PROJ_ATTACK_BOX        = 4
 local PUSH_BOX               = 5
 local AUTOGUARD_BOX          = 6
 local THROW_BOX              = 7
+local THROWABLE_BOX          = 8
 
 local fill = {
 	VULNERABILITY_COLOR,
@@ -42,6 +44,7 @@ local fill = {
 	PUSH_COLOR,
 	AUTOGUARD_COLOR,
 	THROW_COLOR,
+	THROWABLE_COLOR,
 }
 
 local outline = {
@@ -52,6 +55,7 @@ local outline = {
 	bit.bor(0xC0, PUSH_COLOR),
 	bit.bor(0xC0, AUTOGUARD_COLOR),
 	bit.bor(0xFF, THROW_COLOR),
+	bit.bor(0xFF, THROWABLE_COLOR),
 }
 
 local profile = {
@@ -73,22 +77,27 @@ local profile = {
 	{
 		games = {"kof96"},
 		address = {game_phase = 0x10B08E},
+		standard_throw = true,
 	},
 	{
 		games = {"kof97"},
 		address = {game_phase = 0x10B092},
+		standard_throw = true,
 	},
 	{
 		games = {"kof98"},
 		address = {game_phase = 0x10B094},
+		standard_throw = true,
 	},
 	{
 		games = {"kof99", "kof2000"},
 		address = {game_phase = 0x10B048},
+		standard_throw = true,
 	},
 	{
 		games = {"kof2001", "kof2002"},
 		address = {game_phase = 0x10B056},
+		standard_throw = true,
 	},
 }
 
@@ -120,6 +129,10 @@ for game in ipairs(profile) do
 		{offset = 0x9F, active_bit = 3, type = VULNERABILITY_BOX},
 		{offset = 0x90, active_bit = 0, type = ATTACK_BOX},
 	}
+	if g.standard_throw then
+		table.insert(g.box_list, {offset = 0x188, id = 0x192, type = THROW_BOX})
+		table.insert(g.box_list, {offset = 0x18D, type = THROWABLE_BOX})
+	end
 	for _, box in ipairs(g.box_list) do
 		box.active = box.active_bit and bit.lshift(1, box.active_bit)
 	end
@@ -127,6 +140,8 @@ end
 
 local game
 local globals = {
+	register_count   = 0,
+	last_frame       = 0,
 	game_phase       = 0,
 	left_screen_edge = 0,
 	top_screen_edge  = 0,
@@ -138,39 +153,6 @@ if fba then
 	DRAW_DELAY = DRAW_DELAY + 1
 end
 --memory.writebyte(0x100000, 2)
-
---------------------------------------------------------------------------------
--- hotkey functions
-
-input.registerhotkey(1, function()
-	BLANK_SCREEN = not BLANK_SCREEN
-	print((BLANK_SCREEN and "activated" or "deactivated") .. " blank screen mode")
-end)
-
-
-input.registerhotkey(2, function()
-	DRAW_AXIS = not DRAW_AXIS
-	print((DRAW_AXIS and "showing" or "hiding") .. " object axis")
-end)
-
-
-input.registerhotkey(3, function()
-	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
-	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
-end)
-
-
-input.registerhotkey(4, function()
-	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
-	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
-end)
-
-
-input.registerhotkey(5, function()
-	DRAW_THROWBOXES = not DRAW_THROWBOXES
-	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes")
-end)
-
 
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
@@ -186,56 +168,78 @@ local function game_y_to_mame(y)
 end
 
 
-local function define_box(obj, entry)
-	local box_type = game.box_list[entry].type
-
-	if box_type == PUSH_BOX then
-		if memory.readbytesigned(obj.base + game.box_list[entry].offset) < 0 then
-			return nil
+local type_check = {
+	[VULNERABILITY_BOX] = function(obj, entry, box)
+		if bit.band(obj.status, game.box_list[entry].active) == 0 then
+			return true
 		end
-	elseif game.box_list[entry].active and bit.band(obj.status, game.box_list[entry].active) == 0 then
+		for _, value in ipairs({0x1,0x2,0x3,0x4,0x6,0x9,0xA}) do
+			if box.id == value then
+				box.type = VULNERABILITY_BOX
+				return
+			end
+		end
+		if box.id == 0xB then
+			box.type = AUTOGUARD_BOX
+		end
+	end,
+
+	[PUSH_BOX] = function(obj, entry, box)
+		if box.id < 0 then
+			return true
+		end
+	end,
+
+	[THROW_BOX] = function(obj, entry, box)
+		box.id = memory.readbyte(obj.base + game.box_list[entry].id)
+		if box.id == 0 then
+			return true
+		else
+			memory.writebyte(obj.base + game.box_list[entry].id, 0)
+		end
+	end,
+
+	[THROWABLE_BOX] = function()
+	end,
+}
+type_check[ATTACK_BOX] = type_check[VULNERABILITY_BOX]
+
+
+local function define_box(obj, entry)
+	local box = {
+		address = obj.base + game.box_list[entry].offset,
+		type = game.box_list[entry].type,
+	}
+	box.id = memory.readbytesigned(box.address)
+
+	if type_check[box.type](obj, entry, box) then
 		return nil
 	end
 
-	local address = obj.base + game.box_list[entry].offset
-	local id = memory.readbyte(address)
-	for _, value in ipairs({0x2,0x3,0x4,0x9,0xA}) do
-		if id == value then
-			box_type = VULNERABILITY_BOX
-			break
-		end
-	end
-	if id == 0xB then
-		box_type = AUTOGUARD_BOX
-	end
-
 	if obj.projectile then
-		if box_type == VULNERABILITY_BOX then
-			box_type = PROJ_VULNERABILITY_BOX
-		elseif box_type == ATTACK_BOX then
-			box_type = PROJ_ATTACK_BOX
-		else
-			return nil
+		if box.type == VULNERABILITY_BOX then
+			box.type = PROJ_VULNERABILITY_BOX
+		elseif box.type == ATTACK_BOX then
+			box.type = PROJ_ATTACK_BOX
 		end
 	end
 
-	local hval = game.box.offset_read(address + game.box.hval)
-	local vval = game.box.offset_read(address + game.box.vval)
-	local hrad = game.box.radius_read(address + game.box.hrad)
-	local vrad = game.box.radius_read(address + game.box.vrad)
-	hval = obj.pos_x + hval * (bit.band(obj.facing_dir, 1) > 0 and -1 or 1)
-	vval = obj.pos_y + vval
+	box.hrad = game.box.radius_read(box.address + game.box.hrad)
+	box.vrad = game.box.radius_read(box.address + game.box.vrad)
+	if box.hrad == 0 and box.vrad == 0 then
+		return nil
+	end
+	box.hval = game.box.offset_read(box.address + game.box.hval)
+	box.vval = game.box.offset_read(box.address + game.box.vval)
 
-	return {
-		type   = box_type,
-		id     = id,
-		pos_x  = hval,
-		pos_y  = vval,
-		left   = hval - hrad,
-		right  = hval + hrad - 1,
-		top    = vval - vrad,
-		bottom = vval + vrad - 1,
-	}
+	box.hval   = obj.pos_x + box.hval * (bit.band(obj.facing_dir, 1) > 0 and -1 or 1)
+	box.vval   = obj.pos_y + box.vval
+	box.left   = box.hval - box.hrad
+	box.right  = box.hval + box.hrad - 1
+	box.top    = box.vval - box.vrad
+	box.bottom = box.vval + box.vrad - 1
+
+	return box
 end
 
 
@@ -302,12 +306,15 @@ end
 
 local function update_neogeo_hitboxes()
 	gui.clearuncommitted()
-	if not game or bios_test(game.address.obj_ptr_list) then
+	if not game or bios_test(game.address.player) then
 		return
 	end
 	globals.game_phase       = memory.readbyte(game.address.game_phase)
 	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
 	globals.top_screen_edge  = memory.readword(game.address.top_screen_edge)
+	if fba then --why is this necessary?
+		globals.left_screen_edge = globals.left_screen_edge + 8
+	end
 
 	for f = 1, DRAW_DELAY do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
@@ -322,7 +329,14 @@ end
 
 
 emu.registerbefore( function()
-	update_neogeo_hitboxes()
+	globals.register_count = globals.register_count + 1
+	if globals.register_count == 1 then
+		update_neogeo_hitboxes()
+	end
+	if globals.last_frame < emu.framecount() then
+		globals.register_count = 0
+	end
+	globals.last_frame = emu.framecount()
 end)
 
 
@@ -331,7 +345,8 @@ end)
 
 local function draw_hitbox(obj, entry)
 	local hb = obj[entry]
-	if (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
+	if not hb
+	or (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
 	or (not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX))
 	or (obj.invulnerability and hb.type == VULNERABILITY_BOX)
 	or (obj.unpushability and hb.type == PUSH_BOX) then
@@ -339,9 +354,9 @@ local function draw_hitbox(obj, entry)
 	end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hb.pos_x, hb.pos_y-MINI_AXIS_SIZE, hb.pos_x, hb.pos_y+MINI_AXIS_SIZE, outline[hb.type])
-		gui.drawline(hb.pos_x-MINI_AXIS_SIZE, hb.pos_y, hb.pos_x+MINI_AXIS_SIZE, hb.pos_y, outline[hb.type])
-		gui.text(hb.pos_x, hb.pos_y, string.format("%02X", hb.id)) --debug
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, outline[hb.type])
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, outline[hb.type])
+		gui.text(hb.hval, hb.vval, string.format("%02X", hb.id)) --debug
 	end
 
 	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
@@ -361,7 +376,7 @@ end
 
 
 local function render_neogeo_hitboxes()
-	if not game or not globals.game_phase or globals.game_phase == GAME_PHASE_NOT_PLAYING then
+	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		return
 	end
 
@@ -371,9 +386,7 @@ local function render_neogeo_hitboxes()
 
 	for entry in ipairs(game.box_list) do
 		for _, obj in ipairs(frame_buffer[1]) do
-			if obj[entry] then
-				draw_hitbox(obj, entry)
-			end
+			draw_hitbox(obj, entry)
 		end
 	end
 
@@ -387,6 +400,44 @@ end
 
 gui.register( function()
 	render_neogeo_hitboxes()
+end)
+
+
+--------------------------------------------------------------------------------
+-- hotkey functions
+
+input.registerhotkey(1, function()
+	BLANK_SCREEN = not BLANK_SCREEN
+	render_neogeo_hitboxes()
+	print((BLANK_SCREEN and "activated" or "deactivated") .. " blank screen mode")
+end)
+
+
+input.registerhotkey(2, function()
+	DRAW_AXIS = not DRAW_AXIS
+	render_neogeo_hitboxes()
+	print((DRAW_AXIS and "showing" or "hiding") .. " object axis")
+end)
+
+
+input.registerhotkey(3, function()
+	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
+	render_neogeo_hitboxes()
+	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
+end)
+
+
+input.registerhotkey(4, function()
+	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
+	render_neogeo_hitboxes()
+	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
+end)
+
+
+input.registerhotkey(5, function()
+	DRAW_THROWBOXES = not DRAW_THROWBOXES
+	render_neogeo_hitboxes()
+	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes")
 end)
 
 
