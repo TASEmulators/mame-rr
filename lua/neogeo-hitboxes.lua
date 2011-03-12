@@ -1,5 +1,5 @@
 print("NeoGeo hitbox viewer")
-print("March 10, 2011")
+print("March 12, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -9,12 +9,12 @@ print("Lua hotkey 5: toggle throwboxes") print()
 
 local VULNERABILITY_COLOR      = 0x7777FF40
 local ATTACK_COLOR             = 0xFF000060
-local PROJ_VULNERABILITY_COLOR = 0x77CCFF40
+local PROJ_VULNERABILITY_COLOR = 0x00FFFF40
 local PROJ_ATTACK_COLOR        = 0xFF66FF60
 local PUSH_COLOR               = 0x00FF0040
-local AUTOGUARD_COLOR          = 0x00FFFF60
+local GUARD_COLOR              = 0xCCCCFF60
 local THROW_COLOR              = 0xFFFF0060
-local THROWABLE_COLOR          = 0xFFFFFF60
+local THROWABLE_COLOR          = 0xFFFFFF40
 local AXIS_COLOR               = 0xFFFFFFFF
 local BLANK_COLOR              = 0xFFFFFFFF
 local AXIS_SIZE                = 16
@@ -27,12 +27,13 @@ local DRAW_PUSHBOXES           = true
 local DRAW_THROWBOXES          = false
 
 local GAME_PHASE_NOT_PLAYING = 0
+local UNDEFINED_BOX          = 0
 local VULNERABILITY_BOX      = 1
 local ATTACK_BOX             = 2
 local PROJ_VULNERABILITY_BOX = 3
 local PROJ_ATTACK_BOX        = 4
 local PUSH_BOX               = 5
-local AUTOGUARD_BOX          = 6
+local GUARD_BOX              = 6
 local THROW_BOX              = 7
 local THROWABLE_BOX          = 8
 
@@ -42,7 +43,7 @@ local fill = {
 	PROJ_VULNERABILITY_COLOR,
 	PROJ_ATTACK_COLOR,
 	PUSH_COLOR,
-	AUTOGUARD_COLOR,
+	GUARD_COLOR,
 	THROW_COLOR,
 	THROWABLE_COLOR,
 }
@@ -53,10 +54,12 @@ local outline = {
 	bit.bor(0xFF, PROJ_VULNERABILITY_COLOR),
 	bit.bor(0xFF, PROJ_ATTACK_COLOR),
 	bit.bor(0xC0, PUSH_COLOR),
-	bit.bor(0xC0, AUTOGUARD_COLOR),
+	bit.bor(0xC0, GUARD_COLOR),
 	bit.bor(0xFF, THROW_COLOR),
 	bit.bor(0xFF, THROWABLE_COLOR),
 }
+
+local a,v,p,g = ATTACK_BOX,VULNERABILITY_BOX,PROJ_VULNERABILITY_BOX,GUARD_BOX
 
 local profile = {
 	{
@@ -69,35 +72,66 @@ local profile = {
 			obj_ptr_list     = 0x1097A6,
 		},
 		offset = {status = 0x7A},
+		box_types = {a,g,v,v,a},
 	},
 	{
 		games = {"kof95"},
 		address = {game_phase = 0x10B088},
+		box_types = {a,g,v,v,a},
 	},
 	{
 		games = {"kof96"},
 		address = {game_phase = 0x10B08E},
-		standard_throw = true,
+		throw_boxes = true,
+		box_types = {
+			v,v,v,v,v,v,v,v,g,g,v,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,p,p,
+			p,p,p,p
+		},
 	},
 	{
 		games = {"kof97"},
 		address = {game_phase = 0x10B092},
-		standard_throw = true,
+		throw_boxes = true,
+		box_types = {
+			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+		},
 	},
 	{
 		games = {"kof98"},
 		address = {game_phase = 0x10B094},
-		standard_throw = true,
+		throw_boxes = true,
+		box_types = {
+			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+		},
 	},
 	{
 		games = {"kof99", "kof2000"},
 		address = {game_phase = 0x10B048},
-		standard_throw = true,
+		throw_boxes = true,
+		box_types = {
+			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
+			a,a,a,a,a,a,v,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+		},
 	},
 	{
 		games = {"kof2001", "kof2002"},
 		address = {game_phase = 0x10B056},
-		standard_throw = true,
+		throw_boxes = true,
+		box_types = {
+			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
+			a,a,a,a,a,a,v,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+		},
 	},
 }
 
@@ -124,17 +158,18 @@ for game in ipairs(profile) do
 	}
 	g.box_list = g.box_list or {
 		{offset = 0xA4, type = PUSH_BOX},
-		{offset = 0x95, active_bit = 1, type = VULNERABILITY_BOX},
-		{offset = 0x9A, active_bit = 2, type = VULNERABILITY_BOX},
-		{offset = 0x9F, active_bit = 3, type = VULNERABILITY_BOX},
-		{offset = 0x90, active_bit = 0, type = ATTACK_BOX},
+		{offset = 0x9F, active_bit = 3, type = UNDEFINED_BOX},
+		{offset = 0x9A, active_bit = 2, type = UNDEFINED_BOX},
+		{offset = 0x95, active_bit = 1, type = UNDEFINED_BOX},
+		{offset = 0x90, active_bit = 0, type = UNDEFINED_BOX},
 	}
-	if g.standard_throw then
+	if g.throw_boxes then
+		table.insert(g.box_list, {offset = 0x18D, active = 0x7E, type = THROWABLE_BOX})
 		table.insert(g.box_list, {offset = 0x188, id = 0x192, type = THROW_BOX})
-		table.insert(g.box_list, {offset = 0x18D, type = THROWABLE_BOX})
 	end
+	g.box_types = g.box_types or {}
 	for _, box in ipairs(g.box_list) do
-		box.active = box.active_bit and bit.lshift(1, box.active_bit)
+		box.active = box.active or box.active_bit and bit.lshift(1, box.active_bit)
 	end
 end
 
@@ -169,40 +204,42 @@ end
 
 
 local type_check = {
-	[VULNERABILITY_BOX] = function(obj, entry, box)
+	[UNDEFINED_BOX] = function(obj, entry, box)
 		if bit.band(obj.status, game.box_list[entry].active) == 0 then
 			return true
 		end
-		for _, value in ipairs({0x1,0x2,0x3,0x4,0x6,0x9,0xA}) do
-			if box.id == value then
-				box.type = VULNERABILITY_BOX
-				return
+		box.type = game.box_types[box.id]
+		if box.type == ATTACK_BOX then
+			if game.box_list[entry].active_bit > 0 then
+				return true
+			elseif obj.projectile then
+				box.type = PROJ_ATTACK_BOX
 			end
-		end
-		if box.id == 0xB then
-			box.type = AUTOGUARD_BOX
 		end
 	end,
 
 	[PUSH_BOX] = function(obj, entry, box)
-		if box.id < 0 then
+		if box.id == 0xFF then
 			return true
 		end
 	end,
 
 	[THROW_BOX] = function(obj, entry, box)
 		box.id = memory.readbyte(obj.base + game.box_list[entry].id)
-		if box.id == 0 then
+		if box.id == 0x00 then
 			return true
 		else
 			memory.writebyte(obj.base + game.box_list[entry].id, 0)
 		end
 	end,
 
-	[THROWABLE_BOX] = function()
+	[THROWABLE_BOX] = function(obj, entry, box)
+		box.id = memory.readbyte(obj.base + game.box_list[entry].active)
+		if box.id == 0x01 then
+			return true
+		end
 	end,
 }
-type_check[ATTACK_BOX] = type_check[VULNERABILITY_BOX]
 
 
 local function define_box(obj, entry)
@@ -210,18 +247,10 @@ local function define_box(obj, entry)
 		address = obj.base + game.box_list[entry].offset,
 		type = game.box_list[entry].type,
 	}
-	box.id = memory.readbytesigned(box.address)
+	box.id = memory.readbyte(box.address)
 
 	if type_check[box.type](obj, entry, box) then
 		return nil
-	end
-
-	if obj.projectile then
-		if box.type == VULNERABILITY_BOX then
-			box.type = PROJ_VULNERABILITY_BOX
-		elseif box.type == ATTACK_BOX then
-			box.type = PROJ_ATTACK_BOX
-		end
 	end
 
 	box.hrad = game.box.radius_read(box.address + game.box.hrad)
@@ -232,7 +261,7 @@ local function define_box(obj, entry)
 	box.hval = game.box.offset_read(box.address + game.box.hval)
 	box.vval = game.box.offset_read(box.address + game.box.vval)
 
-	box.hval   = obj.pos_x + box.hval * (bit.band(obj.facing_dir, 1) > 0 and -1 or 1)
+	box.hval   = obj.pos_x + box.hval * (obj.facing_dir > 0 and -1 or 1)
 	box.vval   = obj.pos_y + box.vval
 	box.left   = box.hval - box.hrad
 	box.right  = box.hval + box.hrad - 1
@@ -376,6 +405,7 @@ end
 
 
 local function render_neogeo_hitboxes()
+	gui.clearuncommitted()
 	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		return
 	end
