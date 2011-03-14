@@ -1,5 +1,5 @@
 print("NeoGeo hitbox viewer")
-print("March 12, 2011")
+print("March 13, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -85,7 +85,8 @@ local profile = {
 		throw_boxes = true,
 		box_types = {
 			v,v,v,v,v,v,v,v,g,g,v,a,a,a,a,a,
-			a,a,a,a,a,a,a,a,a,a,a,a,a,a,p,p,
+			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a,a,a,a,a,a,g,g,p,p,
 			p,p,p,p
 		},
 	},
@@ -97,7 +98,7 @@ local profile = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
-			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+			a,a,a,a,a,a,a,g,g,p,p,p,p,p,p
 		},
 	},
 	{
@@ -108,7 +109,7 @@ local profile = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
-			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+			a,a,a,a,a,a,a,g,g,p,p,p,p,p,p
 		},
 	},
 	{
@@ -119,7 +120,7 @@ local profile = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,v,a,a,a,a,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
-			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+			a,a,a,a,a,a,a,g,g,p,p,p,p,p,p
 		},
 	},
 	{
@@ -130,7 +131,7 @@ local profile = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,v,a,a,a,a,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
-			a,a,a,a,a,a,a,a,a,p,p,p,p,p,p
+			a,a,a,a,a,a,a,g,g,p,p,p,p,p,p
 		},
 	},
 }
@@ -385,7 +386,7 @@ local function draw_hitbox(obj, entry)
 	if DRAW_MINI_AXIS then
 		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, outline[hb.type])
 		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, outline[hb.type])
-		gui.text(hb.hval, hb.vval, string.format("%02X", hb.id)) --debug
+		--gui.text(hb.hval, hb.vval, string.format("%02X", hb.id)) --debug
 	end
 
 	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
@@ -399,8 +400,8 @@ local function draw_axis(obj)
 	
 	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
-	gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
-	gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X", obj.status)) --debug
+	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
+	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X", obj.status)) --debug
 end
 
 
