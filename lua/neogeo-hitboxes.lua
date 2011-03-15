@@ -1,5 +1,5 @@
 print("NeoGeo hitbox viewer")
-print("March 13, 2011")
+print("March 14, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -27,6 +27,8 @@ local DRAW_PUSHBOXES           = true
 local DRAW_THROWBOXES          = false
 
 local GAME_PHASE_NOT_PLAYING = 0
+local ABSOLUTE               = 1
+local DIRECT                 = 2
 local UNDEFINED_BOX          = 0
 local VULNERABILITY_BOX      = 1
 local ATTACK_BOX             = 2
@@ -134,24 +136,44 @@ local profile = {
 			a,a,a,a,a,a,a,g,g,p,p,p,p,p,p
 		},
 	},
+	{
+		games = {"garou"},
+		ground_level = 23,
+		y_value = ABSOLUTE,
+		ptr_size = 4,
+		address = {
+			game_phase       = 0x1044ED,
+			player           = 0x100400,
+			left_screen_edge = 0x100E20,
+			top_screen_edge  = 0x100E28,
+			obj_ptr_list     = 0x100C88,
+		},
+		offset = {
+			player_space = 0x100,
+			x_position   = 0x20,
+			y_position   = 0x28,
+			facing_dir   = 0x71,
+		},
+		box_list = {},
+	},
 }
 
 for game in ipairs(profile) do
 	local g = profile[game]
 	g.nplayers     = g.nplayers or 2
 	g.ground_level = g.ground_level or 16
-	g.address.player           = g.address.player or 0x108100
+	g.y_value      = g.y_value or DIRECT
+	g.ptr_size     = g.ptr_size or 2
+	g.address.player           = g.address.player           or 0x108100
 	g.address.left_screen_edge = g.address.left_screen_edge or g.address.game_phase + 0x038
-	g.address.top_screen_edge  = g.address.top_screen_edge or g.address.game_phase + 0x040
-	g.address.obj_ptr_list     = g.address.obj_ptr_list or g.address.game_phase + 0xE90
+	g.address.top_screen_edge  = g.address.top_screen_edge  or g.address.game_phase + 0x040
+	g.address.obj_ptr_list     = g.address.obj_ptr_list     or g.address.game_phase + 0xE90
 	g.offset = g.offset or {}
-	g.offset.player_space    = g.offset.player_space or 0x200
-	g.offset.x_position      = g.offset.x_position or 0x18
-	g.offset.y_position      = g.offset.y_position or 0x26
-	g.offset.facing_dir      = g.offset.facing_dir or 0x31
-	g.offset.status          = g.offset.status or 0x7C
-	g.offset.invulnerability = g.offset.invulnerability or {}
-	g.offset.unpushability   = g.offset.unpushability or {}
+	g.offset.player_space = g.offset.player_space or 0x200
+	g.offset.x_position   = g.offset.x_position   or 0x18
+	g.offset.y_position   = g.offset.y_position   or 0x26
+	g.offset.facing_dir   = g.offset.facing_dir   or 0x31
+	g.offset.status       = g.offset.status       or 0x7C
 	g.box = g.box or {
 		radius_read = memory.readbyte,
 		offset_read = memory.readbytesigned,
@@ -182,26 +204,27 @@ local globals = {
 	left_screen_edge = 0,
 	top_screen_edge  = 0,
 }
-local player       = {}
-local projectiles  = {}
 local frame_buffer = {}
-if fba then
-	DRAW_DELAY = DRAW_DELAY + 1
-end
+emu.update_func = fba and emu.registerafter or emu.registerbefore
 --memory.writebyte(0x100000, 2)
 
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
-local function game_x_to_mame(x)
+local function get_x(x)
 	return x - globals.left_screen_edge
 end
 
 
-local function game_y_to_mame(y)
-	--return emu.screenheight() - (y + game.ground_level) + globals.top_screen_edge
-	return y - game.ground_level
-end
+local get_y = {
+	[ABSOLUTE] = function(y)
+		return emu.screenheight() - (y + game.ground_level) + globals.top_screen_edge
+	end,
+
+	[DIRECT] = function(y)
+		return y - game.ground_level
+	end,
+}
 
 
 local type_check = {
@@ -273,31 +296,11 @@ local function define_box(obj, entry)
 end
 
 
-local function update_invulnerability(obj)
-	obj.invulnerability = false
-	for _, address in ipairs(game.offset.invulnerability) do
-		if memory.readbyte(obj.base + address) > 0 then
-			obj.invulnerability = true
-		end
-	end
-end
-
-
-local function update_unpushability(obj)
-	obj.unpushability = false
-	for _, address in ipairs(game.offset.unpushability) do
-		if memory.readbyte(obj.base + address) > 0 then
-			obj.unpushability = true
-		end
-	end
-end
-
-
 local function add_object(address, projectile)
 	local obj = {base = address, projectile = projectile}
 	obj.status = memory.readbyte(obj.base + game.offset.status)
-	obj.pos_x = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
-	obj.pos_y = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.y_position))
+	obj.pos_x = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
+	obj.pos_y = get_y[game.y_value](memory.readwordsigned(obj.base + game.offset.y_position))
 	obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
 	for entry in ipairs(game.box_list) do
 		obj[entry] = define_box(obj, entry)
@@ -306,22 +309,41 @@ local function add_object(address, projectile)
 end
 
 
-local function read_objects(objects)
-	local offset = 0
-	while true do
-		local address = memory.readword(game.address.obj_ptr_list + offset)
-		if address == 0 or memory.readwordsigned(bit.bor(0x100000, address) + 0x6) < 0 then
-			return
-		end
-		for _, object in ipairs(objects) do
-			if address == bit.band(object.base, 0xFFFF) then
+local read_objects = {
+	[2] = function(objects)
+		local offset = 0
+		while true do
+			local address = memory.readword(game.address.obj_ptr_list + offset)
+			if address == 0 or memory.readwordsigned(bit.bor(0x100000, address) + 0x6) < 0 then
 				return
 			end
+			for _, object in ipairs(objects) do
+				if address == bit.band(object.base, 0xFFFF) then
+					return
+				end
+			end
+			table.insert(objects, add_object(bit.bor(0x100000, address), true))
+			offset = offset + 2
 		end
-		table.insert(objects, add_object(bit.bor(0x100000, address), true))
-		offset = offset + 2
-	end
-end
+	end,
+
+	[4] = function(objects)
+		local offset = 0
+		while true do
+			local address = memory.readdword(game.address.obj_ptr_list + offset)
+			if address == 0 or memory.readword(address + 0x60) == 0 then
+				return
+			end
+			for _, object in ipairs(objects) do
+				if address == object.base then
+					return
+				end
+			end
+			table.insert(objects, add_object(address, true))
+			offset = offset + 4
+		end
+	end,
+}
 
 
 local function bios_test(address)
@@ -335,7 +357,6 @@ end
 
 
 local function update_neogeo_hitboxes()
-	gui.clearuncommitted()
 	if not game or bios_test(game.address.player) then
 		return
 	end
@@ -352,13 +373,13 @@ local function update_neogeo_hitboxes()
 
 	frame_buffer[DRAW_DELAY+1] = {}
 	for p = 1, game.nplayers do
-		table.insert(frame_buffer[DRAW_DELAY+1], add_object(game.address.player + game.offset.player_space * (p-1)))
+		frame_buffer[DRAW_DELAY+1][p] = add_object(game.address.player + game.offset.player_space * (p-1))
 	end
-	read_objects(frame_buffer[DRAW_DELAY+1])
+	read_objects[game.ptr_size](frame_buffer[DRAW_DELAY+1])
 end
 
 
-emu.registerbefore( function()
+emu.update_func( function()
 	globals.register_count = globals.register_count + 1
 	if globals.register_count == 1 then
 		update_neogeo_hitboxes()
@@ -375,11 +396,9 @@ end)
 
 local function draw_hitbox(obj, entry)
 	local hb = obj[entry]
-	if not hb
-	or (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
-	or (not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX))
-	or (obj.invulnerability and hb.type == VULNERABILITY_BOX)
-	or (obj.unpushability and hb.type == PUSH_BOX) then
+	if not hb or
+		(not DRAW_PUSHBOXES and hb.type == PUSH_BOX) or
+		(not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX)) then
 		return
 	end
 
@@ -402,6 +421,7 @@ local function draw_axis(obj)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
 	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
 	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X", obj.status)) --debug
+	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%08X", memory.readdword(obj.base+0x7a))) --debug
 end
 
 
