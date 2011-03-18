@@ -1,51 +1,57 @@
 print("CPS-2 Marvel series hitbox viewer")
-print("January 19, 2011")
+print("March 17, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis")
 print("Lua hotkey 4: toggle pushboxes")
-print("Lua hotkey 5: toggle throwboxes") print()
+print("Lua hotkey 5: toggle throwboxes and throwable boxes") print()
 
-local VULNERABILITY_COLOR    = 0x7777FF40
-local ATTACK_COLOR           = 0xFF000060
-local PUSH_COLOR             = 0x00FF0040
-local THROW_COLOR            = 0xFFFF0060
-local THROWABLE_COLOR        = 0xFFFFFF00
-local AXIS_COLOR             = 0xFFFFFFFF
-local BLANK_COLOR            = 0xFFFFFFFF
-local AXIS_SIZE              = 16
-local MINI_AXIS_SIZE         = 2
-local DRAW_DELAY             = 1
+local VULNERABILITY_COLOR      = 0x7777FF40
+local ATTACK_COLOR             = 0xFF000040
+local PROJ_VULNERABILITY_COLOR = 0x00FFFF40
+local PROJ_ATTACK_COLOR        = 0xFF66FF60
+local PUSH_COLOR               = 0x00FF0020
+local THROW_COLOR              = 0xFFFF0060
+local THROWABLE_COLOR          = 0xFFFFFF20
+local AXIS_COLOR               = 0xFFFFFFFF
+local BLANK_COLOR              = 0xFFFFFFFF
+local AXIS_SIZE                = 12
+local MINI_AXIS_SIZE           = 2
+local DRAW_DELAY               = 1
+local BLANK_SCREEN             = false
+local DRAW_AXIS                = false
+local DRAW_MINI_AXIS           = false
+local DRAW_PUSHBOXES           = true
+local DRAW_THROWBOXES          = false
 
-local SCREEN_WIDTH           = 384
-local SCREEN_HEIGHT          = 224
+local GAME_PHASE_NOT_PLAYING = 0
 local VULNERABILITY_BOX      = 1
 local ATTACK_BOX             = 2
-local PUSH_BOX               = 3
-local THROW_BOX              = 4
-local THROWABLE_BOX          = 5
-local GAME_PHASE_NOT_PLAYING = 0
-local BLANK_SCREEN           = false
-local DRAW_AXIS              = false
-local DRAW_MINI_AXIS         = false
-local DRAW_PUSHBOXES         = true
-local DRAW_THROWBOXES        = false
+local PROJ_VULNERABILITY_BOX = 3
+local PROJ_ATTACK_BOX        = 4
+local PUSH_BOX               = 5
+local THROW_BOX              = 6
+local THROWABLE_BOX          = 7
 
 local fill = {
-	[VULNERABILITY_BOX] = VULNERABILITY_COLOR,
-	[ATTACK_BOX]        = ATTACK_COLOR,
-	[PUSH_BOX]          = PUSH_COLOR,
-	[THROW_BOX]         = THROW_COLOR,
-	[THROWABLE_BOX]     = THROWABLE_COLOR,
+	VULNERABILITY_COLOR,
+	ATTACK_COLOR,
+	PROJ_VULNERABILITY_COLOR,
+	PROJ_ATTACK_COLOR,
+	PUSH_COLOR,
+	THROW_COLOR,
+	THROWABLE_COLOR,
 }
 
 local outline = {
-	[VULNERABILITY_BOX] = OR(VULNERABILITY_COLOR, 0xFF),
-	[ATTACK_BOX]        = OR(ATTACK_COLOR,        0xFF),
-	[PUSH_BOX]          = OR(PUSH_COLOR,          0xC0),
-	[THROW_BOX]         = OR(THROW_COLOR,         0xFF),
-	[THROWABLE_BOX]     = OR(THROWABLE_COLOR,     0xE0),
+	bit.bor(0xFF, VULNERABILITY_COLOR),
+	bit.bor(0xFF, ATTACK_COLOR),
+	bit.bor(0xFF, PROJ_VULNERABILITY_COLOR),
+	bit.bor(0xFF, PROJ_ATTACK_COLOR),
+	bit.bor(0xC0, PUSH_COLOR),
+	bit.bor(0xFF, THROW_COLOR),
+	bit.bor(0xC0, THROWABLE_COLOR),
 }
 
 local function beq(func, val)
@@ -90,7 +96,7 @@ local profile = {
 			throw_count          = 0x11E,
 			projectile_ptr_space = 0x1C8,
 		},
-		boxes = {
+		box_list = {
 			{id_ptr = 0xA2, type = PUSH_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x88, id_ptr = 0x74, type = VULNERABILITY_BOX},
@@ -145,7 +151,7 @@ local profile = {
 			throw_count          = 0x11E,
 			projectile_ptr_space = 0x148,
 		},
-		boxes = {
+		box_list = {
 			{id_ptr = 0xA2, type = PUSH_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x80, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x90, id_ptr = 0x78, type = VULNERABILITY_BOX, active = 0x86},
@@ -196,7 +202,7 @@ local profile = {
 			throw_count          = 0x10A,
 			projectile_ptr_space = 0x150,
 		},
-		boxes = {
+		box_list = {
 			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = PUSH_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
@@ -251,7 +257,7 @@ local profile = {
 			throw_count          = 0x10A,
 			projectile_ptr_space = 0x150,
 		},
-		boxes = {
+		box_list = {
 			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = PUSH_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
@@ -304,7 +310,7 @@ local profile = {
 			throw_count          = 0x11A,
 			projectile_ptr_space = 0x158,
 		},
-		boxes = {
+		box_list = {
 			{id_ptr = 0xB4, type = PUSH_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
 			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
@@ -336,10 +342,14 @@ for game in ipairs(profile) do
 	g.offset.x_position   = 0x0C
 	g.offset.y_position   = 0x10
 	g.offset.status       = 0x06
-	g.offset.hval         = 0x0
-	g.offset.hrad         = 0x2
-	g.offset.vval         = 0x4
-	g.offset.vrad         = 0x6
+	g.box = {
+		radius_read = memory.readword,
+		offset_read = memory.readwordsigned,
+		hval = 0x0, hrad = 0x2, vval = 0x4, vrad = 0x6,
+	}
+	for entry in ipairs(g.box_list) do
+		g.box_list[entry].address_func = g.box_list[entry].addr_table_ptr and 1 or 2
+	end
 	g.address.projectile_limit = g.address.player + g.offset.player_space * g.number_players
 end
 
@@ -358,82 +368,6 @@ end
 
 
 --------------------------------------------------------------------------------
--- hotkey functions
-
-input.registerhotkey(1, function()
-	BLANK_SCREEN = not BLANK_SCREEN
-	print((BLANK_SCREEN and "activated" or "deactivated") .. " blank screen mode")
-end)
-
-
-input.registerhotkey(2, function()
-	DRAW_AXIS = not DRAW_AXIS
-	print((DRAW_AXIS and "showing" or "hiding") .. " object axis")
-end)
-
-
-input.registerhotkey(3, function()
-	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
-	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
-end)
-
-
-input.registerhotkey(4, function()
-	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
-	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
-end)
-
-
-input.registerhotkey(5, function()
-	DRAW_THROWBOXES = not DRAW_THROWBOXES
-	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes")
-end)
-
-
---------------------------------------------------------------------------------
--- initialize on game startup
-
-local function whatversion(game)
-	for base,version_set in pairs(game.pushbox_base) do
-		for _,version in ipairs(version_set) do
-			if emu.romname() == version then
-				return base, version_set.apoc
-			end
-		end
-	end
-	print("unrecognized version (" .. emu.romname() .. "): cannot draw pushboxes")
-	return nil
-end
-
-
-local function whatgame()
-	game = nil
-	for n, module in ipairs(profile) do
-		if emu.romname() == module.game or emu.parentname() == module.game then
-			print("drawing " .. module.game .. " hitboxes")
-			game = module
-			pushbox_base, apoc_value = whatversion(game)
-			for p = 1, game.number_players do
-				player[p] = {}
-			end
-			for f = 1, DRAW_DELAY + 1 do
-				frame_buffer[f] = {}
-				frame_buffer[f][player] = {}
-				frame_buffer[f][projectiles] = {}
-			end
-			return
-		end
-	end
-	print("not prepared for " .. emu.romname() .. " hitboxes")
-end
-
-
-emu.registerstart( function()
-	whatgame()
-end)
-
-
---------------------------------------------------------------------------------
 -- prepare the hitboxes
 
 local function update_globals()
@@ -447,71 +381,77 @@ local function update_globals()
 end
 
 
-local function game_x_to_mame(x)
+local function get_x(x)
 	return x - globals.left_screen_edge
 end
 
 
-local function game_y_to_mame(y)
+local function get_y(y)
 	return y - globals.top_screen_edge - 15
 end
 
 
-local function define_box(obj, entry)
-	local address, box_type
-
-	if game.boxes[entry].addr_table_ptr then
-		local curr_id = memory.readword(obj.base + game.boxes[entry].id_ptr)
-		if curr_id == 0 or (game.boxes[entry].active and memory.readbyte(obj.base + game.boxes[entry].active) == 0) then
-			return nil
+local get_address = {
+	function(obj, entry, box)
+		box.id = memory.readword(obj.base + game.box_list[entry].id_ptr)
+		if box.id == 0 or (game.box_list[entry].active and memory.readbyte(obj.base + game.box_list[entry].active) == 0) then
+			return true
 		end
 
-		if game.boxes[entry].type == ATTACK_BOX and AND(curr_id, 0xF000) == 0x8000 then
-			box_type = THROW_BOX
+		if obj.projectile then
+			if box.type == ATTACK_BOX then
+				box.type = PROJ_ATTACK_BOX
+			elseif box.type == VULNERABILITY_BOX then
+				box.type = PROJ_VULNERABILITY_BOX
+			end
+		elseif box.type == ATTACK_BOX and bit.band(box.id, 0xF000) == 0x8000 then
+			box.type = THROW_BOX
 		end
 
-		local addr_table = memory.readdword(obj.base + game.boxes[entry].addr_table_ptr)
-		address = addr_table + AND(curr_id, 0x0FFF) * 0x8
+		local addr_table = memory.readdword(obj.base + game.box_list[entry].addr_table_ptr)
+		box.address = addr_table + bit.band(box.id, 0x0FFF) * 0x8
+	end,
 
-	else --pushbox
+	function(obj, entry, box) --pushbox
 		if not pushbox_base or (obj.projectile and not obj.apoc_fist) then
-			return nil
+			return true
 		end
 
-		local curr_id = memory.readbyte(obj.base + (obj.projectile and game.boxes[entry].projectile_id_ptr or game.boxes[entry].id_ptr))
-		address = memory.readdword(pushbox_base + curr_id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
+		box.id = memory.readbyte(obj.base + (obj.projectile and game.box_list[entry].projectile_id_ptr or game.box_list[entry].id_ptr))
+		box.address = memory.readdword(pushbox_base + box.id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
+	end,
+}
+
+
+local function define_box(obj, entry)
+	local box = {type = game.box_list[entry].type}
+
+	if get_address[game.box_list[entry].address_func](obj, entry, box) then
+		return nil
 	end
 
-	local hval = memory.readwordsigned(address + game.offset.hval)
-	local vval = memory.readwordsigned(address + game.offset.vval)
-	local hrad = memory.readwordsigned(address + game.offset.hrad)
-	local vrad = memory.readwordsigned(address + game.offset.vrad)
+	box.hrad = game.box.radius_read(box.address + game.box.hrad)
+	box.vrad = game.box.radius_read(box.address + game.box.vrad)
+	box.hval = game.box.offset_read(box.address + game.box.hval)
+	box.vval = game.box.offset_read(box.address + game.box.vval)
 
-	if AND(obj.facing_dir, 1) > 0 then
-		hval  = -hval
-	end
-	if AND(obj.facing_dir, 2) > 0 and game.boxes[entry].addr_table_ptr then
-		vval  = -vval
-	end
+	box.hval   = obj.pos_x + box.hval * (bit.band(obj.facing_dir, 1) > 0 and -1 or 1)
+	box.vval   = obj.pos_y + box.vval * (bit.band(obj.facing_dir, 2) > 0 and game.box_list[entry].addr_table_ptr and -1 or 1)
+	box.left   = box.hval - box.hrad
+	box.right  = box.hval + box.hrad
+	box.top    = box.vval - box.vrad
+	box.bottom = box.vval + box.vrad
 
-	return {
-		left   = obj.pos_x + hval - hrad,
-		right  = obj.pos_x + hval + hrad,
-		top    = obj.pos_y + vval - vrad,
-		bottom = obj.pos_y + vval + vrad,
-		hval   = obj.pos_x + hval,
-		vval   = obj.pos_y + vval,
-		type   = box_type or game.boxes[entry].type,
-	}
+	return box
 end
 
 
 local function update_game_object(obj)
 	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
-	obj.pos_x        = game_x_to_mame(memory.readwordsigned(obj.base + game.offset.x_position))
-	obj.pos_y        = game_y_to_mame(memory.readwordsigned(obj.base + game.offset.y_position))
+	obj.pos_x        = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
+	obj.pos_y        = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
 
-	for entry in ipairs(game.boxes) do
+	for entry in ipairs(game.box_list) do
 		obj[entry] = define_box(obj, entry)
 	end
 end
@@ -559,8 +499,9 @@ end
 
 
 local function update_marvel_hitboxes()
-	gui.clearuncommitted()
-	if not game then return end
+	if not game then
+		return
+	end
 	update_globals()
 
 	for p = 1, game.number_players do
@@ -615,16 +556,19 @@ local function draw_hitbox(obj, entry, no_push_next_frame)
 	end
 
 	if DRAW_MINI_AXIS then
-		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, OR(fill[hb.type], 0xFF))
-		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, OR(fill[hb.type], 0xFF))
+		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, outline[hb.type])
+		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, outline[hb.type])
+		--gui.text(hb.hval, hb.vval, string.format("%02X", hb.id)) --debug
 	end
 
 	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
 end
 
 
-local function draw_game_object(obj)
-	if not obj or not obj.pos_x then return end
+local function draw_axis(obj)
+	if not obj or not obj.pos_x then
+		return
+	end
 	
 	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
@@ -633,15 +577,16 @@ end
 
 
 local function render_marvel_hitboxes()
+	gui.clearuncommitted()
 	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
 		return
 	end
 
 	if BLANK_SCREEN then
-		gui.box(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, BLANK_COLOR)
+		gui.box(0, 0, emu.screenwidth(), emu.screenheight(), BLANK_COLOR)
 	end
 
-	for entry in ipairs(game.boxes) do
+	for entry in ipairs(game.box_list) do
 		for p = 1, game.number_players do
 			local obj = frame_buffer[1][player][p]
 			local no_push_next_frame = frame_buffer[2][player][p] and frame_buffer[2][player][p].no_push --deprecate ASAP
@@ -660,10 +605,10 @@ local function render_marvel_hitboxes()
 
 	if DRAW_AXIS then
 		for p = 1, game.number_players do
-			draw_game_object(frame_buffer[1][player][p])
+			draw_axis(frame_buffer[1][player][p])
 		end
 		for i,obj in ipairs(frame_buffer[1][projectiles]) do
-			draw_game_object(frame_buffer[1][projectiles][i])
+			draw_axis(frame_buffer[1][projectiles][i])
 		end
 	end
 
@@ -672,4 +617,85 @@ end
 
 gui.register( function()
 	render_marvel_hitboxes()
+end)
+
+
+--------------------------------------------------------------------------------
+-- hotkey functions
+
+input.registerhotkey(1, function()
+	BLANK_SCREEN = not BLANK_SCREEN
+	render_marvel_hitboxes()
+	print((BLANK_SCREEN and "activated" or "deactivated") .. " blank screen mode")
+end)
+
+
+input.registerhotkey(2, function()
+	DRAW_AXIS = not DRAW_AXIS
+	render_marvel_hitboxes()
+	print((DRAW_AXIS and "showing" or "hiding") .. " object axis")
+end)
+
+
+input.registerhotkey(3, function()
+	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
+	render_marvel_hitboxes()
+	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
+end)
+
+
+input.registerhotkey(4, function()
+	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
+	render_marvel_hitboxes()
+	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
+end)
+
+
+input.registerhotkey(5, function()
+	DRAW_THROWBOXES = not DRAW_THROWBOXES
+	render_marvel_hitboxes()
+	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes and throwable boxes")
+end)
+
+
+--------------------------------------------------------------------------------
+-- initialize on game startup
+
+local function whatversion(game)
+	for base,version_set in pairs(game.pushbox_base) do
+		for _,version in ipairs(version_set) do
+			if emu.romname() == version then
+				return base, version_set.apoc
+			end
+		end
+	end
+	print("unrecognized version (" .. emu.romname() .. "): cannot draw pushboxes")
+	return nil
+end
+
+
+local function whatgame()
+	game = nil
+	for n, module in ipairs(profile) do
+		if emu.romname() == module.game or emu.parentname() == module.game then
+			print("drawing " .. module.game .. " hitboxes")
+			game = module
+			pushbox_base, apoc_value = whatversion(game)
+			for p = 1, game.number_players do
+				player[p] = {}
+			end
+			for f = 1, DRAW_DELAY + 1 do
+				frame_buffer[f] = {}
+				frame_buffer[f][player] = {}
+				frame_buffer[f][projectiles] = {}
+			end
+			return
+		end
+	end
+	print("not prepared for " .. emu.romname() .. " hitboxes")
+end
+
+
+emu.registerstart( function()
+	whatgame()
 end)

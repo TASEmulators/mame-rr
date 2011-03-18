@@ -1,29 +1,29 @@
-print("CPS-2 hitbox viewer")
-print("March 14, 2011")
+print("CPS-2 fighting game hitbox viewer")
+print("March 17, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis")
 print("Lua hotkey 4: toggle pushboxes")
-print("Lua hotkey 5: toggle throwboxes") print()
+print("Lua hotkey 5: toggle throwable boxes") print()
 
 local VULNERABILITY_COLOR      = 0x7777FF40
-local ATTACK_COLOR             = 0xFF000060
+local ATTACK_COLOR             = 0xFF000040
 local PROJ_VULNERABILITY_COLOR = 0x00FFFF40
 local PROJ_ATTACK_COLOR        = 0xFF66FF60
-local PUSH_COLOR               = 0x00FF0040
+local PUSH_COLOR               = 0x00FF0020
 local THROW_COLOR              = 0xFFFF0060
 local THROWABLE_COLOR          = 0xFFFFFF20
 local AXIS_COLOR               = 0xFFFFFFFF
 local BLANK_COLOR              = 0xFFFFFFFF
-local AXIS_SIZE                = 16
+local AXIS_SIZE                = 12
 local MINI_AXIS_SIZE           = 2
 local DRAW_DELAY               = 1
 local BLANK_SCREEN             = false
 local DRAW_AXIS                = false
 local DRAW_MINI_AXIS           = false
 local DRAW_PUSHBOXES           = true
-local DRAW_THROWBOXES          = true
+local DRAW_THROWABLE_BOXES     = false
 
 local GAME_PHASE_NOT_PLAYING = 0
 local VULNERABILITY_BOX      = 1
@@ -31,8 +31,9 @@ local ATTACK_BOX             = 2
 local PROJ_VULNERABILITY_BOX = 3
 local PROJ_ATTACK_BOX        = 4
 local PUSH_BOX               = 5
-local THROW_BOX              = 6
-local THROWABLE_BOX          = 7
+local NEGATE_BOX             = 6
+local THROW_BOX              = 7
+local THROWABLE_BOX          = 8
 
 local fill = {
 	VULNERABILITY_COLOR,
@@ -40,6 +41,7 @@ local fill = {
 	PROJ_VULNERABILITY_COLOR,
 	PROJ_ATTACK_COLOR,
 	PUSH_COLOR,
+	THROW_COLOR, --NEGATE_BOX
 	THROW_COLOR,
 	THROWABLE_COLOR,
 }
@@ -50,8 +52,9 @@ local outline = {
 	bit.bor(0xFF, PROJ_VULNERABILITY_COLOR),
 	bit.bor(0xFF, PROJ_ATTACK_COLOR),
 	bit.bor(0xC0, PUSH_COLOR),
+	bit.bor(0xFF, THROW_COLOR), --NEGATE_BOX
 	bit.bor(0xFF, THROW_COLOR),
-	bit.bor(0xFF, THROWABLE_COLOR),
+	bit.bor(0xC0, THROWABLE_COLOR),
 }
 
 local profile = {
@@ -130,9 +133,9 @@ local profile = {
 			{anim_ptr =  nil, addr_table_ptr = 0x98, id_ptr =  0xCA, id_space = 0x08, type = VULNERABILITY_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0xA0, id_ptr =   0x9, id_space = 0x20, type = ATTACK_BOX},
 			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr =  0x82, id_space = 0x20, type = ATTACK_BOX, tripwire = 0x1E4},
-			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_space = 0x20, type = THROW_BOX, zero = true},
+			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_space = 0x20, type = THROW_BOX, zero = true, no_projectile = true},
 		},
-		check_projectiles = true,
+		projectile_type = 2,
 	},
 	{
 		games = {"dstlk"},
@@ -153,11 +156,12 @@ local profile = {
 		box_list = {
 			{anim_ptr = 0x1C, addr_table_ptr = 0x0A, id_ptr = 0x15, id_space = 0x08, type = PUSH_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0x00, id_ptr = 0x10, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_space = 0x08, type = THROW_BOX},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_space = 0x08, type = VULNERABILITY_BOX, no_projectile = true},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_space = 0x08, type = VULNERABILITY_BOX, no_projectile = true},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_space = 0x08, type = NEGATE_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0x08, id_ptr = 0x14, id_space = 0x10, type = ATTACK_BOX},
 		},
+		breakables = {start = 0xFFAD2E, space = 0x80, number = 8},
 	},
 	{
 		games = {"nwarr"},
@@ -179,12 +183,29 @@ local profile = {
 		box_list = {
 			{anim_ptr = 0x1C, addr_table_ptr = 0x0A, id_ptr = 0x15, id_space = 0x08, type = PUSH_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0x00, id_ptr = 0x10, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_space = 0x08, type = VULNERABILITY_BOX},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_space = 0x08, type = THROW_BOX},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_space = 0x08, type = VULNERABILITY_BOX, no_projectile = true},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_space = 0x08, type = VULNERABILITY_BOX, no_projectile = true},
+			{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_space = 0x08, type = NEGATE_BOX},
 			{anim_ptr = 0x1C, addr_table_ptr = 0x08, id_ptr = 0x14, id_space = 0x10, type = ATTACK_BOX},
 		},
-		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28},
+		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28, whitelist = {
+			0x56, --Demitri 263KK
+			0x4C, --Gallon 41236KK
+			0x5F, --Gallon 63214PP
+			0x50, --Lei-Lei 623P
+			0x54, --Lei-Lei 214P
+			0x6E, --Lei-Lei LK,HK,MP,MP,8
+			0x0C, --Morrigan LP,LP,6,LK,HP
+			0x40, --Morrigan LP,LP,6,MP,HP
+			0x44, --Felicia 41236KK
+			0x3E, --Aulbath 623PP (no box)
+			0x52, --Aulbath 41236PP
+			0x05, --Huitzil GC
+			0x22, --Huitzil 63214KK
+			0x5A, --Huitzil 623P
+			0x70, --Pyron 41236PP/KK
+		}},
+		breakables = {start = 0xFFB16E, space = 0x80, number = 8},
 	},
 	{
 		games = {"vsav","vhunt2","vsav2"},
@@ -211,7 +232,7 @@ local profile = {
 			{anim_ptr = 0x1C, addr_table_ptr = 0x8C, id_ptr = 0x0A, id_space = 0x20, type = ATTACK_BOX},
 			--{anim_ptr =  nil, addr_table_ptr = 0x8C, id_ptr = "?", id_space = 0x20, type = THROW_BOX},
 		},
-		check_projectiles = true,
+		projectile_type = 2,
 	},
 	{
 		games = {"ringdest"},
@@ -317,7 +338,9 @@ for game in ipairs(profile) do
 	g.box.hrad        = g.box.hrad or 0x4
 	g.box.vrad        = g.box.vrad or 0x6
 	g.box.radscale    = g.box.radscale or 1
+	g.projectile_type = g.projectile_type or 1
 	g.special_projectiles = g.special_projectiles or {number = 0}
+	g.breakables = g.breakables or {number = 0}
 end
 
 local game
@@ -358,7 +381,7 @@ local define_box = {
 	[0] = function(obj, entry, hitbox_ptr)
 		local box = {type = game.box_list[entry].type}
 		if obj.projectile then
-			if box.type == THROW_BOX then
+			if game.box_list[entry].no_projectile then
 				return nil
 			elseif box.type == ATTACK_BOX then
 				box.type = PROJ_ATTACK_BOX
@@ -374,7 +397,7 @@ local define_box = {
 		local curr_id = memory.readbyte(base_id + game.box_list[entry].id_ptr)
 
 		if game.box_list[entry].zero then
-			memory.writebyte(base_id + game.box_list[entry].id_ptr, 0x0)
+			memory.writebyte(base_id + game.box_list[entry].id_ptr, 0) --bad
 		end
 
 		local wire_pos = 0
@@ -383,8 +406,8 @@ local define_box = {
 			wire_pos = memory.readwordsigned(obj.base + game.box_list[entry].tripwire)
 			if wire_pos == 0 or memory.readbyte(obj.base + 0x102) ~= 0xE then
 				return nil
-			elseif memory.readbyte(obj.base + 0x216) == 0x0 then
-				memory.writeword(obj.base + game.box_list[entry].tripwire, 0x0)
+			elseif memory.readbyte(obj.base + 0x216) == 0 then
+				memory.writeword(obj.base + game.box_list[entry].tripwire, 0) --bad
 			end
 		end
 
@@ -404,9 +427,6 @@ local define_box = {
 
 		box.hrad = game.box.radius_read(box.address + game.box.hrad)/game.box.radscale
 		box.vrad = game.box.radius_read(box.address + game.box.vrad)/game.box.radscale
-		if (box.hrad == 0 or box.vrad == 0) and wire_pos == 0 then
-			return nil
-		end
 		box.hval = game.box.offset_read(box.address + game.box.hval)
 		box.vval = game.box.offset_read(box.address + game.box.vval)
 
@@ -449,7 +469,7 @@ local define_box = {
 		box.vval = game.box.offset_read(box.address + game.box.vval)
 
 		box.hval   = obj.pos_x + (box.hrad + box.hval) * (obj.facing_dir > 0 and -1 or 1)
-		box.vval   = obj.pos_y - box.vrad - box.vval
+		box.vval   = obj.pos_y - (box.vrad + box.vval)
 		box.left   = box.hval - box.hrad
 		box.right  = box.hval + box.hrad
 		box.top    = box.vval - box.vrad
@@ -468,7 +488,7 @@ local prepare_boxes = {
 		end
 	end,
 
-	[0x4A] = function(obj)
+	[0x4A] = function(obj) --for ringdest only
 		local id_offset = memory.readword(obj.base + game.offset.id_ptr)
 		for entry in ipairs(game.box_list) do
 			obj[entry] = define_box[game.offset.id_ptr](obj, entry, id_offset)
@@ -482,7 +502,23 @@ local function update_game_object(obj)
 	obj.pos_x      = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
 	obj.pos_y      = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
 	prepare_boxes[game.offset.id_ptr](obj)
+	return obj
 end
+
+
+local projectile_check = {
+	function(address)
+		if memory.readword(address) > 0x0100 then
+			return true
+		end
+	end,
+
+	function(address)
+		if memory.readword(address) > 0x0100 and memory.readbyte(address + 0x04) <= 0x02 then
+			return true
+		end
+	end,
+}
 
 
 local function read_projectiles()
@@ -490,27 +526,37 @@ local function read_projectiles()
 
 	for i = 1, game.number.projectiles do
 		local obj = {base = game.address.projectile + (i-1) * game.offset.projectile_space}
-		if memory.readword(obj.base) > 0x0100 and
-		(not game.check_projectiles or memory.readbyte(obj.base + 0x04) <= 0x02) then
+		if projectile_check[game.projectile_type](obj.base) then
 			obj.projectile = true
 			if game.offset.friends and memory.readbyte(obj.base + game.offset.friends) > 0 then
 				obj.invulnerability, obj.unpushability = true, true
 			end
-			update_game_object(obj)
-			table.insert(current_projectiles, obj)
+			table.insert(current_projectiles, update_game_object(obj))
 		end
 	end
 
 	for i = 1, game.special_projectiles.number do --for nwarr only
 		local obj = {base = game.special_projectiles.start + (i-1) * game.special_projectiles.space}
-		local status = memory.readbyte(obj.base + 0x04)
-		if status == 0x02 or status == 0x04 then
-			obj.projectile, obj.invulnerability, obj.unpushability = true, true, true
-			update_game_object(obj)
-			table.insert(current_projectiles, obj)
+		local status = memory.readbyte(obj.base + 0x02)
+		for _, value in ipairs(game.special_projectiles.whitelist) do
+			if status == value then
+				obj.projectile, obj.invulnerability, obj.unpushability = true, true, true
+				table.insert(current_projectiles, update_game_object(obj))
+				break
+			end
 		end
 	end
-
+--[[
+	for i = 1, game.breakables.number do --for dstlk, nwarr
+		local obj = {base = game.breakables.start + (i-1) * game.breakables.space}
+		local status = memory.readbyte(obj.base + 0x04)
+		if status == 0x02 then
+			obj.projectile = true
+			obj.x_adjust = 0x1C*((globals.left_screen_edge-0x100)/0xC0-1)
+			table.insert(current_projectiles, update_game_object(obj))
+		end
+	end
+]]
 	return current_projectiles
 end
 
@@ -578,8 +624,8 @@ end)
 local function draw_hitbox(obj, entry)
 	local hb = obj[entry]
 	if (not DRAW_PUSHBOXES and hb.type == PUSH_BOX)
-	or (not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX))
-	or (obj.invulnerability and hb.type == VULNERABILITY_BOX)
+	or (not DRAW_THROWABLE_BOXES and hb.type == THROWABLE_BOX)
+	or (obj.invulnerability and (hb.type == VULNERABILITY_BOX or hb.type == PROJ_VULNERABILITY_BOX))
 	or (obj.unpushability and hb.type == PUSH_BOX) then
 		return
 	end
@@ -593,7 +639,7 @@ local function draw_hitbox(obj, entry)
 end
 
 
-local function draw_game_object(obj)
+local function draw_axis(obj)
 	if not obj or not obj.pos_x then
 		return
 	end
@@ -632,10 +678,10 @@ local function render_cps2_hitboxes()
 
 	if DRAW_AXIS then
 		for p = 1, game.number.players do
-			draw_game_object(frame_buffer[1][player][p])
+			draw_axis(frame_buffer[1][player][p])
 		end
 		for i in ipairs(frame_buffer[1][projectiles]) do
-			draw_game_object(frame_buffer[1][projectiles][i])
+			draw_axis(frame_buffer[1][projectiles][i])
 		end
 	end
 end
@@ -678,9 +724,9 @@ end)
 
 
 input.registerhotkey(5, function()
-	DRAW_THROWBOXES = not DRAW_THROWBOXES
+	DRAW_THROWABLE_BOXES = not DRAW_THROWABLE_BOXES
 	render_cps2_hitboxes()
-	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes")
+	print((DRAW_THROWABLE_BOXES and "showing" or "hiding") .. " throwable boxes")
 end)
 
 
