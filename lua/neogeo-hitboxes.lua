@@ -1,30 +1,30 @@
-print("NeoGeo hitbox viewer")
-print("March 14, 2011")
+print("NeoGeo fighting game hitbox viewer")
+print("March 17, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis")
 print("Lua hotkey 4: toggle pushboxes")
-print("Lua hotkey 5: toggle throwboxes") print()
+print("Lua hotkey 5: toggle throwable boxes") print()
 
 local VULNERABILITY_COLOR      = 0x7777FF40
-local ATTACK_COLOR             = 0xFF000060
+local ATTACK_COLOR             = 0xFF000040
 local PROJ_VULNERABILITY_COLOR = 0x00FFFF40
 local PROJ_ATTACK_COLOR        = 0xFF66FF60
-local PUSH_COLOR               = 0x00FF0040
+local PUSH_COLOR               = 0x00FF0020
 local GUARD_COLOR              = 0xCCCCFF60
 local THROW_COLOR              = 0xFFFF0060
-local THROWABLE_COLOR          = 0xFFFFFF40
+local THROWABLE_COLOR          = 0xFFFFFF20
 local AXIS_COLOR               = 0xFFFFFFFF
 local BLANK_COLOR              = 0xFFFFFFFF
-local AXIS_SIZE                = 16
+local AXIS_SIZE                = 12
 local MINI_AXIS_SIZE           = 2
 local DRAW_DELAY               = 0
 local BLANK_SCREEN             = false
 local DRAW_AXIS                = false
 local DRAW_MINI_AXIS           = false
 local DRAW_PUSHBOXES           = true
-local DRAW_THROWBOXES          = false
+local DRAW_THROWABLE_BOXES     = false
 
 local GAME_PHASE_NOT_PLAYING = 0
 local ABSOLUTE               = 1
@@ -56,9 +56,9 @@ local outline = {
 	bit.bor(0xFF, PROJ_VULNERABILITY_COLOR),
 	bit.bor(0xFF, PROJ_ATTACK_COLOR),
 	bit.bor(0xC0, PUSH_COLOR),
-	bit.bor(0xC0, GUARD_COLOR),
+	bit.bor(0xFF, GUARD_COLOR),
 	bit.bor(0xFF, THROW_COLOR),
-	bit.bor(0xFF, THROWABLE_COLOR),
+	bit.bor(0xC0, THROWABLE_COLOR),
 }
 
 local a,v,p,g = ATTACK_BOX,VULNERABILITY_BOX,PROJ_VULNERABILITY_BOX,GUARD_BOX
@@ -160,10 +160,10 @@ local profile = {
 
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.nplayers     = g.nplayers or 2
-	g.ground_level = g.ground_level or 16
-	g.y_value      = g.y_value or DIRECT
-	g.ptr_size     = g.ptr_size or 2
+	g.number_players = g.number_players or 2
+	g.ground_level   = g.ground_level or 16
+	g.y_value        = g.y_value or DIRECT
+	g.ptr_size       = g.ptr_size or 2
 	g.address.player           = g.address.player           or 0x108100
 	g.address.left_screen_edge = g.address.left_screen_edge or g.address.game_phase + 0x038
 	g.address.top_screen_edge  = g.address.top_screen_edge  or g.address.game_phase + 0x040
@@ -243,7 +243,7 @@ local type_check = {
 	end,
 
 	[PUSH_BOX] = function(obj, entry, box)
-		if box.id == 0xFF then
+		if box.id == 0xFF or obj.projectile then
 			return true
 		end
 	end,
@@ -253,7 +253,7 @@ local type_check = {
 		if box.id == 0x00 then
 			return true
 		else
-			memory.writebyte(obj.base + game.box_list[entry].id, 0)
+			memory.writebyte(obj.base + game.box_list[entry].id, 0) --bad
 		end
 	end,
 
@@ -372,7 +372,7 @@ local function update_neogeo_hitboxes()
 	end
 
 	frame_buffer[DRAW_DELAY+1] = {}
-	for p = 1, game.nplayers do
+	for p = 1, game.number_players do
 		frame_buffer[DRAW_DELAY+1][p] = add_object(game.address.player + game.offset.player_space * (p-1))
 	end
 	read_objects[game.ptr_size](frame_buffer[DRAW_DELAY+1])
@@ -398,7 +398,7 @@ local function draw_hitbox(obj, entry)
 	local hb = obj[entry]
 	if not hb or
 		(not DRAW_PUSHBOXES and hb.type == PUSH_BOX) or
-		(not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX)) then
+		(not DRAW_THROWABLE_BOXES and hb.type == THROWABLE_BOX) then
 		return
 	end
 
@@ -486,9 +486,9 @@ end)
 
 
 input.registerhotkey(5, function()
-	DRAW_THROWBOXES = not DRAW_THROWBOXES
+	DRAW_THROWABLE_BOXES = not DRAW_THROWABLE_BOXES
 	render_neogeo_hitboxes()
-	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes")
+	print((DRAW_THROWABLE_BOXES and "showing" or "hiding") .. " throwable boxes")
 end)
 
 
