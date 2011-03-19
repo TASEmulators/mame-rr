@@ -1,3 +1,5 @@
+#summary Instructions and index page for hitbox Lua scripts
+
 <wiki:toc max_depth="3" />
 
 == Introduction ==
