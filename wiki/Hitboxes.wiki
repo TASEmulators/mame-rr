@@ -1,0 +1,167 @@
+<wiki:toc max_depth="3" />
+
+== Introduction ==
+
+Although the sprites on screen seem to interact with one another, 2D fighting games and other action games usually use unseen hitboxes to determine whether attacks connect or miss. These boxes can be made visible in MAME-rr and [http://code.google.com/p/fbarr/ FBA-rr] through the use of [LuaScriptingFunctions Lua scripting]. This information can help players improve their game and help people who don't play the games to appreciate how they work.
+
+Also see [http://combovid.com/?category_name=technical combovid] for in-depth discussions.
+
+----
+== Usage ==
+
+These scripts work with both MAME-rr and FBA-rr, and with both parent and clone ROMs. Download the script file, load the appropriate ROM, launch a Lua window (ctrl-L by default), then browse for and run the .lua file. The ROM must be up to date for MAME-rr or FBA-rr, and may be out of date with respect to [http://mamedev.org/ mainline MAME].
+
+*The current versions can be downloaded from the [http://mame-rr.googlecode.com/svn/lua/ SVN repository].* Changes are trackable on the [http://code.google.com/p/mame-rr/updates/list update page] or by subscribing to the update feed.
+
+The behavior can be modified by pressing Lua hotkeys. (The key bindings are assigned in the emulator settings.)
+ # Hide or reveal all the graphics on the screen to show only the boxes.
+ # Hide or reveal axis markers for characters and other objects.
+ # Hide or reveal the centers of individual boxes.
+ # Hide or reveal pushboxes.
+ # Hide or reveal throwability boxes.
+
+The best way to get images is with the emulator's screenshot function (F12 by default).
+
+----
+== Box types ==
+
+==== Vulnerability and Attack ====
+The attack box must touch the opponent's vulnerability for the attack to connect. Characters may have one or several vulnerability boxes for different areas of the sprite, but most fighting games only allow attacks to have one attack box at a time.
+
+==== Projectile Vulnerability and Attack ====
+If an opposing projectile's attack touches a projectile vulnerability box, the projectiles negate one another. In some games, projectiles don't have designated vulnerability areas and negate by touching attack boxes. Non-character objects in the beat-'em-ups are colored as projectiles.
+
+==== Push ====
+A pushbox cannot occupy the same space as another pushbox. Attempting to press them together will cause characters to push one another. Jumping attacks that extend below and behind the pushbox allow for easier crossup attacks. Some moves cause pushboxes to disappear, allowing the character to pass through the opponent. Pushboxes are not used in beat-'em-ups.
+
+==== Throw and Throwable ====
+A throwbox must touch the opponent's throwable box for the throw attempt to succeed. Throws are generally active for only one frame. Some games don't have designated throwable boxes and use the pushbox for this purpose. Some older games don't use boxes to compute throws, but compare the distance between the character axes to hardcoded values.
+
+==== Guard ====
+Attacks that hit a guardbox will be blocked, either by manually blocking, by an autoguard move, or by a special counter move.
+Guard boxes only appear in the _King of Fighters_ games.
+
+==== Weak ====
+Attacks that hit a weakbox deal double damage. Weak boxes only appear in _Street Fighter II: World Warrior_ and in WW mode of _Hyper Street Fighter 2_.
+
+[http://img691.imageshack.us/img691/345/sf2colors.png]
+[http://img846.imageshack.us/img846/7492/kof98colors.png]
+
+Colors can be changed by editing the appropriate values at the top of the scripts. The first three pairs of digits are [http://www.w3schools.com/html/html_colors.asp RGB values] and the last pair is the opacity value. Colors are subject to change in future versions.
+
+----
+== List of supported games ==
+
+`*` indicates the script is not showing throw boxes for this game. Throws with hardcoded ranges cannot be shown without more powerful Lua tools like `memory.register()` and `memory.registerexec()`.
+
+=== sf2-hitboxes.lua ===
+All of the Street Fighter II games.
+||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/sf2 sf2]`*`||Street Fighter II: The World Warrior||
+||[http://maws.mameworld.info/maws/romset/sf2ce sf2ce]`*`||Street Fighter II': Champion Edition||
+||[http://maws.mameworld.info/maws/romset/sf2hf sf2hf]`*`||Street Fighter II': Hyper Fighting||
+||[http://maws.mameworld.info/maws/romset/ssf2 ssf2]`*`||Super Street Fighter II: The New Challengers||
+||[http://maws.mameworld.info/maws/romset/ssf2t ssf2t]`*`||Super Street Fighter II Turbo||
+||[http://maws.mameworld.info/maws/romset/hsf2 hsf2]`*`||Hyper Street Fighter 2: The Anniversary Edition||
+
+[http://img853.imageshack.us/img853/918/sf2sf2.png]
+[http://img827.imageshack.us/img827/9961/sf2sf2ceuc.png]
+[http://img94.imageshack.us/img94/6789/sf2sf2hf.png]
+[http://img132.imageshack.us/img132/8926/sf2ssf2.png]
+[http://img852.imageshack.us/img852/4783/sf2ssf2t.png]
+[http://img856.imageshack.us/img856/1657/sf2hsf2.png]
+
+=== marvel-hitboxes.lua ===
+All of the Marvel/Versus games on the CPS-2 system.
+||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/xmcota xmcota]||X-Men: Children of the Atom||
+||[http://maws.mameworld.info/maws/romset/msh msh]||Marvel Super Heroes||
+||[http://maws.mameworld.info/maws/romset/xmvsf xmvsf]||X-Men Vs. Street Fighter||
+||[http://maws.mameworld.info/maws/romset/mshvsf mshvsf]||Marvel Super Heroes Vs. Street Fighter||
+||[http://maws.mameworld.info/maws/romset/mvsc mvsc]||Marvel Vs. Capcom: Clash of Super Heroes||
+
+[http://img30.imageshack.us/img30/4595/marvelxmcota.png]
+[http://img844.imageshack.us/img844/5650/marvelmsh.png]
+[http://img217.imageshack.us/img217/3070/marvelxmvsf.png]
+[http://img707.imageshack.us/img707/5739/marvelmshvsf.png]
+[http://img153.imageshack.us/img153/3811/marvelmvsc.png]
+
+=== cps2-hitboxes.lua ===
+All of the remaining CPS-2 fighting games, including the Street Fighter Alpha and Darkstalkers series.
+||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/sfa sfa]`*`||Street Fighter Alpha: Warriors' Dreams||
+||[http://maws.mameworld.info/maws/romset/sfa2 sfa2]`*`||Street Fighter Alpha 2||
+||[http://maws.mameworld.info/maws/romset/sfz2al sfz2al]`*`||Street Fighter Zero 2 Alpha||
+||[http://maws.mameworld.info/maws/romset/sfa3 sfa3]||Street Fighter Alpha 3||
+||[http://maws.mameworld.info/maws/romset/dstlk dstlk]`*`||Darkstalkers: The Night Warriors||
+||[http://maws.mameworld.info/maws/romset/nwarr nwarr]`*`||Night Warriors: Darkstalkers' Revenge||
+||[http://maws.mameworld.info/maws/romset/vsav vsav]`*`||Vampire Savior: The Lord of Vampire||
+||[http://maws.mameworld.info/maws/romset/vhunt2 vhunt2]`*`||Vampire Hunter 2: Darkstalkers Revenge||
+||[http://maws.mameworld.info/maws/romset/vsav2 vsav2]`*`||Vampire Savior 2: The Lord of Vampire||
+||[http://maws.mameworld.info/maws/romset/ringdest ringdest]||Ring of Destruction: Slammasters II||
+||[http://maws.mameworld.info/maws/romset/cybots cybots]`*`||Cyberbots: Fullmetal Madness||
+||[http://maws.mameworld.info/maws/romset/sgemf sgemf]`*`||Super Gem Fighter Mini Mix||
+
+[http://img703.imageshack.us/img703/4024/cps2sfa.png]
+[http://img5.imageshack.us/img5/7163/cps2sfa2.png]
+[http://img218.imageshack.us/img218/236/cps2sfz2al.png]
+[http://img696.imageshack.us/img696/5030/cps2sfa31.png]
+[http://img189.imageshack.us/img189/4336/cps2sfa32.png]
+[http://img28.imageshack.us/img28/4465/cps2dstlk.png]
+[http://img64.imageshack.us/img64/2909/cps2nwarr.png]
+[http://img689.imageshack.us/img689/6391/cps2vsav.png]
+[http://img109.imageshack.us/img109/5154/cps2vhunt2.png]
+[http://img844.imageshack.us/img844/8093/cps2vsav2.png]
+[http://img560.imageshack.us/img560/5288/cps2ringdest.png]
+[http://img546.imageshack.us/img546/7540/cps2cybots.png]
+[http://img696.imageshack.us/img696/5448/cps2sgemf.png]
+
+=== beatemup-hitboxes.lua ===
+Selected beat-em-up games on the CPS-2 system.
+||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/ffight ffight]||Final Fight||
+||[http://maws.mameworld.info/maws/romset/dino dino]||Cadillacs and Dinosaurs||
+||[http://maws.mameworld.info/maws/romset/punisher punisher]||The Punisher||
+||[http://maws.mameworld.info/maws/romset/avsp avsp]||Alien vs. Predator||
+||[http://maws.mameworld.info/maws/romset/ddtod ddtod]||Dungeons & Dragons: Tower of Doom||
+||[http://maws.mameworld.info/maws/romset/ddsom ddsom]||Dungeons & Dragons: Shadow over Mystara||
+||[http://maws.mameworld.info/maws/romset/batcir batcir]||Battle Circuit||
+
+[http://img822.imageshack.us/img822/9829/beatemupffight.png]
+[http://img819.imageshack.us/img819/744/beatemupdino.png]
+[http://img708.imageshack.us/img708/2287/beatemuppunisher.png]
+[http://img269.imageshack.us/img269/8210/beatemupavsp.png]
+[http://img263.imageshack.us/img263/8329/beatemupddtod.png]
+[http://img231.imageshack.us/img231/1513/beatemupddsom.png]
+[http://img23.imageshack.us/img23/1985/beatemupbatcir.png]
+
+=== neogeo-hitboxes.lua ===
+Selected fighting games on the NeoGeo MVS system.
+||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/kof94 kof94]`*`||The King of Fighters '94||
+||[http://maws.mameworld.info/maws/romset/kof95 kof95]`*`||The King of Fighters '95||
+||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||
+||[http://maws.mameworld.info/maws/romset/kof97 kof97]||The King of Fighters '97||
+||[http://maws.mameworld.info/maws/romset/kof98 kof98]||The King of Fighters '98 - The Slugfest||
+||[http://maws.mameworld.info/maws/romset/kof99 kof99]||The King of Fighters '99 - Millennium Battle||
+||[http://maws.mameworld.info/maws/romset/kof2000 kof2000]||The King of Fighters 2000||
+||[http://maws.mameworld.info/maws/romset/kof2001 kof2001]||The King of Fighters 2001||
+||[http://maws.mameworld.info/maws/romset/kof2002 kof2002]||The King of Fighters 2002||
+
+[http://img52.imageshack.us/img52/5269/neogeokof94.png]
+[http://img600.imageshack.us/img600/9328/neogeokof95.png]
+[http://img715.imageshack.us/img715/993/neogeokof96.png]
+[http://img200.imageshack.us/img200/231/neogeokof97.png]
+[http://img23.imageshack.us/img23/660/neogeokof98.png]
+[http://img545.imageshack.us/img545/2005/neogeokof99a.png]
+[http://img98.imageshack.us/img98/3276/neogeokof2000.png]
+[http://img197.imageshack.us/img197/1767/neogeokof2001.png]
+[http://img842.imageshack.us/img842/5589/neogeokof2002.png]
+
+=== sfiii3-hitboxes.lua ===
+||[http://maws.mameworld.info/maws/romset/sfiii3 sfiii3]||Street Fighter III 3rd Strike: Fight for the Future||
+
+This script was translated to Lua from the [http://code.google.com/p/mameserver/ mameserver] project. It's in a basic state and is missing many features.
+
+----
+Errors or inconsistencies can be reported by leaving a comment to this page.
