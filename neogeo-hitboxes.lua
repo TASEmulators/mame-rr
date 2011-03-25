@@ -1,5 +1,5 @@
 print("NeoGeo fighting game hitbox viewer")
-print("March 23, 2011")
+print("March 24, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -134,16 +134,30 @@ local profile = {
 		},
 	},
 	{
-		games = {"rbff1"},
+		games = {"fatfury3"},
 		address = {
-			game_phase   = 0x100B5F,
-			obj_ptr_list = 0x100890,
+			game_phase       = 0x100B24,
+			obj_ptr_list     = 0x10088A,
 			left_screen_edge = 0x100B20,
 			top_screen_edge  = 0x100B28,
 		},
-		pushbox_base = {
-			[0x06C244] = {"rbff1"},
-			[0x06C25E] = {"rbff1a"},
+		offset = {no_push = 0xEA},
+		versions = {
+			[{"fatfury3"}] = {pushbox_base = 0x0648EE},
+		},
+	},
+	{
+		games = {"rbff1"},
+		address = {
+			game_phase       = 0x106D75,
+			obj_ptr_list     = 0x100890,
+			left_screen_edge = 0x100B20,
+			top_screen_edge  = 0x100B28,
+		},
+		offset = {no_push = 0xEA},
+		versions = {
+			[{"rbff1" }] = {pushbox_base = 0x06C244},
+			[{"rbff1a"}] = {pushbox_base = 0x06C25E},
 		},
 	},
 	{
@@ -152,9 +166,10 @@ local profile = {
 			game_phase   = 0x1096FA,
 			obj_ptr_list = 0x100C92,
 		},
-		pushbox_base = {
-			[0x072E5E] = {"rbffspeck"},
-			[0x072F7A] = {"rbffspec"},
+		offset = {no_push = 0xEC},
+		versions = {
+			[{"rbffspeck"}] = {pushbox_base = 0x072E5E},
+			[{"rbffspec" }] = {pushbox_base = 0x072F7A},
 		},
 	},
 	{
@@ -163,28 +178,30 @@ local profile = {
 			game_phase   = 0x10B1A4,
 			obj_ptr_list = 0x100C92,
 		},
-		pushbox_base = {
-			[0x05C898] = {"rbff2k"},
-			[0x05C99C] = {"rbff2"},
-			[0x05C9BC] = {"rbff2h"},
+		offset = {no_push = 0xEC},
+		versions = {
+			[{"rbff2k"}] = {pushbox_base = 0x05C898},
+			[{"rbff2" }] = {pushbox_base = 0x05C99C},
+			[{"rbff2h"}] = {pushbox_base = 0x05C9BC},
 		},
 	},
 	{
 		games = {"garou"},
 		address = {
-			game_phase   = 0x107835,
+			game_phase   = 0x10B259,
 			obj_ptr_list = 0x100C88,
 		},
-		pushbox_base = {
-			[0x0356BE] = {"garoup", "garoubl"},
-			[0x0358B0] = {"garou", "garouo"},
+		offset = {no_push = 0xEE},
+		versions = {
+			[{"garoup","garoubl"}] = {pushbox_base = 0x0356BE, throw_instruction = 0x028B14},
+			[{"garou", "garouo" }] = {pushbox_base = 0x0358B0, throw_instruction = 0x028928},
 		},
 	},
 }
 
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.engine = (g.box_types and "king of fighters") or (g.pushbox_base and "fatal fury")
+	g.engine = (g.box_types and "king of fighters") or (g.versions and "fatal fury")
 	g.number_players = g.number_players or 2
 	if g.engine == "king of fighters" then
 		g.y_value        = "direct"
@@ -227,15 +244,13 @@ for game in ipairs(profile) do
 		g.address.player           = 0x100400
 		g.address.left_screen_edge = g.address.left_screen_edge or 0x100E20
 		g.address.top_screen_edge  = g.address.top_screen_edge  or 0x100E28
-		g.offset = {
-			player_space = 0x100,
-			char_id      = 0x10,
-			x_position   = 0x20,
-			z_position   = 0x24,
-			y_position   = 0x28,
-			facing_dir   = 0x71,
-			hitbox_ptr   = 0x7A,
-		}
+		g.offset.player_space = 0x100
+		g.offset.char_id      = 0x10
+		g.offset.x_position   = 0x20
+		g.offset.z_position   = 0x24
+		g.offset.y_position   = 0x28
+		g.offset.facing_dir   = 0x71
+		g.offset.hitbox_ptr   = 0x7A
 		g.box_list = {
 			{type = PUSH_BOX},
 			--{offset = 0x0, type = VULNERABILITY_BOX},
@@ -246,7 +261,7 @@ for game in ipairs(profile) do
 	end
 end
 
-local game
+local game, version
 local globals = {
 	register_count   = 0,
 	last_frame       = 0,
@@ -322,6 +337,25 @@ local type_check = {
 
 
 local get_pushbox_offset = {
+	["fatfury3"] = function(obj)
+		if memory.readdword(obj.base + 0x28) > 0 then --off ground
+			if bit.band(memory.readdword(obj.base + 0xC6), 0xFFC000) > 0 then
+				return 0x1C0 --???
+			else
+				return 0x0E0 --jumping or juggled
+			end
+		else --on ground
+			local be = memory.readdword(obj.base + 0xBE)
+			if bit.band(be, 0x1C000044) > 0 then
+				return 0x070 --crouching or knocked down
+			elseif bit.band(be, 0xE000) > 0 then
+				return 0x150 --???
+			else
+				return 0x000 --standing
+			end
+		end
+	end,
+
 	["rbff1"] = function(obj)
 		if memory.readdword(obj.base + 0x28) > 0 then --off ground
 			if bit.band(memory.readdword(obj.base + 0xC6), 0xFFFF0000) == 0 then
@@ -356,23 +390,24 @@ local get_pushbox_offset = {
 	end,
 
 	["rbff2"] = function(obj)
-		local d1, d2, d3 = memory.readdword(obj.base + 0xC0), memory.readdword(obj.base + 0xC8), memory.readdword(obj.base + 0x28)
-		if (obj.char_id ~= 5 or bit.band(d2, bit.lshift(1, 0xF)) == 0) then
-			if bit.band(d1, bit.lshift(1, 0x1)) == 0 and d3 > 0 then
-				local char_table_lookup = memory.readdword(globals.pushbox_base - 0x294 + obj.char_id * 4)
-				if bit.band(char_table_lookup, d2) == 0 and bit.band(d2, 0xFFFF0000) > 0 then
-					return 0x240 --???
-				else
-					return 0x180 --jumping or juggled
-				end
+		local d1, d2 = memory.readdword(obj.base + 0xC0), memory.readdword(obj.base + 0xC8)
+		if obj.char_id == 5 and bit.band(d2, bit.lshift(1, 0xF)) > 0 then
+			return 0x000 --standing?
+		elseif bit.band(d1, bit.lshift(1, 0x1)) > 0 then
+			return 0x0C0 --crouching or knocked down?
+		elseif memory.readdword(obj.base + 0x28) > 0 then --off ground
+			local char_table_lookup = memory.readdword(version.pushbox_base - 0x294 + obj.char_id * 4)
+			if memory.readdword(char_table_lookup) == 0 and bit.band(d2, 0xFFFF0000) > 0 then
+				return 0x240 --???
+			else
+				return 0x180 --jumping or juggled
 			end
-			if (bit.band(d1, bit.lshift(1, 0x1)) ~= 0 or d3 == 0) and bit.band(d1, 0x14000046) ~= 0 then
+		else --on ground
+			if bit.band(d1, 0x14000046) > 0 then
 				return 0x0C0 --crouching or knocked down
+			else
+				return 0x000 --standing
 			end
-		end
-		if (obj.char_id == 5 and bit.band(d2, bit.lshift(1, 0xF)) > 0) or 
-			(bit.band(d1, bit.lshift(1, 0x1)) > 0 or d3 == 0 and bit.band(d1, 0x14000046) == 0) then
-			return 0x000 --standing
 		end
 	end,
 
@@ -435,10 +470,11 @@ local define_box = {
 		}
 		
 		if box.type == PUSH_BOX then
-			if obj.projectile or not globals.pushbox_base or globals.same_plane == false then
+			if obj.projectile or (game.offset.no_push and memory.readbyte(obj.base + game.offset.no_push) == 0xFF)
+				or globals.same_plane == false or not version.pushbox_base then
 				return nil
 			else
-				box.address = globals.pushbox_base + get_pushbox_offset[globals.game](obj) + bit.lshift(obj.char_id, 3)
+				box.address = version.pushbox_base + get_pushbox_offset[globals.game](obj) + bit.lshift(obj.char_id, 3)
 			end
 		else
 			box.address = obj.hitbox_ptr + game.box_list[entry].offset
@@ -538,8 +574,8 @@ local function update_neogeo_hitboxes()
 		return
 	end
 	globals.game_phase       = memory.readbyte(game.address.game_phase)
-	globals.left_screen_edge = memory.readword(game.address.left_screen_edge)
-	globals.top_screen_edge  = memory.readword(game.address.top_screen_edge)
+	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
+	globals.top_screen_edge  = memory.readwordsigned(game.address.top_screen_edge)
 	if fba then --why is this necessary?
 		globals.left_screen_edge = globals.left_screen_edge + 8
 	end
@@ -602,6 +638,7 @@ local function draw_axis(obj)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
 	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
 	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%04X,%04X", obj.pos_x, obj.pos_y)) --debug
+	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%06X", memory.readdword(obj.base))) --debug
 	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%08X", obj.hitbox_ptr)) --debug
 	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X", obj.char_id or obj.status)) --debug
 end
@@ -678,13 +715,13 @@ end)
 -- initialize on game startup
 
 local function whatversion(game)
-	if not game.pushbox_base then
+	if not game.versions then
 		return nil
 	end
-	for base,version_set in pairs(game.pushbox_base) do
+	for version_set,array in pairs(game.versions) do
 		for _,version in ipairs(version_set) do
 			if emu.romname() == version then
-				return base
+				return array
 			end
 		end
 	end
@@ -699,11 +736,11 @@ local function whatgame()
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. shortname .. " hitboxes")
 				game = module
+				version = whatversion(game)
 				for f = 1, DRAW_DELAY + 1 do
 					frame_buffer[f] = {}
 				end
 				globals.game = shortname
-				globals.pushbox_base = whatversion(game)
 				globals.same_plane = nil
 				return
 			end
