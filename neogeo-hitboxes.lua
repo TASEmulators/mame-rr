@@ -1,5 +1,5 @@
 print("NeoGeo fighting game hitbox viewer")
-print("March 24, 2011")
+print("March 31, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -19,6 +19,7 @@ local AXIS_COLOR               = 0xFFFFFFFF
 local BLANK_COLOR              = 0xFFFFFFFF
 local AXIS_SIZE                = 12
 local MINI_AXIS_SIZE           = 2
+local GROUND_THROW_HEIGHT      = 32
 local DRAW_DELAY               = 0
 local BLANK_SCREEN             = false
 local DRAW_AXIS                = false
@@ -59,7 +60,8 @@ local outline = {
 	bit.bor(0xC0, THROWABLE_COLOR),
 }
 
-local a,v,p,g = ATTACK_BOX,VULNERABILITY_BOX,PROJ_VULNERABILITY_BOX,GUARD_BOX
+local a,v,p,g,t = ATTACK_BOX,VULNERABILITY_BOX,PROJ_VULNERABILITY_BOX,GUARD_BOX,THROW_BOX
+-- x = nil (unknown)
 
 local profile = {
 	{
@@ -134,16 +136,76 @@ local profile = {
 		},
 	},
 	{
+		games = {"fatfury2"},
+		address = {
+			game_phase       = 0x100B89,
+			left_screen_edge = 0x100B20,
+			top_screen_edge  = 0x100B28,
+			player           = 0x100300,
+		},
+		offset = {
+			facing_dir        = 0x67,
+			status            = 0x7A,
+			hitbox_ptr_offset = 0x88,
+			hitbox_ptr        = 0x8A,
+			obj_ptr           = 0xBA,
+			obj_inactive      = 0xFA,
+			invulnerable      = nil, --find
+		},
+		active_status = 0x20,
+		breakpoints = {},
+		versions = {[{"fatfury2"}] = 0x000},
+		box_types = {
+			v,v,g,g,a,a,a,a,g,x,x,x,x,x,a,v,
+			[0]=PUSH_BOX
+		},
+	},
+	{
+		games = {"fatfursp"},
+		address = {
+			game_phase       = 0x100A62,
+			left_screen_edge = 0x100B20,
+			top_screen_edge  = 0x100B28,
+		},
+		offset = {
+			facing_dir   = 0x62,
+			status       = 0x7C,
+			hitbox_ptr   = 0x8A,
+			obj_ptr      = 0xAC,
+			obj_inactive = 0xFA,
+			invulnerable = nil, --find
+		},
+		active_status = 0x20,
+		reverse = true,
+		breakpoints = {},
+		versions = {[{"fatfursp"}] = 0x000},
+		box_types = {
+			v,v,g,g,a,a,a,a,g,x,x,x,x,x,a,v,
+			x,x,x,x,x,x,a, [0]=PUSH_BOX
+		},
+	},
+	{
 		games = {"fatfury3"},
 		address = {
 			game_phase       = 0x100B24,
 			obj_ptr_list     = 0x10088A,
 			left_screen_edge = 0x100B20,
 			top_screen_edge  = 0x100B28,
+			pushbox_base     = 0x0648EE,
 		},
-		offset = {no_push = 0xEA},
-		versions = {
-			[{"fatfury3"}] = {pushbox_base = 0x0648EE},
+		offset = {
+			status       = 0x6A,
+			obj_inactive = 0xA8,
+			invulnerable = 0xAF,
+			no_push      = 0xEA,
+		},
+		breakpoints = {
+			[0x0681F8] = "rbff1 airthrow",
+		},
+		versions = {[{"fatfury3"}] = 0x000},
+		box_types = {
+			v,v,v,g,g,v,a,a,a,a,a,a,a,a,a,a,
+			a,t,g,g,a,a,a,a,a,a,a, [0]=v
 		},
 	},
 	{
@@ -153,59 +215,102 @@ local profile = {
 			obj_ptr_list     = 0x100890,
 			left_screen_edge = 0x100B20,
 			top_screen_edge  = 0x100B28,
+			pushbox_base     = 0x06C244,
 		},
-		offset = {no_push = 0xEA},
+		offset = {
+			status       = 0x6A,
+			obj_inactive = 0xA8,
+			invulnerable = 0xAF,
+			no_push      = 0xEA,
+		},
+		breakpoints = {
+			[0x06CB58] = "rbff1 throw",
+			[0x0709BA] = "rbff1 airthrow",
+			[0x043D22] = "rbff1 spiderthrow",
+		},
 		versions = {
-			[{"rbff1" }] = {pushbox_base = 0x06C244},
-			[{"rbff1a"}] = {pushbox_base = 0x06C25E},
+			[{"rbff1" }] = 0x00,
+			[{"rbff1a"}] = 0x1A,
+		},
+		box_types = {
+			v,v,v,g,g,v,a,a,a,a,a,a,a,a,a,a,
+			a,a,g,g,a,a,a,a,a,a,a,a,a,a,a,a,
+			a,a,a,a,a,a,a, [0]=v
 		},
 	},
 	{
 		games = {"rbffspec"},
+		no_boxes = true,
 		address = {
 			game_phase   = 0x1096FA,
 			obj_ptr_list = 0x100C92,
+			pushbox_base = 0x072E5E,
 		},
-		offset = {no_push = 0xEC},
+		offset = {
+			status       = 0x76,
+			obj_inactive = 0xAA,
+			invulnerable = 0xB1,
+			no_push      = 0xEC,
+		},
+		breakpoints = {
+			[0x073D58] = "rbff2 throw",
+			[0x076BF2] = "rbff2 airthrow",
+			[0x045556] = "rbff2 spiderthrow",
+		},
 		versions = {
-			[{"rbffspeck"}] = {pushbox_base = 0x072E5E},
-			[{"rbffspec" }] = {pushbox_base = 0x072F7A},
+			[{"rbffspeck"}] = 0x000,
+			[{"rbffspec" }] = 0x11C,
 		},
 	},
 	{
 		games = {"rbff2"},
+		no_boxes = true,
 		address = {
 			game_phase   = 0x10B1A4,
 			obj_ptr_list = 0x100C92,
+			pushbox_base = 0x05C898,
 		},
-		offset = {no_push = 0xEC},
+		offset = {
+			status       = 0x76,
+			obj_inactive = 0xAA,
+			invulnerable = 0xB1,
+			no_push      = 0xEC,
+		},
+		breakpoints = {
+			[0x05D700] = "rbff2 throw",
+			[0x060334] = "rbff2 airthrow",
+		},
 		versions = {
-			[{"rbff2k"}] = {pushbox_base = 0x05C898},
-			[{"rbff2" }] = {pushbox_base = 0x05C99C},
-			[{"rbff2h"}] = {pushbox_base = 0x05C9BC},
+			[{"rbff2k"}] = 0x000,
+			[{"rbff2" }] = 0x104,
+			[{"rbff2h"}] = 0x124,
 		},
 	},
 	{
 		games = {"garou"},
+		no_boxes = true,
 		address = {
 			game_phase   = 0x10B259,
 			obj_ptr_list = 0x100C88,
 		},
-		offset = {no_push = 0xEE},
+		offset = {
+			status       = 0x76,
+			obj_inactive = 0xAC,
+			invulnerable = 0xB3,
+			no_push      = 0xEE,
+		},
 		versions = {
-			[{"garoup","garoubl"}] = {pushbox_base = 0x0356BE, throw_instruction = 0x028B14},
-			[{"garou", "garouo" }] = {pushbox_base = 0x0358B0, throw_instruction = 0x028928},
+			[{"garoup","garoubl"}] = {pushbox_base = 0x0356BE, [0x028B14] = "garou throw"},
+			[{"garou", "garouo" }] = {pushbox_base = 0x0358B0, [0x028928] = "garou throw"},
 		},
 	},
 }
 
-for game in ipairs(profile) do
-	local g = profile[game]
-	g.engine = (g.box_types and "king of fighters") or (g.versions and "fatal fury")
-	g.number_players = g.number_players or 2
-	if g.engine == "king of fighters" then
+
+local prepare_module = {
+	["king of fighters"] = function(g)
+		g.obj_engine     = "king of fighters"
 		g.y_value        = "direct"
-		g.ptr_size       = 2
 		g.ground_level   = 16
 		g.address.player           = 0x108100
 		g.address.left_screen_edge = g.address.left_screen_edge or g.address.game_phase + 0x038
@@ -217,11 +322,6 @@ for game in ipairs(profile) do
 		g.offset.y_position   = g.offset.y_position   or 0x26
 		g.offset.facing_dir   = g.offset.facing_dir   or 0x31
 		g.offset.status       = g.offset.status       or 0x7C
-		g.box = {
-			radius_read = memory.readbyte,
-			offset_read = memory.readbytesigned,
-			hval = 0x1, vval = 0x2, hrad = 0x3, vrad = 0x4,
-		}
 		g.box_list = {
 			{offset = 0xA4, type = PUSH_BOX},
 			{offset = 0x9F, active_bit = 3, type = UNDEFINED_BOX},
@@ -236,12 +336,15 @@ for game in ipairs(profile) do
 			table.insert(g.box_list, {offset = 0x18D, active = 0x7E, type = THROWABLE_BOX})
 			table.insert(g.box_list, {offset = 0x188, id = 0x192, type = THROW_BOX})
 		end
-	elseif g.engine == "fatal fury" then
+	end,
+
+	["fatal fury"] = function(g)
+		g.box_engine     = (g.offset.hitbox_ptr_offset and "fatal fury") or "garou"
+		g.obj_engine     = (g.offset.obj_ptr and "fatal fury") or (g.address.obj_ptr_list and "garou")
 		g.y_value        = "absolute"
-		g.ptr_size       = 4
 		g.ground_level   = 23
 		g.front_plane    = 0x18
-		g.address.player           = 0x100400
+		g.address.player = g.address.player or 0x100400
 		g.address.left_screen_edge = g.address.left_screen_edge or 0x100E20
 		g.address.top_screen_edge  = g.address.top_screen_edge  or 0x100E28
 		g.offset.player_space = 0x100
@@ -249,16 +352,33 @@ for game in ipairs(profile) do
 		g.offset.x_position   = 0x20
 		g.offset.z_position   = 0x24
 		g.offset.y_position   = 0x28
-		g.offset.facing_dir   = 0x71
-		g.offset.hitbox_ptr   = 0x7A
-		g.box_list = {
-			{type = PUSH_BOX},
-			--{offset = 0x0, type = VULNERABILITY_BOX},
-			--{offset = 0x5, type = VULNERABILITY_BOX},
-			--{offset = 0xA, type = VULNERABILITY_BOX},
-			--{offset = 0xF, type = ATTACK_BOX},
-		}
-	end
+		g.offset.facing_dir   = g.offset.facing_dir or 0x71
+		g.offset.hitbox_ptr   = g.offset.hitbox_ptr or 0x7A
+		g.reverse_facing = g.reverse and -1 or 1
+		g.active_status  = g.active_status or 0x10
+		g.box = g.box_engine == "fatal fury" and {top = 0x2, bottom = 0x3, left = 0x4, right = 0x5, space = 0x6} or 
+			g.box_engine == "garou" and {top = 0x1, bottom = 0x2, left = 0x3, right = 0x4, space = 0x5}
+		for k, val in pairs(g.versions) do
+			if type(val) == "number" then
+				g.versions[k] = {}
+				g.versions[k].pushbox_base = g.address.pushbox_base and g.address.pushbox_base + val
+				for address, callback in pairs(g.breakpoints) do
+					local version_address = address + val
+					g.versions[k].version_address = callback
+				end
+			end
+		end
+	end,
+}
+
+
+for game in ipairs(profile) do
+	local g = profile[game]
+	g.engine = g.engine or 
+		(g.games[1]:find("kof") and "king of fighters") or
+		((g.games[1]:find("fatfur") or g.games[1]:find("rbff") or g.games[1]:find("garou")) and "fatal fury")
+	g.number_players = g.number_players or 2
+	prepare_module[g.engine](g)
 end
 
 local game, version
@@ -272,6 +392,132 @@ local globals = {
 local frame_buffer = {}
 emu.update_func = fba and emu.registerafter or emu.registerbefore
 --memory.writebyte(0x100000, 2)
+
+
+--------------------------------------------------------------------------------
+-- update functions to be called by breakpoints (not implemented in Lua yet)
+
+local get_player = function(address)
+  for p = 1, game.number_players do
+    if game.address.player + (p-1)*game.offset.address == address then
+      return frame_buffer[DRAW_DELAY+1][p]
+    end
+  end
+end
+
+
+local breakpoint = {
+	["rbff1 throw"] = function() --grabs axis
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower then
+			return
+		end
+		local range = memory.getregister("d4") * thrower.facing_dir
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - GROUND_THROW_HEIGHT,
+			bottom = thrower.pos_y,
+			left   = thrower.pos_x,
+			right  = thrower.pos_x + range,
+		})
+	end,
+
+	["rbff1 airthrow"] = function() --grabs axis
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower then
+			return
+		end
+		local range_ptr = memory.getregister("a0")
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - memory.readwordsigned(range_ptr - 8),
+			bottom = thrower.pos_y - memory.readwordsigned(range_ptr - 6),
+			left   = thrower.pos_x - memory.readwordsigned(range_ptr - 4) * thrower.facing_dir,
+			right  = thrower.pos_x - memory.readwordsigned(range_ptr - 2) * thrower.facing_dir,
+		})
+	end,
+
+	["rbff1 spiderthrow"] = function(bp) --grabs axis
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower or thrower.pos_y > memory.readword(bp + 0x12) then
+			return
+		end
+		local range = memory.readword(bp + 0x02) * thrower.facing_dir
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - GROUND_THROW_HEIGHT,
+			bottom = thrower.pos_y,
+			left   = thrower.pos_x,
+			right  = thrower.pos_x + range,
+		})
+	end,
+
+	["rbff2 throw"] = function() --grabs pushbox
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower then
+			return
+		end
+		local range = memory.getregister("d5") * thrower.facing_dir --pushbox front edge
+		range = range + memory.getregister("d4") * thrower.facing_dir
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - GROUND_THROW_HEIGHT,
+			bottom = thrower.pos_y,
+			left   = thrower.pos_x,
+			right  = thrower.pos_x + range,
+		})
+	end,
+
+	["rbff2 airthrow"] = function() --grabs axis
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower then
+			return
+		end
+		local range_ptr = memory.getregister("a0")
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - memory.readword(range_ptr + 0x2),
+			bottom = thrower.pos_y + memory.readword(range_ptr + 0x2),
+			left   = thrower.pos_x,
+			right  = thrower.pos_x - memory.readword(range_ptr + 0x0) * thrower.facing_dir,
+		})
+	end,
+
+	["rbff2 spiderthrow"] = function() --grabs axis
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower then
+			return
+		end
+		local range = memory.getregister("d7") * thrower.facing_dir
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - GROUND_THROW_HEIGHT,
+			bottom = thrower.pos_y,
+			left   = thrower.pos_x,
+			right  = thrower.pos_x + range,
+		})
+	end,
+
+	["garou throw"] = function() --grabs pushbox
+		local thrower = get_player(memory.getregister("a4"))
+		if not thrower then
+			return
+		end
+		local range_ptr = memory.getregister("a1")
+		local top, bottom = memory.readbyte(range_ptr + 0x4), memory.readbyte(range_ptr + 0x5)
+		if top == 0 and bottom == 0 then
+			top = GROUND_THROW_HEIGHT
+		end
+		table.insert(thrower, {
+			type   = THROW_BOX,
+			top    = thrower.pos_y - top,
+			bottom = thrower.pos_y - bottom,
+			left   = thrower.pos_x - memory.readbyte(range_ptr + 0x2) * thrower.facing_dir,
+			right  = thrower.pos_x + memory.readbyte(range_ptr + 0x3) * thrower.facing_dir,
+		})
+	end,
+}
+
 
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
@@ -297,50 +543,11 @@ local get_y = {
 }
 
 
-local type_check = {
-	[UNDEFINED_BOX] = function(obj, entry, box)
-		if bit.band(obj.status, game.box_list[entry].active) == 0 then
-			return true
-		end
-		box.type = game.box_types[box.id]
-		if box.type == ATTACK_BOX then
-			if game.box_list[entry].active_bit > 0 then
-				return true
-			elseif obj.projectile then
-				box.type = PROJ_ATTACK_BOX
-			end
-		end
-	end,
-
-	[PUSH_BOX] = function(obj, entry, box)
-		if box.id == 0xFF or obj.projectile then
-			return true
-		end
-	end,
-
-	[THROW_BOX] = function(obj, entry, box)
-		box.id = memory.readbyte(obj.base + game.box_list[entry].id)
-		if box.id == 0x00 then
-			return true
-		else
-			memory.writebyte(obj.base + game.box_list[entry].id, 0) --bad
-		end
-	end,
-
-	[THROWABLE_BOX] = function(obj, entry, box)
-		box.id = memory.readbyte(obj.base + game.box_list[entry].active)
-		if box.id == 0x01 then
-			return true
-		end
-	end,
-}
-
-
 local get_pushbox_offset = {
 	["fatfury3"] = function(obj)
 		if memory.readdword(obj.base + 0x28) > 0 then --off ground
 			if bit.band(memory.readdword(obj.base + 0xC6), 0xFFC000) > 0 then
-				return 0x1C0 --???
+				return 0x1C0 --air special moves
 			else
 				return 0x0E0 --jumping or juggled
 			end
@@ -359,7 +566,7 @@ local get_pushbox_offset = {
 	["rbff1"] = function(obj)
 		if memory.readdword(obj.base + 0x28) > 0 then --off ground
 			if bit.band(memory.readdword(obj.base + 0xC6), 0xFFFF0000) == 0 then
-				return 0x110 --???
+				return 0x110 --air special moves
 			else
 				return 0x220 --jumping or juggled
 			end
@@ -376,7 +583,7 @@ local get_pushbox_offset = {
 		if memory.readdword(obj.base + 0x28) > 0 then --off ground
 			local d2 = memory.readdword(obj.base + 0xC8)
 			if (obj.char_id == 7 and bit.band(d2, 0x2000000) > 0 or bit.band(d2, 0xFFFF0000) == 0) or bit.band(d2, 0xFFFF0000) == 0 then
-				return 0x150 --???
+				return 0x150 --air special moves
 			else
 				return 0x1F8 --jumping or juggled
 			end
@@ -398,7 +605,7 @@ local get_pushbox_offset = {
 		elseif memory.readdword(obj.base + 0x28) > 0 then --off ground
 			local char_table_lookup = memory.readdword(version.pushbox_base - 0x294 + obj.char_id * 4)
 			if memory.readdword(char_table_lookup) == 0 and bit.band(d2, 0xFFFF0000) > 0 then
-				return 0x240 --???
+				return 0x240 --air special moves
 			else
 				return 0x180 --jumping or juggled
 			end
@@ -419,7 +626,7 @@ local get_pushbox_offset = {
 			local c6, ca, bb = memory.readdword(obj.base + 0xC6), memory.readdword(obj.base + 0xCA), memory.readbyte(obj.base + 0xBB)
 			if (bit.band(c6, 0xFFFFFFFF) > 0 or bit.band(ca, 0xFFFFFFDE) > 0)
 				and bit.band(bb, bit.lshift(1, 0x4)) == 0 and bit.band(ca, 0xFFFFE01E) > 0 then
-				return 0x300 --???
+				return 0x300 --air special moves
 			else
 				return 0x200 --jumping or juggled
 			end
@@ -434,6 +641,85 @@ local get_pushbox_offset = {
 }
 
 
+local get_box_id = {
+	["fatal fury"] = function(address)
+		return bit.band(memory.readword(address), 0x000F)
+	end,
+
+	["garou"] = function(address)
+		return memory.readbyte(address)
+	end,
+}
+
+
+local type_check = {
+	["king of fighters"] = {
+		[UNDEFINED_BOX] = function(obj, entry, box)
+			if bit.band(obj.status, game.box_list[entry].active) == 0 then
+				return true
+			end
+			box.type = game.box_types[box.id]
+			if box.type == ATTACK_BOX then
+				if game.box_list[entry].active_bit > 0 then
+					return true
+				elseif obj.projectile then
+					box.type = PROJ_ATTACK_BOX
+				end
+			end
+		end,
+
+		[PUSH_BOX] = function(obj, entry, box)
+			if box.id == 0xFF or obj.projectile then
+				return true
+			end
+		end,
+
+		[THROW_BOX] = function(obj, entry, box)
+			box.id = memory.readbyte(obj.base + game.box_list[entry].id)
+			if box.id == 0x00 then
+				return true
+			else
+				memory.writebyte(obj.base + game.box_list[entry].id, 0) --bad
+			end
+		end,
+
+		[THROWABLE_BOX] = function(obj, entry, box)
+			box.id = memory.readbyte(obj.base + game.box_list[entry].active)
+			if box.id == 0x01 then
+				return true
+			end
+		end,
+	},
+
+	["fatal fury"] = {
+		[PUSH_BOX] = function(obj, box)
+			if obj.projectile or obj.no_push or globals.same_plane == false or not version.pushbox_base then
+				return true
+			else
+				box.address = version.pushbox_base + get_pushbox_offset[globals.game](obj) + bit.lshift(obj.char_id, 3)
+				box.id = memory.readbyte(box.address)
+			end
+		end,
+
+		[UNDEFINED_BOX] = function(obj, box, offset)
+			box.address = obj.hitbox_ptr + offset
+			box.id = get_box_id[game.box_engine](box.address)
+			box.type = game.box_types and game.box_types[box.id] or UNDEFINED_BOX
+			if box.type == VULNERABILITY_BOX and obj.invulnerable then
+				return true
+			elseif box.type == ATTACK_BOX and bit.band(obj.status, game.active_status) == 0 then
+				return true
+			elseif box.type == ATTACK_BOX and obj.projectile then
+				box.type = PROJ_ATTACK_BOX
+			--elseif box.type == UNDEFINED_BOX then
+				--print(string.format("%02x",box.id))
+				--emu.pause()
+			end
+		end,
+	},
+}
+
+
 local define_box = {
 	["king of fighters"] = function(obj, entry)
 		local box = {
@@ -442,17 +728,17 @@ local define_box = {
 		}
 		box.id = memory.readbyte(box.address)
 
-		if type_check[box.type](obj, entry, box) then
+		if type_check[game.engine][box.type](obj, entry, box) then
 			return nil
 		end
 
-		box.hrad = game.box.radius_read(box.address + game.box.hrad)
-		box.vrad = game.box.radius_read(box.address + game.box.vrad)
+		box.hrad = memory.readbyte(box.address + 0x3)
+		box.vrad = memory.readbyte(box.address + 0x4)
 		if box.hrad == 0 and box.vrad == 0 then
 			return nil
 		end
-		box.hval = game.box.offset_read(box.address + game.box.hval)
-		box.vval = game.box.offset_read(box.address + game.box.vval)
+		box.hval = memory.readbytesigned(box.address + 0x1)
+		box.vval = memory.readbytesigned(box.address + 0x2)
 
 		box.hval   = obj.pos_x + box.hval * (obj.facing_dir > 0 and -1 or 1)
 		box.vval   = obj.pos_y + box.vval
@@ -464,30 +750,48 @@ local define_box = {
 		return box
 	end,
 
-	["fatal fury"] = function(obj, entry)
-		local box = {
-			type = game.box_list[entry].type,
-		}
+	["fatal fury"] = function(obj, type, offset)
+		local box = {type = type}
 		
-		if box.type == PUSH_BOX then
-			if obj.projectile or (game.offset.no_push and memory.readbyte(obj.base + game.offset.no_push) == 0xFF)
-				or globals.same_plane == false or not version.pushbox_base then
-				return nil
-			else
-				box.address = version.pushbox_base + get_pushbox_offset[globals.game](obj) + bit.lshift(obj.char_id, 3)
-			end
-		else
-			box.address = obj.hitbox_ptr + game.box_list[entry].offset
+		if type_check[game.engine][box.type](obj, box, offset) then
+			return nil
 		end
 
-		box.hval   = obj.pos_x
-		box.vval   = obj.pos_y
-		box.top    = box.vval - memory.readbytesigned(box.address + 1) * obj.scale
-		box.bottom = box.vval - memory.readbytesigned(box.address + 2) * obj.scale
-		box.left   = box.hval - memory.readbytesigned(box.address + 3) * 4 * (obj.facing_dir > 0 and 1 or -1)
-		box.right  = box.hval - memory.readbytesigned(box.address + 4) * 4 * (obj.facing_dir > 0 and 1 or -1)
-		
+		box.top    = obj.pos_y - memory.readbytesigned(box.address + game.box.top)    * 4--obj.scale
+		box.bottom = obj.pos_y - memory.readbytesigned(box.address + game.box.bottom) * 4--obj.scale
+		box.left   = obj.pos_x - memory.readbytesigned(box.address + game.box.left)   * 4 * obj.facing_dir
+		box.right  = obj.pos_x - memory.readbytesigned(box.address + game.box.right)  * 4 * obj.facing_dir
+		if box.top == box.bottom and box.left == box.right then
+			return nil
+		end
+		box.hval   = (box.right + box.left)/2
+		box.vval   = (box.bottom + box.top)/2
+
 		return box
+	end,
+}
+
+
+local modify_object = {
+	["fatal fury"] = function(obj)
+		obj.facing_dir = memory.readbyte(obj.base + game.offset.facing_dir) > 0 and 1 or -1
+		obj.hitbox_ptr_offset = memory.readword(obj.base + game.offset.hitbox_ptr_offset)
+		obj.hitbox_ptr = memory.readdword(obj.base + game.offset.hitbox_ptr) + bit.band(obj.hitbox_ptr_offset, 0x0FFF) * 6
+		obj.num_boxes = bit.rshift(bit.band(obj.hitbox_ptr_offset, 0xF000), 12)
+		obj.invulnerable = game.offset.invulnerable and memory.readbyte(obj.base + game.offset.invulnerable) == 0xFF
+	end,
+
+	["garou"] = function(obj)
+		obj.facing_dir = memory.readbyte(obj.base + game.offset.facing_dir)
+		obj.facing_dir = (obj.facing_dir > 0 and 1 or -1) * (bit.band(obj.status, 0x80) > 0 and -1 or 1) * game.reverse_facing
+		obj.hitbox_ptr = memory.readdword(obj.base + game.offset.hitbox_ptr)
+		obj.num_boxes  = bit.rshift(obj.hitbox_ptr, 24)
+		obj.char_id = memory.readword(obj.base + game.offset.char_id)
+		obj.invulnerable = game.offset.invulnerable and memory.readbyte(obj.base + game.offset.invulnerable) == 0xFF
+		if game.offset.no_push then
+			obj.no_push = memory.readbyte(obj.base + game.offset.no_push) == 0xFF
+			table.insert(obj, define_box["fatal fury"](obj, PUSH_BOX))
+		end
 	end,
 }
 
@@ -500,7 +804,7 @@ local add_object = {
 		obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
 		obj.status = memory.readbyte(obj.base + game.offset.status)
 		for entry in ipairs(game.box_list) do
-			obj[entry] = define_box[game.engine](obj, entry)
+			obj[entry] = define_box["king of fighters"](obj, entry)
 		end
 		return obj
 	end,
@@ -510,12 +814,15 @@ local add_object = {
 		obj.pos_x = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
 		obj.pos_z = get_z(memory.readword(obj.base + game.offset.z_position))
 		obj.pos_y = get_y[game.y_value](memory.readwordsigned(obj.base + game.offset.y_position)) - obj.pos_z - 1
-		obj.scale = obj.pos_z and 4 / (obj.pos_z/0x80 + 1) or 4 --lazy guess
-		obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
-		obj.hitbox_ptr = memory.readdword(obj.base + game.offset.hitbox_ptr)
-		obj.char_id    = memory.readword(obj.base + game.offset.char_id)
-		for entry in ipairs(game.box_list) do
-			obj[entry] = define_box[game.engine](obj, entry)
+		obj.status = memory.readbyte(obj.base + game.offset.status)
+		--obj.scale = obj.pos_z and 4 / (obj.pos_z/0x80 + 1) or 4 --lazy guess
+		modify_object[game.box_engine](obj)
+
+		if game.no_boxes then
+			return obj
+		end
+		for n = obj.num_boxes, 1, -1 do
+			table.insert(obj, define_box["fatal fury"](obj, UNDEFINED_BOX, (n-1)*game.box.space))
 		end
 		return obj
 	end,
@@ -523,7 +830,7 @@ local add_object = {
 
 
 local read_objects = {
-	[2] = function(objects)
+	["king of fighters"] = function(objects)
 		local offset = 0
 		while true do
 			local address = memory.readword(game.address.obj_ptr_list + offset)
@@ -535,24 +842,49 @@ local read_objects = {
 					return
 				end
 			end
-			table.insert(objects, add_object[game.engine](bit.bor(0x100000, address), true))
+			table.insert(objects, add_object["king of fighters"](bit.bor(0x100000, address), true))
 			offset = offset + 2
 		end
 	end,
 
-	[4] = function(objects)
+	["fatal fury"] = function(objects)
+		for p = 1, game.number_players do
+			repeat
+			local address = memory.readdword(game.address.player + game.offset.player_space * (p-1) + game.offset.obj_ptr)
+			globals.inactive_obj.new[address] = memory.readword(memory.readdword(address)) == 0x4E75 --rts instruction
+			local inactive_flag = memory.readword(address + game.offset.obj_inactive) == 0
+			if address == 0 or inactive_flag or globals.inactive_obj.old[address] then
+				globals.inactive_obj.old = copytable(globals.inactive_obj.new)
+				break
+			end
+			globals.inactive_obj.old = copytable(globals.inactive_obj.new)
+			for _, object in ipairs(objects) do
+				if address == object.base then
+					break
+				end
+			end
+			table.insert(objects, add_object["fatal fury"](address, true))
+			until true
+		end
+	end,
+
+	["garou"] = function(objects)
 		local offset = 0
 		while true do
 			local address = memory.readdword(game.address.obj_ptr_list + offset)
-			if address == 0 or memory.readword(address + 0x60) == 0 then
+			globals.inactive_obj.new[address] = memory.readword(memory.readdword(address)) == 0x4E75 --rts instruction
+			local inactive_flag = memory.readword(address + game.offset.obj_inactive) > 0
+			if address == 0 or inactive_flag or globals.inactive_obj.old[address] then
+				globals.inactive_obj.old = copytable(globals.inactive_obj.new)
 				return
 			end
+			globals.inactive_obj.old = copytable(globals.inactive_obj.new)
 			for _, object in ipairs(objects) do
 				if address == object.base then
 					return
 				end
 			end
-			table.insert(objects, add_object[game.engine](address, true))
+			table.insert(objects, add_object["fatal fury"](address, true))
 			offset = offset + 4
 		end
 	end,
@@ -592,7 +924,7 @@ local function update_neogeo_hitboxes()
 	for p = 1, game.number_players do
 		frame_buffer[DRAW_DELAY+1][p] = add_object[game.engine](game.address.player + game.offset.player_space * (p-1))
 	end
-	read_objects[game.ptr_size](frame_buffer[DRAW_DELAY+1])
+	read_objects[game.obj_engine](frame_buffer[DRAW_DELAY+1])
 end
 
 
@@ -622,11 +954,26 @@ local function draw_hitbox(obj, entry)
 	if DRAW_MINI_AXIS then
 		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, outline[hb.type])
 		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, outline[hb.type])
-		--gui.text(hb.hval, hb.vval, string.format("%02X", hb.id)) --debug
+		--gui.text(hb.hval, hb.vval, string.format("%02X", hb.id or 0xFF)) --debug
 	end
 
 	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
 end
+
+
+local get_number_entries = {
+	["king of fighters"] = function()
+		return #game.box_list
+	end,
+
+	["fatal fury"] = function()
+		local max_entries = 0
+		for _, obj in ipairs(frame_buffer[1]) do
+			max_entries = math.max(max_entries, #obj)
+		end
+		return max_entries
+	end,
+}
 
 
 local function draw_axis(obj)
@@ -637,10 +984,8 @@ local function draw_axis(obj)
 	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
 	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
 	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
-	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%04X,%04X", obj.pos_x, obj.pos_y)) --debug
-	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%06X", memory.readdword(obj.base))) --debug
 	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%08X", obj.hitbox_ptr)) --debug
-	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X", obj.char_id or obj.status)) --debug
+	--gui.text(obj.pos_x, obj.pos_y+8, string.format("%02X,%02X", obj.status, obj.num_boxes or 0xFF)) --debug
 end
 
 
@@ -654,7 +999,7 @@ local function render_neogeo_hitboxes()
 		gui.box(0, 0, emu.screenwidth(), emu.screenheight(), BLANK_COLOR)
 	end
 
-	for entry in ipairs(game.box_list) do
+	for entry = 1, get_number_entries[game.engine]() do
 		for _, obj in ipairs(frame_buffer[1]) do
 			draw_hitbox(obj, entry)
 		end
@@ -742,6 +1087,7 @@ local function whatgame()
 				end
 				globals.game = shortname
 				globals.same_plane = nil
+				globals.inactive_obj = {old = {}, new = {}}
 				return
 			end
 		end
