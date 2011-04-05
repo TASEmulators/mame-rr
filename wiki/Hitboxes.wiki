@@ -71,7 +71,7 @@ All of the Street Fighter II games.
 [http://img94.imageshack.us/img94/6789/sf2sf2hf.png]
 [http://img132.imageshack.us/img132/8926/sf2ssf2.png]
 [http://img852.imageshack.us/img852/4783/sf2ssf2t.png]
-[http://img856.imageshack.us/img856/1657/sf2hsf2.png]
+[http://img33.imageshack.us/img33/1657/sf2hsf2.png]
 
 === marvel-hitboxes.lua ===
 All of the Marvel/Versus games on the CPS-2 system.
@@ -140,6 +140,11 @@ Selected beat-em-up games on the CPS-2 system.
 === neogeo-hitboxes.lua ===
 Selected fighting games on the NeoGeo MVS system.
 ||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]`*`||Fatal Fury - King of Fighters||
+||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]`*`||Fatal Fury 2||
+||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]`*`||Fatal Fury Special||
+||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]`*`||Fatal Fury 3 - Road to the Final Victory||
+||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]`*`||Real Bout Fatal Fury||
 ||[http://maws.mameworld.info/maws/romset/kof94 kof94]`*`||The King of Fighters '94||
 ||[http://maws.mameworld.info/maws/romset/kof95 kof95]`*`||The King of Fighters '95||
 ||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||
@@ -150,6 +155,13 @@ Selected fighting games on the NeoGeo MVS system.
 ||[http://maws.mameworld.info/maws/romset/kof2001 kof2001]||The King of Fighters 2001||
 ||[http://maws.mameworld.info/maws/romset/kof2002 kof2002]||The King of Fighters 2002||
 
+`**` The invincibility frames on some Fatal Fury moves are not being shown.
+
+[http://img215.imageshack.us/img215/2107/neogeofatfury1.png]
+[http://img17.imageshack.us/img17/6149/neogeofatfury2.png]
+[http://img291.imageshack.us/img291/2624/neogeofatfursa.png]
+[http://img405.imageshack.us/img405/1434/neogeofatfury3.png]
+[http://img815.imageshack.us/img815/7351/neogeorbff1.png]
 [http://img52.imageshack.us/img52/5269/neogeokof94.png]
 [http://img600.imageshack.us/img600/9328/neogeokof95.png]
 [http://img715.imageshack.us/img715/993/neogeokof96.png]
@@ -158,12 +170,12 @@ Selected fighting games on the NeoGeo MVS system.
 [http://img545.imageshack.us/img545/2005/neogeokof99a.png]
 [http://img98.imageshack.us/img98/3276/neogeokof2000.png]
 [http://img197.imageshack.us/img197/1767/neogeokof2001.png]
-[http://img842.imageshack.us/img842/5589/neogeokof2002.png]
+[http://img840.imageshack.us/img840/5589/neogeokof2002.png]
 
 === sfiii3-hitboxes.lua ===
 ||[http://maws.mameworld.info/maws/romset/sfiii3 sfiii3]||Street Fighter III 3rd Strike: Fight for the Future||
 
-This script was translated to Lua from the [http://code.google.com/p/mameserver/ mameserver] project. It's in a basic state and is missing many features.
+This script was translated to Lua from the [http://code.google.com/p/mameserver/ mameserver] project. It's missing many features and may be inaccurate.
 
 ----
 Errors or inconsistencies can be reported by leaving a comment to this page.
