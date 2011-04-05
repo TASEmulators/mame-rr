@@ -1,5 +1,5 @@
 print("NeoGeo fighting game hitbox viewer")
-print("April 4, 2011")
+print("April 5, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -148,7 +148,7 @@ local profile = {
 			player           = 0x100300,
 		},
 		offset = {
-			facing_dir        = 0x35,
+			facing_dir        = 0x47,
 			status            = 0x36,
 			hitbox_ptr        = 0xB2,
 			invulnerable      = 0xCD,
@@ -839,8 +839,8 @@ local define_box = {
 			return nil
 		end
 
-		box.top    = obj.pos_y - game.box.read(box.address + game.box.top)    * game.box.scale--obj.scale
-		box.bottom = obj.pos_y - game.box.read(box.address + game.box.bottom) * game.box.scale--obj.scale
+		box.top    = obj.pos_y - game.box.read(box.address + game.box.top)    * game.box.scale--* obj.scale
+		box.bottom = obj.pos_y - game.box.read(box.address + game.box.bottom) * game.box.scale--* obj.scale
 		box.left   = obj.pos_x - game.box.read(box.address + game.box.left)   * game.box.scale * obj.facing_dir
 		box.right  = obj.pos_x - game.box.read(box.address + game.box.right)  * game.box.scale * obj.facing_dir
 		if box.top == box.bottom and box.left == box.right then
@@ -856,7 +856,7 @@ local define_box = {
 
 local modify_object = {
 	["fatal fury 1"] = function(obj)
-		obj.facing_dir = memory.readbyte(obj.base + game.offset.facing_dir) > 0 and -1 or 1
+		obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 0x01) > 0 and 1 or -1
 		obj.hitbox_ptr = memory.readdword(obj.base + game.offset.hitbox_ptr)
 		obj.invulnerable = memory.readbyte(obj.base + game.offset.invulnerable) == 0xFF
 		if bit.band(obj.hitbox_ptr, 0xFFFFFF) == 0 then
@@ -908,7 +908,7 @@ local add_object = {
 		obj.pos_z = get_z(memory.readword(obj.base + game.offset.z_position))
 		obj.pos_y = get_y[game.y_value](memory.readwordsigned(obj.base + game.offset.y_position)) - obj.pos_z - 1
 		obj.status = memory.readbyte(obj.base + game.offset.status)
-		--obj.scale = obj.pos_z and 4 / (obj.pos_z/0x80 + 1) or 4 --lazy guess
+		--obj.scale = obj.pos_z and 1 / (obj.pos_z/0x80 + 1) or 1 --lazy guess
 		modify_object[game.box_engine](obj)
 
 		if game.no_boxes then
@@ -1168,7 +1168,7 @@ end)
 -- initialize on game startup
 
 local function whatversion(game)
-	if not game.no_push then
+	if not game.offset.no_push then
 		return nil
 	end
 	for version_set,base in pairs(game.versions) do
