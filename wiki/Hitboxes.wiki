@@ -11,7 +11,7 @@ Also see [http://combovid.com/?category_name=technical combovid] for in-depth di
 ----
 == Usage ==
 
-These scripts work with both MAME-rr and FBA-rr, and with both parent and clone ROMs. Download the script file, load the appropriate ROM, launch a Lua window (ctrl-L by default), then browse for and run the .lua file. The ROM must be up to date for MAME-rr or FBA-rr, and may be out of date with respect to [http://mamedev.org/ mainline MAME].
+These scripts work with either parent and clone ROMs, and with both emulators, but MAME-rr is recommended because of crashing and slowdowns in FBA-rr. Download the script file, load the appropriate ROM, launch a Lua window (ctrl-L by default), then browse for and run the .lua file. The ROM must be up to date for MAME-rr or FBA-rr, and may be out of date with respect to [http://mamedev.org/ mainline MAME].
 
 *The current versions can be downloaded from the [http://mame-rr.googlecode.com/svn/lua/ SVN repository].* Changes are trackable on the [http://code.google.com/p/mame-rr/updates/list update page] or by subscribing to the update feed.
 
@@ -34,14 +34,14 @@ The attack box must touch the opponent's vulnerability for the attack to connect
 If an opposing projectile's attack touches a projectile vulnerability box, the projectiles negate one another. In some games, projectiles don't have designated vulnerability areas and negate by touching attack boxes. Non-character objects in the beat-'em-ups are colored as projectiles.
 
 ==== Push ====
-A pushbox cannot occupy the same space as another pushbox. Attempting to press them together will cause characters to push one another. Jumping attacks that extend below and behind the pushbox allow for easier crossup attacks. Some moves cause pushboxes to disappear, allowing the character to pass through the opponent. Pushboxes are not used in beat-'em-ups.
+A pushbox cannot occupy the same space as another pushbox. Attempting to press them together will cause characters to push one another. Jumping attacks that extend below and behind the pushbox allow for easier crossup attacks. Some moves cause pushboxes to disappear, allowing the character to pass through the opponent. In primitive games like Fatal Fury 1 & 2, vulnerability boxes also perform the function of pushboxes. Pushboxes are not used in beat-'em-ups.
 
 ==== Throw and Throwable ====
 A throwbox must touch the opponent's throwable box for the throw attempt to succeed. Throws are generally active for only one frame. Some games don't have designated throwable boxes and use the pushbox for this purpose. Some older games don't use boxes to compute throws, but compare the distance between the character axes to hardcoded values.
 
 ==== Guard ====
 Attacks that hit a guardbox will be blocked, either by manually blocking, by an autoguard move, or by a special counter move.
-Guard boxes only appear in the _King of Fighters_ games.
+Guard boxes have only been found in SNK games.
 
 ==== Weak ====
 Attacks that hit a weakbox deal double damage. Weak boxes only appear in _Street Fighter II: World Warrior_ and in WW mode of _Hyper Street Fighter 2_.
@@ -54,7 +54,7 @@ Colors can be changed by editing the appropriate values at the top of the script
 ----
 == List of supported games ==
 
-`*` indicates the script is not showing throw boxes for this game. Throws with hardcoded ranges cannot be shown without more powerful Lua tools like `memory.register()` and `memory.registerexec()`.
+`*` indicates the script is not showing throw boxes for this game. Throws with hardcoded ranges cannot be shown without more powerful Lua tools.
 
 === sf2-hitboxes.lua ===
 All of the Street Fighter II games.
@@ -138,13 +138,13 @@ Selected beat-em-up games on the CPS-2 system.
 [http://img23.imageshack.us/img23/1985/beatemupbatcir.png]
 
 === neogeo-hitboxes.lua ===
-Selected fighting games on the NeoGeo MVS system.
+Selected fighting games on the !NeoGeo MVS system.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]`*`||Fatal Fury - King of Fighters||
-||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]`*`||Fatal Fury 2||
-||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]`*`||Fatal Fury Special||
-||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]`*`||Fatal Fury 3 - Road to the Final Victory||
-||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]`*`||Real Bout Fatal Fury||
+||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]`*` ^1^ ^2^||Fatal Fury - King of Fighters||
+||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]`*` ^1^||Fatal Fury 2||
+||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]`*` ^1^ ^2^||Fatal Fury Special||
+||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]`*` ^1^ ^2^||Fatal Fury 3 - Road to the Final Victory||
+||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]`*` ^1^ ^2^||Real Bout Fatal Fury||
 ||[http://maws.mameworld.info/maws/romset/kof94 kof94]`*`||The King of Fighters '94||
 ||[http://maws.mameworld.info/maws/romset/kof95 kof95]`*`||The King of Fighters '95||
 ||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||
@@ -155,7 +155,9 @@ Selected fighting games on the NeoGeo MVS system.
 ||[http://maws.mameworld.info/maws/romset/kof2001 kof2001]||The King of Fighters 2001||
 ||[http://maws.mameworld.info/maws/romset/kof2002 kof2002]||The King of Fighters 2002||
 
-`**` The invincibility frames on some Fatal Fury moves are not being shown.
+The script has some problems with the Fatal Fury games:
+ # The invincibility frames on some moves are not being shown.
+ # Only works in MAME-rr, not in FBA-rr.
 
 [http://img215.imageshack.us/img215/2107/neogeofatfury1.png]
 [http://img17.imageshack.us/img17/6149/neogeofatfury2.png]
