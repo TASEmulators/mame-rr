@@ -180,4 +180,31 @@ The script has some problems with the Fatal Fury games:
 This script was translated to Lua from the [http://code.google.com/p/mameserver/ mameserver] project. It's missing many features and may be inaccurate.
 
 ----
+== Background removal ==
+
+The game backgrounds can make the boxes harder to see. This can be offset by increasing the fill opacity of the boxes, but this in turn makes the character sprites harder to see. The ideal solution is to remove the backgrounds entirely. One way to do this is with "cheat" codes that prevent the background and HUD from being displayed by the game.
+
+[http://img84.imageshack.us/img84/3733/ssf2twithbg.png]
+[http://img508.imageshack.us/img508/8744/ssf2tblackbg.png]
+
+Codes covering all the currently hitboxed fighting games can be found here: [http://pastey.net/149504]
+
+Here is how to get them working in MAME: 
+ # Download the [http://www.mamecheat.co.uk/ latest official cheat pack].
+ # Extract cheat.zip from the downloaded archive to the base MAME folder.
+ # Extract the .xml for the appropriate game from cheat.zip to MAME's _cheats_ folder.
+ # Open the .xml in a text editor and paste in the code.
+ # Run the ROM in MAME, find _Cheats_ from the main menu, and set the code to _On_.
+
+Other information:
+ * The codes for some games need to be activated before the start of the match to remove the HUD.
+ * The codes are designed to only affect the game while a match is in progress.
+ * The effects of some codes are not fully reversible.
+ * Most of the codes patch ROM data and will only work with parent sets, not clones.
+ * The background color for !NeoGeo games can easily be adjusted by editing the color value in the codes.
+ * Screenshots or videos captured with the backgrounds removed can be easily processed to make the background color transparent:
+
+[http://img703.imageshack.us/img703/2167/ssf2tnobg.png]
+
+----
 Errors or inconsistencies can be reported by leaving a comment to this page.
