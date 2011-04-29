@@ -202,7 +202,8 @@ Other information:
  * The effects of some codes are not fully reversible.
  * Most of the codes patch ROM data and will only work with parent sets, not clones.
  * The background color for !NeoGeo games can easily be adjusted by editing the color value in the codes.
- * Screenshots or videos captured with the backgrounds removed can be easily processed to make the background color transparent:
+
+Screenshots or videos captured with the backgrounds removed can easily be processed to make the background color transparent. In order for this to work with hitboxes, the fill opacity must be set to zero and the border opacity should be maximum.
 
 [http://img703.imageshack.us/img703/2167/ssf2tnobg.png]
 
