@@ -1,5 +1,5 @@
 print("Frame data collector script")
-print("June 30, 2011")
+print("July 5, 2011")
 print("http://code.google.com/p/mame-rr/")
 print()
 print("> 'startup' is the period before the 1st active frame")
@@ -44,13 +44,13 @@ local profile = {
 		games = {"sfa"}, class = "sfa",
 		hitfreeze = function(addr) return memory.readbyte(addr + 0x04F) ~= 0x00 end,
 		superfreeze = function(addr) return memory.readbyte(0xFFAE84) ~= 0x00 end,
-		delay = {startup = 0, atk_recover = 1, hit_recover = 0, prefreeze = 0, superfreeze = 10, postfreeze = -1},
+		delay = {startup = 0, atk_recover = 1, hit_recover = 0, prefreeze = 0, superfreeze = 10, postfreeze = {["*"] = 4, [""] = -4}},
 	},
 	{
 		games = {"sfa2", "sfz2al"}, class = "sfa",
 		hitfreeze = function(addr) return memory.readbyte(addr + 0x05F) ~= 0x00 end,
 		superfreeze = function(addr) return memory.readbyte(0xFF8125) ~= 0x00 end,
-		delay = {startup = -2, atk_recover = 1, hit_recover = 0, prefreeze = 0, superfreeze = 10, postfreeze = -3},
+		delay = {startup = -1, atk_recover = 1, hit_recover = 0, prefreeze = 0, superfreeze = 10, postfreeze = {["*"] = 4, [""] = -4}},
 	},
 	{
 		games = {"sfa3"},
@@ -67,7 +67,7 @@ local profile = {
 		thrown    = function(addr) return memory.readbyte(addr + 0x005) == 0x06 end,
 		hitfreeze = function(addr) return memory.readbyte(addr + 0x05F) ~= 0x00 end,
 		superfreeze = function(addr) return memory.readbyte(0xFF8125) ~= 0x00 end,
-		delay = {startup = -1, atk_recover = 1, hit_recover = 0, prefreeze = -1, superfreeze = 0, postfreeze = -3},
+		delay = {startup = -1, atk_recover = 1, hit_recover = 0, prefreeze = 0, superfreeze = 0, postfreeze = {["*"] = -4, [""] = -4}},
 	},
 	{
 		games = {"dstlk"}, class = "dstlk",
@@ -113,7 +113,8 @@ local fill_out = {
 		game.hurt      = function(addr) return memory.readbyte(addr + 0x003) >= 0x0E end
 		game.thrown    = function(addr) return memory.readbyte(addr + 0x063) == 0xFF end
 		game.hitfreeze = function(addr) return memory.readbyte(addr + 0x047) ~= 0x00 end
-		game.delay = {startup = -1, atk_recover = 0, hit_recover = 0, prefreeze = 0, superfreeze = -1, postfreeze = 0}
+		game.delay = {startup = -1, atk_recover = 0, hit_recover = 0, 
+			prefreeze = 0, superfreeze = -1, postfreeze = {["*"] = 0, [""] = 0}}
 	end,
 
 	["sfa"] = function(game)
@@ -168,7 +169,8 @@ local fill_out = {
 			return memory.readword(addr + 0x044) ~= 0x0000 and 
 				(memory.readbyte(addr + game.super_frozen) == 0x01 or memory.readbyte(opp_addr + game.super_frozen) == 0x01)
 		end
-		game.delay = {startup = 0, atk_recover = 0, hit_recover = 0, prefreeze = 0, superfreeze = 1, postfreeze = -3}
+		game.delay = {startup = 0, atk_recover = 0, hit_recover = 0, 
+			prefreeze = 0, superfreeze = 1, postfreeze = {["*"] = -4, [""] = -3}}
 	end,
 }
 
@@ -279,7 +281,7 @@ local function update_frame_data()
 		end
 		if count.prefreeze then
 			count.superfreeze = count.superfreeze + game.delay.superfreeze
-			count.postfreeze = count.startup - count.superfreeze + game.delay.postfreeze
+			count.postfreeze = count.startup - count.superfreeze + game.delay.postfreeze[count.non_projectile]
 			count.startup = count.prefreeze + count.postfreeze
 			count.freeze_details = count.prefreeze .. " (" .. count.superfreeze .. ") " .. count.postfreeze
 		end
