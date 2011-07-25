@@ -1,5 +1,5 @@
 print("CPS-2 fighting game hitbox viewer")
-print("July 21, 2011")
+print("July 24, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -679,19 +679,19 @@ end
 
 local process_box_type = {
 	["vulnerability"] = function(obj, box, box_entry)
-		if game.invulnerable(obj, box) == true or obj.friends then
+		if game.invulnerable(obj, box) or obj.friends then
 			return false
 		end
 	end,
 
 	["attack"] = function(obj, box)
-		if game.no_hit(obj, box) == true then
+		if game.no_hit(obj, box) then
 			return false
 		end
 	end,
 
 	["push"] = function(obj, box)
-		if not globals.draw_pushboxes or obj.friends or game.unpushable(obj, box) == true then
+		if game.unpushable(obj, box) or obj.friends then
 			return false
 		end
 	end,
@@ -727,7 +727,7 @@ local process_box_type = {
 	end,
 
 	["throwable"] = function(obj, box)
-		if not globals.draw_throwable_boxes or obj.projectile or game.unthrowable(obj, box) == true then
+		if game.unthrowable(obj, box) or obj.projectile then
 			return false
 		end
 	end,
@@ -882,7 +882,7 @@ local define_box = {
 
 		local range_offset = memory.readbytesigned(obj.base + box_entry.offset)
 		local range = memory.readword(memory.readdword(obj.base + box_entry.ptr) + range_offset)
-		if range_offset == 0 or range == 0 or 
+		if bit.band(range_offset, 0xFE) == 0 or range == 0 or 
 			(box_entry.throw_state and memory.readbyte(obj.base + box_entry.throw_state) == 0) then
 			return nil
 		end
@@ -1023,12 +1023,14 @@ local function update_hitboxes()
 	update_globals()
 
 	for f = 1, DRAW_DELAY do
+		frame_buffer[f].match_active = frame_buffer[f+1].match_active
 		for p = 1, game.number.players do
 			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
 		end
 		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
 	end
 
+	frame_buffer[DRAW_DELAY+1].match_active = globals.match_active
 	for p = 1, game.number.players do
 		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
 		if memory.readword(player[p].base) > 0x0100 then
@@ -1062,6 +1064,11 @@ end)
 
 local function draw_hitbox(obj, entry)
 	local hb = obj[entry]
+	if eval ({
+		not globals.draw_pushboxes and hb.type == "push",
+		not globals.draw_throwable_boxes and hb.type == "throwable",
+	}) then return
+	end
 
 	if globals.draw_mini_axis then
 		gui.drawline(hb.hval, hb.vval-globals.mini_axis_size, hb.hval, hb.vval+globals.mini_axis_size, boxes[hb.type].outline)
@@ -1085,7 +1092,7 @@ end
 
 local function render_hitboxes()
 	gui.clearuncommitted()
-	if not game or not globals.match_active then
+	if not game or not frame_buffer[1].match_active then
 		return
 	end
 
@@ -1094,8 +1101,8 @@ local function render_hitboxes()
 	end
 
 	for entry = 1, game.box_number do
-		for i = 1, #frame_buffer[1][projectiles] do
-			local obj = frame_buffer[1][projectiles][i]
+		for p = 1, #frame_buffer[1][projectiles] do
+			local obj = frame_buffer[1][projectiles][p]
 			if obj[entry] then
 				draw_hitbox(obj, entry)
 			end
@@ -1110,11 +1117,12 @@ local function render_hitboxes()
 	end
 
 	if globals.draw_axis then
+		for p = 1, #frame_buffer[1][projectiles] do
+			draw_axis(frame_buffer[1][projectiles][p])
+		end
+
 		for p = 1, game.number.players do
 			draw_axis(frame_buffer[1][player][p])
-		end
-		for i = 1, #frame_buffer[1][projectiles] do
-			draw_axis(frame_buffer[1][projectiles][i])
 		end
 	end
 end
