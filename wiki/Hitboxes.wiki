@@ -79,6 +79,8 @@ Colors can be changed by editing the `box` values at the top of the scripts.
 	["proj. vulnerability"] = {color = 0x00FFFF, fill = 0x40, outline = 0xFF},
 	       ["proj. attack"] = {color = 0xFF66FF, fill = 0x40, outline = 0xFF},
 	               ["push"] = {color = 0x00FF00, fill = 0x20, outline = 0xFF},
+	              ["throw"] = {color = 0xFFFF00, fill = 0x40, outline = 0xFF},
+	          ["throwable"] = {color = 0xF0F0F0, fill = 0x20, outline = 0xFF},
 }}}
 
 The `color` numbers are [http://www.w3schools.com/html/html_colors.asp RGB values], and the `fill` and `outline` determine the opacity of the inside and outside of the box. `0xFF` is fully opaque and `0x00` is invisible.
@@ -86,14 +88,14 @@ The `color` numbers are [http://www.w3schools.com/html/html_colors.asp RGB value
 The default colors are subject to change in future versions.
 
 ----
-== Breakpoints & watchpoints ==
-In its current form, the Lua engine can only get information about the game state by periodically reading from memory. Some kinds of boxes do not get written to RAM or are overwritten so soon that they cannot be read between frames. They can only be detected by monitoring when certain points in the code get executed. A breakpoint is a tool that monitors code, while a watchpoint monitors memory. For now the only way to use them and show those boxes is with the MAME-rr debugger.
+== Breakpoints ==
+In its current form, the Lua engine can only get information about the game state by periodically reading from memory. Some kinds of boxes do not get written to RAM or are overwritten so soon that they cannot be read between frames. They can only be detected by monitoring when certain points in the code get executed. A tool that does this is called a breakpoint. For now the only way to use them and show those boxes is with the MAME-rr debugger.
 
-Run MAME from the command line with the `-debug` switch:
+Here's how to enable the debugger. Run MAME from the command line with the `-debug` switch:
 
 {{{> mame sfa2 -debug -lua cps2-hitboxes.lua}}}
 
-Or to avoid using the command line, create a .bat file that loads the debugger with no game:
+Or to avoid using the command line, create a .bat file that activates the debugger without specifying a game:
 
 {{{mame -debug}}}
 
@@ -103,11 +105,11 @@ The debugger starts by halting execution of the game and the UI. Press F5 to rel
 
 Copy and paste the line over to the debugger console and hit enter. Now all supported box types will appear correctly.
 
-[http://img713.imageshack.us/img713/967/debuga.png]
+[http://img43.imageshack.us/img43/3858/debugi.png]
 
-The game may glitch up when the command is entered but this only happens once. Before quitting or unloading the ROM, enter `bpc` and/or `wpc` into the debugger console to clear any installed breaks, or else MAME will crash.
+The game may glitch up when the command is entered but this only happens once. Before quitting or unloading the ROM, enter `bpc` into the debugger console to clear any installed breaks, or else MAME will crash.
 
-You can still use the scripts in FBA-rr or without the debugger, but they will not show the boxes that require breaks. Future versions of the emulators may make this procedure unnecessary.
+You can still use the scripts in FBA-rr or without the debugger, but they will not show the boxes that require BPs. Future versions of the emulators may make this procedure unnecessary.
 
 ----
 = Supported games =
@@ -129,13 +131,13 @@ All of the Street Fighter II games.
 [http://img854.imageshack.us/img854/4783/sf2ssf2t.png]
 [http://img33.imageshack.us/img33/1657/sf2hsf2.png]
 
-=== Special box types ===
+=== Notes ===
 [http://img828.imageshack.us/img828/1993/colorssf2.png]
 
-==== Weak ====
+==== `weak` box ====
 Attacks that hit a weakbox deal double damage. Weak boxes only appear in _Street Fighter II: World Warrior_ and in WW mode of _Hyper Street Fighter 2_. They are colored the same as throwboxes by default.
 
-==== Air throwable ====
+==== `air throwable` box ====
 This box is susceptible to air throws but not ground throws. The opposite is true for the normal throwable box.
 
 ----
@@ -153,6 +155,15 @@ All of the Marvel/Versus games on the CPS-2 system.
 [http://img217.imageshack.us/img217/3070/marvelxmvsf.png]
 [http://img707.imageshack.us/img707/5739/marvelmshvsf.png]
 [http://img153.imageshack.us/img153/3811/marvelmvsc.png]
+
+=== Notes ===
+==== Breakpoints ====
+BPs are needed to show the exact frames when throws are active and when pushboxes are inactive. Without BPs, only the potential throw range is viewable, and pushboxes tend to flicker or not disappear when inactive.
+
+[http://img23.imageshack.us/img23/4328/colorsmsh.png]
+
+==== `potential throw` box ====
+Even without breakpoints, it's possible to show where the box would appear if a throw were attempted. This box type is fully transparent (invisible) by default and can be shown by editing its opacity values. Showing it is not recommended since breakpoints can show the real throw attempts.
 
 ----
 == cps2-hitboxes.lua ==
@@ -184,13 +195,15 @@ All of the remaining CPS-2 fighting games, including the Street Fighter Alpha an
 [http://img546.imageshack.us/img546/7540/cps2cybots.png]
 [http://img696.imageshack.us/img696/5448/cps2sgemf.png]
 
-=== Breakpoints/watchpoints required ===
-BPs are needed to show all throws in sfa, sfa2, sfz2al, vsav, vhunt2, vsav2, cybots, and sgemf. They are also needed to show air throws in dstlk & nwarr and to make ground throws be attempted at long range.
+=== Notes ===
+==== Breakpoints ====
+BPs are needed to show all throws in: sfa, sfa2, sfz2al, vsav, vhunt2, vsav2, cybots, and sgemf.
 
-=== Special box types ===
+They are also needed in dstlk and nwarr to show air throws and to make ground throws be attempted at long range.
+
 [http://img855.imageshack.us/img855/5071/colorssfa2.png]
 
-==== Axis throw ====
+==== `axis throw` box ====
 Air throws in sfa, sfa2 & sfz2al, and special ranged throws in nwarr grab at the opponent's axis instead of a box. 
 
 ----
@@ -251,10 +264,10 @@ The script has some problems with the Fatal Fury games:
 [http://img197.imageshack.us/img197/1767/neogeokof2001.png]
 [http://img840.imageshack.us/img840/5589/neogeokof2002.png]
 
-=== Special box types ===
+=== Notes ===
 [http://img837.imageshack.us/img837/78/colorskof98.png]
 
-==== Guard ====
+==== `guard` box ====
 Attacks that hit a guardbox will be blocked, either by manually blocking, by an autoguard move, or by a special counter move.
 
 ----
