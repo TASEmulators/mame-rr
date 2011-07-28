@@ -1,5 +1,5 @@
 print("CPS-2 fighting game hitbox viewer")
-print("July 24, 2011")
+print("July 27, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -1139,35 +1139,35 @@ end)
 input.registerhotkey(1, function()
 	globals.blank_screen = not globals.blank_screen
 	render_hitboxes()
-	print((globals.blank_screen and "activated" or "deactivated") .. " blank screen mode")
+	emu.message((globals.blank_screen and "activated" or "deactivated") .. " blank screen mode")
 end)
 
 
 input.registerhotkey(2, function()
 	globals.draw_axis = not globals.draw_axis
 	render_hitboxes()
-	print((globals.draw_axis and "showing" or "hiding") .. " object axis")
+	emu.message((globals.draw_axis and "showing" or "hiding") .. " object axis")
 end)
 
 
 input.registerhotkey(3, function()
 	globals.draw_mini_axis = not globals.draw_mini_axis
 	render_hitboxes()
-	print((globals.draw_mini_axis and "showing" or "hiding") .. " hitbox axis")
+	emu.message((globals.draw_mini_axis and "showing" or "hiding") .. " hitbox axis")
 end)
 
 
 input.registerhotkey(4, function()
 	globals.draw_pushboxes = not globals.draw_pushboxes
 	render_hitboxes()
-	print((globals.draw_pushboxes and "showing" or "hiding") .. " pushboxes")
+	emu.message((globals.draw_pushboxes and "showing" or "hiding") .. " pushboxes")
 end)
 
 
 input.registerhotkey(5, function()
 	globals.draw_throwable_boxes = not globals.draw_throwable_boxes
 	render_hitboxes()
-	print((globals.draw_throwable_boxes and "showing" or "hiding") .. " throwable boxes")
+	emu.message((globals.draw_throwable_boxes and "showing" or "hiding") .. " throwable boxes")
 end)
 
 
