@@ -1,367 +1,463 @@
 print("CPS-2 Marvel series hitbox viewer")
-print("March 17, 2011")
+print("July 27, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis")
 print("Lua hotkey 4: toggle pushboxes")
-print("Lua hotkey 5: toggle throwboxes and throwable boxes") print()
-
-local VULNERABILITY_COLOR      = 0x7777FF40
-local ATTACK_COLOR             = 0xFF000040
-local PROJ_VULNERABILITY_COLOR = 0x00FFFF40
-local PROJ_ATTACK_COLOR        = 0xFF66FF60
-local PUSH_COLOR               = 0x00FF0020
-local THROW_COLOR              = 0xFFFF0060
-local THROWABLE_COLOR          = 0xFFFFFF20
-local AXIS_COLOR               = 0xFFFFFFFF
-local BLANK_COLOR              = 0xFFFFFFFF
-local AXIS_SIZE                = 12
-local MINI_AXIS_SIZE           = 2
-local DRAW_DELAY               = 1
-local BLANK_SCREEN             = false
-local DRAW_AXIS                = false
-local DRAW_MINI_AXIS           = false
-local DRAW_PUSHBOXES           = true
-local DRAW_THROWBOXES          = false
-
-local GAME_PHASE_NOT_PLAYING = 0
-local VULNERABILITY_BOX      = 1
-local ATTACK_BOX             = 2
-local PROJ_VULNERABILITY_BOX = 3
-local PROJ_ATTACK_BOX        = 4
-local PUSH_BOX               = 5
-local THROW_BOX              = 6
-local THROWABLE_BOX          = 7
-
-local fill = {
-	VULNERABILITY_COLOR,
-	ATTACK_COLOR,
-	PROJ_VULNERABILITY_COLOR,
-	PROJ_ATTACK_COLOR,
-	PUSH_COLOR,
-	THROW_COLOR,
-	THROWABLE_COLOR,
-}
-
-local outline = {
-	bit.bor(0xFF, VULNERABILITY_COLOR),
-	bit.bor(0xFF, ATTACK_COLOR),
-	bit.bor(0xFF, PROJ_VULNERABILITY_COLOR),
-	bit.bor(0xFF, PROJ_ATTACK_COLOR),
-	bit.bor(0xC0, PUSH_COLOR),
-	bit.bor(0xFF, THROW_COLOR),
-	bit.bor(0xC0, THROWABLE_COLOR),
-}
-
-local function beq(func, val)
-	return (func(val) == 0)
+print("Lua hotkey 5: toggle throwable boxes")
+if not mame then
+	print() print("(MAME-rr can show more accurate throwboxes and pushboxes with this script.)")
 end
 
+local boxes = {
+	      ["vulnerability"] = {color = 0x7777FF, fill = 0x20, outline = 0xFF},
+	             ["attack"] = {color = 0xFF0000, fill = 0x40, outline = 0xFF},
+	["proj. vulnerability"] = {color = 0x00FFFF, fill = 0x40, outline = 0xFF},
+	       ["proj. attack"] = {color = 0xFF66FF, fill = 0x40, outline = 0xFF},
+	               ["push"] = {color = 0x00FF00, fill = 0x20, outline = 0xFF},
+	    ["potential throw"] = {color = 0xFFFF00, fill = 0x00, outline = 0x00}, --not visible by default
+	       ["active throw"] = {color = 0xFFFF00, fill = 0x80, outline = 0xFF},
+	          ["throwable"] = {color = 0xF0F0F0, fill = 0x20, outline = 0xFF},
+}
 
-local function bne(func, val)
-	return (func(val) ~= 0)
+local globals = {
+	axis_color           = 0xFFFFFFFF,
+	blank_color          = 0xFFFFFFFF,
+	axis_size            = 12,
+	mini_axis_size       = 2,
+	blank_screen         = false,
+	draw_axis            = true,
+	draw_mini_axis       = false,
+	draw_pushboxes       = true,
+	draw_throwable_boxes = false,
+}
+
+
+local function eval(list)
+	for _, condition in ipairs(list) do
+		if condition == true then return true end
+	end
 end
 
+--------------------------------------------------------------------------------
+-- game-specific modules
 
 local profile = {
 	{
 		game = "xmcota",
 		number_players = 2,
 		address = {
-			player           = 0xFF4000,
-			projectile_ptr   = 0xFFD6C4,
-			game_phase       = 0xFF4BA4,
-			stage            = 0xFF488F,
-			stage_camera = {
-				[0x0] = 0xFF498C, --Savage Land (Wolverine)
-				[0x1] = 0xFF4A0C, --Moon Night (Psylocke)
-				[0x2] = 0xFF4A0C, --Mutant Hunting (Colossus)
-				[0x3] = 0xFF4A0C, --Danger Room (Cyclops)
-				[0x4] = 0xFF4A0C, --On the Blackbird (Storm)
-				[0x5] = 0xFF4A0C, --Ice on the Beach (Iceman)
-				[0x6] = 0xFF4A0C, --Mojo World (Spiral)
-				[0x7] = 0xFF4A0C, --Samurai Shrine (Silver Samurai)
-				[0x8] = 0xFF4A0C, --The Deep (Omega Red)
-				[0x9] = 0xFF4A0C, --Genosha (Sentinel)
-				[0xA] = 0xFF4A0C, --Space Port (Juggernaut)
-				[0xB] = 0xFF498C, --Avalon (Magneto)
-			},
+			player         = 0xFF4000,
+			match_status   = 0xFF4800,
+			projectile_ptr = 0xFFD6C4,
+			stage          = 0xFF488F,
 		},
 		offset = {
 			facing_dir           = 0x4D,
-			char_id              = 0x50,
-			invulnerable         = 0xF7,
-			no_push              = 0x10A,
-			throw_count          = 0x11E,
+			character_id         = 0x50,
+			addr_table_ptr       = 0x88, 
 			projectile_ptr_space = 0x1C8,
+			stage_base = {
+				-0x3680, -0x3600, -0x3600, -0x3600, -0x3600, -0x3600, -0x3600, -0x3600, 
+				-0x3600, -0x3600, -0x3600, -0x3680, -0x3680, -0x3680, -0x3680, -0x3600,
+			},
 		},
+		stage_lag = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		box_list = {
-			{id_ptr = 0xA2, type = PUSH_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x7C, type = THROWABLE_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x74, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x76, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x78, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x70, type = ATTACK_BOX},
-			{addr_table_ptr = 0x88, id_ptr = 0x72, type = ATTACK_BOX},
+			{id_ptr = 0xA2, type = "push"},
+			{id_ptr = 0x74, type = "vulnerability"},
+			{id_ptr = 0x76, type = "vulnerability"},
+			{id_ptr = 0x78, type = "vulnerability"},
+			{id_ptr = 0x7A, type = "vulnerability"},
+			{id_ptr = 0x7C, type = "throwable"},
+			{id_ptr = 0x70, type = "attack"},
+			{id_ptr = 0x72, type = "attack"},
 		},
-		pushbox_base = {
-			[0x0B7642] = {"xmcotajr"}, --941208
-			[0x0C08F6] = {"xmcotaa", "xmcotaj3"}, --941217
-			[0x0C0A90] = {"xmcotaj2"}, --941219
-			[0x0C0ABE] = {"xmcotaj1"}, --941222
-			[0x0C15E2] = {"xmcota", "xmcotad", "xmcotahr1", "xmcotaj", "xmcotau"}, --950105
-			[0x0C1618] = {"xmcotah"}, --950331
+		pushbox_data = { base = 0x0C15E2, 
+			["xmcotajr"] = -0x9FA0, --941208
+			["xmcotaj3"] = -0xCEC, ["xmcotaar1"] = -0xCEC, --941217
+			["xmcotaj2"] = -0xB52, --941219
+			["xmcotaj1"] = -0xB24, --941222
+			["xmcota"] = 0, ["xmcotaa"] = 0, ["xmcotad"] = 0, ["xmcotahr1"] = 0, ["xmcotaj"] = 0, ["xmcotau"] = 0, --950105
+			["xmcotah"] = 0x36, --950331
 		},
-		unthrowable = {
-			{offset = 0x125, compfunc = bne, readfunc = memory.readbyte},
-			{offset = 0x137, compfunc = bne, readfunc = memory.readbyte},
+		push_check = { base = 0x00A010,
+			cmd = "maincpu.pw@ff43fb = maincpu.pw@ff410a; maincpu.pw@ff47fb = maincpu.pw@ff450a",
+			["xmcotajr"] = -0x614, --941208
+			["xmcotaj3"] = -0x56, ["xmcotaar1"] = -0x56, --941217
+			["xmcotaj2"] = -0x34, --941219
+			["xmcotaj1"] = -0x32, --941222
+			["xmcota"] = 0, ["xmcotaa"] = 0, ["xmcotad"] = 0, ["xmcotahr1"] = 0, ["xmcotaj"] = 0, ["xmcotau"] = 0, --950105
+			["xmcotah"] = 0, --950331
 		},
-		unthrowable_status = {},
+		throw_check = { base  = 0x01544A,
+			["xmcotajr"] = -0x2E9A, --941208
+			["xmcotaj3"] = -0x5CA, ["xmcotaar1"] = -0x5CA, --941217
+			["xmcotaj2"] = -0x544, --941219
+			["xmcotaj1"] = -0x520, --941222
+			["xmcota"] = 0, ["xmcotaa"] = 0, ["xmcotad"] = 0, ["xmcotahr1"] = 0, ["xmcotaj"] = 0, ["xmcotau"] = 0, --950105
+			["xmcotah"] = 0, --950331
+		},
+		match_active = function(p1_base, stage)
+			return stage < 0xC
+		end,
+		no_hit = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x083) == 0,
+		}) end,
+		invulnerable = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x084) == 0,
+		}) end,
+		unpushable = function(obj, box) return eval({
+			obj.projectile ~= nil,
+			memory.readword(obj.base + 0x10A) > 0,
+			memory.readword(obj.base + 0x006) == 0x04,
+			memory.readword(obj.base + 0x006) == 0x08,
+		}) end,
+		unthrowable = function(obj, box) return eval({
+			bit.band(memory.readbyte(0xFF480F), 0x08) > 0,
+			memory.readbyte(obj.base + 0x125) > 0,
+			memory.readbyte(0xFF4800) ~= 0x04,
+			memory.readbyte(obj.base + 0x11E) >= 0x02,
+			memory.readbyte(obj.base + 0x084) == 0 and memory.readbyte(obj.base + 0x10C) == 0,
+			memory.readbyte(obj.base + 0x137) > 0,
+			memory.readword(obj.base + 0x006) == 0 and 
+			(memory.readbyte(obj.base + 0x0A0) == 0x1C or memory.readbyte(obj.base + 0x0A0) == 0x1E),
+		}) end,
 	},
 	{
 		game = "msh",
 		number_players = 2,
 		address = {
-			player           = 0xFF4000,
-			projectile_ptr   = 0xFFE400,
-			game_phase       = 0xFF8EC3,
-			stage            = 0xFF4893,
-			stage_camera = {
-				[0x0] = 0xFF4A0C, --Spider-Man
-				[0x1] = 0xFF4A0C, --Captain America
-				[0x2] = 0xFF4A0C, --Hulk
-				[0x3] = 0xFF4A0C, --Iron Man
-				[0x4] = 0xFF498C, --Wolverine
-				[0x5] = 0xFF4A0C, --Psylocke
-				[0x6] = 0xFF4B0C, --BlackHeart
-				[0x7] = 0xFF4A0C, --Shuma-Gorath
-				[0x8] = 0xFF4A0C, --Juggernaut
-				[0x9] = 0xFF4A0C, --Magneto
-				[0xA] = 0xFF4A0C, --Dr.Doom
-				[0xA] = 0xFF4A0C, --Thanos
-			},
+			player         = 0xFF4000,
+			match_status   = 0xFF4800,
+			projectile_ptr = 0xFFE400,
+			stage          = 0xFF4893,
 		},
 		offset = {
 			facing_dir           = 0x4D,
-			char_id              = 0x50,
-			invulnerable         = 0xF7,
-			no_push              = 0x10A,
-			throw_count          = 0x11E,
+			character_id         = 0x50,
+			addr_table_ptr       = 0x90,
 			projectile_ptr_space = 0x148,
+			stage_base = {
+				-0x3600, -0x3600, -0x3600, -0x3600, -0x3680, -0x3600, -0x3500, -0x3600, 
+				-0x3600, -0x3600, -0x3600, -0x3600, -0x3600, -0x3600, -0x3600, -0x3600,
+			},
 		},
+		stage_lag = {0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		box_list = {
-			{id_ptr = 0xA2, type = PUSH_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x80, type = THROWABLE_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x78, type = VULNERABILITY_BOX, active = 0x86},
-			{addr_table_ptr = 0x90, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x7C, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x7E, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x90, id_ptr = 0x74, type = ATTACK_BOX, active = 0x86},
-			{addr_table_ptr = 0x90, id_ptr = 0x76, type = ATTACK_BOX},
+			{id_ptr = 0xA2, type = "push"},
+			{id_ptr = 0x78, type = "vulnerability"},
+			{id_ptr = 0x7A, type = "vulnerability"},
+			{id_ptr = 0x7C, type = "vulnerability"},
+			{id_ptr = 0x7E, type = "vulnerability"},
+			{id_ptr = 0x80, type = "throwable"},
+			{id_ptr = 0x74, type = "attack"},
+			{id_ptr = 0x76, type = "attack"},
 		},
-		pushbox_base = {
-			[0x09E82C] = {"msh", "msha", "mshjr1", "mshud", "mshu"}, --951024
-			[0x09E95E] = {"mshb", "mshh", "mshj"}, --951117
+		pushbox_data = { base = 0x09E82C,
+			["msh"] = 0, ["msha"] = 0, ["mshjr1"] = 0, ["mshud"] = 0, ["mshu"] = 0, --951024
+			["mshb"] = 0x132, ["mshh"] = 0x132, ["mshj"] = 0x132, --951117
 		},
-		unthrowable = {
-			{offset = 0x125, compfunc = bne, readfunc = memory.readbyte},
-			{offset = 0x137, compfunc = bne, readfunc = memory.readbyte},
+		push_check = { base = 0x00DD0A,
+			cmd = "maincpu.pb@ff43fc = maincpu.pb@ff410a; maincpu.pb@ff47fc = maincpu.pb@ff450a",
+			["msh"] = 0, ["msha"] = 0, ["mshjr1"] = 0, ["mshud"] = 0, ["mshu"] = 0, --951024
+			["mshb"] = 0x8, ["mshh"] = 0x8, ["mshj"] = 0x8, --951117
 		},
-		unthrowable_status = {},
+		throw_check = { base  = 0x091882, 
+			["msh"] = 0, ["msha"] = 0, ["mshjr1"] = 0, ["mshud"] = 0, ["mshu"] = 0, --951024
+			["mshb"] = 0x18, ["mshh"] = 0x18, ["mshj"] = 0x18, --951117
+		},
+		match_active = function(p1_base, stage)
+			return memory.readdword(0xFF8FA2) == p1_base
+		end,
+		no_hit = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x086) == 0,
+		}) end,
+		invulnerable = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x087) == 0,
+		}) end,
+		unpushable = function(obj, box) return eval({
+			obj.projectile ~= nil,
+			memory.readbyte(obj.base + 0x10A) > 0,
+			memory.readword(obj.base + 0x006) == 0x04,
+		}) end,
+		unthrowable = function(obj, box) return eval({
+			bit.band(memory.readbyte(0xFF480F), 0x08) > 0,
+			memory.readbyte(obj.base + 0x125) > 0,
+			memory.readbyte(0xFF4800) ~= 0x08,
+			memory.readbyte(obj.base + 0x11E) >= 0x02,
+			memory.readbyte(obj.base + 0x087) == 0 and memory.readbyte(obj.base + 0x10C) == 0,
+			memory.readbyte(obj.base + 0x137) > 0,
+			memory.readword(obj.base + 0x006) == 0 and 
+			(memory.readbyte(obj.base + 0x0A0) == 0x24 or memory.readbyte(obj.base + 0x0A0) == 0x26),
+		}) end,
 	},
 	{
 		game = "xmvsf",
 		number_players = 4,
-		pushable_players = 2,
 		address = {
-			player           = 0xFF4000,
-			projectile_ptr   = 0xFFE3D8,
-			game_phase       = 0xFFA015,
-			stage            = 0xFF5113,
-			stage_camera = {
-				[0x0] = 0xFF534C, --Apocalypse Now!
-				[0x1] = 0xFF524C, --Showdown in the Park
-				[0x2] = 0xFF524C, --Death Valley
-				[0x3] = 0xFF52CC, --The Cataract
-				[0x4] = 0xFF524C, --The Temple of Fists
-				[0x5] = 0xFF524C, --On the Hilltop
-				[0x6] = 0xFF534C, --Manhattan
-				[0x7] = 0xFF524C, --Raging Inferno
-				[0x8] = 0xFF52CC, --Code Red
-				[0x9] = 0xFF524C, --Dead or Live: The Show
-				[0xA] = 0xFF524C, --Mall Mayhem
-			},
+			player         = 0xFF4000,
+			match_status   = 0xFF5000,
+			projectile_ptr = 0xFFE3D8,
+			stage          = 0xFF5113,
 		},
 		offset = {
 			facing_dir           = 0x4B,
-			char_id              = 0x52,
-			invulnerable         = 0xF7,
-			no_push              = 0x105,
-			throw_count          = 0x10A,
+			character_id         = 0x52,
+			addr_table_ptr       = 0x6C,
 			projectile_ptr_space = 0x150,
+			stage_base = {
+				-0x2CC0, -0x2DC0, -0x2DC0, -0x2D40, -0x2DC0, -0x2DC0, -0x2CC0, -0x2DC0, 
+				-0x2D40, -0x2D40, -0x2DC0, -0x2DC0, -0x2DC0, -0x2DC0, -0x2DC0, -0x2DC0,
+			},
 		},
+		stage_lag = {1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		box_list = {
-			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = PUSH_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX, active = 0x82},
-			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
+			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = "push"},
+			{id_ptr = 0x74, type = "vulnerability"},
+			{id_ptr = 0x76, type = "vulnerability"},
+			{id_ptr = 0x78, type = "vulnerability"},
+			{id_ptr = 0x7A, type = "vulnerability"},
+			{id_ptr = 0x7C, type = "throwable"},
+			{id_ptr = 0x70, type = "attack"},
+			{id_ptr = 0x72, type = "attack"},
 		},
-		pushbox_base = {
-			[0x08AEB4] = {"xmvsfjr2", apoc = 0x05D08C}, --960909
-			[0x08AEEE] = {"xmvsfar2", "xmvsfr1", "xmvsfjr1", apoc = 0x05D092}, --960910
-			[0x08B022] = {"xmvsf", "xmvsfar1", "xmvsfh", "xmvsfj", "xmvsfu1d", "xmvsfur1", apoc = 0x05D0FA}, --960919, 961004
-			[0x08B050] = {"xmvsfa", "xmvsfb", "xmvsfu", apoc = 0x05D10C}, --961023
+		pushbox_data = { base = 0x08B022, 
+			["xmvsfjr2"] = -0x16E, --960909
+			["xmvsfar2"] = -0x134, ["xmvsfr1"] = -0x134, ["xmvsfjr1"] = -0x134, --960910
+			["xmvsfar1"] = 0, --960919
+			["xmvsf"] = 0, ["xmvsfh"] = 0, ["xmvsfj"] = 0, ["xmvsfu1d"] = 0, ["xmvsfur1"] = 0, --961004
+			["xmvsfa"] = 0x2E, ["xmvsfb"] = 0x2E, ["xmvsfu"] = 0x2E, --961023
 		},
-		unthrowable = {
-			{offset = 0x083, compfunc = beq, readfunc = memory.readbyte},
-			{offset = 0x120, compfunc = bne, readfunc = memory.readbyte},
-			{offset = 0x221, compfunc = bne, readfunc = memory.readbyte},
+		push_check = { base = 0x0104D4,
+			cmd = "maincpu.pb@ff43fc = maincpu.pb@ff4105; maincpu.pb@ff47fc = maincpu.pb@ff4505",
+			["xmvsfjr2"] = -0x28, --960909
+			["xmvsfar2"] = -0x22, ["xmvsfr1"] = -0x22, ["xmvsfjr1"] = -0x22, --960910
+			["xmvsfar1"] = 0, --960919
+			["xmvsf"] = 0, ["xmvsfh"] = 0, ["xmvsfj"] = 0, ["xmvsfu1d"] = 0, ["xmvsfur1"] = 0, --961004
+			["xmvsfa"] = 0xE, ["xmvsfb"] = 0xE, ["xmvsfu"] = 0xE, --961023
 		},
-		unthrowable_status = {0xC},
+		throw_check = { base  = 0x07CC62, 
+			["xmvsfjr2"] = -0x74, --960909
+			["xmvsfar2"] = -0x4A, ["xmvsfr1"] = -0x4A, ["xmvsfjr1"] = -0x4A, --960910
+			["xmvsfar1"] = 0x8, --960919
+			["xmvsf"] = 0, ["xmvsfh"] = 0, ["xmvsfj"] = 0, ["xmvsfu1d"] = 0, ["xmvsfur1"] = 0, --961004
+			["xmvsfa"] = 0x2E, ["xmvsfb"] = 0x2E, ["xmvsfu"] = 0x2E, --961023
+		},
+		match_active = function(p1_base, stage)
+			return memory.readdword(0xFFA014) == p1_base
+		end,
+		no_hit = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x082) == 0,
+		}) end,
+		invulnerable = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x083) == 0,
+		}) end,
+		unpushable = function(obj, box) return eval({
+			obj.projectile ~= nil and memory.readword(obj.base + 0x24) ~= 0x94, --Apocalypse fist
+			not obj.projectile and obj.base > 0xFF4400, --only the two point chars can push
+			not obj.projectile and memory.readbyte(obj.base + 0x105) > 0,
+			not obj.projectile and memory.readword(obj.base + 0x006) == 0x04,
+		}) end,
+		unthrowable = function(obj, box) return eval({
+			bit.band(memory.readbyte(0xFF500F), 0x08) > 0,
+			memory.readbyte(obj.base + 0x221) > 0,
+			memory.readbyte(0xFF5031) > 0,
+			memory.readbyte(obj.base + 0x120) > 0,
+			memory.readbyte(0xFF5000) ~= 0x08,
+			memory.readbyte(obj.base + 0x10A) >= 0x02,
+			memory.readbyte(obj.base + 0x083) == 0,
+			memory.readword(obj.base + 0x006) == 0 and 
+			(memory.readbyte(obj.base + 0x0A0) == 0x24 or memory.readbyte(obj.base + 0x0A0) == 0x26),
+			memory.readword(obj.base + 0x006) == 0x0C,
+		}) end,
 	},
 	{
 		game = "mshvsf",
 		number_players = 4,
 		address = {
-			player           = 0xFF3800,
-			projectile_ptr   = 0xFFE32E,
-			game_phase       = 0xFF48C9,
-			stage            = 0xFF4913,
-			stage_camera = {
-				[0x0] = 0xFF4B4C, --Apocalypse Now!
-				[0x1] = 0xFF4A4C, --Showdown in the Park
-				[0x2] = 0xFF4A4C, --Death Valley
-				[0x3] = 0xFF4ACC, --The Cataract
-				[0x4] = 0xFF4A4C, --The Temple of Fists
-				[0x5] = 0xFF4A4C, --On the Hilltop
-				[0x6] = 0xFF4B4C, --Manhattan
-				[0x7] = 0xFF4A4C, --Raging Inferno
-				[0x8] = 0xFF4ACC, --Code Red
-				[0x9] = 0xFF4A4C, --Dead or Live: The Show
-				[0xA] = 0xFF4A4C, --Mall Mayhem
-				[0xB] = 0xFF4A4C, --Raging Inferno 2
-				[0xC] = 0xFF4A4C, --Death Valley 2
-			},
+			player         = 0xFF3800,
+			match_status   = 0xFF4800,
+			projectile_ptr = 0xFFE32E,
+			stage          = 0xFF4913,
 		},
 		offset = {
 			facing_dir           = 0x4B,
-			char_id              = 0x52,
-			invulnerable         = 0xF7,
-			no_push              = 0x105,
-			throw_count          = 0x10A,
+			character_id         = 0x52,
+			addr_table_ptr       = 0x6C,
 			projectile_ptr_space = 0x150,
+			stage_base = {
+				-0x34C0, -0x35C0, -0x35C0, -0x3540, -0x35C0, -0x35C0, -0x34C0, -0x35C0, 
+				-0x3540, -0x3540, -0x35C0, -0x35C0, -0x35C0, -0x35C0, -0x35C0, -0x35C0,
+			},
 		},
+		stage_lag = {1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		box_list = {
-			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = PUSH_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX, active = 0x82},
-			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
+			{id_ptr = 0xA4, projectile_id_ptr = 0xB2, type = "push"},
+			{id_ptr = 0x74, type = "vulnerability"},
+			{id_ptr = 0x76, type = "vulnerability"},
+			{id_ptr = 0x78, type = "vulnerability"},
+			{id_ptr = 0x7A, type = "vulnerability"},
+			{id_ptr = 0x7C, type = "throwable"},
+			{id_ptr = 0x70, type = "attack"},
+			{id_ptr = 0x72, type = "attack"},
 		},
-		pushbox_base = {
-			[0x137E90] = {"mshvsfa1", apoc = 0x0875DC}, --970620
-			[0x137EE2] = {"mshvsf", "mshvsfa", "mshvsfb1", "mshvsfh", "mshvsfj2", "mshvsfu1", "mshvsfu1d", apoc = 0x087610}, --970625
-			[0x138158] = {"mshvsfj1", apoc = 0x087606}, --970702
-			[0x1381E4] = {"mshvsfj", apoc = 0x087606}, --970707
-			[0x1381C6] = {"mshvsfu", "mshvsfb", apoc = 0x0875E4}, --970827
+		pushbox_data = { base = 0x137EE2, 
+			["mshvsfa1"] = -0x52, --970620
+			["mshvsf"] = 0, ["mshvsfa"] = 0, ["mshvsfb1"] = 0, ["mshvsfh"] = 0, ["mshvsfj2"] = 0, ["mshvsfu1"] = 0, ["mshvsfu1d"] = 0, --970625
+			["mshvsfj1"] = 0x276, --970702
+			["mshvsfj"] = 0x302, --970707
+			["mshvsfu"] = 0x2E4, ["mshvsfb"] = 0x2E4, --970827
 		},
-		unthrowable = {
-			{offset = 0x083, compfunc = beq, readfunc = memory.readbyte},
-			{offset = 0x120, compfunc = bne, readfunc = memory.readbyte},
-			{offset = 0x261, compfunc = bne, readfunc = memory.readbyte},
+		push_check = { base = 0x011922,
+			cmd = "maincpu.pb@(a2+3fc) = maincpu.pb@(a2+105); maincpu.pb@(a3+3fc) = maincpu.pb@(a3+105)",
+			["mshvsfa1"] = -0x34, --970620
+			["mshvsf"] = 0, ["mshvsfa"] = 0, ["mshvsfb1"] = 0, ["mshvsfh"] = 0, ["mshvsfj2"] = 0, ["mshvsfu1"] = 0, ["mshvsfu1d"] = 0, --970625
+			["mshvsfj1"] = -0x4, --970702
+			["mshvsfj"] = -0x4, --970707
+			["mshvsfu"] = -0x4, ["mshvsfb"] = -0x4, --970827
 		},
-		unthrowable_status = {0x8, 0xC},
+		throw_check = { base  = 0x0B0A58, 
+			["mshvsfa1"] = -0x3C, --970620
+			["mshvsf"] = 0, ["mshvsfa"] = 0, ["mshvsfb1"] = 0, ["mshvsfh"] = 0, ["mshvsfj2"] = 0, ["mshvsfu1"] = 0, ["mshvsfu1d"] = 0, --970625
+			["mshvsfj1"] = 0x276, --970702
+			["mshvsfj"] = 0x302, --970707
+			["mshvsfu"] = 0x2E4, ["mshvsfb"] = 0x2E4, --970827
+		},
+		match_active = function(p1_base, stage)
+			return memory.readdword(0xFF9F2A) == p1_base
+		end,
+		no_hit = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x082) == 0,
+		}) end,
+		invulnerable = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x083) == 0,
+		}) end,
+		unpushable = function(obj, box) return eval({
+			obj.projectile ~= nil and memory.readword(obj.base + 0x24) ~= 0x94, --Apocalypse fist
+			not obj.projectile and memory.readbyte(obj.base) == 0,
+			not obj.projectile and memory.readword(obj.base + 0x006) == 0x04,
+			not obj.projectile and memory.readbyte(obj.base + 0x105) > 0,
+		}) end,
+		unthrowable = function(obj, box) return eval({
+			bit.band(memory.readbyte(0xFF480F), 0x08) > 0,
+			memory.readbyte(0xFF4831) > 0,
+			memory.readbyte(obj.base + 0x261) > 0,
+			memory.readbyte(obj.base + 0x120) > 0,
+			memory.readbyte(0xFF4800) ~= 0x08,
+			memory.readbyte(obj.base + 0x10A) >= 0x02,
+			memory.readbyte(obj.base + 0x083) == 0,
+			memory.readword(obj.base + 0x006) == 0 and 
+			(memory.readbyte(obj.base + 0x0A0) == 0x24 or memory.readbyte(obj.base + 0x0A0) == 0x26),
+			memory.readword(obj.base + 0x006) == 0x0C,
+			memory.readword(obj.base + 0x006) == 0x08,
+		}) end,
 	},
 	{
 		game = "mvsc",
 		number_players = 4,
 		address = {
-			player           = 0xFF3000,
-			projectile_ptr   = 0xFFDF1A,
-			game_phase       = 0xFF62B7,
-			stage            = 0xFF4113,
-			stage_camera = {
-				[0x0] = 0xFF426C, --Honda's bath house
-				[0x1] = 0xFF426C, --Lord Rapter concert
-				[0x2] = 0xFF426C, --Strider Kazakh SSR
-				[0x3] = 0xFF42EC, --Dr. Wily's lab
-				[0x4] = 0xFF42EC, --Marvel stuff
-				[0x5] = 0xFF426C, --Avengers HQ
-				[0x6] = 0xFF426C, --Moon base
-				[0x7] = 0xFF41EC, --Daily Bugle rooftop
-				[0x8] = 0xFF41EC, --Mountain
-				[0x9] = 0xFF436C, --Onslaught
-			},
+			player         = 0xFF3000,
+			match_status   = 0xFF4000,
+			projectile_ptr = 0xFFDF1A,
+			stage          = 0xFF4113,
 		},
 		offset = {
 			facing_dir           = 0x4B,
-			char_id              = 0x52,
-			invulnerable         = 0x107,
-			no_push              = 0x115,
-			throw_count          = 0x11A,
+			character_id         = 0x52,
+			addr_table_ptr       = 0x6C,
 			projectile_ptr_space = 0x158,
+			stage_base = {
+				-0x3DA0, -0x3DA0, -0x3DA0, -0x3D20, -0x3D20, -0x3DA0, -0x3DA0, -0x3E20, 
+				-0x3E20, -0x3CA0, -0x3DA0, -0x3DA0, -0x3DA0, -0x3DA0, -0x3DA0, -0x3DA0,
+			},
 		},
+		stage_lag = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
 		box_list = {
-			{id_ptr = 0xB4, type = PUSH_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x7C, type = THROWABLE_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x74, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x76, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x78, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x7A, type = VULNERABILITY_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x70, type = ATTACK_BOX},
-			{addr_table_ptr = 0x6C, id_ptr = 0x72, type = ATTACK_BOX},
+			{id_ptr = 0xB4, type = "push"},
+			{id_ptr = 0x74, type = "vulnerability"},
+			{id_ptr = 0x76, type = "vulnerability"},
+			{id_ptr = 0x78, type = "vulnerability"},
+			{id_ptr = 0x7A, type = "vulnerability"},
+			{id_ptr = 0x7C, type = "throwable"},
+			{id_ptr = 0x70, type = "attack"},
+			{id_ptr = 0x72, type = "attack"},
 		},
-		pushbox_base = {
-			[0x0E5DA6] = {"mvscur1"}, --971222
-			[0x0E5EF4] = {"mvscar1", "mvscr1", "mvscjr1"}, --980112
-			[0x0E6FEE] = {"mvsc", "mvsca", "mvscb", "mvsch", "mvscj", "mvscud", "mvscu"}, --980123
+		pushbox_data = { base = 0x0E6FEE,
+			["mvscur1"] = -0x1248, --971222
+			["mvscar1"] = -0x10FA, ["mvscr1"] = -0x10FA, ["mvscjr1"] = -0x10FA, --980112
+			["mvsc"] = 0, ["mvsca"] = 0, ["mvscb"] = 0, ["mvsch"] = 0, ["mvscj"] = 0, ["mvscud"] = 0, ["mvscu"] = 0, --980123
 		},
-		unthrowable = {
-			{offset = 0x000, compfunc = beq, readfunc = memory.readbyte},
-			{offset = 0x083, compfunc = beq, readfunc = memory.readbyte},
-			{offset = 0x130, compfunc = bne, readfunc = memory.readbyte},
-			{offset = 0x270, compfunc = beq, readfunc = memory.readword},
+		push_check = { base = 0x0137CE, 
+			cmd = "maincpu.pb@(a2+3fc) = maincpu.pb@(a2+115); maincpu.pb@(a3+3fc) = maincpu.pb@(a3+115)",
+			["mvscur1"] = -0x28, --971222
+			["mvscar1"] = -0x34, ["mvscr1"] = -0x34, ["mvscjr1"] = -0x34, --980112
+			["mvsc"] = 0, ["mvsca"] = 0, ["mvscb"] = 0, ["mvsch"] = 0, ["mvscj"] = 0, ["mvscud"] = 0, ["mvscu"] = 0, --980123
 		},
-		unthrowable_status = {0x8, 0xC},
+		throw_check = { base = 0x0D75E8, 
+			["mvscur1"] = -0x1156, --971222
+			["mvscar1"] = -0x10FA, ["mvscr1"] = -0x10FA, ["mvscjr1"] = -0x10FA, --980112
+			["mvsc"] = 0, ["mvsca"] = 0, ["mvscb"] = 0, ["mvsch"] = 0, ["mvscj"] = 0, ["mvscud"] = 0, ["mvscu"] = 0, --980123
+		},
+		match_active = function(p1_base, stage)
+			return memory.readdword(0xFF963E) == p1_base
+		end,
+		no_hit = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x082) == 0,
+		}) end,
+		invulnerable = function(obj, box) return eval({
+			memory.readbyte(obj.base + 0x083) == 0,
+		}) end,
+		unpushable = function(obj, box) return eval({
+			obj.projectile ~= nil,
+			memory.readbyte(obj.base) == 0,
+			memory.readword(obj.base + 0x006) == 0x04,
+			memory.readbyte(obj.base + 0x115) > 0,
+		}) end,
+		unthrowable = function(obj, box) return eval({
+			bit.band(memory.readbyte(0xFF400F), 0x08) > 0,
+			memory.readbyte(0xFF4031) > 0,
+			memory.readbyte(obj.base) == 0,
+			memory.readword(obj.base + 0x270) == 0,
+			memory.readbyte(obj.base + 0x130) > 0,
+			memory.readbyte(0xFF4000) ~= 0x08,
+			memory.readbyte(obj.base + 0x11A) >= 0x02,
+			memory.readbyte(obj.base + 0x083) == 0,
+			memory.readword(obj.base + 0x006) > 0,
+			memory.readbyte(obj.base + 0x0B0) == 0x24,
+			memory.readbyte(obj.base + 0x0B0) == 0x26,
+			memory.readword(obj.base + 0x006) == 0x0C,
+			memory.readword(obj.base + 0x006) == 0x08,
+		}) end,
 	},
 }
 
+--------------------------------------------------------------------------------
+-- post-process modules
+
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.pushable_players = g.pushable_players or g.number_players
 	g.offset.player_space = 0x400
 	g.offset.x_position   = 0x0C
 	g.offset.y_position   = 0x10
-	g.offset.status       = 0x06
 	g.box = {
 		radius_read = memory.readword,
 		offset_read = memory.readwordsigned,
 		hval = 0x0, hrad = 0x2, vval = 0x4, vrad = 0x6,
 	}
-	for entry in ipairs(g.box_list) do
-		g.box_list[entry].address_func = g.box_list[entry].addr_table_ptr and 1 or 2
-	end
 	g.address.projectile_limit = g.address.player + g.offset.player_space * g.number_players
+	g.match_over = g.match_over or 0x0E
 end
 
-local game, pushbox_base, apoc_value
-local globals = {
-	game_phase       = 0,
-	left_screen_edge = 0,
-	top_screen_edge  = 0,
-}
-local player       = {}
-local projectiles  = {}
-local frame_buffer = {}
+for _,box in pairs(boxes) do
+	box.fill    = box.color * 0x100 + box.fill
+	box.outline = box.color * 0x100 + box.outline
+end
+
+local game
+local player, projectiles, frame_buffer = {}, {}, {}
+local DRAW_DELAY = 1
 if fba then
 	DRAW_DELAY = DRAW_DELAY + 1
 end
@@ -371,13 +467,13 @@ end
 -- prepare the hitboxes
 
 local function update_globals()
-	local curr_stage = memory.readbyte(game.address.stage)
-	if not game.address.stage_camera[curr_stage] then
-		curr_stage = 1
-	end
-	globals.left_screen_edge = memory.readwordsigned(game.address.stage_camera[curr_stage]) + 0x40
-	globals.top_screen_edge  = memory.readwordsigned(game.address.stage_camera[curr_stage] + 0x4)
-	globals.game_phase       = memory.readbyte(game.address.game_phase)
+	globals.stage            = bit.band(memory.readbyte(game.address.stage), 0xF)
+	globals.stage_base       = 0xFF8000 + game.offset.stage_base[globals.stage + 1]
+	globals.match_active     = memory.readbyte(game.address.match_status)
+	globals.match_active     = globals.match_active > 0 and globals.match_active <= game.match_over and 
+		game.match_active(game.address.player, globals.stage)
+	globals.left_screen_edge = memory.readwordsigned(globals.stage_base + game.offset.x_position) + 0x40
+	globals.top_screen_edge  = memory.readwordsigned(globals.stage_base + game.offset.y_position)
 end
 
 
@@ -391,42 +487,70 @@ local function get_y(y)
 end
 
 
-local get_address = {
-	function(obj, entry, box)
-		box.id = memory.readword(obj.base + game.box_list[entry].id_ptr)
-		if box.id == 0 or (game.box_list[entry].active and memory.readbyte(obj.base + game.box_list[entry].active) == 0) then
-			return true
-		end
+local get_address = function(obj, box, box_entry)
+	box.id = memory.readword(obj.base + box_entry.id_ptr)
+	if box.id == 0 then
+		return false
+	end
 
-		if obj.projectile then
-			if box.type == ATTACK_BOX then
-				box.type = PROJ_ATTACK_BOX
-			elseif box.type == VULNERABILITY_BOX then
-				box.type = PROJ_VULNERABILITY_BOX
-			end
-		elseif box.type == ATTACK_BOX and bit.band(box.id, 0xF000) == 0x8000 then
-			box.type = THROW_BOX
-		end
+	box.address = memory.readdword(obj.base + game.offset.addr_table_ptr) + bit.lshift(bit.band(box.id, 0x1FFF), 3)
+end
 
-		local addr_table = memory.readdword(obj.base + game.box_list[entry].addr_table_ptr)
-		box.address = addr_table + bit.band(box.id, 0x0FFF) * 0x8
+
+local process_box_type = {
+	["vulnerability"] = function(obj, box, box_entry)
+		if get_address(obj, box, box_entry) == false or game.invulnerable(obj, box) then
+			return false
+		elseif obj.projectile then
+			box.type = "proj. vulnerability"
+		end
 	end,
 
-	function(obj, entry, box) --pushbox
-		if not pushbox_base or (obj.projectile and not obj.apoc_fist) then
-			return true
+	["attack"] = function(obj, box, box_entry)
+		if get_address(obj, box, box_entry) == false or game.no_hit(obj, box) then
+			return false
+		elseif bit.band(box.id, 0x8000) > 0 then
+			box.type = "potential throw"
+			if memory.readword(obj.base + 0x06) > 0 then --hurt
+				return false
+			end
+		elseif obj.projectile then
+			box.type = "proj. attack"
 		end
+	end,
 
-		box.id = memory.readbyte(obj.base + (obj.projectile and game.box_list[entry].projectile_id_ptr or game.box_list[entry].id_ptr))
-		box.address = memory.readdword(pushbox_base + box.id * 0x2) + memory.readword(obj.base + game.offset.char_id) * 0x4
+	["active throw"] = function(obj, box, box_entry)
+		if get_address(obj, box, box_entry) == false then
+			return false
+		end
+	end,
+
+	["throwable"] = function(obj, box, box_entry)
+		if get_address(obj, box, box_entry) == false or game.unthrowable(obj, box) then
+			return false
+		end
+	end,
+
+	["push"] = function(obj, box, box_entry)
+		if not globals.pushbox_base or game.unpushable(obj, box) then
+			return false
+		end
+		local count = memory.readbytesigned(obj.base + 0x3FC)
+		if not obj.projectile and count > 0 then
+			memory.writebyte(obj.base + 0x3FC, count - 1)
+			return false
+		end
+		box.id = memory.readbyte(obj.base + (obj.projectile and box_entry.projectile_id_ptr or box_entry.id_ptr))
+		box.address = memory.readdword(globals.pushbox_base + box.id * 0x2)
+		box.address = box.address + bit.lshift(memory.readword(obj.base + game.offset.character_id), 2)
 	end,
 }
 
 
-local function define_box(obj, entry)
-	local box = {type = game.box_list[entry].type}
+local function define_box(obj, box_entry)
+	local box = {type = box_entry.type}
 
-	if get_address[game.box_list[entry].address_func](obj, entry, box) then
+	if process_box_type[box.type](obj, box, box_entry) == false then
 		return nil
 	end
 
@@ -436,7 +560,7 @@ local function define_box(obj, entry)
 	box.vval = game.box.offset_read(box.address + game.box.vval)
 
 	box.hval   = obj.pos_x + box.hval * (bit.band(obj.facing_dir, 1) > 0 and -1 or 1)
-	box.vval   = obj.pos_y + box.vval * (bit.band(obj.facing_dir, 2) > 0 and game.box_list[entry].addr_table_ptr and -1 or 1)
+	box.vval   = obj.pos_y + box.vval * (bit.band(obj.facing_dir, 2) > 0 and box.type ~= "push" and -1 or 1)
 	box.left   = box.hval - box.hrad
 	box.right  = box.hval + box.hrad
 	box.top    = box.vval - box.vrad
@@ -452,7 +576,7 @@ local function update_game_object(obj)
 	obj.pos_y        = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
 
 	for entry in ipairs(game.box_list) do
-		obj[entry] = define_box(obj, entry)
+		table.insert(obj, define_box(obj, game.box_list[entry]))
 	end
 end
 
@@ -468,7 +592,6 @@ local function read_projectiles()
 				i = nil
 			else
 				obj.projectile = true
-				obj.apoc_fist = apoc_value and memory.readdword(obj.base + 0xAC) == apoc_value and true
 				update_game_object(obj)
 				table.insert(current_projectiles, obj)
 				i = i + 1
@@ -480,88 +603,65 @@ local function read_projectiles()
 end
 
 
-local function update_unthrowable(base)
-	for _, value in ipairs(game.unthrowable_status) do
-		if memory.readword(base + game.offset.status) == value then
-			return true
-		end
-	end
-	for _, case in ipairs(game.unthrowable) do
-		if case.compfunc(case.readfunc, base + case.offset) then
-			return true
-		end
-	end
-	if memory.readbyte(base + game.offset.throw_count) > 1 then
-		return true
-	end
-	return false
-end
-
-
-local function update_marvel_hitboxes()
+local function update_hitboxes()
 	if not game then
 		return
 	end
 	update_globals()
+	local effective_delay = DRAW_DELAY + game.stage_lag[globals.stage + 1]
 
-	for p = 1, game.number_players do
-		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
-		if game.number_players <= 2 or memory.readword(player[p].base) >= 0x100 then
-			player[p].hurt = memory.readword(player[p].base + game.offset.status) > 0
-			player[p].invulnerable = memory.readbyte(player[p].base + game.offset.invulnerable) > 0
-			player[p].unthrowable = update_unthrowable(player[p].base)
-			player[p].no_push = memory.readbyte(player[p].base + game.offset.no_push) > 0 or p > game.pushable_players
-			update_game_object(player[p])
-		end
-	end
-
-	for f = 1, DRAW_DELAY do
+	for f = 1, effective_delay do
+		frame_buffer[f].match_active = frame_buffer[f+1].match_active
 		for p = 1, game.number_players do
 			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
 		end
 		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
 	end
 
+	frame_buffer[effective_delay+1].match_active = globals.match_active
 	for p = 1, game.number_players do
-		frame_buffer[DRAW_DELAY+1][player][p] = copytable(player[p])
+		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
+		if game.number_players <= 2 or memory.readbyte(player[p].base) > 0 then
+			update_game_object(player[p])
+		end
+
+		frame_buffer[effective_delay+1][player][p] = player[p]
+
+		local prev_frame = frame_buffer[effective_delay][player][p]
+		if prev_frame and memory.readbyte(prev_frame.base + 0x3FD) > 0 then
+			table.insert(prev_frame, define_box(prev_frame, {id_ptr = 0x3FE, type = "active throw"}))
+			memory.writebyte(prev_frame.base + 0x3FD, memory.readbyte(prev_frame.base + 0x3FD) - 1)
+			--memory.writeword(prev_frame.base + 0x3FE, 0)
+		end
+
 	end
-	frame_buffer[DRAW_DELAY+1][projectiles] = read_projectiles()
+	frame_buffer[effective_delay+1][projectiles] = read_projectiles()
 
 end
 
 
 emu.registerafter( function()
-	update_marvel_hitboxes()
+	update_hitboxes()
 end)
 
 
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(obj, entry, no_push_next_frame)
+local function draw_hitbox(obj, entry)
 	local hb = obj[entry]
-	local no_draw = {
-		not DRAW_PUSHBOXES and hb.type == PUSH_BOX,
-		not DRAW_THROWBOXES and (hb.type == THROW_BOX or hb.type == THROWABLE_BOX),
-		obj.invulnerable and hb.type == VULNERABILITY_BOX,
-		obj.unthrowable and hb.type == THROWABLE_BOX,
-		obj.hurt and hb.type == THROW_BOX,
-		obj.no_push and hb.type == PUSH_BOX,
-		no_push_next_frame and hb.type == PUSH_BOX, --deprecate ASAP
-	}
-	for _, condition in ipairs(no_draw) do
-		if condition == true then
-			return
-		end
+	if eval ({
+		not globals.draw_pushboxes and hb.type == "push",
+		not globals.draw_throwable_boxes and (hb.type == "potential throw" or hb.type == "throwable"),
+	}) then return
 	end
 
-	if DRAW_MINI_AXIS then
-		gui.drawline(hb.hval, hb.vval-MINI_AXIS_SIZE, hb.hval, hb.vval+MINI_AXIS_SIZE, outline[hb.type])
-		gui.drawline(hb.hval-MINI_AXIS_SIZE, hb.vval, hb.hval+MINI_AXIS_SIZE, hb.vval, outline[hb.type])
-		--gui.text(hb.hval, hb.vval, string.format("%02X", hb.id)) --debug
+	if globals.draw_mini_axis then
+		gui.drawline(hb.hval, hb.vval-globals.mini_axis_size, hb.hval, hb.vval+globals.mini_axis_size, boxes[hb.type].outline)
+		gui.drawline(hb.hval-globals.mini_axis_size, hb.vval, hb.hval+globals.mini_axis_size, hb.vval, boxes[hb.type].outline)
 	end
 
-	gui.box(hb.left, hb.top, hb.right, hb.bottom, fill[hb.type], outline[hb.type])
+	gui.box(hb.left, hb.top, hb.right, hb.bottom, boxes[hb.type].fill, boxes[hb.type].outline)
 end
 
 
@@ -570,45 +670,44 @@ local function draw_axis(obj)
 		return
 	end
 	
-	gui.drawline(obj.pos_x, obj.pos_y-AXIS_SIZE, obj.pos_x, obj.pos_y+AXIS_SIZE, AXIS_COLOR)
-	gui.drawline(obj.pos_x-AXIS_SIZE, obj.pos_y, obj.pos_x+AXIS_SIZE, obj.pos_y, AXIS_COLOR)
-	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
+	gui.drawline(obj.pos_x, obj.pos_y-globals.axis_size, obj.pos_x, obj.pos_y+globals.axis_size, globals.axis_color)
+	gui.drawline(obj.pos_x-globals.axis_size, obj.pos_y, obj.pos_x+globals.axis_size, obj.pos_y, globals.axis_color)
+	--gui.text(obj.pos_x, obj.pos_y + 8, string.format("%06X", obj.base)) --debug
 end
 
 
-local function render_marvel_hitboxes()
+local function render_hitboxes()
 	gui.clearuncommitted()
-	if not game or globals.game_phase == GAME_PHASE_NOT_PLAYING then
+	if not game or not frame_buffer[1].match_active then
 		return
 	end
 
-	if BLANK_SCREEN then
-		gui.box(0, 0, emu.screenwidth(), emu.screenheight(), BLANK_COLOR)
+	if globals.blank_screen then
+		gui.box(0, 0, emu.screenwidth(), emu.screenheight(), globals.blank_color)
 	end
 
-	for entry in ipairs(game.box_list) do
-		for p = 1, game.number_players do
-			local obj = frame_buffer[1][player][p]
-			local no_push_next_frame = frame_buffer[2][player][p] and frame_buffer[2][player][p].no_push --deprecate ASAP
-			if obj and obj[entry] then
-				draw_hitbox(obj, entry, no_push_next_frame)
+	for entry = 1, #game.box_list do
+		for p = 1, #frame_buffer[1][projectiles] do
+			local obj = frame_buffer[1][projectiles][p]
+			if obj[entry] then
+				draw_hitbox(obj, entry)
 			end
 		end
 
-		for i in ipairs(frame_buffer[1][projectiles]) do
-			local obj = frame_buffer[1][projectiles][i]
-			if obj[entry] then
+		for p = 1, game.number_players do
+			local obj = frame_buffer[1][player][p]
+			if obj and obj[entry] then
 				draw_hitbox(obj, entry)
 			end
 		end
 	end
 
-	if DRAW_AXIS then
+	if globals.draw_axis then
+		for p = 1, #frame_buffer[1][projectiles] do
+			draw_axis(frame_buffer[1][projectiles][p])
+		end
 		for p = 1, game.number_players do
 			draw_axis(frame_buffer[1][player][p])
-		end
-		for i,obj in ipairs(frame_buffer[1][projectiles]) do
-			draw_axis(frame_buffer[1][projectiles][i])
 		end
 	end
 
@@ -616,7 +715,7 @@ end
 
 
 gui.register( function()
-	render_marvel_hitboxes()
+	render_hitboxes()
 end)
 
 
@@ -624,48 +723,48 @@ end)
 -- hotkey functions
 
 input.registerhotkey(1, function()
-	BLANK_SCREEN = not BLANK_SCREEN
-	render_marvel_hitboxes()
-	print((BLANK_SCREEN and "activated" or "deactivated") .. " blank screen mode")
+	globals.blank_screen = not globals.blank_screen
+	render_hitboxes()
+	emu.message((globals.blank_screen and "activated" or "deactivated") .. " blank screen mode")
 end)
 
 
 input.registerhotkey(2, function()
-	DRAW_AXIS = not DRAW_AXIS
-	render_marvel_hitboxes()
-	print((DRAW_AXIS and "showing" or "hiding") .. " object axis")
+	globals.draw_axis = not globals.draw_axis
+	render_hitboxes()
+	emu.message((globals.draw_axis and "showing" or "hiding") .. " object axis")
 end)
 
 
 input.registerhotkey(3, function()
-	DRAW_MINI_AXIS = not DRAW_MINI_AXIS
-	render_marvel_hitboxes()
-	print((DRAW_MINI_AXIS and "showing" or "hiding") .. " hitbox axis")
+	globals.draw_mini_axis = not globals.draw_mini_axis
+	render_hitboxes()
+	emu.message((globals.draw_mini_axis and "showing" or "hiding") .. " hitbox axis")
 end)
 
 
 input.registerhotkey(4, function()
-	DRAW_PUSHBOXES = not DRAW_PUSHBOXES
-	render_marvel_hitboxes()
-	print((DRAW_PUSHBOXES and "showing" or "hiding") .. " pushboxes")
+	globals.draw_pushboxes = not globals.draw_pushboxes
+	render_hitboxes()
+	emu.message((globals.draw_pushboxes and "showing" or "hiding") .. " pushboxes")
 end)
 
 
 input.registerhotkey(5, function()
-	DRAW_THROWBOXES = not DRAW_THROWBOXES
-	render_marvel_hitboxes()
-	print((DRAW_THROWBOXES and "showing" or "hiding") .. " throwboxes and throwable boxes")
+	globals.draw_throwable_boxes = not globals.draw_throwable_boxes
+	render_hitboxes()
+	emu.message((globals.draw_throwable_boxes and "showing" or "hiding") .. " throwable boxes")
 end)
 
 
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
-local function whatversion(game)
-	for base,version_set in pairs(game.pushbox_base) do
-		for _,version in ipairs(version_set) do
+local function get_pushbox_base(game)
+	for address, version_set in pairs(game.pushbox_base) do
+		for _, version in ipairs(version_set) do
 			if emu.romname() == version then
-				return base, version_set.apoc
+				return address
 			end
 		end
 	end
@@ -674,21 +773,69 @@ local function whatversion(game)
 end
 
 
+local function get_throw_routine(game)
+	for address, version_set in pairs(game.throw_routine) do
+		for _, version in ipairs(version_set) do
+			if emu.romname() == version then
+				return address
+			end
+		end
+	end
+	print("unrecognized version (" .. emu.romname() .. "): cannot draw active throwboxes")
+	return nil
+end
+
+
+local function initialize()
+	globals.left_screen_edge = 0
+	globals.top_screen_edge  = 0
+	for p = 1, game.number_players do
+		player[p] = {}
+	end
+	for f = 1, DRAW_DELAY + 2 do
+		frame_buffer[f] = {}
+		frame_buffer[f][player] = {}
+		frame_buffer[f][projectiles] = {}
+	end
+end
+
+
 local function whatgame()
+	print()
 	game = nil
-	for n, module in ipairs(profile) do
+	for _, module in ipairs(profile) do
 		if emu.romname() == module.game or emu.parentname() == module.game then
-			print("drawing " .. module.game .. " hitboxes")
+			print("drawing " .. emu.romname() .. " hitboxes") print()
 			game = module
-			pushbox_base, apoc_value = whatversion(game)
-			for p = 1, game.number_players do
-				player[p] = {}
+			initialize()
+			if game.pushbox_data[emu.romname()] then
+				globals.pushbox_base = game.pushbox_data.base + game.pushbox_data[emu.romname()]
+			else
+				globals.pushbox_base = nil
+				print("Unrecognized version [" .. emu.romname() .. "]: cannot draw pushboxes")
 			end
-			for f = 1, DRAW_DELAY + 1 do
-				frame_buffer[f] = {}
-				frame_buffer[f][player] = {}
-				frame_buffer[f][projectiles] = {}
+			if mame then
+				local bpstring, instruction = "", ""
+				if game.push_check[emu.romname()] and globals.pushbox_base then
+					bpstring = string.format("bp %06X, 1, {%s; g}; ", 
+						game.push_check.base + game.push_check[emu.romname()], game.push_check.cmd)
+					instruction = "pushboxes"
+				elseif globals.pushbox_base then
+					print("Unrecognized version [" .. emu.romname() .. "]: cannot accurately draw pushboxes")
+				end
+				if game.throw_check[emu.romname()] then
+					bpstring = string.format("%sbp %06X, 1, {maincpu.pw@(a6+3fe) = d0; maincpu.pb@(a6+3fd) = maincpu.pb@(a6+3fd)+1; g}; ", 
+						bpstring, game.throw_check.base + game.throw_check[emu.romname()])
+					instruction = instruction .. (instruction:len() > 0 and " and " or "") .. "throwboxes"
+				else
+					print("Unrecognized version [" .. emu.romname() .. "]: cannot draw active throwboxes")
+				end
+				if bpstring:len() > 0 then
+					print("Copy this line into the MAME-rr debugger for more accurate " .. instruction .. ":") print()
+					print(bpstring:sub(1, -3))
+				end
 			end
+			print()
 			return
 		end
 	end
