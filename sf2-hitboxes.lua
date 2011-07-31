@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("July 27, 2011")
+print("July 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -56,7 +56,7 @@ local profile = {
 		throw_box_list = {
 			{param_offset = 0x6C, type = "throwable"},
 			{param_offset = 0x64, type = "throw"},
-		}
+		},
 	},
 	{
 		games = {"sf2ce","sf2hf"},
@@ -79,7 +79,7 @@ local profile = {
 		throw_box_list = {
 			{param_offset = 0x6C, type = "throwable"},
 			{param_offset = 0x64, type = "throw"},
-		}
+		},
 	},
 	{
 		games = {"ssf2t"},
@@ -102,7 +102,7 @@ local profile = {
 		throw_box_list = {
 			{param_offset = 0x6C, type = "throwable"},
 			{param_offset = 0x64, type = "throw"},
-		}
+		},
 	},
 	{
 		games = {"ssf2"},
@@ -125,7 +125,7 @@ local profile = {
 		throw_box_list = {
 			{param_offset = 0x6C, type = "throwable"},
 			{param_offset = 0x64, type = "throw"},
-		}
+		},
 	},
 	{
 		games = {"hsf2"},
@@ -150,21 +150,27 @@ local profile = {
 		throw_box_list = {
 			{param_offset = 0x6C, type = "throwable"},
 			{param_offset = 0x64, type = "throw"},
-		}
+		},
+		match_active = function()
+			return memory.readword(0xFF8004) == 0x08
+		end,
 	},
 }
 
 for _,game in ipairs(profile) do
 	game.box_number = #game.box_list + #game.throw_box_list
+	game.match_active = game.match_active or function()
+		return bit.band(memory.readword(0xFF8008), 0x08) > 0
+	end
 end
 
 for _,box in pairs(boxes) do
-	box.fill    = box.color * 0x100 + box.fill
-	box.outline = box.color * 0x100 + box.outline
+	box.fill    = bit.lshift(box.color, 8) + box.fill
+	box.outline = bit.lshift(box.color, 8) + box.outline
 end
 
 local game
-local player, projectiles, frame_buffer = {}, {}, {}
+local frame_buffer = {}
 local NUMBER_OF_PLAYERS    = 2
 local MAX_GAME_PROJECTILES = 8
 local MAX_BONUS_OBJECTS    = 16
@@ -177,20 +183,10 @@ end
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
-local get_status = {
-	["normal"] = function()
-		return bit.band(memory.readword(0xFF8008), 0x08) > 0
-	end,
-
-	["hsf2"] = function()
-		return memory.readword(0xFF8004) == 0x08
-	end,
-}
-
 local function update_globals()
 	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
 	globals.top_screen_edge  = memory.readwordsigned(game.address.left_screen_edge + 0x4)
-	globals.match_active     = get_status[game.status_type]()
+	globals.match_active     = game.match_active()
 end
 
 
@@ -343,30 +339,26 @@ local function update_game_object(obj)
 	for entry in ipairs(game.box_list) do
 		table.insert(obj, define_box(obj, game.box_list[entry]))
 	end
+	return obj
 end
 
 
-local function read_projectiles()
-	local current_projectiles = {}
-
+local function read_projectiles(object_list)
 	for i = 1, MAX_GAME_PROJECTILES do
 		local obj = {base = game.address.projectile + (i-1) * 0xC0}
 		if memory.readword(obj.base) == 0x0101 then
 			obj.projectile = true
-			update_game_object(obj)
-			table.insert(current_projectiles, obj)
+			table.insert(object_list, update_game_object(obj))
 		end
 	end
 
 	for i = 1, MAX_BONUS_OBJECTS do
 		local obj = {base = game.address.projectile + (MAX_GAME_PROJECTILES + i-1) * 0xC0}
 		if bit.band(0xFF00, memory.readword(obj.base)) == 0x0100 then
-			update_game_object(obj)
-			table.insert(current_projectiles, obj)
+			obj.bonus = true
+			table.insert(object_list, update_game_object(obj))
 		end
 	end
-
-	return current_projectiles
 end
 
 
@@ -405,29 +397,29 @@ local function update_hitboxes()
 
 	for f = 1, effective_delay do
 		frame_buffer[f].match_active = frame_buffer[f+1].match_active
-		for p = 1, NUMBER_OF_PLAYERS do
-			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
-		end
-		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
+		frame_buffer[f].objects = copytable(frame_buffer[f+1].objects)
 	end
 
 	frame_buffer[effective_delay+1].match_active = globals.match_active
-	for p = 1, NUMBER_OF_PLAYERS do
-		player[p] = {base = game.address.player + (p-1) * game.player_space}
-		if memory.readword(player[p].base) > 0x0100 then
-			update_game_object(player[p])
-		end
-		frame_buffer[effective_delay+1][player][p] = player[p]
+	frame_buffer[effective_delay+1].objects = {}
 
-		local prev_frame = frame_buffer[effective_delay][player][p]
-		if prev_frame and prev_frame.pos_x then
-			for entry in ipairs(game.throw_box_list) do
-				table.insert(prev_frame, define_throw_box(prev_frame, game.throw_box_list[entry]))
+	for p = 1, NUMBER_OF_PLAYERS do
+		local player = {base = game.address.player + (p-1) * game.player_space}
+		if memory.readbyte(player.base) > 0 then
+			table.insert(frame_buffer[effective_delay+1].objects, update_game_object(player))
+		end
+	end
+	read_projectiles(frame_buffer[effective_delay+1].objects)
+
+	for _, prev_frame in ipairs(frame_buffer[effective_delay].objects or {}) do
+		if prev_frame.projectile or prev_frame.bonus then
+			break
+		else
+			for _, box_entry in ipairs(game.throw_box_list) do
+				table.insert(prev_frame, define_throw_box(prev_frame, box_entry))
 			end
 		end
-
 	end
-	frame_buffer[effective_delay+1][projectiles] = read_projectiles()
 end
 
 emu.registerafter( function()
@@ -438,9 +430,9 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(obj, entry)
-	local hb = obj[entry]
-	if (not globals.draw_pushboxes and hb.type == "push") or
+local function draw_hitbox(hb)
+	if not hb or
+		(not globals.draw_pushboxes and hb.type == "push") or
 		(not globals.draw_throwable_boxes and (hb.type == "throwable" or hb.type == "air throwable")) then
 		return
 	end
@@ -455,10 +447,6 @@ end
 
 
 local function draw_axis(obj)
-	if not obj or not obj.pos_x then
-		return
-	end
-	
 	gui.drawline(obj.pos_x, obj.pos_y-globals.axis_size, obj.pos_x, obj.pos_y+globals.axis_size, globals.axis_color)
 	gui.drawline(obj.pos_x-globals.axis_size, obj.pos_y, obj.pos_x+globals.axis_size, obj.pos_y, globals.axis_color)
 	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X",obj.base)) --debug
@@ -476,28 +464,14 @@ local function render_hitboxes()
 	end
 
 	for entry = 1, game.box_number do
-		for p = 1, #frame_buffer[1][projectiles] do
-			local obj = frame_buffer[1][projectiles][p]
-			if obj[entry] then
-				draw_hitbox(obj, entry)
-			end
-		end
-
-		for p = 1, NUMBER_OF_PLAYERS do
-			local obj = frame_buffer[1][player][p]
-			if obj and obj[entry] then
-				draw_hitbox(obj, entry)
-			end
+		for _, obj in ipairs(frame_buffer[1].objects) do
+			draw_hitbox(obj[entry])
 		end
 	end
 
 	if globals.draw_axis then
-		for p  = 1, #frame_buffer[1][projectiles] do
-			draw_axis(frame_buffer[1][projectiles][p])
-		end
-
-		for p = 1, NUMBER_OF_PLAYERS do
-			draw_axis(frame_buffer[1][player][p])
+		for _, obj in ipairs(frame_buffer[1].objects) do
+			draw_axis(obj)
 		end
 	end
 end
@@ -549,16 +523,9 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
-local function initialize()
-	globals.left_screen_edge = 0
-	globals.top_screen_edge  = 0
-	for p = 1, NUMBER_OF_PLAYERS do
-		player[p] = {}
-	end
+local function initialize_fb()
 	for f = 1, DRAW_DELAY + 2 do
 		frame_buffer[f] = {}
-		frame_buffer[f][player] = {}
-		frame_buffer[f][projectiles] = {}
 	end
 end
 
@@ -571,7 +538,7 @@ local function whatgame()
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. emu.romname() .. " hitboxes")
 				game = module
-				initialize()
+				initialize_fb()
 				return
 			end
 		end
@@ -581,10 +548,10 @@ end
 
 
 savestate.registerload(function()
-	initialize()
+	initialize_fb()
 end)
 
 
-emu.registerstart( function()
+emu.registerstart(function()
 	whatgame()
 end)
