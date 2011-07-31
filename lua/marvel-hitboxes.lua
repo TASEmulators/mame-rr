@@ -1,5 +1,5 @@
 print("CPS-2 Marvel series hitbox viewer")
-print("July 27, 2011")
+print("July 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -17,7 +17,7 @@ local boxes = {
 	       ["proj. attack"] = {color = 0xFF66FF, fill = 0x40, outline = 0xFF},
 	               ["push"] = {color = 0x00FF00, fill = 0x20, outline = 0xFF},
 	    ["potential throw"] = {color = 0xFFFF00, fill = 0x00, outline = 0x00}, --not visible by default
-	       ["active throw"] = {color = 0xFFFF00, fill = 0x80, outline = 0xFF},
+	       ["active throw"] = {color = 0xFFFF00, fill = 0x40, outline = 0xFF},
 	          ["throwable"] = {color = 0xF0F0F0, fill = 0x20, outline = 0xFF},
 }
 
@@ -451,12 +451,12 @@ for game in ipairs(profile) do
 end
 
 for _,box in pairs(boxes) do
-	box.fill    = box.color * 0x100 + box.fill
-	box.outline = box.color * 0x100 + box.outline
+	box.fill    = bit.lshift(box.color, 8) + box.fill
+	box.outline = bit.lshift(box.color, 8) + box.outline
 end
 
 local game
-local player, projectiles, frame_buffer = {}, {}, {}
+local frame_buffer = {}
 local DRAW_DELAY = 1
 if fba then
 	DRAW_DELAY = DRAW_DELAY + 1
@@ -541,7 +541,7 @@ local process_box_type = {
 			return false
 		end
 		box.id = memory.readbyte(obj.base + (obj.projectile and box_entry.projectile_id_ptr or box_entry.id_ptr))
-		box.address = memory.readdword(globals.pushbox_base + box.id * 0x2)
+		box.address = memory.readdword(globals.pushbox_base + box.id * 2)
 		box.address = box.address + bit.lshift(memory.readword(obj.base + game.offset.character_id), 2)
 	end,
 }
@@ -575,31 +575,27 @@ local function update_game_object(obj)
 	obj.pos_x        = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
 	obj.pos_y        = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
 
-	for entry in ipairs(game.box_list) do
+	for entry = 1, #game.box_list do
 		table.insert(obj, define_box(obj, game.box_list[entry]))
 	end
+	return obj
 end
 
 
-local function read_projectiles()
-	local current_projectiles = {}
-
-	for player = 0, 1 do
+local function read_projectiles(object_list)
+	for player = 1, 2 do
 		local i = 1
 		while i do
-			local obj = {base = memory.readdword(game.address.projectile_ptr + player * game.offset.projectile_ptr_space - i * 4)}
+			local obj = {base = memory.readdword(game.address.projectile_ptr + (player-1) * game.offset.projectile_ptr_space - i * 4)}
 			if obj.base < game.address.projectile_limit then
 				i = nil
 			else
 				obj.projectile = true
-				update_game_object(obj)
-				table.insert(current_projectiles, obj)
+				table.insert(object_list, update_game_object(obj))
 				i = i + 1
 			end
 		end
 	end
-
-	return current_projectiles
 end
 
 
@@ -608,39 +604,37 @@ local function update_hitboxes()
 		return
 	end
 	update_globals()
-	local effective_delay = DRAW_DELAY + game.stage_lag[globals.stage + 1]
+	local effective_delay = DRAW_DELAY + (not mame and 0 or game.stage_lag[globals.stage + 1])
 
 	for f = 1, effective_delay do
 		frame_buffer[f].match_active = frame_buffer[f+1].match_active
-		for p = 1, game.number_players do
-			frame_buffer[f][player][p] = copytable(frame_buffer[f+1][player][p])
-		end
-		frame_buffer[f][projectiles] = copytable(frame_buffer[f+1][projectiles])
+		frame_buffer[f].objects = copytable(frame_buffer[f+1].objects)
 	end
 
 	frame_buffer[effective_delay+1].match_active = globals.match_active
+	frame_buffer[effective_delay+1].objects = {}
+
 	for p = 1, game.number_players do
-		player[p] = {base = game.address.player + (p-1) * game.offset.player_space}
-		if game.number_players <= 2 or memory.readbyte(player[p].base) > 0 then
-			update_game_object(player[p])
+		local player = {base = game.address.player + (p-1) * game.offset.player_space}
+		if game.number_players <= 2 or memory.readbyte(player.base) > 0 then
+			table.insert(frame_buffer[effective_delay+1].objects, update_game_object(player))
 		end
+	end
+	read_projectiles(frame_buffer[effective_delay+1].objects)
 
-		frame_buffer[effective_delay+1][player][p] = player[p]
-
-		local prev_frame = frame_buffer[effective_delay][player][p]
-		if prev_frame and memory.readbyte(prev_frame.base + 0x3FD) > 0 then
+	for _, prev_frame in ipairs(frame_buffer[effective_delay].objects or {}) do
+		if prev_frame.projectile then
+			break
+		elseif memory.readbyte(prev_frame.base + 0x3FD) > 0 then
 			table.insert(prev_frame, define_box(prev_frame, {id_ptr = 0x3FE, type = "active throw"}))
 			memory.writebyte(prev_frame.base + 0x3FD, memory.readbyte(prev_frame.base + 0x3FD) - 1)
 			--memory.writeword(prev_frame.base + 0x3FE, 0)
 		end
-
 	end
-	frame_buffer[effective_delay+1][projectiles] = read_projectiles()
-
 end
 
 
-emu.registerafter( function()
+emu.registerafter(function()
 	update_hitboxes()
 end)
 
@@ -648,9 +642,8 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(obj, entry)
-	local hb = obj[entry]
-	if eval ({
+local function draw_hitbox(hb)
+	if not hb or eval ({
 		not globals.draw_pushboxes and hb.type == "push",
 		not globals.draw_throwable_boxes and (hb.type == "potential throw" or hb.type == "throwable"),
 	}) then return
@@ -666,10 +659,6 @@ end
 
 
 local function draw_axis(obj)
-	if not obj or not obj.pos_x then
-		return
-	end
-	
 	gui.drawline(obj.pos_x, obj.pos_y-globals.axis_size, obj.pos_x, obj.pos_y+globals.axis_size, globals.axis_color)
 	gui.drawline(obj.pos_x-globals.axis_size, obj.pos_y, obj.pos_x+globals.axis_size, obj.pos_y, globals.axis_color)
 	--gui.text(obj.pos_x, obj.pos_y + 8, string.format("%06X", obj.base)) --debug
@@ -687,34 +676,20 @@ local function render_hitboxes()
 	end
 
 	for entry = 1, #game.box_list do
-		for p = 1, #frame_buffer[1][projectiles] do
-			local obj = frame_buffer[1][projectiles][p]
-			if obj[entry] then
-				draw_hitbox(obj, entry)
-			end
-		end
-
-		for p = 1, game.number_players do
-			local obj = frame_buffer[1][player][p]
-			if obj and obj[entry] then
-				draw_hitbox(obj, entry)
-			end
+		for _, obj in ipairs(frame_buffer[1].objects) do
+			draw_hitbox(obj[entry])
 		end
 	end
 
 	if globals.draw_axis then
-		for p = 1, #frame_buffer[1][projectiles] do
-			draw_axis(frame_buffer[1][projectiles][p])
-		end
-		for p = 1, game.number_players do
-			draw_axis(frame_buffer[1][player][p])
+		for _, obj in ipairs(frame_buffer[1].objects) do
+			draw_axis(obj)
 		end
 	end
-
 end
 
 
-gui.register( function()
+gui.register(function()
 	render_hitboxes()
 end)
 
@@ -760,42 +735,9 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
-local function get_pushbox_base(game)
-	for address, version_set in pairs(game.pushbox_base) do
-		for _, version in ipairs(version_set) do
-			if emu.romname() == version then
-				return address
-			end
-		end
-	end
-	print("unrecognized version (" .. emu.romname() .. "): cannot draw pushboxes")
-	return nil
-end
-
-
-local function get_throw_routine(game)
-	for address, version_set in pairs(game.throw_routine) do
-		for _, version in ipairs(version_set) do
-			if emu.romname() == version then
-				return address
-			end
-		end
-	end
-	print("unrecognized version (" .. emu.romname() .. "): cannot draw active throwboxes")
-	return nil
-end
-
-
-local function initialize()
-	globals.left_screen_edge = 0
-	globals.top_screen_edge  = 0
-	for p = 1, game.number_players do
-		player[p] = {}
-	end
+local function initialize_fb()
 	for f = 1, DRAW_DELAY + 2 do
 		frame_buffer[f] = {}
-		frame_buffer[f][player] = {}
-		frame_buffer[f][projectiles] = {}
 	end
 end
 
@@ -807,7 +749,7 @@ local function whatgame()
 		if emu.romname() == module.game or emu.parentname() == module.game then
 			print("drawing " .. emu.romname() .. " hitboxes") print()
 			game = module
-			initialize()
+			initialize_fb()
 			if game.pushbox_data[emu.romname()] then
 				globals.pushbox_base = game.pushbox_data.base + game.pushbox_data[emu.romname()]
 			else
@@ -835,7 +777,6 @@ local function whatgame()
 					print(bpstring:sub(1, -3))
 				end
 			end
-			print()
 			return
 		end
 	end
@@ -843,6 +784,11 @@ local function whatgame()
 end
 
 
-emu.registerstart( function()
+savestate.registerload(function()
+	initialize_fb()
+end)
+
+
+emu.registerstart(function()
 	whatgame()
 end)
