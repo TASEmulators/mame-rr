@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("July 30, 2011")
+print("August 24, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -29,6 +29,7 @@ local globals = {
 	draw_mini_axis       = false,
 	draw_pushboxes       = true,
 	draw_throwable_boxes = false,
+	no_alpha             = false, --fill = 0x00, outline = 0xFF for all box types
 }
 
 --------------------------------------------------------------------------------
@@ -165,16 +166,16 @@ for _,game in ipairs(profile) do
 end
 
 for _,box in pairs(boxes) do
-	box.fill    = bit.lshift(box.color, 8) + box.fill
-	box.outline = bit.lshift(box.color, 8) + box.outline
+	box.fill    = bit.lshift(box.color, 8) + (globals.no_alpha and 0x00 or box.fill)
+	box.outline = bit.lshift(box.color, 8) + (globals.no_alpha and 0xFF or box.outline)
 end
 
 local game
 local frame_buffer = {}
-local NUMBER_OF_PLAYERS    = 2
-local MAX_GAME_PROJECTILES = 8
-local MAX_BONUS_OBJECTS    = 16
-local DRAW_DELAY           = 1
+local NUMBER_OF_PLAYERS = 2
+local MAX_PROJECTILES   = 8
+local MAX_BONUS_OBJECTS = 16
+local DRAW_DELAY        = 1
 if fba then
 	DRAW_DELAY = DRAW_DELAY + 1
 end
@@ -329,7 +330,7 @@ local function define_throw_box(obj, box_entry)
 end
 
 
-local function update_game_object(obj)
+local function update_object(obj)
 	obj.facing_dir    = memory.readbyte(obj.base + 0x12)
 	obj.pos_x         = get_x(memory.readwordsigned(obj.base + 0x06))
 	obj.pos_y         = get_y(memory.readwordsigned(obj.base + 0x0A))
@@ -344,19 +345,19 @@ end
 
 
 local function read_projectiles(object_list)
-	for i = 1, MAX_GAME_PROJECTILES do
+	for i = 1, MAX_PROJECTILES do
 		local obj = {base = game.address.projectile + (i-1) * 0xC0}
 		if memory.readword(obj.base) == 0x0101 then
 			obj.projectile = true
-			table.insert(object_list, update_game_object(obj))
+			table.insert(object_list, update_object(obj))
 		end
 	end
 
 	for i = 1, MAX_BONUS_OBJECTS do
-		local obj = {base = game.address.projectile + (MAX_GAME_PROJECTILES + i-1) * 0xC0}
+		local obj = {base = game.address.projectile + (MAX_PROJECTILES + i-1) * 0xC0}
 		if bit.band(0xFF00, memory.readword(obj.base)) == 0x0100 then
 			obj.bonus = true
-			table.insert(object_list, update_game_object(obj))
+			table.insert(object_list, update_object(obj))
 		end
 	end
 end
@@ -396,8 +397,7 @@ local function update_hitboxes()
 	update_globals()
 
 	for f = 1, effective_delay do
-		frame_buffer[f].match_active = frame_buffer[f+1].match_active
-		frame_buffer[f].objects = copytable(frame_buffer[f+1].objects)
+		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
 
 	frame_buffer[effective_delay+1].match_active = globals.match_active
@@ -406,7 +406,7 @@ local function update_hitboxes()
 	for p = 1, NUMBER_OF_PLAYERS do
 		local player = {base = game.address.player + (p-1) * game.player_space}
 		if memory.readbyte(player.base) > 0 then
-			table.insert(frame_buffer[effective_delay+1].objects, update_game_object(player))
+			table.insert(frame_buffer[effective_delay+1].objects, update_object(player))
 		end
 	end
 	read_projectiles(frame_buffer[effective_delay+1].objects)
