@@ -65,14 +65,28 @@ Other information:
  * Most of the codes patch ROM data and will only work with parent sets, not clones.
  * The background color for !NeoGeo games can easily be adjusted by editing the color value in the codes.
 
-Screenshots or videos captured with the backgrounds removed can easily be processed to make the background color transparent. In order for this to work with hitboxes, the fill opacity must be set to zero and the border opacity should be maximum.
-
 [http://img703.imageshack.us/img703/2167/ssf2tnobg.png]
 
+Screenshots or videos captured with the backgrounds removed can easily be processed to make the background color transparent. In order for this to work with hitboxes, the fill opacity must be set to zero and the border opacity should be maximum. A shortcut to do this is to set `no_alpha` in the `globals` at the top of the script to `true`.
+
+{{{
+local globals = {
+	axis_color           = 0xFFFFFFFF,
+	blank_color          = 0xFFFFFFFF,
+	axis_size            = 12,
+	mini_axis_size       = 2,
+	blank_screen         = false,
+	draw_axis            = true,
+	draw_mini_axis       = false,
+	draw_pushboxes       = true,
+	draw_throwable_boxes = false,
+	no_alpha             = true, --fill = 0x00, outline = 0xFF for all box types
+}
+}}}
 ----
 == Color customization ==
 
-Colors can be changed by editing the `box` values at the top of the scripts.
+Colors can be changed by editing the `box` values at the top of the script.
 {{{
 	      ["vulnerability"] = {color = 0x7777FF, fill = 0x40, outline = 0xFF},
 	             ["attack"] = {color = 0xFF0000, fill = 0x40, outline = 0xFF},
@@ -230,11 +244,6 @@ Selected beat-em-up games on the CPS-2 system.
 == neogeo-hitboxes.lua ==
 Selected fighting games on the !NeoGeo MVS system.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]`*` ^1^ ^2^||Fatal Fury - King of Fighters||
-||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]`*` ^1^||Fatal Fury 2||
-||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]`*` ^1^ ^2^||Fatal Fury Special||
-||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]`*` ^1^ ^2^||Fatal Fury 3 - Road to the Final Victory||
-||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]`*` ^1^ ^2^||Real Bout Fatal Fury||
 ||[http://maws.mameworld.info/maws/romset/kof94 kof94]`*`||The King of Fighters '94||
 ||[http://maws.mameworld.info/maws/romset/kof95 kof95]`*`||The King of Fighters '95||
 ||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||
@@ -245,15 +254,6 @@ Selected fighting games on the !NeoGeo MVS system.
 ||[http://maws.mameworld.info/maws/romset/kof2001 kof2001]||The King of Fighters 2001||
 ||[http://maws.mameworld.info/maws/romset/kof2002 kof2002]||The King of Fighters 2002||
 
-The script has some problems with the Fatal Fury games:
- # The invincibility frames on some moves are not being shown.
- # Only works in MAME-rr, not in FBA-rr.
-
-[http://img215.imageshack.us/img215/2107/neogeofatfury1.png]
-[http://img17.imageshack.us/img17/6149/neogeofatfury2.png]
-[http://img291.imageshack.us/img291/2624/neogeofatfursa.png]
-[http://img405.imageshack.us/img405/1434/neogeofatfury3.png]
-[http://img815.imageshack.us/img815/7351/neogeorbff1.png]
 [http://img52.imageshack.us/img52/5269/neogeokof94.png]
 [http://img600.imageshack.us/img600/9328/neogeokof95.png]
 [http://img715.imageshack.us/img715/993/neogeokof96.png]
@@ -269,6 +269,38 @@ The script has some problems with the Fatal Fury games:
 
 ==== `guard` box ====
 Attacks that hit a guardbox will be blocked, either by manually blocking, by an autoguard move, or by a special counter move.
+
+----
+== garou-hitboxes.lua ==
+The Garou Densetsu/Fatal Fury !NeoGeo series.
+||Parent ROM||Game||
+||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]||Fatal Fury - King of Fighters||
+||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]||Fatal Fury 2||
+||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]||Fatal Fury Special||
+||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]||Fatal Fury 3 - Road to the Final Victory||
+||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]||Real Bout Fatal Fury||
+||[http://maws.mameworld.info/maws/romset/rbffspec rbffspec]||Real Bout Fatal Fury Special||
+||[http://maws.mameworld.info/maws/romset/rbff2 rbff2]||Real Bout Fatal Fury 2 - The Newcomers||
+||[http://maws.mameworld.info/maws/romset/garou garou]||Garou - Mark of the Wolves||
+
+[http://img215.imageshack.us/img215/2107/neogeofatfury1.png]
+[http://img841.imageshack.us/img841/8889/garoufatfury2.png]
+[http://img291.imageshack.us/img291/2624/neogeofatfursa.png]
+[http://img405.imageshack.us/img405/1434/neogeofatfury3.png]
+[http://img815.imageshack.us/img815/7351/neogeorbff1.png]
+[http://img854.imageshack.us/img854/8909/garourbffspec.png]
+[http://img694.imageshack.us/img694/2333/garourbff2.png]
+[http://img9.imageshack.us/img9/3346/garougarou.png]
+
+=== Notes ===
+This script does not work at all in FBA-rr. It may be due to FBA's different handling of memory banking, and Lua's inability to manipulate the banks in FBA.
+
+The colors of Lua drawings are not correct in `fatfursp`, but are normal in its clone, `fatfursa`.
+
+==== Breakpoints ====
+BPs are needed to show all throws, and all throws grab the axis. The exception is normal ground throws in `fatfury3`, which grab vulnerability boxes.
+
+Breakpoints are also required to show vulnerability in `fatfury1` and `fatfury2`.
 
 ----
 == sfiii3-hitboxes.lua ==
