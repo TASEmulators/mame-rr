@@ -1,5 +1,5 @@
 print("CPS-2 Marvel series hitbox viewer")
-print("July 30, 2011")
+print("August 24, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -31,17 +31,18 @@ local globals = {
 	draw_mini_axis       = false,
 	draw_pushboxes       = true,
 	draw_throwable_boxes = false,
+	no_alpha             = false, --fill = 0x00, outline = 0xFF for all box types
 }
 
+
+--------------------------------------------------------------------------------
+-- game-specific modules
 
 local function eval(list)
 	for _, condition in ipairs(list) do
 		if condition == true then return true end
 	end
 end
-
---------------------------------------------------------------------------------
--- game-specific modules
 
 local profile = {
 	{
@@ -451,8 +452,8 @@ for game in ipairs(profile) do
 end
 
 for _,box in pairs(boxes) do
-	box.fill    = bit.lshift(box.color, 8) + box.fill
-	box.outline = bit.lshift(box.color, 8) + box.outline
+	box.fill    = bit.lshift(box.color, 8) + (globals.no_alpha and 0x00 or box.fill)
+	box.outline = bit.lshift(box.color, 8) + (globals.no_alpha and (box.outline == 0x00 and 0x00 or 0xFF) or box.outline)
 end
 
 local game
@@ -570,7 +571,7 @@ local function define_box(obj, box_entry)
 end
 
 
-local function update_game_object(obj)
+local function update_object(obj)
 	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
 	obj.pos_x        = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
 	obj.pos_y        = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
@@ -591,7 +592,7 @@ local function read_projectiles(object_list)
 				i = nil
 			else
 				obj.projectile = true
-				table.insert(object_list, update_game_object(obj))
+				table.insert(object_list, update_object(obj))
 				i = i + 1
 			end
 		end
@@ -607,8 +608,7 @@ local function update_hitboxes()
 	local effective_delay = DRAW_DELAY + (not mame and 0 or game.stage_lag[globals.stage + 1])
 
 	for f = 1, effective_delay do
-		frame_buffer[f].match_active = frame_buffer[f+1].match_active
-		frame_buffer[f].objects = copytable(frame_buffer[f+1].objects)
+		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
 
 	frame_buffer[effective_delay+1].match_active = globals.match_active
@@ -617,7 +617,7 @@ local function update_hitboxes()
 	for p = 1, game.number_players do
 		local player = {base = game.address.player + (p-1) * game.offset.player_space}
 		if game.number_players <= 2 or memory.readbyte(player.base) > 0 then
-			table.insert(frame_buffer[effective_delay+1].objects, update_game_object(player))
+			table.insert(frame_buffer[effective_delay+1].objects, update_object(player))
 		end
 	end
 	read_projectiles(frame_buffer[effective_delay+1].objects)
