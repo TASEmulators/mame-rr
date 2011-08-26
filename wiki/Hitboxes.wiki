@@ -113,11 +113,11 @@ Or to avoid using the command line, create a .bat file that activates the debugg
 
 {{{mame -debug}}}
 
-The debugger starts by halting execution of the game and the UI. Press F5 to release control. If the loaded game needs any BPs or WPs, the script will print them to the Lua console as a single line.
+The debugger starts by halting execution of the game and the UI. Press F5 to release control. If the loaded game needs any BPs, the script will print them to the Lua console as one or two lines.
 
 [http://img577.imageshack.us/img577/2598/bps.png]
 
-Copy and paste the line over to the debugger console and hit enter. Now all supported box types will appear correctly.
+Copy and paste the line(s) over to the debugger console and hit enter. Now all supported box types will appear correctly.
 
 [http://img43.imageshack.us/img43/3858/debugi.png]
 
@@ -177,7 +177,7 @@ BPs are needed to show the exact frames when throws are active and when pushboxe
 [http://img23.imageshack.us/img23/4328/colorsmsh.png]
 
 ==== `potential throw` box ====
-Even without breakpoints, it's possible to show where the box would appear if a throw were attempted. This box type is fully transparent (invisible) by default and can be shown by editing its opacity values. Showing it is not recommended since breakpoints can show the real throw attempts.
+Even without breakpoints, it's possible to show where the box would appear if a throw were attempted. This box type is fully transparent (invisible) by default and can be shown by increasing its opacity value. Showing it is not recommended since breakpoints can show the real throw attempts.
 
 ----
 == cps2-hitboxes.lua ==
@@ -241,8 +241,8 @@ Selected beat-em-up games on the CPS-2 system.
 [http://img23.imageshack.us/img23/1985/beatemupbatcir.png]
 
 ----
-== neogeo-hitboxes.lua ==
-Selected fighting games on the !NeoGeo MVS system.
+== kof-hitboxes.lua ==
+Most of the King of Fighters games on the !NeoGeo MVS system.
 ||Parent ROM||Game||
 ||[http://maws.mameworld.info/maws/romset/kof94 kof94]`*`||The King of Fighters '94||
 ||[http://maws.mameworld.info/maws/romset/kof95 kof95]`*`||The King of Fighters '95||
@@ -298,9 +298,11 @@ This script does not work at all in FBA-rr. It may be due to FBA's different han
 The colors of Lua drawings are not correct in `fatfursp`, but are normal in its clone, `fatfursa`.
 
 ==== Breakpoints ====
-BPs are needed to show all throws, and all throws grab the axis. The exception is normal ground throws in `fatfury3`, which grab vulnerability boxes.
+BPs are needed to show all throws, and all throws grab the axis. The exception is normal ground throws in `fatfury3`, which grab vulnerability boxes. There are no throwability boxes.
 
 Breakpoints are also required to show vulnerability in `fatfury1` and `fatfury2`.
+
+`fatfursp`, `rbff1`, and `rbffspec` require pasting in two lines to fit all the breakpoints.
 
 ----
 == sfiii3-hitboxes.lua ==
