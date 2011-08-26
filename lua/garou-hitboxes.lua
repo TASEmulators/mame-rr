@@ -1,5 +1,5 @@
 print("Garou Densetsu/Fatal Fury hitbox viewer")
-print("August 24, 2011")
+print("August 25, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -278,8 +278,9 @@ local profile = {
 					type   = "axis throw",
 					left   = obj.pos_x,
 					right  = obj.pos_x + range * obj.facing_dir,
-					top    = obj.pos_y - (height > 0 and height or (obj.height or globals.throwbox_height)),
-					bottom = obj.pos_y,
+					top    = height > 0 and emu.screenheight() + globals.top_screen_edge - obj.pos_z - height or 
+						obj.pos_y - (obj.height or globals.throwbox_height),
+					bottom = height > 0 and emu.screenheight() + globals.top_screen_edge - obj.pos_z or obj.pos_y,
 				}
 			end
 			ptr = memory.readword(obj.base - 0x116)
@@ -319,8 +320,6 @@ local profile = {
 			{base = 0x030C98, cmd = "maincpu.pb@(a4-102)=maincpu.pw@(pc+2)", ["fatfursa"] = 0}, --jubei _B,F+HK
 			{base = 0x036BE6, cmd = "maincpu.pb@(a4-102)=maincpu.pw@(pc+2)+1; maincpu.pw@(a4-104)=maincpu.pw@(pc+c)", 
 				["fatfursa"] = 0}, --ryo DM
-			--{base = 0x01D846, cmd = "maincpu.pd@(a4-106)=a0", ["fatfursa"] = 0}, --ground throw data ptr
-			--{base = 0x01D95C, cmd = "maincpu.pd@(a4-106)=a0", ["fatfursa"] = 0}, --air throw data ptr
 			},
 		},
 	},
@@ -556,11 +555,19 @@ local profile = {
 				end
 			end
 		end},
-		set_bank = function(obj)
-			local ptr = {base = 0x00CA3E, ["rbffspeck"] = -0x5E}
-			ptr = ptr.base + (ptr[emu.romname()] or 0)
-			memory.writeword(0x2FFFF0, memory.readword(ptr + obj.char_id * 0x12))
-		end,
+		bank = {
+			get = function()
+				return memory.readword(0x2FFFE0)
+			end,
+			set = function(obj)
+				local ptr = {base = 0x00CA3E, ["rbffspeck"] = -0x5E}
+				ptr = ptr.base + (ptr[emu.romname()] or 0)
+				memory.writeword(0x2FFFF0, memory.readword(ptr + obj.char_id * 0x12))
+			end,
+			restore = function(val)
+				memory.writeword(0x2FFFF0, val)
+			end,
+		},
 		no_hit = function(obj)
 			return bit.btst(memory.readbyte(obj.base + 0x6A), 3) == 0 or memory.readbyte(obj.base + 0xAA) > 0 or
 				(obj.projectile and memory.readbyte(obj.base + 0xE7) > 0) or 
@@ -685,9 +692,17 @@ local profile = {
 				end
 			end
 		end},
-		set_bank = function(obj)
-			memory.writeword(0x2FFFF0, bit.rshift(bit.rol(memory.readbyte(obj.base + 0x67), 2), 8))
-		end,
+		bank = {
+			get = function()
+				return memory.readword(0x2FFFE0)
+			end,
+			set = function(obj)
+				memory.writeword(0x2FFFF0, bit.rshift(bit.rol(memory.readbyte(obj.base + 0x67), 2), 8))
+			end,
+			restore = function(val)
+				memory.writeword(0x2FFFF0, val)
+			end,
+		},
 		no_hit = function(obj)
 			return bit.btst(memory.readbyte(obj.base + 0x6A), 3) == 0 or memory.readbyte(obj.base + 0xAA) > 0 or
 				(obj.projectile and memory.readbyte(obj.base + 0xE7) > 0) or 
@@ -804,12 +819,24 @@ local profile = {
 		adjust_y = function(y)
 			return y + globals.top_screen_edge - 0x4
 		end,
-		set_bank = function(obj)
-			local target = {base = 0x2FFFC0, ["garouo"] = 0, ["garoup"] = 0x30, ["garoubl"] = 0x30}
-			local ptr = {base = 0x011A44, ["garouo"] = 0, ["garoup"] = -0x2E6, ["garoubl"] = -0x2E6}
-			target, ptr = target.base + (target[emu.romname()] or 0), ptr.base + (ptr[emu.romname()] or 0)
-			memory.writeword(target, memory.readword(ptr + obj.char_id * 4))
-		end,
+		bank = {
+			get = function()
+				local target = {base = 0x2FFFC0, ["garouo"] = 0, ["garoup"] = 0x30, ["garoubl"] = 0x30}
+				target = target.base + (target[emu.romname()] or 0)
+				return memory.readword(target)
+			end,
+			set = function(obj)
+				local target = {base = 0x2FFFC0, ["garouo"] = 0, ["garoup"] = 0x30, ["garoubl"] = 0x30}
+				local ptr = {base = 0x011A44, ["garouo"] = 0, ["garoup"] = -0x2E6, ["garoubl"] = -0x2E6}
+				target, ptr = target.base + (target[emu.romname()] or 0), ptr.base + (ptr[emu.romname()] or 0)
+				memory.writeword(target, memory.readword(ptr + obj.char_id * 4))
+			end,
+			restore = function(val)
+				local target = {base = 0x2FFFC0, ["garouo"] = 0, ["garoup"] = 0x30, ["garoubl"] = 0x30}
+				target = target.base + (target[emu.romname()] or 0)
+				memory.writeword(target, val)
+			end,
+		},
 		no_hit = function(obj)
 			return bit.btst(memory.readbyte(obj.base + 0x6A), 3) == 0 or memory.readbyte(obj.base + 0xAC) > 0 or 
 				(obj.projectile and memory.readbyte(obj.base + 0xE9) > 0) or 
@@ -899,7 +926,7 @@ for game in ipairs(profile) do
 		obj.scale      = memory.readbyte(obj.base + 0x73) + 1
 		obj.char_id    = memory.readword(obj.base + 0x10)
 	end
-	g.set_bank = g.set_bank or function(obj) end
+	g.bank = g.bank or {get = function() end, set = function() end, restore = function() end}
 end
 
 for _,box in pairs(boxes) do
@@ -995,7 +1022,7 @@ local update_object = function(obj)
 		box.type = "push"
 		table.insert(obj, define_box(obj, box))
 	end
-	game.set_bank(obj)
+	game.bank.set(obj)
 	for n = obj.num_boxes, 1, -1 do
 		local box = {address = obj.hitbox_ptr + (n-1)*game.box.space + game.box.header}
 		box.id = game.box.get_id(box.address)
@@ -1088,11 +1115,13 @@ local function update_hitboxes()
 	globals.left_screen_edge = memory.readwordsigned(game.stage_base + offset.x_position) + globals.margin
 	globals.top_screen_edge  = memory.readwordsigned(game.stage_base + offset.y_position)
 
+	globals.bank = game.bank.get()
 	for p = 1, game.number_players do
 		local player = {base = game.player_base + offset.player_space * (p-1)}
 		table.insert(frame_buffer, update_object(player))
 	end
 	read_projectiles[game.obj_engine](frame_buffer)
+	game.bank.restore(globals.bank)
 
 	globals.same_plane = game.number_players > 2 or frame_buffer[1].pos_z == frame_buffer[2].pos_z
 end
