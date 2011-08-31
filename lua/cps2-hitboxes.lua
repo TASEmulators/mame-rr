@@ -1,5 +1,5 @@
 print("CPS-2 fighting game hitbox viewer")
-print("August 24, 2011")
+print("August 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -36,9 +36,9 @@ local globals = {
 --------------------------------------------------------------------------------
 -- game-specific modules
 
-local function eval(list)
-	for _, condition in ipairs(list) do
-		if condition == true then return true end
+local function any_true(condition)
+	for n in ipairs(condition) do
+		if condition[n] == true then return true end
 	end
 end
 
@@ -83,14 +83,14 @@ local profile = {
 			["sfzjr2"] = -0xB4, ["sfzjr1"] = -0x64, ["sfzj"] = 0, 
 		},
 		friends = {0x0D},
-		active = function() return eval({
+		active = function() return any_true({
 			(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000),
 			(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x13B) > 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x241) > 0,
 			memory.readword(obj.base + 0x004) ~= 0x200,
 			memory.readbyte(obj.base + 0x02F) > 0,
@@ -133,29 +133,29 @@ local profile = {
 			["sfz2al"] = 0, ["sfz2ald"] = 0, ["sfz2alb"] = 0, ["sfz2alh"] = 0, ["sfz2alj"] = -0x310, 
 		},
 		friends = {0x17},
-		active = function() return eval({
+		active = function() return any_true({
 			(memory.readdword(0xFF8004) == 0x40000 and
 			(memory.readdword(0xFF8008) == 0x40000 or memory.readdword(0xFF8008) == 0xA0000)),
 			memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x25B) > 0,
 			memory.readbyte(obj.base + 0x273) > 0,
 			memory.readbyte(obj.base + 0x13B) > 0,
 		}) end,
 		unthrowable = function(obj, box)
-			if eval({
+			if any_true({
 					memory.readbyte(0xFF810E) > 0,
 					memory.readbyte(obj.base + 0x273) > 0,
 					bit.band(memory.readdword(memory.readdword(obj.base + 0x01C) + 0x8), 0xFFFFFF00) == 0,
 				}) then
 				return true
 			elseif memory.readbyte(0xFF0000 + memory.readword(obj.base + 0x38) + 0x142) > 0 then --opponent in CC
-				return eval({
+				return any_true({
 					memory.readbyte(memory.readdword(obj.base + 0x01C) + 0xD) > 0,
 				})
 			else --not in CC
-				return eval({
+				return any_true({
 					memory.readbyte(obj.base + 0x241) > 0,
 					memory.readword(obj.base + 0x004) ~= 0x200,
 					memory.readbyte(obj.base + 0x031) > 0,
@@ -189,21 +189,21 @@ local profile = {
 			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr =  0x82, id_shift = 0x5, type = "tripwire"},
 		},
 		friends = {0x17, 0x22},
-		active = function() return eval({
+		active = function() return any_true({
 			(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x60000),
 			(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x067) > 0,
 			memory.readbyte(obj.base + 0x25D) > 0,
 			memory.readbyte(obj.base + 0x0D6) > 0,
 			memory.readbyte(obj.base + 0x2CE) > 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x67) > 0,
 		}) end,
 		unthrowable = function(obj, box)
-			if eval({
+			if any_true({
 					memory.readbyte(obj.base + 0x25D) > 0,
 					memory.readbyte(obj.base + 0x23F) > 0,
 					memory.readbyte(obj.base + 0x2CE) > 0,
@@ -219,13 +219,13 @@ local profile = {
 			if opp.VC and memory.readbyte(obj.base + 0x24E) == 0 then --VC: 02E37C
 				return
 			elseif not opp.air then --ground: 02E3FE
-				return eval({ --02E422
+				return any_true({ --02E422
 					status ~= 0x204 and status ~= 0x200 and memory.readbyte(obj.base + 0x24E) == 0 and 
 					(status ~= 0x202 or memory.readbyte(obj.base + 0x54) ~= 0xC),
 					memory.readbyte(obj.base + 0x031) > 0,
 				})
 			else --air: 02E636
-				return eval({ --02E66E
+				return any_true({ --02E66E
 					memory.readbyte(obj.base + 0x031) == 0,
 					memory.readbyte(obj.base + 0x0D6) > 0,
 					status ~= 0x204 and status ~= 0x200 and status ~= 0x202,
@@ -271,20 +271,20 @@ local profile = {
 			["vampjr1"] = 0x24A2, ["vampja"] = 0x24B6, ["vampj"] = 0x24B6, 
 		},
 		breakables = {start = 0xFFAD2E, space = 0x80, number = 8},
-		active = function() return eval({
+		active = function() return any_true({
 			(memory.readdword(0xFF8004) == 0x40000 and bit.band(memory.readdword(0xFF8008), 0x8FFFF) == 0x80000),
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x15D) > 0,
 			(memory.readbyte(obj.base + 0x167) == 0 and 
 			memory.readbytesigned(obj.base + 0x062) < 0 and 
 			memory.readbyte(obj.base + 0x12A) == 0),
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x1E6) > 0,
 			memory.readbyte(obj.base + 0x04D) > 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x062) > 0,
 			memory.readword(obj.base + 0x15D) > 0,
 		}) end,
@@ -351,11 +351,11 @@ local profile = {
 		}},
 		friends = {0x40, 0x4C, 0x50},
 		breakables = {start = 0xFFB16E, space = 0x80, number = 8},
-		active = function() return eval({
+		active = function() return any_true({
 			(memory.readdword(0xFF8004) == 0x40000 and bit.band(memory.readdword(0xFF8008), 0x8FFFF) == 0x80000),
 			(memory.readword(0xFF8000) >= 0x0E and memory.readdword(0xFF8004) == 0),
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			(memory.readbyte(obj.base + 0x49F) == 0 and memory.readbyte(obj.base + 0x2AF) > 0),
 			memory.readbyte(obj.base + 0x15D) > 0,
 			bit.band(memory.readbyte(obj.base + 0x167), 0x0E) > 0,
@@ -363,11 +363,11 @@ local profile = {
 			memory.readbytesigned(obj.base + 0x062) < 0 and 
 			memory.readbyte(obj.base + 0x12A) == 0),
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x1E6) > 0,
 			memory.readbyte(obj.base + 0x04C) > 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x062) > 0,
 			memory.readbyte(obj.base + 0x15D) > 0,
 		}) end,
@@ -407,20 +407,20 @@ local profile = {
 			["vhunt2"] = 0, ["vhunt2r1"] = -0xB2, ["vhunt2d"] = 0, ["vsav2"] = 0, ["vsav2d"] = 0, 
 		},
 		friends = {0x08, 0x10, 0x11, 0x37},
-		active = function() return eval({
+		active = function() return any_true({
 			(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000),
 			(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x134) > 0,
 			memory.readbyte(obj.base + 0x147) > 0,
 			memory.readbyte(obj.base + 0x11E) > 0,
 			memory.readbyte(obj.base + 0x145) > 0 and memory.readbyte(obj.base + 0x1A4) == 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x134) > 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			not (memory.readword(obj.base + 0x004) == 0x0200 or memory.readword(obj.base + 0x004) == 0x0204),
 			memory.readbyte(obj.base + 0x143) > 0,
 			memory.readbyte(obj.base + 0x147) > 0,
@@ -458,13 +458,13 @@ local profile = {
 		throw_box_list = {
 			{addr_table_offset = 0xC94E, id_shift = 0x2, type = "throw"},
 		},
-		active = function() return eval({
+		active = function() return any_true({
 			memory.readwordsigned(0xFF72D2) > 0,
 		}) end,
-		projectile_active = function(obj, box) return eval({
+		projectile_active = function(obj, box) return any_true({
 			memory.readword(obj.base) > 0x0100 and memory.readbyte(obj.base + 0x02) == 0x01,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			obj.projectile ~= nil,
 			memory.readword(obj.base + 0x70) > 0,
 			memory.readword(obj.base + 0x98) > 0,
@@ -508,21 +508,21 @@ local profile = {
 			}
 			return 0xFF8000 + (slot[memory.readword(0xFFEA1A) + 1] or slot[1]) + 0x1A
 		end,
-		active = function() return eval({
+		active = function() return any_true({
 			bit.band(memory.readdword(0xFF8008), 0x10FFFF) == 0x100000,
 		}) end,
-		projectile_active = function(obj) return eval({
+		projectile_active = function(obj) return any_true({
 			memory.readword(obj.base) > 0x0100 and bit.band(memory.readword(obj.base + 0x2), 0x8) == 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			bit.band(memory.readword(obj.base + 0x126), 0x20) > 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			bit.band(memory.readword(obj.base + 0x126), 0x20) > 0,
 		}) end,
 		unthrowable = function(obj, box)
 		local status = memory.readword(obj.base + 0x126)
-		return eval({
+		return any_true({
 			memory.readword(obj.base + 0x152) > 0,
 			bit.band(status, 0x40) == 0 and bit.band(status, 0x30) > 0,
 			memory.readbyte(obj.base + 0x1A6) > 0,
@@ -558,23 +558,23 @@ local profile = {
 		clones = {
 			["pfghtj"] = 0, ["sgemfd"] = 0, ["sgemfa"] = 0, ["sgemfh"] = 0, 
 		},
-		active = function() return eval({
+		active = function() return any_true({
 			memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000,
 			memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0,
 		}) end,
-		no_hit = function(obj, box) return eval({
+		no_hit = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0xB1) > 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x147) > 0,
 			memory.readbyte(obj.base + 0x132) > 0,
 			memory.readbyte(obj.base + 0x11B) > 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x1AA) > 0,
 			memory.readbyte(obj.base + 0x093) == 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x143) > 0,
 			memory.readbyte(obj.base + 0x188) > 0,
 			memory.readbyte(obj.base + 0x119) == 0 and memory.readword(obj.base + 0x04) == 0x0202,
@@ -615,8 +615,7 @@ for game in ipairs(profile) do
 		entry.throw_type = get_throw_type(entry)
 	end
 
-	g.ground_level = g.ground_level or -15
-	g.address.top_screen_edge = g.address.top_screen_edge or (g.address.left_screen_edge and g.address.left_screen_edge + 0x4)
+	g.ground_level = g.ground_level or -0x0F
 	g.offset.player_space = g.offset.player_space or 0x400
 	g.offset.x_position   = g.offset.x_position   or 0x10
 	g.offset.y_position   = g.offset.y_position   or g.offset.x_position + 0x4
@@ -658,15 +657,6 @@ end
 
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
-
-local function update_globals()
-	globals.left_screen_edge_ptr = game.address.left_screen_edge or game.get_cam_ptr()
-	globals.top_screen_edge_ptr  = game.address.top_screen_edge or globals.left_screen_edge_ptr + 0x4
-	globals.left_screen_edge = memory.readwordsigned(globals.left_screen_edge_ptr)
-	globals.top_screen_edge  = memory.readwordsigned(globals.top_screen_edge_ptr)
-	globals.match_active     = game.active()
-end
-
 
 local function get_x(x)
 	return x - globals.left_screen_edge
@@ -1018,24 +1008,26 @@ local function update_hitboxes()
 	if not game then
 		return
 	end
-	update_globals()
+	globals.left_screen_edge_ptr = game.address.left_screen_edge or game.get_cam_ptr()
+	globals.top_screen_edge_ptr  = game.address.top_screen_edge or globals.left_screen_edge_ptr + 0x4
+	globals.left_screen_edge = memory.readwordsigned(globals.left_screen_edge_ptr)
+	globals.top_screen_edge  = memory.readwordsigned(globals.top_screen_edge_ptr)
 
 	for f = 1, DRAW_DELAY do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
 
-	frame_buffer[DRAW_DELAY+1].match_active = globals.match_active
-	frame_buffer[DRAW_DELAY+1].objects = {}
+	frame_buffer[DRAW_DELAY+1] = {match_active = game.active()}
 
 	for p = 1, game.number.players do
 		local player = {base = game.address.player + (p-1) * game.offset.player_space}
 		if memory.readbyte(player.base) > 0 then
-			table.insert(frame_buffer[DRAW_DELAY+1].objects, update_object(player))
+			table.insert(frame_buffer[DRAW_DELAY+1], update_object(player))
 		end
 	end
-	read_projectiles(frame_buffer[DRAW_DELAY+1].objects)
+	read_projectiles(frame_buffer[DRAW_DELAY+1])
 
-	for _, prev_frame in ipairs(frame_buffer[DRAW_DELAY].objects or {}) do
+	for _, prev_frame in ipairs(frame_buffer[DRAW_DELAY] or {}) do
 		if prev_frame.projectile then
 			break
 		else
@@ -1056,7 +1048,7 @@ end)
 -- draw the hitboxes
 
 local function draw_hitbox(hb)
-	if not hb or eval ({
+	if not hb or any_true({
 		not globals.draw_pushboxes and hb.type == "push",
 		not globals.draw_throwable_boxes and hb.type == "throwable",
 	}) then return
@@ -1089,13 +1081,13 @@ local function render_hitboxes()
 	end
 
 	for entry = 1, game.box_number do
-		for _, obj in ipairs(frame_buffer[1].objects) do
+		for _, obj in ipairs(frame_buffer[1]) do
 			draw_hitbox(obj[entry])
 		end
 	end
 
 	if globals.draw_axis then
-		for _, obj in ipairs(frame_buffer[1].objects) do
+		for _, obj in ipairs(frame_buffer[1]) do
 			draw_axis(obj)
 		end
 	end
@@ -1158,28 +1150,27 @@ end
 local function whatgame()
 	print()
 	game = nil
+	initialize_fb()
 	for _, module in ipairs(profile) do
 		for _, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. emu.romname() .. " hitboxes")
 				game = module
-				initialize_fb()
 				if game.breakpoints then
-					if mame then
-						if (emu.parentname() == "0" or game.clones[emu.romname()]) then
-							print("Copy this line into the MAME-rr debugger to show throwboxes:") print()
-							local bpstring = ""
-							for _, bp in ipairs(game.breakpoints) do
-								local bpaddr = bp[emu.romname()] or bp[shortname] + game.clones[emu.romname()]
-								bpstring = bpstring .. string.format("bp %06X, 1, {%s; g}; ", bpaddr, bp.cmd)
-							end
-							print(bpstring:sub(1, -3))
-						else
-							print("MAME-rr can show throwboxes, but breakpoints are unknown for clone '" .. emu.romname() .. "'.")
-						end
-					else
+					if not mame then
 						print("(MAME-rr can show throwboxes for this game.)")
+						return
+					elseif (emu.parentname() ~= "0" and not game.clones[emu.romname()]) then
+						print("MAME-rr can show throwboxes, but breakpoints are unknown for clone '" .. emu.romname() .. "'.")
+						return
 					end
+					print("Copy this line into the MAME-rr debugger to show throwboxes:") print()
+					local bpstring = ""
+					for _, bp in ipairs(game.breakpoints) do
+						local bpaddr = bp[emu.romname()] or bp[shortname] + game.clones[emu.romname()]
+						bpstring = bpstring .. string.format("bp %06X, 1, {%s; g}; ", bpaddr, bp.cmd)
+					end
+					print(bpstring:sub(1, -3))
 				end
 				return
 			end

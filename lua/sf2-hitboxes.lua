@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("August 24, 2011")
+print("August 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -184,23 +184,6 @@ end
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
-local function update_globals()
-	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
-	globals.top_screen_edge  = memory.readwordsigned(game.address.left_screen_edge + 0x4)
-	globals.match_active     = game.match_active()
-end
-
-
-local function get_x(x)
-	return x - globals.left_screen_edge
-end
-
-
-local function get_y(y)
-	return emu.screenheight() - (y - 15) + globals.top_screen_edge
-end
-
-
 local get_box_parameters = {
 	[1] = function(box)
 		box.hval   = memory.readbytesigned(box.address + 0)
@@ -332,8 +315,9 @@ end
 
 local function update_object(obj)
 	obj.facing_dir    = memory.readbyte(obj.base + 0x12)
-	obj.pos_x         = get_x(memory.readwordsigned(obj.base + 0x06))
-	obj.pos_y         = get_y(memory.readwordsigned(obj.base + 0x0A))
+	obj.pos_x         = memory.readwordsigned(obj.base + 0x06) - globals.left_screen_edge
+	obj.pos_y         = memory.readwordsigned(obj.base + 0x0A)
+	obj.pos_y         = emu.screenheight() - (obj.pos_y - 0x0F) + globals.top_screen_edge
 	obj.animation_ptr = memory.readdword(obj.base + 0x1A)
 	obj.hitbox_ptr    = memory.readdword(obj.base + 0x34)
 
@@ -394,24 +378,24 @@ local function update_hitboxes()
 		return
 	end
 	local effective_delay = DRAW_DELAY + adjust_delay(game.address.stage)
-	update_globals()
+	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge)
+	globals.top_screen_edge  = memory.readwordsigned(game.address.left_screen_edge + 0x4)
 
 	for f = 1, effective_delay do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
 
-	frame_buffer[effective_delay+1].match_active = globals.match_active
-	frame_buffer[effective_delay+1].objects = {}
+	frame_buffer[effective_delay+1] = {match_active = game.match_active()}
 
 	for p = 1, NUMBER_OF_PLAYERS do
 		local player = {base = game.address.player + (p-1) * game.player_space}
 		if memory.readbyte(player.base) > 0 then
-			table.insert(frame_buffer[effective_delay+1].objects, update_object(player))
+			table.insert(frame_buffer[effective_delay+1], update_object(player))
 		end
 	end
-	read_projectiles(frame_buffer[effective_delay+1].objects)
+	read_projectiles(frame_buffer[effective_delay+1])
 
-	for _, prev_frame in ipairs(frame_buffer[effective_delay].objects or {}) do
+	for _, prev_frame in ipairs(frame_buffer[effective_delay] or {}) do
 		if prev_frame.projectile or prev_frame.bonus then
 			break
 		else
@@ -464,13 +448,13 @@ local function render_hitboxes()
 	end
 
 	for entry = 1, game.box_number do
-		for _, obj in ipairs(frame_buffer[1].objects) do
+		for _, obj in ipairs(frame_buffer[1]) do
 			draw_hitbox(obj[entry])
 		end
 	end
 
 	if globals.draw_axis then
-		for _, obj in ipairs(frame_buffer[1].objects) do
+		for _, obj in ipairs(frame_buffer[1]) do
 			draw_axis(obj)
 		end
 	end
@@ -533,12 +517,12 @@ end
 local function whatgame()
 	print()
 	game = nil
+	initialize_fb()
 	for _, module in ipairs(profile) do
 		for _, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. emu.romname() .. " hitboxes")
 				game = module
-				initialize_fb()
 				return
 			end
 		end
