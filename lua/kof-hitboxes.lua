@@ -1,5 +1,5 @@
 print("King of Fighters hitbox viewer")
-print("August 30, 2011")
+print("August 31, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -350,7 +350,7 @@ local function old_throw_box(obj)
 				box = {type = "axis throw", range = memory.readword(type.subroutine + type.range_offset)}
 				if type.lsr then --opponent-dependent range
 					box.range = box.range + bit.rshift(memory.readword(game.special_throws.table_base + obj.opp_id), type.lsr)
-				elseif type.delay and memory.readbytesigned(obj.subroutine + type.delay) > 0 then
+				elseif type.delay and memory.readbytesigned(obj.base + type.delay) > 0 then
 					return
 				end
 				break
