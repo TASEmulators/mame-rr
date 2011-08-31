@@ -1,5 +1,5 @@
 print("King of Fighters hitbox viewer")
-print("August 25, 2011")
+print("August 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -15,6 +15,7 @@ local boxes = {
 	               ["push"] = {color = 0x00FF00, fill = 0x20, outline = 0xFF},
 	              ["guard"] = {color = 0xCCCCFF, fill = 0x40, outline = 0xFF},
 	              ["throw"] = {color = 0xFFFF00, fill = 0x40, outline = 0xFF},
+	         ["axis throw"] = {color = 0xFFAA00, fill = 0x40, outline = 0xFF}, --kof94, kof95
 	          ["throwable"] = {color = 0xF0F0F0, fill = 0x20, outline = 0xFF},
 }
 
@@ -34,6 +35,16 @@ local globals = {
 --------------------------------------------------------------------------------
 -- game-specific modules
 
+bit.btst = function(bit_number, value)
+	return bit.band(bit.lshift(1, bit_number), value)
+end
+
+local function any_true(condition)
+	for n in ipairs(condition) do
+		if condition[n] == true then return true end
+	end
+end
+
 local a,v,p,g,t = "attack","vulnerability","proj. vulnerability","guard","throw"
 
 local profile = {
@@ -47,16 +58,62 @@ local profile = {
 		},
 		offset = {status = 0x7A},
 		box_types = {a,g,v,v,a},
+		unthrowable = function(obj) return any_true({
+			bit.btst(5, memory.readbyte(obj.base + 0xE3)) > 0,
+			memory.readdword(obj.base + 0xAA) > 0,
+			bit.btst(3, memory.readbyte(obj.base + 0x7B)) > 0,
+		}) end,
+		special_throws = {
+			{subroutine = 0x00DD40, range_offset = 0x50, lsr = 1}, --heidern 63214+C
+			{subroutine = 0x00F516, range_offset = 0x50, lsr = 1}, --ralf 41236+D
+			{subroutine = 0x010704, range_offset = 0x50, lsr = 1}, --clark 41236+D
+			{subroutine = 0x010F46, range_offset = 0x6C, lsr = 1}, --clark DM
+			{subroutine = 0x0188A0, range_offset = 0x4E, lsr = 0}, --daimon 6123+D
+			{subroutine = 0x01955E, range_offset = 0x4E, lsr = 0}, --daimon 632146+C
+			{subroutine = 0x019EB2, range_offset = 0x6A, lsr = 0}, --daimon DM
+			{subroutine = 0x029142, range_offset = 0x40}, --takuma 63214+D 
+			{subroutine = 0x02ACF0, range_offset = 0x40}, --yuri 623+P
+			table_base = 0x06C0F0,
+		},
+		breakpoints = {
+			{base = 0x00A3DA, cmd = "maincpu.pb@(a4+196)=maincpu.pb@(a0+2)"}, --ground throw
+			{base = 0x00A410, cmd = "maincpu.pb@(a4+196)=maincpu.pb@(a0+2)"}, --air throw
+			{base = 0x00786C, cmd = "maincpu.pd@(a4+192)=a0"}, --special move
+		},
 	},
 	{
 		games = {"kof95"},
 		address = {game_phase = 0x10B088},
 		box_types = {a,g,v,v,a},
+		unthrowable = function(obj) return any_true({
+			bit.btst(5, memory.readbyte(obj.base + 0xE3)) > 0,
+			memory.readdword(obj.base + 0xAA) > 0,
+			bit.btst(3, memory.readbyte(obj.base + 0x7D)) > 0,
+		}) end,
+		special_throws = {
+			{subroutine = 0x00E834, range_offset = 0x50, lsr = 1}, --heidern 63214+C
+			{subroutine = 0x01014A, range_offset = 0x50, lsr = 1}, --ralf 41236+D
+			{subroutine = 0x0115AE, range_offset = 0x50, lsr = 1}, --clark 41236+D
+			{subroutine = 0x0120FC, range_offset = 0x6C, lsr = 1}, --clark DM
+			{subroutine = 0x01AE82, range_offset = 0x4E, lsr = 0}, --daimon 6123+D
+			{subroutine = 0x01BB68, range_offset = 0x4E, lsr = 0}, --daimon 632146+C
+			{subroutine = 0x01CBEA, range_offset = 0x6A, lsr = 0}, --daimon DM
+			{subroutine = 0x01195A, range_offset = 0x1A, delay = 0x7C}, --clark 41236+C 
+			{subroutine = 0x02EB72, range_offset = 0x12}, --takuma 63214+D 
+			{subroutine = 0x0304F2, range_offset = 0x40}, --yuri 41236+A
+			{subroutine = 0x030872, range_offset = 0x12}, --yuri 41236+C 
+			table_base = 0x079FC0,
+		},
+		breakpoints = {
+			{base = 0x00A62A, cmd = "maincpu.pb@(a4+196)=maincpu.pb@(a0+2)"}, --ground throw
+			{base = 0x00A660, cmd = "maincpu.pb@(a4+196)=maincpu.pb@(a0+2)"}, --air throw
+			{base = 0x00758C, cmd = "maincpu.pd@(a4+192)=a0"}, --cmd throw (opponent-independent range)
+			{base = 0x0077DC, cmd = "maincpu.pd@(a4+192)=a0"}, --cmd throw (opponent-dependent range)
+		},
 	},
 	{
 		games = {"kof96"},
 		address = {game_phase = 0x10B08E},
-		throw_boxes = true,
 		box_types = {
 			v,v,v,v,v,v,v,v,g,g,v,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
@@ -67,7 +124,6 @@ local profile = {
 	{
 		games = {"kof97"},
 		address = {game_phase = 0x10B092},
-		throw_boxes = true,
 		box_types = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
@@ -78,7 +134,6 @@ local profile = {
 	{
 		games = {"kof98"},
 		address = {game_phase = 0x10B094},
-		throw_boxes = true,
 		box_types = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,
@@ -89,7 +144,6 @@ local profile = {
 	{
 		games = {"kof99", "kof2000"},
 		address = {game_phase = 0x10B048},
-		throw_boxes = true,
 		box_types = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,v,a,a,a,a,a,a,a,a,a,
@@ -100,7 +154,6 @@ local profile = {
 	{
 		games = {"kof2001", "kof2002"},
 		address = {game_phase = 0x10B056},
-		throw_boxes = true,
 		box_types = {
 			v,v,v,v,v,v,v,v,v,g,g,a,a,a,a,a,
 			a,a,a,a,a,a,v,a,a,a,a,a,a,a,a,a,
@@ -130,18 +183,12 @@ for game in ipairs(profile) do
 	g.offset.status       = g.offset.status       or 0x7C
 	g.box_list = {
 		{offset = 0xA4, type = "push"},
-		{offset = 0x9F, active_bit = 3, type = "undefined"},
-		{offset = 0x9A, active_bit = 2, type = "undefined"},
-		{offset = 0x95, active_bit = 1, type = "undefined"},
-		{offset = 0x90, active_bit = 0, type = "undefined"},
+		{offset = 0x9F, type = "undefined", active_bit = 3},
+		{offset = 0x9A, type = "undefined", active_bit = 2},
+		{offset = 0x95, type = "undefined", active_bit = 1},
+		{offset = 0x90, type = "undefined", active_bit = 0},
 	}
-	for _, box in ipairs(g.box_list) do
-		box.active = box.active or box.active_bit and bit.lshift(1, box.active_bit)
-	end
-	if g.throw_boxes then
-		table.insert(g.box_list, {offset = 0x18D, active = 0x7E, type = "throwable"})
-		table.insert(g.box_list, {offset = 0x188, id = 0x192, type = "throw"})
-	end
+	g.throw_type = g.special_throws and "old" or "new"
 end
 
 for _,box in pairs(boxes) do
@@ -159,7 +206,7 @@ emu.update_func = fba and emu.registerafter or emu.registerbefore
 
 local type_check = {
 	["undefined"] = function(obj, box_entry, box)
-		if bit.band(obj.status, box_entry.active) == 0 then
+		if bit.btst(box_entry.active_bit, obj.status) == 0 then
 			return true
 		end
 		box.type = game.box_types[box.id] or "undefined"
@@ -180,18 +227,19 @@ local type_check = {
 
 	["throw"] = function(obj, box_entry, box)
 		box.id = memory.readbyte(obj.base + box_entry.id)
-		if box.id == 0x00 then
+		if box.id == 0 then
 			return true
-		else
-			memory.writebyte(obj.base + box_entry.id, 0) --bad
 		end
+		memory.writebyte(obj.base + box_entry.id, 0) --bad
 	end,
 
 	["throwable"] = function(obj, box_entry, box)
-		box.id = memory.readbyte(obj.base + box_entry.active)
-		if box.id == 0x01 then
-			return true
-		end
+		return any_true({
+			bit.btst(5, memory.readbyte(obj.base + 0xE3)) > 0,
+			memory.readbyte(obj.base + 0x1D4) > 0,
+			memory.readbytesigned(obj.base + 0x18D) < 0,
+			bit.band(3, memory.readbyte(obj.base + 0x7E)) == 1,
+		})
 	end,
 }
 
@@ -215,7 +263,7 @@ local define_box = function(obj, box_entry)
 	box.hval = memory.readbytesigned(box.address + 0x1)
 	box.vval = memory.readbytesigned(box.address + 0x2)
 
-	box.hval   = obj.pos_x + box.hval * (obj.facing_dir > 0 and -1 or 1)
+	box.hval   = obj.pos_x + box.hval * obj.facing_dir
 	box.vval   = obj.pos_y + box.vval
 	box.left   = box.hval - box.hrad
 	box.right  = box.hval + box.hrad - 1
@@ -226,22 +274,10 @@ local define_box = function(obj, box_entry)
 end
 
 
-local modify_object = function(obj)
-	obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 0x01) > 0 and 1 or -1
-	obj.hitbox_ptr = memory.readdword(obj.base + game.offset.hitbox_ptr)
-	obj.invulnerable = memory.readbyte(obj.base + game.offset.invulnerable) == 0xFF
-	if bit.band(obj.hitbox_ptr, 0xFFFFFF) == 0 then
-		obj.num_boxes = 0
-	else
-		obj.num_boxes = memory.readword(obj.hitbox_ptr)
-	end
-end
-
-
 local update_object = function(obj)
 	obj.pos_x = memory.readwordsigned(obj.base + game.offset.x_position) - globals.left_screen_edge
 	obj.pos_y = memory.readwordsigned(obj.base + game.offset.y_position) - game.ground_level
-	obj.facing_dir = bit.band(memory.readbyte(obj.base + game.offset.facing_dir), 1)
+	obj.facing_dir = bit.btst(0, memory.readbyte(obj.base + game.offset.facing_dir)) > 0 and -1 or 1
 	obj.status = memory.readbyte(obj.base + game.offset.status)
 	for _, box_entry in ipairs(game.box_list) do
 		table.insert(obj, define_box(obj, box_entry))
@@ -270,6 +306,82 @@ local read_projectiles = function(object_list)
 end
 
 
+local function old_throwable_box(obj)
+	obj.air = bit.btst(0, memory.readbyte(obj.base + 0xE1))
+	obj.throw_ptr = (memory.readdword(obj.base + 0x1A0))
+	obj.opp_id = memory.readword(memory.readdword(obj.base + 0xB6) + 0x182)
+	if game.unthrowable(obj) then
+		return
+	end
+	local range = {
+		h = memory.readword(obj.throw_ptr + 0x0E + obj.air * 2),
+		v = memory.readword(obj.throw_ptr + 0x12),
+	}
+	local box = {
+		type   = "throwable",
+		hval   = obj.pos_x,
+		left   = obj.pos_x - range.h,
+		right  = obj.pos_x + range.h,
+		bottom = obj.pos_y + range.v * obj.air,
+	}
+	box.top = box.bottom - range.v * 2
+	box.vval = (box.top + box.bottom)/2
+	return box
+end
+
+
+local function old_throw_box(obj)
+	local box
+	local throw_id = memory.readbyte(obj.base + 0x196)
+	if throw_id ~= 0 then --normal throws
+		memory.writebyte(obj.base + 0x196, 0)
+		box = {type = "throw", range = throw_id}
+		if obj.air > 0 then --air throw
+			box.top = obj.pos_y
+		end
+	else
+		throw_id = memory.readdword(obj.base + 0x192)
+		if throw_id == 0 then
+			return
+		end
+		memory.writedword(obj.base + 0x192, 0)
+		for _, type in ipairs(game.special_throws) do
+			if throw_id == type.subroutine then
+				box = {type = "axis throw", range = memory.readword(type.subroutine + type.range_offset)}
+				if type.lsr then --opponent-dependent range
+					box.range = box.range + bit.rshift(memory.readword(game.special_throws.table_base + obj.opp_id), type.lsr)
+				elseif type.delay and memory.readbytesigned(obj.subroutine + type.delay) > 0 then
+					return
+				end
+				break
+			end
+		end
+	end
+	if box then
+		box.left   = obj.pos_x
+		box.right  = obj.pos_x - box.range * obj.facing_dir
+		box.top    = box.top or obj.pos_y - memory.readword(obj.throw_ptr + 0x12) * 2
+		box.bottom = obj.pos_y
+		box.hval   = (box.left + box.right)/2
+		box.vval   = (box.top + box.bottom)/2
+		return box
+	end
+end
+
+
+local insert_throws = {
+	["old"] = function(obj)
+		table.insert(obj, old_throwable_box(obj) or nil)
+		table.insert(obj, old_throw_box(obj) or nil)
+	end,
+
+	["new"] = function(obj)
+		table.insert(obj, define_box(obj, {offset = 0x18D, type = "throwable"}))
+		table.insert(obj, define_box(obj, {offset = 0x188, id = 0x192, type = "throw"}))
+	end,
+}
+
+
 local function bios_test(address)
 	local ram_value = memory.readword(address)
 	for _, test_value in ipairs({0x5555, 0xAAAA, bit.band(0xFFFF, address)}) do
@@ -281,20 +393,27 @@ end
 
 
 local function update_hitboxes()
-	if not game or bios_test(game.address.player) then
+	frame_buffer = {match_active = game and not bios_test(game.address.player) and memory.readbyte(game.address.game_phase) > 0}
+
+	if not frame_buffer.match_active then
 		return
 	end
-	globals.game_phase       = memory.readbyte(game.address.game_phase) > 0
+
 	globals.left_screen_edge = memory.readwordsigned(game.address.left_screen_edge) + globals.margin
 	globals.top_screen_edge  = memory.readwordsigned(game.address.top_screen_edge)
-
-	frame_buffer = {}
 
 	for p = 1, game.number_players do
 		local player = {base = game.address.player + game.offset.player_space * (p-1)}
 		table.insert(frame_buffer, update_object(player))
 	end
 	read_projectiles(frame_buffer)
+
+	for _, prev_frame in ipairs(frame_buffer or {}) do
+		if prev_frame.projectile then
+			break
+		end
+		insert_throws[game.throw_type](prev_frame)
+	end
 end
 
 
@@ -315,10 +434,10 @@ end)
 -- draw the hitboxes
 
 local function draw_hitbox(hb)
-	if not hb or
-		(not globals.draw_pushboxes and hb.type == "push") or
-		(not globals.draw_throwable_boxes and hb.type == "throwable") then
-		return
+	if not hb or any_true({
+		not globals.draw_pushboxes and hb.type == "push",
+		not globals.draw_throwable_boxes and hb.type == "throwable",
+		}) then return
 	end
 
 	if globals.draw_mini_axis then
@@ -342,7 +461,7 @@ end
 
 local function render_hitboxes()
 	gui.clearuncommitted()
-	if not game or not globals.game_phase then
+	if not frame_buffer.match_active then
 		return
 	end
 
@@ -350,7 +469,7 @@ local function render_hitboxes()
 		gui.box(0, 0, emu.screenwidth(), emu.screenheight(), globals.blank_color)
 	end
 
-	for entry = 1, #game.box_list do
+	for entry = 1, #game.box_list + 2 do --add 2 for the throwboxes
 		for _, obj in ipairs(frame_buffer) do
 			draw_hitbox(obj[entry])
 		end
@@ -410,31 +529,28 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
-local function initialize_fb()
-	frame_buffer = {}
-end
-
-
 local function whatgame()
 	print()
 	game = nil
+	frame_buffer = {}
 	for _, module in ipairs(profile) do
 		for _, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing " .. emu.romname() .. " hitboxes")
 				game = module
-				initialize_fb()
 				globals.game = shortname
 				globals.margin = (320 - emu.screenwidth()) / 2 --fba removes the side margins for some games
-				if game.pushbox_data then
-					if emu.parentname() == "neogeo" or emu.parentname() == "0" then
-						globals.pushbox_base = game.pushbox_data.base
-					elseif game.pushbox_data[emu.romname()] then
-						globals.pushbox_base = game.pushbox_data.base + game.pushbox_data[emu.romname()]
-					else
-						globals.pushbox_base = nil
-						print("Unrecognized version (" .. emu.romname() .. "): cannot draw pushboxes")
+				if game.breakpoints then
+					if not mame then
+						print("(MAME-rr can show more accurate throwboxes and pushboxes with this script.)")
+						return
 					end
+					print("Copy this line into the MAME-rr debugger to show throwboxes:") print()
+					local bpstring = ""
+					for _, bp in ipairs(game.breakpoints) do
+						bpstring = bpstring .. string.format("bp %06X, 1, {%s; g}; ", bp.base, bp.cmd)
+					end
+					print(bpstring:sub(1, -3))
 				end
 				return
 			end
@@ -445,7 +561,7 @@ end
 
 
 savestate.registerload(function()
-	initialize_fb()
+	frame_buffer = {}
 end)
 
 

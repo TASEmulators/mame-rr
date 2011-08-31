@@ -1,5 +1,5 @@
 print("Garou Densetsu/Fatal Fury hitbox viewer")
-print("August 25, 2011")
+print("August 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -44,13 +44,13 @@ local offset = {
 
 local a,v,p,g,t,x = "attack","vulnerability","push","guard","throw","undefined"
 
-bit.btst = function(val, n)
-	return bit.band(bit.rshift(val, n), 1)
+bit.btst = function(bit_number, value)
+	return bit.band(bit.lshift(1, bit_number), value)
 end
 
 local profile = {
 	{
-		games = {"fatfury1"},
+		game = "fatfury1",
 		number_players = 3,
 		no_combos = true,
 		match_active = 0x1042CC,
@@ -77,7 +77,7 @@ local profile = {
 			obj.char_id = memory.readword(obj.base + 0x30)
 		end,
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x36), 6) == 0
+			return bit.btst(6, memory.readbyte(obj.base + 0x36)) == 0
 		end,
 		invulnerable = function(obj)
 			local vuln = memory.readbyte(obj.base + 0xFD)
@@ -113,7 +113,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"fatfury2"},
+		game = "fatfury2",
 		no_combos = true,
 		match_active   = 0x100B89,
 		stage_base     = 0x100B00,
@@ -141,7 +141,7 @@ local profile = {
 			obj.char_id = memory.readword(obj.base + 0x5C)
 		end,
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x7A), 5) == 0
+			return bit.btst(5, memory.readbyte(obj.base + 0x7A)) == 0
 		end,
 		invulnerable = function(obj)
 			if memory.readbyte(obj.base - 0x111) > 0 then
@@ -199,7 +199,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"fatfursp"},
+		game = "fatfursp",
 		match_active   = 0x100A62,
 		player_base    = 0x100400,
 		stage_base     = 0x100B00,
@@ -216,7 +216,7 @@ local profile = {
 			obj.char_id = memory.readword(obj.base + 0x5C)
 		end,
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x7C), 5) == 0
+			return bit.btst(5, memory.readbyte(obj.base + 0x7C)) == 0
 		end,
 		invulnerable = function(obj)
 			if memory.readbyte(obj.base + 0xB4) > 0x07 then
@@ -324,7 +324,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"fatfury3"},
+		game = "fatfury3",
 		match_active = 0x100B24,
 		player_base  = 0x100400,
 		stage_base   = 0x100B00,
@@ -352,7 +352,7 @@ local profile = {
 			end
 		end},
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x6A), 4) == 0 or memory.readbyte(obj.base + 0xA8) > 0
+			return bit.btst(4, memory.readbyte(obj.base + 0x6A)) == 0 or memory.readbyte(obj.base + 0xA8) > 0
 		end,
 		invulnerable = function(obj)
 			if memory.readbyte(obj.base + 0xAF) > 0 then
@@ -375,7 +375,10 @@ local profile = {
 				{ptr = 0x053B2E, active = 3, left = 0x00, right = 0x30, top = 0x18, bottom = 0x48}, --mary DM
 				{ptr = 0x0540E6, active = 3, left = 0x00, right = 0x30, top = 0x18, bottom = 0x48}, --mary SDM
 			}) do
-				if obj.ptr == throw_type.ptr and bit.btst(memory.readbyte(obj.base + 0x6A), throw_type.active) > 0 then
+				if obj.ptr == throw_type.ptr then
+					if bit.btst(throw_type.active, memory.readbyte(obj.base + 0x6A)) == 0 then
+						return
+					end
 					return {
 						type = "axis throw",
 						left   = obj.pos_x + throw_type.left  * obj.facing_dir,
@@ -420,7 +423,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"rbff1"},
+		game = "rbff1",
 		match_active = 0x106D75,
 		player_base  = 0x100400,
 		stage_base   = 0x100B00,
@@ -445,7 +448,7 @@ local profile = {
 			end
 		end},
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x6A), 4) == 0 or memory.readbyte(obj.base + 0xA8) > 0
+			return bit.btst(4, memory.readbyte(obj.base + 0x6A)) == 0 or memory.readbyte(obj.base + 0xA8) > 0
 		end,
 		invulnerable = function(obj)
 			if memory.readbyte(obj.base + 0xAF) > 0 then
@@ -471,8 +474,10 @@ local profile = {
 				{ptr = 0x043B2C, ["rbff1a"] = 0x1A, active = 4, left =-0x20, right = 0x20, top = 0x00, bottom = 0x20}, --andy spider throw
 				{ptr = 0x04EBF0, ["rbff1a"] = 0x1A, active = 3, left = 0x00, right = 0x40, top = 0x20, bottom = 0x40}, --mary spider throw
 			}) do
-				if obj.ptr == throw_type.ptr + (throw_type[emu.romname()] or 0) and 
-					bit.btst(memory.readbyte(obj.base + 0x6A), throw_type.active) > 0 then
+				if obj.ptr == throw_type.ptr + (throw_type[emu.romname()] or 0) then 
+					if bit.btst(throw_type.active, memory.readbyte(obj.base + 0x6A)) == 0 then
+						return
+					end
 					return {
 						type = "axis throw",
 						left   = obj.pos_x + throw_type.left  * obj.side,
@@ -530,7 +535,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"rbffspec"},
+		game = "rbffspec",
 		match_active = 0x1096FA,
 		player_base  = 0x100400,
 		stage_base   = 0x100E00,
@@ -569,7 +574,7 @@ local profile = {
 			end,
 		},
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x6A), 3) == 0 or memory.readbyte(obj.base + 0xAA) > 0 or
+			return bit.btst(3, memory.readbyte(obj.base + 0x6A)) == 0 or memory.readbyte(obj.base + 0xAA) > 0 or
 				(obj.projectile and memory.readbyte(obj.base + 0xE7) > 0) or 
 				(not obj.projectile and memory.readbyte(obj.base + 0xB6) == 0)
 		end,
@@ -662,7 +667,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"rbff2"},
+		game = "rbff2",
 		match_active = 0x10B1A4,
 		player_base  = 0x100400,
 		stage_base   = 0x100E00,
@@ -704,7 +709,7 @@ local profile = {
 			end,
 		},
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x6A), 3) == 0 or memory.readbyte(obj.base + 0xAA) > 0 or
+			return bit.btst(3, memory.readbyte(obj.base + 0x6A)) == 0 or memory.readbyte(obj.base + 0xAA) > 0 or
 				(obj.projectile and memory.readbyte(obj.base + 0xE7) > 0) or 
 				(not obj.projectile and memory.readbyte(obj.base + 0xB6) == 0)
 		end,
@@ -786,7 +791,7 @@ local profile = {
 		},
 	},
 	{
-		games = {"garou"},
+		game = "garou",
 		match_active = 0x10748A,
 		player_base  = 0x100400,
 		stage_base   = 0x100E00,
@@ -838,7 +843,7 @@ local profile = {
 			end,
 		},
 		no_hit = function(obj)
-			return bit.btst(memory.readbyte(obj.base + 0x6A), 3) == 0 or memory.readbyte(obj.base + 0xAC) > 0 or 
+			return bit.btst(3, memory.readbyte(obj.base + 0x6A)) == 0 or memory.readbyte(obj.base + 0xAC) > 0 or 
 				(obj.projectile and memory.readbyte(obj.base + 0xE9) > 0) or 
 				(not obj.projectile and memory.readbyte(obj.base + 0xB8) == 0)
 		end,
@@ -976,7 +981,7 @@ local type_check = {
 	end,
 
 	["undefined"] = function(obj, box)
-		emu.message(string.format("%x, unk box id: %02x", obj.base, box.id))
+		emu.message(string.format("%x, unk box id: %02x", obj.base, box.id)) --debug
 	end,
 }
 
@@ -1090,25 +1095,20 @@ local read_projectiles = {
 }
 
 
-local function match_active(address)
+local function bios_test(address)
 	local ram_value = memory.readword(address)
 	for _, test_value in ipairs({0x5555, 0xAAAA, bit.band(0xFFFF, address)}) do
 		if ram_value == test_value then
-			return false
+			return true
 		end
 	end
-	if memory.readbyte(game.match_active) > 0 then
-		return true
-	end
-	return false
 end
 
 
 local function update_hitboxes()
-	frame_buffer = {}
+	frame_buffer = {match_active = game and not bios_test(game.player_base) and memory.readbyte(game.match_active) > 0}
 
-	globals.match_active = game and match_active(game.player_base) or false
-	if not game or not globals.match_active then
+	if not frame_buffer.match_active then
 		return
 	end
 
@@ -1180,7 +1180,7 @@ end
 
 local function render_hitboxes()
 	gui.clearuncommitted()
-	if not game or not globals.match_active then
+	if not frame_buffer.match_active then
 		return
 	end
 
@@ -1244,31 +1244,28 @@ end)
 local function whatgame()
 	print()
 	game = nil
+	frame_buffer = {}
 	for _, module in ipairs(profile) do
-		for _, shortname in ipairs(module.games) do
-			if emu.romname() == shortname or emu.parentname() == shortname then
-				print("drawing " .. emu.romname() .. " hitboxes")
-				game = module
-				frame_buffer = {}
-				globals.game = shortname
-				globals.margin = (320 - emu.screenwidth()) / 2 --fba removes the side margins for some games
-				globals.pushbox_base = game.push and game.push.box_data + (game.push[emu.romname()] or 0)
-				if fba then
-					return
-				end
-				print("Copy " .. (#game.breakpoints > 1 and "these " .. #game.breakpoints .. " lines" or "this line") .. 
-					" into the MAME-rr debugger to show throwboxes" .. (game.no_combos and " and vulnerability:" or ":"))
-				for n = 1, #game.breakpoints do
-					print()
-					local bpstring = ""
-					for _, bp in ipairs(game.breakpoints[n]) do
-						bpstring = string.format("%sbp %06X, %s, {%s; g}; ", 
-							bpstring, bp.base + (bp[emu.romname()] or 0), bp.cond or "1", bp.cmd)
-					end
-					print(bpstring:sub(1, -3))
-				end
+		if emu.romname() == module.game or emu.parentname() == module.game then
+			print("drawing " .. emu.romname() .. " hitboxes")
+			game = module
+			globals.margin = (320 - emu.screenwidth()) / 2 --fba removes the side margins for some games
+			globals.pushbox_base = game.push and game.push.box_data + (game.push[emu.romname()] or 0)
+			if not mame then
 				return
 			end
+			print("Copy " .. (#game.breakpoints > 1 and "these " .. #game.breakpoints .. " lines" or "this line") .. 
+				" into the MAME-rr debugger to show throwboxes" .. (game.no_combos and " and vulnerability:" or ":"))
+			for n = 1, #game.breakpoints do
+				print()
+				local bpstring = ""
+				for _, bp in ipairs(game.breakpoints[n]) do
+					bpstring = string.format("%sbp %06X, %s, {%s; g}; ", 
+						bpstring, bp.base + (bp[emu.romname()] or 0), bp.cond or "1", bp.cmd)
+				end
+				print(bpstring:sub(1, -3))
+			end
+			return
 		end
 	end
 	print("not prepared for " .. emu.romname() .. " hitboxes")

@@ -1,5 +1,5 @@
 print("CPS-2 Marvel series hitbox viewer")
-print("August 24, 2011")
+print("August 30, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -38,9 +38,9 @@ local globals = {
 --------------------------------------------------------------------------------
 -- game-specific modules
 
-local function eval(list)
-	for _, condition in ipairs(list) do
-		if condition == true then return true end
+local function any_true(condition)
+	for n in ipairs(condition) do
+		if condition[n] == true then return true end
 	end
 end
 
@@ -103,19 +103,19 @@ local profile = {
 		match_active = function(p1_base, stage)
 			return stage < 0xC
 		end,
-		no_hit = function(obj, box) return eval({
+		no_hit = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x083) == 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x084) == 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			obj.projectile ~= nil,
 			memory.readword(obj.base + 0x10A) > 0,
 			memory.readword(obj.base + 0x006) == 0x04,
 			memory.readword(obj.base + 0x006) == 0x08,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			bit.band(memory.readbyte(0xFF480F), 0x08) > 0,
 			memory.readbyte(obj.base + 0x125) > 0,
 			memory.readbyte(0xFF4800) ~= 0x04,
@@ -172,18 +172,18 @@ local profile = {
 		match_active = function(p1_base, stage)
 			return memory.readdword(0xFF8FA2) == p1_base
 		end,
-		no_hit = function(obj, box) return eval({
+		no_hit = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x086) == 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x087) == 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			obj.projectile ~= nil,
 			memory.readbyte(obj.base + 0x10A) > 0,
 			memory.readword(obj.base + 0x006) == 0x04,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			bit.band(memory.readbyte(0xFF480F), 0x08) > 0,
 			memory.readbyte(obj.base + 0x125) > 0,
 			memory.readbyte(0xFF4800) ~= 0x08,
@@ -249,19 +249,19 @@ local profile = {
 		match_active = function(p1_base, stage)
 			return memory.readdword(0xFFA014) == p1_base
 		end,
-		no_hit = function(obj, box) return eval({
+		no_hit = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x082) == 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x083) == 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			obj.projectile ~= nil and memory.readword(obj.base + 0x24) ~= 0x94, --Apocalypse fist
 			not obj.projectile and obj.base > 0xFF4400, --only the two point chars can push
 			not obj.projectile and memory.readbyte(obj.base + 0x105) > 0,
 			not obj.projectile and memory.readword(obj.base + 0x006) == 0x04,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			bit.band(memory.readbyte(0xFF500F), 0x08) > 0,
 			memory.readbyte(obj.base + 0x221) > 0,
 			memory.readbyte(0xFF5031) > 0,
@@ -329,19 +329,19 @@ local profile = {
 		match_active = function(p1_base, stage)
 			return memory.readdword(0xFF9F2A) == p1_base
 		end,
-		no_hit = function(obj, box) return eval({
+		no_hit = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x082) == 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x083) == 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			obj.projectile ~= nil and memory.readword(obj.base + 0x24) ~= 0x94, --Apocalypse fist
 			not obj.projectile and memory.readbyte(obj.base) == 0,
 			not obj.projectile and memory.readword(obj.base + 0x006) == 0x04,
 			not obj.projectile and memory.readbyte(obj.base + 0x105) > 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			bit.band(memory.readbyte(0xFF480F), 0x08) > 0,
 			memory.readbyte(0xFF4831) > 0,
 			memory.readbyte(obj.base + 0x261) > 0,
@@ -404,19 +404,19 @@ local profile = {
 		match_active = function(p1_base, stage)
 			return memory.readdword(0xFF963E) == p1_base
 		end,
-		no_hit = function(obj, box) return eval({
+		no_hit = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x082) == 0,
 		}) end,
-		invulnerable = function(obj, box) return eval({
+		invulnerable = function(obj, box) return any_true({
 			memory.readbyte(obj.base + 0x083) == 0,
 		}) end,
-		unpushable = function(obj, box) return eval({
+		unpushable = function(obj, box) return any_true({
 			obj.projectile ~= nil,
 			memory.readbyte(obj.base) == 0,
 			memory.readword(obj.base + 0x006) == 0x04,
 			memory.readbyte(obj.base + 0x115) > 0,
 		}) end,
-		unthrowable = function(obj, box) return eval({
+		unthrowable = function(obj, box) return any_true({
 			bit.band(memory.readbyte(0xFF400F), 0x08) > 0,
 			memory.readbyte(0xFF4031) > 0,
 			memory.readbyte(obj.base) == 0,
@@ -466,27 +466,6 @@ end
 
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
-
-local function update_globals()
-	globals.stage            = bit.band(memory.readbyte(game.address.stage), 0xF)
-	globals.stage_base       = 0xFF8000 + game.offset.stage_base[globals.stage + 1]
-	globals.match_active     = memory.readbyte(game.address.match_status)
-	globals.match_active     = globals.match_active > 0 and globals.match_active <= game.match_over and 
-		game.match_active(game.address.player, globals.stage)
-	globals.left_screen_edge = memory.readwordsigned(globals.stage_base + game.offset.x_position) + 0x40
-	globals.top_screen_edge  = memory.readwordsigned(globals.stage_base + game.offset.y_position)
-end
-
-
-local function get_x(x)
-	return x - globals.left_screen_edge
-end
-
-
-local function get_y(y)
-	return y - globals.top_screen_edge - 15
-end
-
 
 local get_address = function(obj, box, box_entry)
 	box.id = memory.readword(obj.base + box_entry.id_ptr)
@@ -573,8 +552,8 @@ end
 
 local function update_object(obj)
 	obj.facing_dir   = memory.readbyte(obj.base + game.offset.facing_dir)
-	obj.pos_x        = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
-	obj.pos_y        = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
+	obj.pos_x        = memory.readwordsigned(obj.base + game.offset.x_position) - globals.left_screen_edge
+	obj.pos_y        = memory.readwordsigned(obj.base + game.offset.y_position) - globals.top_screen_edge - 0x0F
 
 	for entry = 1, #game.box_list do
 		table.insert(obj, define_box(obj, game.box_list[entry]))
@@ -604,25 +583,31 @@ local function update_hitboxes()
 	if not game then
 		return
 	end
-	update_globals()
+	globals.stage            = bit.band(memory.readbyte(game.address.stage), 0xF)
+	globals.stage_base       = 0xFF8000 + game.offset.stage_base[globals.stage + 1]
+	globals.match_active     = memory.readbyte(game.address.match_status)
+	globals.match_active     = globals.match_active > 0 and globals.match_active <= game.match_over and 
+		game.match_active(game.address.player, globals.stage)
+	globals.left_screen_edge = memory.readwordsigned(globals.stage_base + game.offset.x_position) + 0x40
+	globals.top_screen_edge  = memory.readwordsigned(globals.stage_base + game.offset.y_position)
+
 	local effective_delay = DRAW_DELAY + (not mame and 0 or game.stage_lag[globals.stage + 1])
 
 	for f = 1, effective_delay do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
 
-	frame_buffer[effective_delay+1].match_active = globals.match_active
-	frame_buffer[effective_delay+1].objects = {}
+	frame_buffer[effective_delay+1] = {match_active = globals.match_active}
 
 	for p = 1, game.number_players do
 		local player = {base = game.address.player + (p-1) * game.offset.player_space}
 		if game.number_players <= 2 or memory.readbyte(player.base) > 0 then
-			table.insert(frame_buffer[effective_delay+1].objects, update_object(player))
+			table.insert(frame_buffer[effective_delay+1], update_object(player))
 		end
 	end
-	read_projectiles(frame_buffer[effective_delay+1].objects)
+	read_projectiles(frame_buffer[effective_delay+1])
 
-	for _, prev_frame in ipairs(frame_buffer[effective_delay].objects or {}) do
+	for _, prev_frame in ipairs(frame_buffer[effective_delay] or {}) do
 		if prev_frame.projectile then
 			break
 		elseif memory.readbyte(prev_frame.base + 0x3FD) > 0 then
@@ -643,7 +628,7 @@ end)
 -- draw the hitboxes
 
 local function draw_hitbox(hb)
-	if not hb or eval ({
+	if not hb or any_true({
 		not globals.draw_pushboxes and hb.type == "push",
 		not globals.draw_throwable_boxes and (hb.type == "potential throw" or hb.type == "throwable"),
 	}) then return
@@ -676,13 +661,13 @@ local function render_hitboxes()
 	end
 
 	for entry = 1, #game.box_list do
-		for _, obj in ipairs(frame_buffer[1].objects) do
+		for _, obj in ipairs(frame_buffer[1]) do
 			draw_hitbox(obj[entry])
 		end
 	end
 
 	if globals.draw_axis then
-		for _, obj in ipairs(frame_buffer[1].objects) do
+		for _, obj in ipairs(frame_buffer[1]) do
 			draw_axis(obj)
 		end
 	end
@@ -745,37 +730,38 @@ end
 local function whatgame()
 	print()
 	game = nil
+	initialize_fb()
 	for _, module in ipairs(profile) do
 		if emu.romname() == module.game or emu.parentname() == module.game then
 			print("drawing " .. emu.romname() .. " hitboxes") print()
 			game = module
-			initialize_fb()
 			if game.pushbox_data[emu.romname()] then
 				globals.pushbox_base = game.pushbox_data.base + game.pushbox_data[emu.romname()]
 			else
 				globals.pushbox_base = nil
 				print("Unrecognized version [" .. emu.romname() .. "]: cannot draw pushboxes")
 			end
-			if mame then
-				local bpstring, instruction = "", ""
-				if game.push_check[emu.romname()] and globals.pushbox_base then
-					bpstring = string.format("bp %06X, 1, {%s; g}; ", 
-						game.push_check.base + game.push_check[emu.romname()], game.push_check.cmd)
-					instruction = "pushboxes"
-				elseif globals.pushbox_base then
-					print("Unrecognized version [" .. emu.romname() .. "]: cannot accurately draw pushboxes")
-				end
-				if game.throw_check[emu.romname()] then
-					bpstring = string.format("%sbp %06X, 1, {maincpu.pw@(a6+3fe) = d0; maincpu.pb@(a6+3fd) = maincpu.pb@(a6+3fd)+1; g}; ", 
-						bpstring, game.throw_check.base + game.throw_check[emu.romname()])
-					instruction = instruction .. (instruction:len() > 0 and " and " or "") .. "throwboxes"
-				else
-					print("Unrecognized version [" .. emu.romname() .. "]: cannot draw active throwboxes")
-				end
-				if bpstring:len() > 0 then
-					print("Copy this line into the MAME-rr debugger for more accurate " .. instruction .. ":") print()
-					print(bpstring:sub(1, -3))
-				end
+			if not mame then
+				return
+			end
+			local bpstring, instruction = "", ""
+			if game.push_check[emu.romname()] and globals.pushbox_base then
+				bpstring = string.format("bp %06X, 1, {%s; g}; ", 
+					game.push_check.base + game.push_check[emu.romname()], game.push_check.cmd)
+				instruction = "pushboxes"
+			elseif globals.pushbox_base then
+				print("Unrecognized version [" .. emu.romname() .. "]: cannot accurately draw pushboxes")
+			end
+			if game.throw_check[emu.romname()] then
+				bpstring = string.format("%sbp %06X, 1, {maincpu.pw@(a6+3fe) = d0; maincpu.pb@(a6+3fd) = maincpu.pb@(a6+3fd)+1; g}; ", 
+					bpstring, game.throw_check.base + game.throw_check[emu.romname()])
+				instruction = instruction .. (instruction:len() > 0 and " and " or "") .. "throwboxes"
+			else
+				print("Unrecognized version [" .. emu.romname() .. "]: cannot draw active throwboxes")
+			end
+			if bpstring:len() > 0 then
+				print("Copy this line into the MAME-rr debugger for more accurate " .. instruction .. ":") print()
+				print(bpstring:sub(1, -3))
 			end
 			return
 		end
