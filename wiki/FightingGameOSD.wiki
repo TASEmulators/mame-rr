@@ -1,0 +1,77 @@
+#labels Luascriptdocumentation
+<wiki:toc max_depth="2" />
+
+= Introduction =
+
+This is a Lua script for fighting games that displays gameplay-relevant data on the screen in numerical form. It can use this data to draw colored bars for further illustration. This information is useful for studying game mechanics.
+
+Pasky has a more detailed script specializing in [http://code.google.com/p/ssf2thud/ SSF2T].
+
+= Usage =
+
+[http://mame-rr.googlecode.com/svn/lua/ Download fighting-OSD.lua], load the appropriate ROM, launch a Lua window (ctrl-L by default), then browse for and run the .lua file. This script works with either parent and clone ROMs, and with either MAME-rr or [code.google.com/p/fbarr/ FBA-rr].
+
+The behavior can be modified by pressing Lua hotkeys. (The key bindings are assigned in the emulator settings.)
+ # Hide or reveal text data. Default on.
+ # Hide or reveal bars. Default on.
+
+Colors for text and bars can be customized by editing the values at the top of the script.
+
+= Data types =
+
+All supported games show numerical counters for vitality. The values for super and guard meters are also shown when applicable. All values are given in the form of "current/maximum".
+
+Stun bars come in pairs: The top (red) gives the amount of stun damage relative to the maximum amount that can be taken. The bottom bar depends on the state of the character: If not dizzy, it shows the time that must pass before the damage is cleared (yellow). If dizzy, it shows the time before the stun wears off (blue), and the "STUN" graphic from [http://maws.mameworld.info/maws/romset/sfiii3 Street Fighter 3: Third Strike] flickers over the top bar. If dizzy state has recently ended, it shows the grace period during which no stun damage can be taken (green). Both bars are accompanied by the numerical values.
+
+Some games display additional information, for example:
+ * The character Balrog/Vega in the SF2 games can take a certain number of hits before his claw is prone to fall off. This durability counter is shown. In SFA3 he is also liable to lose his mask.
+ * Data for all characters is shown during three-player modes of SFA, SFZ2AL, SFA3, and FF1.
+ * In SFA3, a "!" is shown next to a player's vitality when an air recovery can be performed.
+ * In SFA3, a "`*`" is shown next to the combo meter if one or more hits of the combo landed when the opponent could have performed an air recovery.
+ * Rage meters, complete with a pair of bars, are shown for Slammasters II.
+
+= Supported games =
+
+||Parent<br>ROM||Game||Stun<br>bars||Super<br>meter||Guard<br>meter||Other||
+||[http://maws.mameworld.info/maws/romset/sf2 sf2]||Street Fighter II: The World Warrior||✓|| || ||claw meter||
+||[http://maws.mameworld.info/maws/romset/sf2ce sf2ce]||Street Fighter II': Champion Edition||✓|| || ||claw meter||
+||[http://maws.mameworld.info/maws/romset/sf2hf sf2hf]||Street Fighter II': Hyper Fighting||✓|| || ||claw meter||
+||[http://maws.mameworld.info/maws/romset/ssf2 ssf2]||Super Street Fighter II: The New Challengers||✓|| || ||claw meter||
+||[http://maws.mameworld.info/maws/romset/ssf2t ssf2t]||Super Street Fighter II Turbo||✓||✓|| ||claw meter||
+||[http://maws.mameworld.info/maws/romset/hsf2 hsf2]||Hyper Street Fighter 2: The Anniversary Edition||✓||✓|| ||claw meter||
+||[http://maws.mameworld.info/maws/romset/sfa sfa]||Street Fighter Alpha: Warriors' Dreams||✓||✓|| ||three-player mode||
+||[http://maws.mameworld.info/maws/romset/sfa2 sfa2]||Street Fighter Alpha 2||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/sfz2al sfz2al]||Street Fighter Zero 2 Alpha||✓||✓|| ||three-player mode||
+||[http://maws.mameworld.info/maws/romset/sfa3 sfa3]||Street Fighter Alpha 3||✓||✓||✓||three-player mode<br>claw & mask meters<br>flip indicator<br>pseudocombo indicator||
+||[http://maws.mameworld.info/maws/romset/dstlk dstlk]||Darkstalkers: The Night Warriors|| ||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/nwarr nwarr]||Night Warriors: Darkstalkers' Revenge|| ||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/vsav vsav]||Vampire Savior: The Lord of Vampire|| ||✓|| ||Dark force counter||
+||[http://maws.mameworld.info/maws/romset/vhunt2 vhunt2]||Vampire Hunter 2: Darkstalkers Revenge|| ||✓|| ||Dark force counters||
+||[http://maws.mameworld.info/maws/romset/vsav2 vsav2]||Vampire Savior 2: The Lord of Vampire|| ||✓|| ||Dark force counters||
+||[http://maws.mameworld.info/maws/romset/ringdest ringdest]||Ring of Destruction: Slammasters II||✓|| || ||Heat-up meters||
+||[http://maws.mameworld.info/maws/romset/cybots cybots]||Cyberbots: Fullmetal Madness|| ||✓|| ||Gun & Boost timers||
+||[http://maws.mameworld.info/maws/romset/sgemf sgemf]||Super Gem Fighter Mini Mix||✓||✓|| ||Gem power counters||
+||[http://maws.mameworld.info/maws/romset/xmcota xmcota]||X-Men: Children of the Atom||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/msh msh]||Marvel Super Heroes||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/xmvsf xmvsf]||X-Men Vs. Street Fighter||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/mshvsf mshvsf]||Marvel Super Heroes Vs. Street Fighter||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/mvsc mvsc]||Marvel Vs. Capcom: Clash of Super Heroes||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/kof94 kof94]||The King of Fighters '94||✓||✓|| ||Maxmode timer||
+||[http://maws.mameworld.info/maws/romset/kof95 kof95]||The King of Fighters '95||✓||✓|| ||Maxmode timer||
+||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||✓||✓||✓||Maxmode timer||
+||[http://maws.mameworld.info/maws/romset/kof97 kof97]||The King of Fighters '97||✓||✓||✓||Maxmode timer||
+||[http://maws.mameworld.info/maws/romset/kof98 kof98]||The King of Fighters '98 - The Slugfest||✓||✓||✓||Maxmode timer||
+||[http://maws.mameworld.info/maws/romset/kof99 kof99]||The King of Fighters '99 - Millennium Battle||✓||✓||✓|| ||
+||[http://maws.mameworld.info/maws/romset/kof2000 kof2000]||The King of Fighters 2000||✓||✓||✓|| ||
+||[http://maws.mameworld.info/maws/romset/kof2001 kof2001]||The King of Fighters 2001|| ||✓||✓|| ||
+||[http://maws.mameworld.info/maws/romset/kof2002 kof2002]||The King of Fighters 2002|| ||✓||✓||Maxmode timer||
+||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]||Fatal Fury - King of Fighters|| || || ||three-player mode||
+||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]||Fatal Fury 2||✓|| || || ||
+||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]||Fatal Fury Special||✓|| || || ||
+||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]||Fatal Fury 3 - Road to the Final Victory||✓|| || || ||
+||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]||Real Bout Fatal Fury||✓||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/rbffspec rbffspec]||Real Bout Fatal Fury Special|| ||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/rbff2 rbff2]||Real Bout Fatal Fury 2 - The Newcomers|| ||✓|| || ||
+||[http://maws.mameworld.info/maws/romset/garou garou]||Garou - Mark of the Wolves|| ||✓||✓|| ||
+
+Corrections or suggestions can be submitted as comments to this page.
