@@ -1,4 +1,6 @@
-#labels Luascriptdocumentation
+#summary Instructions and index page for fighting game info display script
+#labels LuaScriptDocumentation
+
 <wiki:toc max_depth="2" />
 
 = Introduction =
@@ -45,17 +47,20 @@ Some games display additional information, for example:
 ||[http://maws.mameworld.info/maws/romset/sfa3 sfa3]||Street Fighter Alpha 3||✓||✓||✓||three-player mode<br>claw & mask meters<br>flip indicator<br>pseudocombo indicator||
 ||[http://maws.mameworld.info/maws/romset/dstlk dstlk]||Darkstalkers: The Night Warriors|| ||✓|| || ||
 ||[http://maws.mameworld.info/maws/romset/nwarr nwarr]||Night Warriors: Darkstalkers' Revenge|| ||✓|| || ||
-||[http://maws.mameworld.info/maws/romset/vsav vsav]||Vampire Savior: The Lord of Vampire|| ||✓|| ||Dark force counter||
-||[http://maws.mameworld.info/maws/romset/vhunt2 vhunt2]||Vampire Hunter 2: Darkstalkers Revenge|| ||✓|| ||Dark force counters||
-||[http://maws.mameworld.info/maws/romset/vsav2 vsav2]||Vampire Savior 2: The Lord of Vampire|| ||✓|| ||Dark force counters||
-||[http://maws.mameworld.info/maws/romset/ringdest ringdest]||Ring of Destruction: Slammasters II||✓|| || ||Heat-up meters||
+||[http://maws.mameworld.info/maws/romset/vsav vsav]||Vampire Savior: The Lord of Vampire|| ||✓|| ||Dark Force timer||
+||[http://maws.mameworld.info/maws/romset/vhunt2 vhunt2]||Vampire Hunter 2: Darkstalkers Revenge|| ||✓|| ||Dark Force timers||
+||[http://maws.mameworld.info/maws/romset/vsav2 vsav2]||Vampire Savior 2: The Lord of Vampire|| ||✓|| ||Dark Force timers||
+||[http://maws.mameworld.info/maws/romset/ringdest ringdest]||Ring of Destruction: Slammasters II||✓|| || ||heat-up meters||
 ||[http://maws.mameworld.info/maws/romset/cybots cybots]||Cyberbots: Fullmetal Madness|| ||✓|| ||Gun & Boost timers||
-||[http://maws.mameworld.info/maws/romset/sgemf sgemf]||Super Gem Fighter Mini Mix||✓||✓|| ||Gem power counters||
+||[http://maws.mameworld.info/maws/romset/sgemf sgemf]||Super Gem Fighter Mini Mix||✓||✓|| ||gem power counters||
 ||[http://maws.mameworld.info/maws/romset/xmcota xmcota]||X-Men: Children of the Atom||✓||✓|| || ||
 ||[http://maws.mameworld.info/maws/romset/msh msh]||Marvel Super Heroes||✓||✓|| || ||
 ||[http://maws.mameworld.info/maws/romset/xmvsf xmvsf]||X-Men Vs. Street Fighter||✓||✓|| || ||
 ||[http://maws.mameworld.info/maws/romset/mshvsf mshvsf]||Marvel Super Heroes Vs. Street Fighter||✓||✓|| || ||
 ||[http://maws.mameworld.info/maws/romset/mvsc mvsc]||Marvel Vs. Capcom: Clash of Super Heroes||✓||✓|| || ||
+||[maws.mameworld.info/maws/romset/sfiii sfiii]||Street Fighter III: New Generation||✓||✓|| ||charge meters<br>stun recovery||
+||[maws.mameworld.info/maws/romset/sfiii2 sfiii2]||Street Fighter III 2nd Impact: Giant Attack||✓||✓|| ||charge meters<br>juggle counter<br>PA bonuses & stun recovery||
+||[maws.mameworld.info/maws/romset/sfiii3 sfiii3]||Street Fighter III 3rd Strike: Fight for the Future||✓||✓|| ||charge meters<br>juggle counter<br>PA bonuses & stun recovery||
 ||[http://maws.mameworld.info/maws/romset/kof94 kof94]||The King of Fighters '94||✓||✓|| ||Maxmode timer||
 ||[http://maws.mameworld.info/maws/romset/kof95 kof95]||The King of Fighters '95||✓||✓|| ||Maxmode timer||
 ||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||✓||✓||✓||Maxmode timer||
