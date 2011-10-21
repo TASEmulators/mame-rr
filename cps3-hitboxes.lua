@@ -1,5 +1,5 @@
 print("CPS-3 fighting game hitbox viewer")
-print("October 19, 2011")
+print("October 20, 2011")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -28,29 +28,88 @@ local globals = {
 	draw_mini_axis       = false,
 	draw_pushboxes       = true,
 	draw_throwable_boxes = false,
-	no_alpha             = true, --fill = 0x00, outline = 0xFF for all box types
+	no_alpha             = false, --fill = 0x00, outline = 0xFF for all box types
 }
 
 --------------------------------------------------------------------------------
 -- game-specific modules
 
-local function any_true(condition)
+local any_true = function(condition)
 	for n = 1, #condition do
 		if condition[n] == true then return true end
 	end
 end
 
+
 local profile = {
+	{	games = {"sfiii"},
+		address = {
+			player          = 0x0200D18C,
+			object          = 0x0201DE04,
+			object_index    = 0x0205DF0A,
+			screen_center_x = 0x0201BF0C,
+			screen_center_y = 0x0201BF10,
+		},
+		offset = {
+			player_space = 0x3D8,
+		},
+		ptr = {
+			valid_object = 0x258,
+			{offset = 0x270, type = "push"},
+			{offset = 0x268, type = "throwable"},
+			{offset = 0x258, type = "vulnerability", number = 5},
+			{offset = 0x260, type = "attack", initial = 2, number = 3},
+			{offset = 0x260, type = "throw"},
+		},
+		match_active = function() 
+			local addr = 0x02012C54
+			return memory.readdword(addr) > 0x00010000 and memory.readword(addr) ~= 0x0009
+		end,
+	},
+	{	games = {"sfiii2"},
+		address = {
+			player          = 0x0200E504,
+			object          = 0x02024210,
+			object_index    = 0x02064316,
+			screen_center_x = 0x0202225C,
+			screen_center_y = 0x02022260,
+		},
+		offset = {
+			player_space = 0x40C,
+		},
+		ptr = {
+			valid_object = 0x260,
+			{offset = 0x294, type = "push"},
+			{offset = 0x280, type = "throwable"},
+			{offset = 0x260, type = "vulnerability", number = 4},
+			{offset = 0x268, type = "ext. vulnerability", number = 2},
+			{offset = 0x288, type = "attack", number = 2},
+			{offset = 0x278, type = "throw"},
+		},
+		match_active = function() 
+			local addr = 0x02014298
+			return memory.readdword(addr) > 0x00010000 and memory.readword(addr) ~= 0x0009
+		end,
+	},
 	{	games = {"sfiii3"},
 		address = {
 			player          = 0x02068C6C,
 			object          = 0x02028990,
 			object_index    = 0x02068A96,
-			screen_center_x = 0x02026CC0,
-			screen_center_y = 0x0206A120,
+			screen_center_x = 0x02026CB0,
+			screen_center_y = 0x02026CB4,
 		},
 		offset = {
 			player_space = 0x498,
+		},
+		ptr = {
+			valid_object = 0x2A0,
+			{offset = 0x2D4, type = "push"},
+			{offset = 0x2C0, type = "throwable"},
+			{offset = 0x2A0, type = "vulnerability", number = 4},
+			{offset = 0x2A8, type = "ext. vulnerability", number = 4},
+			{offset = 0x2C8, type = "attack", number = 4},
+			{offset = 0x2B8, type = "throw"},
 		},
 		match_active = function() 
 			local addr = 0x020154A6
@@ -61,6 +120,14 @@ local profile = {
 
 --------------------------------------------------------------------------------
 -- post-process modules
+
+for game in ipairs(profile) do
+	local g = profile[game]
+	for _, box in ipairs(g.ptr) do
+		box.initial = box.initial or 1
+		box.number  = box.number  or 1
+	end
+end
 
 for _,box in pairs(boxes) do
 	box.fill    = bit.lshift(box.color, 8) + (globals.no_alpha and 0x00 or box.fill)
@@ -77,20 +144,29 @@ local MAX_OBJECTS       = 30
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
-local function define_box(obj, ptr, type)
+local projectile_type = {
+	            ["attack"] = "proj. attack",
+	     ["vulnerability"] = "proj. vulnerability",
+	["ext. vulnerability"] = "proj. vulnerability",
+	              ["push"] = "push",
+	             ["throw"] = "throw",
+	         ["throwable"] = "throwable",
+}
+
+local define_box = function(obj, ptr, type)
 	if obj.friends > 1 then --Yang SA3
-		if type == "proj. attack" then
-			type = "attack"
-		else
+		if type ~= "attack" then
 			return
 		end
+	elseif obj.projectile then
+		type = projectile_type[type]
 	end
 
 	local box = {
-		left   = -memory.readwordsigned(ptr),
-		right  = -memory.readwordsigned(ptr + 2),
-		bottom = -memory.readwordsigned(ptr + 4),
-		top    = -memory.readwordsigned(ptr + 6),
+		left   = -memory.readwordsigned(ptr + 0x0),
+		right  = -memory.readwordsigned(ptr + 0x2),
+		bottom = -memory.readwordsigned(ptr + 0x4),
+		top    = -memory.readwordsigned(ptr + 0x6),
 		type   = type,
 	}
 
@@ -112,8 +188,8 @@ local function define_box(obj, ptr, type)
 end
 
 
-local function update_game_object(f, obj)
-	if memory.readdword(obj.base + 0x2A0) == 0 then --invalid objects
+local update_game_object = function(f, obj)
+	if memory.readdword(obj.base + game.ptr.valid_object) == 0 then --invalid objects
 		return
 	end
 
@@ -126,27 +202,17 @@ local function update_game_object(f, obj)
 	obj.pos_x =  obj.pos_x - f.screen_center_x + emu.screenwidth()/2
 	obj.pos_y = -obj.pos_y + f.screen_center_y + emu.screenheight() + GROUND_OFFSET
 
-	define_box(obj, memory.readdword(obj.base + 0x2D4), "push")
-	define_box(obj, memory.readdword(obj.base + 0x2C0), "throwable")
-	for i = 1, 4 do
-		define_box(obj, memory.readdword(obj.base + 0x2A0) + (i-1)*8, 
-			obj.projectile and "proj. vulnerability" or "vulnerability")
+	for _, box in ipairs(game.ptr) do
+		for i = box.initial, box.number do
+			define_box(obj, memory.readdword(obj.base + box.offset) + (i-1)*8, box.type)
+		end
 	end
-	for i = 1, 4 do
-		define_box(obj, memory.readdword(obj.base + 0x2A8) + (i-1)*8, 
-			obj.projectile and "proj. vulnerability" or "ext. vulnerability")
-	end
-	for i = 1, 4 do
-		define_box(obj, memory.readdword(obj.base + 0x2C8) + (i-1)*8, 
-			obj.projectile and "proj. attack" or "attack")
-	end
-	define_box(obj, memory.readdword(obj.base + 0x2B8), "throw")
 
 	table.insert(f, obj)
 end
 
 
-local function read_misc_objects(f)
+local read_misc_objects = function(f)
 	-- This function reads all game objects other than the two player characters.
 	-- This includes all projectiles and even Yang's Seiei-Enbu shadows.
 
@@ -161,7 +227,7 @@ local function read_misc_objects(f)
 		
 	local obj_slot = 1
 	while obj_slot <= MAX_OBJECTS and obj_index ~= -1 do
-		local obj = {base = game.address.object + obj_index * 0x800, projectile = obj_slot}
+		local obj = {base = game.address.object + bit.lshift(obj_index, 11), projectile = obj_slot}
 		update_game_object(f, obj)
 
 		-- Get the index to the next object in this list.
@@ -171,13 +237,7 @@ local function read_misc_objects(f)
 end
 
 
-local function get_y(addr)
-	local y = memory.readbyte(addr + 1)
-	return bit.band(memory.readbyte(addr), 0x01) > 0 and 0x100 - y or y
-end
-
-
-local function update_hitboxes()
+local update_hitboxes = function()
 	for f = 1, DRAW_DELAY do
 		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
@@ -190,8 +250,7 @@ local function update_hitboxes()
 	end
 
 	f.screen_center_x = memory.readwordsigned(game.address.screen_center_x)
-	--f.screen_center_y = memory.readwordsigned(game.address.screen_center_y)
-	f.screen_center_y = get_y(game.address.screen_center_y)
+	f.screen_center_y = memory.readwordsigned(game.address.screen_center_y)
 
 	for p = 1, NUMBER_OF_PLAYERS do
 		local player = {base = game.address.player + (p-1)*game.offset.player_space}
@@ -213,7 +272,7 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(hb)
+local draw_hitbox = function(hb)
 	if not hb or any_true({
 		not globals.draw_pushboxes and hb.type == "push",
 		not globals.draw_throwable_boxes and hb.type == "throwable",
@@ -229,17 +288,16 @@ local function draw_hitbox(hb)
 end
 
 
-local function draw_axis(obj)
+local draw_axis = function(obj)
 	gui.drawline(obj.pos_x, obj.pos_y-globals.axis_size, obj.pos_x, obj.pos_y+globals.axis_size, globals.axis_color)
 	gui.drawline(obj.pos_x-globals.axis_size, obj.pos_y, obj.pos_x+globals.axis_size, obj.pos_y, globals.axis_color)
 	--gui.text(obj.pos_x+4, obj.pos_y-0x08, string.format("%08x", obj.base))
 	--gui.text(obj.pos_x+4, obj.pos_y+0x00, string.format("%08x", memory.readdword(obj.base)))
-	--gui.text(obj.pos_x+4, obj.pos_y+0x08, string.format("%08x", memory.readdword(obj.base + 0x288)))
 	--gui.text(obj.pos_x+4, obj.pos_y+0, obj.projectile or "")
 end
 
 
-local function render_hitboxes()
+local render_hitboxes = function()
 	gui.clearuncommitted()
 
 	local f = frame_buffer[1]
@@ -309,27 +367,27 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
-local function initialize_fb()
+local initialize_fb = function()
 	for f = 1, DRAW_DELAY+1 do
 		frame_buffer[f] = {}
 	end
 end
 
 
-local function whatgame()
+local whatgame = function()
 	print()
 	game = nil
 	initialize_fb()
 	for _, module in ipairs(profile) do
 		for _, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
-				print("drawing hitboxes for " .. emu.gamename())
+				print("drawing hitboxes for: " .. emu.gamename())
 				game = module
 				return
 			end
 		end
 	end
-	print("not prepared for " .. emu.gamename() .. " hitboxes")
+	print("not prepared for: " .. emu.gamename())
 end
 
 
