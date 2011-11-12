@@ -1,6 +1,6 @@
 print("CPS-2 fighting game hitbox viewer")
-print("August 30, 2011")
-print("http://code.google.com/p/mame-rr/")
+print("November 11, 2011")
+print("http://code.google.com/p/mame-rr/wiki/Hitboxes")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
 print("Lua hotkey 3: toggle hitbox axis")
@@ -29,606 +29,760 @@ local globals = {
 	draw_axis            = true,
 	draw_mini_axis       = false,
 	draw_pushboxes       = true,
-	draw_throwable_boxes = false,
-	no_alpha             = false, --fill = 0x00, outline = 0xFF for all box types
+	draw_throwable_boxes = true,
+	no_alpha             = true, --fill = 0x00, outline = 0xFF for all box types
+	ground_throw_height  = 0x50, --default for sfa & sfa2 if pushbox unavailable
 }
 
 --------------------------------------------------------------------------------
 -- game-specific modules
 
-local function any_true(condition)
-	for n in ipairs(condition) do
-		if condition[n] == true then return true end
-	end
-end
+local game, framebuffer, throwbuffer
+local any_true, get_thrower, insert_throw, signed_register, define_box, get_x, get_y
 
 local profile = {
-	{
-		games = {"sfa"},
-		number = {players = 3, projectiles = 8},
-		address = {
-			player           = 0xFF8400,
-			projectile       = 0xFF9000,
-			left_screen_edge = 0xFF8290,
-		},
-		offset = {
-			projectile_space = 0x80,
-			facing_dir       = 0x0B,
-			hitbox_ptr       = {player = 0x50, projectile = 0x50},
-		},
-		box = {
-			radius_read = memory.readbyte,
-			offset_read = memory.readbytesigned,
-			hval = 0x0, vval = 0x1, hrad = 0x2, vrad = 0x3,
-		},
-		box_list = {
-			{anim_ptr = 0x20, addr_table_ptr = 0x08, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x2, type = "push"},
-			{anim_ptr = 0x20, addr_table_ptr = 0x00, p_addr_table_ptr = 0x0, id_ptr = 0x08, id_shift = 0x2, type = "vulnerability"},
-			{anim_ptr = 0x20, addr_table_ptr = 0x02, p_addr_table_ptr = 0x0, id_ptr = 0x09, id_shift = 0x2, type = "vulnerability"},
-			{anim_ptr = 0x20, addr_table_ptr = 0x04, p_addr_table_ptr = 0x0, id_ptr = 0x0A, id_shift = 0x2, type = "vulnerability"},
-			{anim_ptr = 0x20, addr_table_ptr = 0x08, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x2, type = "throwable"},
-			{anim_ptr = 0x20, addr_table_ptr = 0x06, p_addr_table_ptr = 0x2, id_ptr = 0x0B, id_shift = 0x4, type = "attack"},
-		},
-		throw_box_list = {
-			{dimensions = 0x88, clear = true, type = "axis throw"},
-		},
-		breakpoints = {
-			{["sfa"] = 0x020F14, cmd = "maincpu.pw@(a6+88) = d0; maincpu.pw@(a6+8c) = d1"}, --ground throw
-			{["sfa"] = 0x020FF2, cmd = 
-			"maincpu.pw@(a6+88) = d0; maincpu.pw@(a6+8c) = d1; maincpu.pw@(a6+8a) = d2; maincpu.pw@(a6+8e) = d3"}, --airthrow
-		},
-		clones = {
-			["sfar3"] = -0xB4, ["sfar2"] = -0x64, ["sfar1"] = -0x18, ["sfad"] = 0, ["sfau"] = -0x64, 
-			["sfza"] = -0x64, ["sfzbr1"] = 0, ["sfzb"] = 0x5B4, ["sfzhr1"] = -0x64, ["sfzh"] = -0x18, 
-			["sfzjr2"] = -0xB4, ["sfzjr1"] = -0x64, ["sfzj"] = 0, 
-		},
-		friends = {0x0D},
-		active = function() return any_true({
-			(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000),
-			(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x13B) > 0,
-		}) end,
-		unthrowable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x241) > 0,
-			memory.readword(obj.base + 0x004) ~= 0x200,
-			memory.readbyte(obj.base + 0x02F) > 0,
-			bit.band(memory.readdword(memory.readdword(obj.base + 0x020) + 0x8), 0xFFFFFF00) == 0,
-		}) end,
+{	games = {"sfa"},
+	number = {players = 3, projectiles = 8},
+	address = {
+		player      = 0xFF8400,
+		projectile  = 0xFF9000,
+		screen_left = 0xFF8290,
 	},
-	{
-		games = {"sfa2","sfz2al"},
-		number = {players = 3, projectiles = 26},
-		address = {
-			player           = 0xFF8400,
-			projectile       = 0xFF9400,
-			left_screen_edge = 0xFF8290,
-		},
-		offset = {
-			projectile_space = 0x80,
-			facing_dir       = 0x0B,
-			hitbox_ptr       = {player = nil, projectile = 0x60},
-		},
-		box_list = {
-			{anim_ptr = 0x1C, addr_table_ptr = 0x120, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x3, type = "push"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x110, p_addr_table_ptr = 0x0, id_ptr = 0x08, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x114, p_addr_table_ptr = 0x0, id_ptr = 0x09, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x118, p_addr_table_ptr = 0x0, id_ptr = 0x0A, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x120, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x3, type = "throwable"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x11C, p_addr_table_ptr = 0x2, id_ptr = 0x0B, id_shift = 0x5, type = "attack"},
-		},
-		throw_box_list = {
-			{dimensions = 0x88, clear = true, type = "axis throw"},
-		},
-		breakpoints = {
-			{["sfa2"] = 0x025516, ["sfz2al"] = 0x025C8A, cmd = "maincpu.pw@(a6+88) = d0; maincpu.pw@(a6+8c) = d1"}, --ground throw
-			{["sfa2"] = 0x02564A, ["sfz2al"] = 0x025DD6, cmd = "maincpu.pw@(a6+88) = d0; maincpu.pw@(a6+8c) = d1"}, --tripwire
-			{["sfa2"] = 0x025786, ["sfz2al"] = 0x025F12, cmd = 
-			"maincpu.pw@(a6+88) = d0; maincpu.pw@(a6+8c) = d1; maincpu.pw@(a6+8a) = d2; maincpu.pw@(a6+8e) = d3"}, --airthrow
-		},
-		clones = {
-			["sfa2u"] = 0xBD2, ["sfa2ur1"] = 0xBC2, ["sfz2ad"] = 0xC0A, ["sfz2a"] = 0xC0A, 
-			["sfz2br1"] = 0x48, ["sfz2b"] = 0x42, ["sfz2h"] = 0x48, ["sfz2jd"] = 0xC0A, ["sfz2j"] = 0xC0A, ["sfz2n"] = 0, 
-			["sfz2al"] = 0, ["sfz2ald"] = 0, ["sfz2alb"] = 0, ["sfz2alh"] = 0, ["sfz2alj"] = -0x310, 
-		},
-		friends = {0x17},
-		active = function() return any_true({
-			(memory.readdword(0xFF8004) == 0x40000 and
-			(memory.readdword(0xFF8008) == 0x40000 or memory.readdword(0xFF8008) == 0xA0000)),
-			memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0,
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x25B) > 0,
-			memory.readbyte(obj.base + 0x273) > 0,
-			memory.readbyte(obj.base + 0x13B) > 0,
-		}) end,
-		unthrowable = function(obj, box)
-			if any_true({
-					memory.readbyte(0xFF810E) > 0,
-					memory.readbyte(obj.base + 0x273) > 0,
-					bit.band(memory.readdword(memory.readdword(obj.base + 0x01C) + 0x8), 0xFFFFFF00) == 0,
-				}) then
-				return true
-			elseif memory.readbyte(0xFF0000 + memory.readword(obj.base + 0x38) + 0x142) > 0 then --opponent in CC
-				return any_true({
-					memory.readbyte(memory.readdword(obj.base + 0x01C) + 0xD) > 0,
-				})
-			else --not in CC
-				return any_true({
-					memory.readbyte(obj.base + 0x241) > 0,
-					memory.readword(obj.base + 0x004) ~= 0x200,
-					memory.readbyte(obj.base + 0x031) > 0,
-				})
-			end
-		end,
+	offset = {
+		object_space = 0x80,
+		flip_x       = 0x0B,
+		hitbox_ptr   = {player = 0x50, projectile = 0x50},
 	},
-	{
-		games = {"sfa3"},
-		number = {players = 4, projectiles = 24},
-		address = {
-			player           = 0xFF8400,
-			projectile       = 0xFF9400,
-			left_screen_edge = 0xFF8290,
-		},
-		offset = {
-			projectile_space = 0x100,
-			facing_dir       = 0x0B,
-			hitbox_ptr       = nil,
-		},
-		box_list = {
-			{anim_ptr =  nil, addr_table_ptr = 0x9C, id_ptr =  0xCB, id_shift = 0x3, type = "push"},
-			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr =  0xC8, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x94, id_ptr =  0xC9, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x98, id_ptr =  0xCA, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x9C, id_ptr =  0xCB, id_shift = 0x3, type = "throwable"}, --identical to pushbox
-			{anim_ptr = 0x1C, addr_table_ptr = 0xA0, id_ptr =   0x9, id_shift = 0x5, type = "attack"},
-		},
-		throw_box_list = {
-			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_shift = 0x5, type = "throw"},
-			{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr =  0x82, id_shift = 0x5, type = "tripwire"},
-		},
-		friends = {0x17, 0x22},
-		active = function() return any_true({
-			(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x60000),
-			(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x067) > 0,
-			memory.readbyte(obj.base + 0x25D) > 0,
-			memory.readbyte(obj.base + 0x0D6) > 0,
-			memory.readbyte(obj.base + 0x2CE) > 0,
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x67) > 0,
-		}) end,
-		unthrowable = function(obj, box)
+	friends = {0x0D},
+	box = {
+		radius_read = memory.readbyte,
+		offset_read = memory.readbytesigned,
+		val_x = 0x0, val_y = 0x1, rad_x = 0x2, rad_y = 0x3,
+	},
+	box_list = {
+		{anim_ptr = 0x20, addr_table_ptr = 0x08, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x2, type = "push"},
+		{anim_ptr = 0x20, addr_table_ptr = 0x00, p_addr_table_ptr = 0x0, id_ptr = 0x08, id_shift = 0x2, type = "vulnerability"},
+		{anim_ptr = 0x20, addr_table_ptr = 0x02, p_addr_table_ptr = 0x0, id_ptr = 0x09, id_shift = 0x2, type = "vulnerability"},
+		{anim_ptr = 0x20, addr_table_ptr = 0x04, p_addr_table_ptr = 0x0, id_ptr = 0x0A, id_shift = 0x2, type = "vulnerability"},
+		{anim_ptr = 0x20, addr_table_ptr = 0x08, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x2, type = "throwable"},
+		{anim_ptr = 0x20, addr_table_ptr = 0x06, p_addr_table_ptr = 0x2, id_ptr = 0x0B, id_shift = 0x4, type = "attack"},
+	},
+	breakpoints = {
+		{["sfa"] = 0x020F14, func = function() --ground throws
+			insert_throw({
+				val_x = signed_register("d0"),
+				rad_x = signed_register("d1"),
+				type = "throw",
+			})
+		end},
+		{["sfa"] = 0x020FF2, func = function() --air throws
+			insert_throw({
+				val_x = signed_register("d0"),
+				rad_x = signed_register("d1"),
+				val_y = signed_register("d2"),
+				rad_y = signed_register("d3"),
+				type = "axis throw",
+			})
+		end},
+	},
+	clones = {
+		["sfar3"] = -0xB4, ["sfar2"] = -0x64, ["sfar1"] = -0x18, ["sfad"] = 0, ["sfau"] = -0x64, 
+		["sfza"] = -0x64, ["sfzbr1"] = 0, ["sfzb"] = 0x5B4, ["sfzhr1"] = -0x64, ["sfzh"] = -0x18, 
+		["sfzjr2"] = -0xB4, ["sfzjr1"] = -0x64, ["sfzj"] = 0, 
+	},
+	process_throw = function(obj, box)
+		box.val_y = box.val_y or obj.val_y or globals.ground_throw_height/2
+		box.rad_y = box.rad_y or obj.rad_y or globals.ground_throw_height/2
+
+		box.val_x  = obj.pos_x + box.val_x * obj.flip_x
+		box.val_y  = obj.pos_y - box.val_y
+		box.left   = box.val_x - box.rad_x
+		box.right  = box.val_x + box.rad_x
+		box.top    = box.val_y - box.rad_y
+		box.bottom = box.val_y + box.rad_y
+
+		return box
+	end,
+	active = function() return any_true({
+		(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000),
+		(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x13B) > 0,
+	}) end,
+	unthrowable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x241) > 0,
+		memory.readword(obj.base + 0x004) ~= 0x200,
+		memory.readbyte(obj.base + 0x02F) > 0,
+		bit.band(memory.readdword(memory.readdword(obj.base + 0x020) + 0x8), 0xFFFFFF00) == 0,
+	}) end,
+},
+{	games = {"sfa2", "sfz2al"},
+	number = {players = 3, projectiles = 26},
+	address = {
+		player      = 0xFF8400,
+		projectile  = 0xFF9400,
+		screen_left = 0xFF8290,
+	},
+	offset = {
+		object_space = 0x80,
+		flip_x       = 0x0B,
+		hitbox_ptr   = {player = nil, projectile = 0x60},
+	},
+	friends = {0x17},
+	box_list = {
+		{anim_ptr = 0x1C, addr_table_ptr = 0x120, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x3, type = "push"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x110, p_addr_table_ptr = 0x0, id_ptr = 0x08, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x114, p_addr_table_ptr = 0x0, id_ptr = 0x09, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x118, p_addr_table_ptr = 0x0, id_ptr = 0x0A, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x120, p_addr_table_ptr = 0x4, id_ptr = 0x0C, id_shift = 0x3, type = "throwable"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x11C, p_addr_table_ptr = 0x2, id_ptr = 0x0B, id_shift = 0x5, type = "attack"},
+	},
+	breakpoints = {
+		{["sfa2"] = 0x025516, ["sfz2al"] = 0x025C8A, func = function() --ground throws
+			insert_throw({
+				val_x = signed_register("d0"),
+				rad_x = signed_register("d1"),
+				type = "throw",
+			})
+		end},
+		{["sfa2"] = 0x02564A, ["sfz2al"] = 0x025DD6, func = function() --tripwire
+			insert_throw({
+				val_x = signed_register("d0"),
+				rad_x = signed_register("d1"),
+				type = "throw",
+			})
+		end},
+		{["sfa2"] = 0x025786, ["sfz2al"] = 0x025F12, func = function() --air throws
+			insert_throw({
+				val_x = signed_register("d0"),
+				rad_x = signed_register("d1"),
+				val_y = signed_register("d2"),
+				rad_y = signed_register("d3"),
+				type = "axis throw",
+			})
+		end},
+	},
+	clones = {
+		["sfa2u"] = 0xBD2, ["sfa2ur1"] = 0xBC2, ["sfz2ad"] = 0xC0A, ["sfz2a"] = 0xC0A, 
+		["sfz2br1"] = 0x48, ["sfz2b"] = 0x42, ["sfz2h"] = 0x48, ["sfz2jd"] = 0xC0A, ["sfz2j"] = 0xC0A, ["sfz2n"] = 0, 
+		["sfz2al"] = 0, ["sfz2ald"] = 0, ["sfz2alb"] = 0, ["sfz2alh"] = 0, ["sfz2alj"] = -0x310, 
+	},
+	process_throw = function(obj, box)
+		box.val_y = box.val_y or obj.val_y or globals.ground_throw_height/2
+		box.rad_y = box.rad_y or obj.rad_y or globals.ground_throw_height/2
+
+		box.val_x  = obj.pos_x + box.val_x * obj.flip_x
+		box.val_y  = obj.pos_y - box.val_y
+		box.left   = box.val_x - box.rad_x
+		box.right  = box.val_x + box.rad_x
+		box.top    = box.val_y - box.rad_y
+		box.bottom = box.val_y + box.rad_y
+
+		return box
+	end,
+	active = function() return any_true({
+		(memory.readdword(0xFF8004) == 0x40000 and
+		(memory.readdword(0xFF8008) == 0x40000 or memory.readdword(0xFF8008) == 0xA0000)),
+		memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0,
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x25B) > 0,
+		memory.readbyte(obj.base + 0x273) > 0,
+		memory.readbyte(obj.base + 0x13B) > 0,
+	}) end,
+	unthrowable = function(obj, box)
+		if any_true({
+				memory.readbyte(0xFF810E) > 0,
+				memory.readbyte(obj.base + 0x273) > 0,
+				bit.band(memory.readdword(memory.readdword(obj.base + 0x01C) + 0x8), 0xFFFFFF00) == 0,
+			}) then
+			return true
+		elseif memory.readbyte(0xFF0000 + memory.readword(obj.base + 0x38) + 0x142) > 0 then --opponent in CC
+			return any_true({
+				memory.readbyte(memory.readdword(obj.base + 0x01C) + 0xD) > 0,
+			})
+		else --not in CC
+			return any_true({
+				memory.readbyte(obj.base + 0x241) > 0,
+				memory.readword(obj.base + 0x004) ~= 0x200,
+				memory.readbyte(obj.base + 0x031) > 0,
+			})
+		end
+	end,
+},
+{	games = {"sfa3"},
+	number = {players = 4, projectiles = 24},
+	address = {
+		player      = 0xFF8400,
+		projectile  = 0xFF9400,
+		screen_left = 0xFF8290,
+	},
+	offset = {
+		object_space = 0x100,
+		flip_x       = 0x0B,
+		hitbox_ptr   = nil,
+	},
+	friends = {0x17, 0x22},
+	box_list = {
+		{anim_ptr =  nil, addr_table_ptr = 0x9C, id_ptr =  0xCB, id_shift = 0x3, type = "push"},
+		{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr =  0xC8, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x94, id_ptr =  0xC9, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x98, id_ptr =  0xCA, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x9C, id_ptr =  0xCB, id_shift = 0x3, type = "throwable"}, --identical to pushbox
+		{anim_ptr = 0x1C, addr_table_ptr = 0xA0, id_ptr =   0x9, id_shift = 0x5, type = "attack"},
+	},
+	throw_box_list = {
+		{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr = 0x32F, id_shift = 0x5, type = "throw", clear = true},
+		{anim_ptr =  nil, addr_table_ptr = 0xA0, id_ptr =  0x82, id_shift = 0x5, type = "tripwire", clear = true},
+	},
+	watchpoints = {
+		{offset = 0x32F, size = 1, func = function() insert_throw({
+			id = bit.band(memory.getregister("m68000.d0"), 0xFF),
+			anim_ptr = nil, addr_table_ptr = 0xA0, type = "throw", id_shift = 0x5,
+		}) end},
+		{offset = 0x1E4, size = 2, func = function() insert_throw({
+			pos_x = bit.band(memory.getregister("m68000.d0"), 0xFFFF),
+			anim_ptr = nil, addr_table_ptr = 0xA0, type = "tripwire", id_ptr = 0x82, id_shift = 0x5,
+		}) end},
+	},
+	process_throw = function(obj, box)
+		box.pos_x = box.pos_x and memory.readwordsigned(obj.base + 0x1E4) + box.pos_x
+		return define_box[game.box_type](obj, box)
+	end,
+	active = function() return any_true({
+		(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x60000),
+		(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x067) > 0,
+		memory.readbyte(obj.base + 0x25D) > 0,
+		memory.readbyte(obj.base + 0x0D6) > 0,
+		memory.readbyte(obj.base + 0x2CE) > 0,
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x67) > 0,
+	}) end,
+	unthrowable = function(obj, box)
+		if any_true({
+				memory.readbyte(obj.base + 0x25D) > 0,
+				memory.readbyte(obj.base + 0x23F) > 0,
+				memory.readbyte(obj.base + 0x2CE) > 0,
+				bit.band(memory.readdword(obj.base + 0x0C8), 0xFFFFFF00) == 0,
+				memory.readbyte(obj.base + 0x067) > 0,
+			}) then
+			return true
+		end
+		local opp = { base = 0xFF0000 + memory.readword(obj.base + 0x38)}
+		opp.air = memory.readbyte(opp.base + 0x31) > 0
+		opp.VC  = memory.readbyte(opp.base + 0xB9) > 0
+		local status = memory.readword(obj.base + 0x4)
+		if opp.VC and memory.readbyte(obj.base + 0x24E) == 0 then --VC: 02E37C
+			return
+		elseif not opp.air then --ground: 02E3FE
+			return any_true({ --02E422
+				status ~= 0x204 and status ~= 0x200 and memory.readbyte(obj.base + 0x24E) == 0 and 
+				(status ~= 0x202 or memory.readbyte(obj.base + 0x54) ~= 0xC),
+				memory.readbyte(obj.base + 0x031) > 0,
+			})
+		else --air: 02E636
+			return any_true({ --02E66E
+				memory.readbyte(obj.base + 0x031) == 0,
+				memory.readbyte(obj.base + 0x0D6) > 0,
+				status ~= 0x204 and status ~= 0x200 and status ~= 0x202,
+			})
+		end
+	end,
+},
+{	games = {"dstlk"},
+	number = {players = 2, projectiles = 4},
+	address = {
+		player      = 0xFF8388,
+		projectile  = 0xFFAA2E,
+		screen_left = 0xFF9518,
+	},
+	offset = {
+		object_space = 0xC0,
+		flip_x       = 0x09,
+		hitbox_ptr   = {player = 0x5C, projectile = 0x5C},
+		character    = 0x3A1, 
+	},
+	box = {val_x = 0x0, val_y = 0x4, rad_x = 0x2, rad_y = 0x6},
+	box_list = {
+		{anim_ptr = 0x1C, addr_table_ptr = 0x0A, id_ptr = 0x15, id_shift = 0x3, type = "push", no_projectile = true},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x00, id_ptr = 0x10, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_shift = 0x3, type = "vulnerability", no_projectile = true},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_shift = 0x3, type = "vulnerability", no_projectile = true},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_shift = 0x3, type = "negate"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x08, id_ptr = 0x14, id_shift = 0x4, type = "attack"},
+	},
+	throw_box_list = {
+		{method = "range given", base_x = 0x010, range_x = 0x1E8, range_y = 0x1E9, air_state = 0x4C, type = "throwable"},
+	},
+	breakpoints = {
+		{["dstlk"] = 0x033CBE, func = function() --attempt ground throws from any range
+			memory.setregister("m68000.d3", 0)
+		end},
+		{["dstlk"] = 0x033D22, func = function() --ground throws
+			local base = memory.getregister("m68000.a6")
+			local range = memory.readwordsigned(memory.readdword(base + 0x1EA) + memory.readbyte(base + 0x27))
+			insert_throw({range_x = range})
+		end},
+		{["dstlk"] = 0x033BEC, func = function() --air throws
+			local base = memory.getregister("m68000.a6")
+			local curr = memory.readword(base + game.offset.player_space - 0x7A)
+			local prev = memory.readword(base + game.offset.player_space - 0x78)
+			local range = bit.band(memory.getregister("m68000.d0"), 0xFF)
+			range = memory.readwordsigned(memory.readdword(base + 0x1EA) + range)
 			if any_true({
-					memory.readbyte(obj.base + 0x25D) > 0,
-					memory.readbyte(obj.base + 0x23F) > 0,
-					memory.readbyte(obj.base + 0x2CE) > 0,
-					bit.band(memory.readdword(obj.base + 0x0C8), 0xFFFFFF00) == 0,
-					memory.readbyte(obj.base + 0x067) > 0,
-				}) then
-				return true
+				bit.band(curr, 0x07) == 0, 
+				bit.band(bit.band(bit.bnot(prev), curr), 0x60) == 0, 
+				range == 0, 
+			}) then
+				return --input check @ 0451D6
 			end
-			local opp = { base = 0xFF0000 + memory.readword(obj.base + 0x38)}
-			opp.air = memory.readbyte(opp.base + 0x31) > 0
-			opp.VC  = memory.readbyte(opp.base + 0xB9) > 0
-			local status = memory.readword(obj.base + 0x4)
-			if opp.VC and memory.readbyte(obj.base + 0x24E) == 0 then --VC: 02E37C
+			insert_throw({range_x = range, height = 0xC}) --vertical range @ 033BE0
+		end},
+		{["dstlk"] = 0x03B8F4, ["dstlku"] = 0x03BBCE, ["dstlkh"] = 0x03BBCE, 
+			["vampjr1"] = 0x03DDA4, ["vampj"] = 0x03DDB8, ["vampja"] = 0x03DDB8, 
+			func = function() --midnight pleasure
+				insert_throw({range_x = 0x24}) --hard range @ 03B938
+			end, 
+		},
+	},
+	clones = {
+		["dstlka"] = 0, ["dstlkh"] = 0x2D6, ["dstlku1d"] = 0, ["dstlkur1"] = 0, ["dstlku"] = 0x2D6, 
+		["vampjr1"] = 0x24A2, ["vampj"] = 0x24B6, ["vampja"] = 0x24B6, 
+	},
+	breakables = {start = 0xFFAD2E, space = 0x80, number = 8},
+	process_throw = function(obj, box)
+		box.type   = "throw"
+		box.right  = obj.pos_x
+		box.left   = obj.pos_x + box.range_x * obj.flip_x
+		if memory.readbyte(obj.base + game.offset.character) == 0x06 then --Anakaris
+			box.right = box.left - 0x20 * obj.flip_x --hard width @ 033C5C
+		end
+		box.bottom = obj.pos_y
+		box.top    = obj.pos_y - memory.readbyte(obj.base + 0x1E9)
+		if box.height then
+			box.bottom = box.top + box.height
+		end
+		box.val_x  = (box.left + box.right)/2
+		box.val_y  = (box.bottom + box.top)/2
+		
+		return box
+	end,
+	active = function() return any_true({
+		(memory.readdword(0xFF8004) == 0x40000 and bit.band(memory.readdword(0xFF8008), 0x8FFFF) == 0x80000),
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x15D) > 0,
+		(memory.readbyte(obj.base + 0x167) == 0 and 
+		memory.readbytesigned(obj.base + 0x062) < 0 and 
+		memory.readbyte(obj.base + 0x12A) == 0),
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x1E6) > 0,
+		memory.readbyte(obj.base + 0x04D) > 0,
+	}) end,
+	unthrowable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x062) > 0,
+		memory.readword(obj.base + 0x15D) > 0,
+	}) end,
+},
+{	games = {"nwarr"},
+	number = {players = 2, projectiles = 12},
+	address = {
+		player      = 0xFF8388,
+		projectile  = 0xFFA86E,
+		screen_left = 0xFF8F18,
+	},
+	offset = {
+		player_space = 0x500,
+		object_space = 0xC0,
+		flip_x       = 0x09,
+		hitbox_ptr   = {player = 0x5C, projectile = 0x5C},
+		character    = 0x4A1, 
+	},
+	box = {val_x = 0x0, val_y = 0x4, rad_x = 0x2, rad_y = 0x6},
+	box_list = {
+		{anim_ptr = 0x1C, addr_table_ptr = 0x0A, id_ptr = 0x15, id_shift = 0x3, type = "push", no_projectile = true},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x00, id_ptr = 0x10, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_shift = 0x3, type = "vulnerability", no_projectile = true},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_shift = 0x3, type = "vulnerability", no_projectile = true},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_shift = 0x3, type = "negate"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x08, id_ptr = 0x14, id_shift = 0x4, type = "attack"},
+	},
+	throw_box_list = {
+		{method = "range given", base_x = 0x010, range_x = 0x1E8, range_y = 0x1E9, air_state = 0x41, type = "throwable"},
+		{method = "range given", base_x = 0x192, range_x = 0x196, range_y = 0x194, type = "axis throw"}, --"no_box" projectiles
+	},
+	breakpoints = {
+		{["nwarr"] = 0x02A002, func = function() --attempt ground throws from any range
+			memory.setregister("m68000.d3", 0)
+		end},
+		{["nwarr"] = 0x02A172, func = function() --ground throws
+			local base = memory.getregister("m68000.a6")
+			local range = memory.readwordsigned(memory.readdword(base + 0x1EA) + memory.readbyte(base + 0x27))
+			insert_throw({range_x = range})
+		end},
+		{["nwarr"] = 0x029F5C, func = function() --air throws
+			local base = memory.getregister("m68000.a6")
+			local curr = memory.readword(base + game.offset.player_space - 0x7A)
+			local prev = memory.readword(base + game.offset.player_space - 0x78)
+			local range = bit.band(memory.getregister("m68000.d0"), 0xFF)
+			range = memory.readwordsigned(memory.readdword(base + 0x1EA) + range)
+			if any_true({
+				bit.band(curr, 0x07) == 0, 
+				bit.band(bit.band(bit.bnot(prev), curr), 0x60) == 0, 
+				range == 0, 
+			}) then
+				return --input check @ 0355CE
+			end
+			insert_throw({range_x = range, height = 0xC}) --vertical range @ 029F50
+		end},
+		{["nwarr"] = 0x0366C2, ["vhuntjr2"] = 0x036488, ["vhuntjr1"] = 0x0366F4, ["vhuntj"] = 0x0366F4, 
+			func = function() --midnight pleasure
+				insert_throw({range_x = 0x22}) --hard range @ 036706
+			end, 
+		},
+	},
+	clones = {
+		["nwarra"] = -0x282, ["nwarrb"] = 0, ["nwarrh"] = 0, ["nwarrud"] = 0, ["nwarru"] = 0, 
+		["vhuntjr2"] = -0x25E, ["vhuntjr1"] = 0x024, ["vhuntj"] = 0x024, 
+	},
+	special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28, whitelist = {
+		0x56, --Demitri 263KK
+		0x4C, --Gallon 41236KK
+		0x5F, --Gallon 63214PP
+		0x50, --Lei-Lei 623P
+		0x54, --Lei-Lei 214P
+		0x6E, --Lei-Lei LK,HK,MP,MP,8
+		0x0C, --Morrigan LP,LP,6,LK,HP
+		0x40, --Morrigan LP,LP,6,MP,HP
+		0x44, --Felicia 41236KK
+		0x52, --Aulbath 41236PP
+		0x05, --Huitzil GC
+		0x22, --Huitzil 63214KK
+		0x5A, --Huitzil 623P
+		0x70, --Pyron 41236PP/KK
+	}, 
+	no_box = { --special throws
+		0x3F, --Rapter 623PP
+		0x68, --Anakaris 236P
+		0x3E, --Aulbath 623PP
+	}},
+	friends = {0x40, 0x4C, 0x50},
+	breakables = {start = 0xFFB16E, space = 0x80, number = 8},
+	process_throw = function(obj, box)
+		box.type   = "throw"
+		box.right  = obj.pos_x
+		box.left   = obj.pos_x + box.range_x * obj.flip_x
+		box.bottom = obj.pos_y
+		box.top    = obj.pos_y - memory.readbyte(obj.base + 0x1E9)
+		if box.height then
+			box.bottom = box.top + box.height
+		end
+		box.val_x  = (box.left + box.right)/2
+		box.val_y  = (box.bottom + box.top)/2
+		
+		return box
+	end,
+	active = function() return any_true({
+		(memory.readdword(0xFF8004) == 0x40000 and bit.band(memory.readdword(0xFF8008), 0x8FFFF) == 0x80000),
+		(memory.readword(0xFF8000) >= 0x0E and memory.readdword(0xFF8004) == 0),
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		(memory.readbyte(obj.base + 0x49F) == 0 and memory.readbyte(obj.base + 0x2AF) > 0),
+		memory.readbyte(obj.base + 0x15D) > 0,
+		bit.band(memory.readbyte(obj.base + 0x167), 0x0E) > 0,
+		(memory.readbyte(obj.base + 0x167) == 0 and 
+		memory.readbytesigned(obj.base + 0x062) < 0 and 
+		memory.readbyte(obj.base + 0x12A) == 0),
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x1E6) > 0,
+		memory.readbyte(obj.base + 0x04C) > 0,
+	}) end,
+	unthrowable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x062) > 0,
+		memory.readbyte(obj.base + 0x15D) > 0,
+	}) end,
+},
+{	games = {"vsav", "vhunt2", "vsav2"},
+	number = {players = 2, projectiles = 32},
+	address = {
+		player      = 0xFF8400,
+		projectile  = 0xFF9400,
+		screen_left = 0xFF8290,
+	},
+	offset = {
+		object_space = 0x100,
+		flip_x       = 0x0B,
+		hitbox_ptr   = nil,
+	},
+	box_list = {
+		{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x97, id_shift = 0x3, type = "push"},
+		{anim_ptr =  nil, addr_table_ptr = 0x80, id_ptr = 0x94, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x84, id_ptr = 0x95, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x96, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x97, id_shift = 0x3, type = "throwable"}, --identical to pushbox
+		{anim_ptr = 0x1C, addr_table_ptr = 0x8C, id_ptr = 0x0A, id_shift = 0x5, type = "attack"},
+	},
+	breakpoints = {
+		{["vsav"] = 0x029450, ["vsav2"] = 0x02874A, ["vhunt2"] = 0x028778, 
+		func = function() --non-ranged throws
+			local stack, pc = memory.readdword(memory.getregister("m68000.a7")), memory.getregister("m68000.pc")
+			if stack ~= pc + 0x30 and stack ~= pc + 0xB2 and stack ~= pc + 0xBE then
+				return --don't draw the initial range check of command throws
+			end
+			insert_throw({
+				id = bit.band(memory.getregister("m68000.d0"), 0xFF),
+				anim_ptr = nil, addr_table_ptr = 0x8C, id_ptr = 0x98, id_shift = 0x5, type = "throw",
+			})
+		end},
+		{["vsav"] = 0x0191A2, ["vsav2"] = 0x017BA4, ["vhunt2"] = 0x017BAA, ["vhunt2r1"] = 0x017B3A, 
+		func = function() --attempt cmd throws from any range
+			local stack = {memory.readdword(memory.getregister("m68000.a7")), memory.readdword(memory.getregister("m68000.a7") + 4)}
+			local target = {["vsav"] = 0x029472, ["vsav2"] = 0x02876C, ["vhunt2"] = 0x02879A, ["vhunt2r1"] = 0x0286E8}
+			target = target[emu.romname()] or target[emu.parentname()]
+			if any_true({
+				stack[1] ~= target, --must be a command throw setup
+				stack[2] == target + 0x0E, --don't interfere with actual throw attempts
+				stack[2] == target + 0x90, --don't interfere with attacks
+				stack[2] == target + 0x9C, --don't interfere with vsav2/vhunt2 air throws
+				}) then
 				return
-			elseif not opp.air then --ground: 02E3FE
-				return any_true({ --02E422
-					status ~= 0x204 and status ~= 0x200 and memory.readbyte(obj.base + 0x24E) == 0 and 
-					(status ~= 0x202 or memory.readbyte(obj.base + 0x54) ~= 0xC),
-					memory.readbyte(obj.base + 0x031) > 0,
-				})
-			else --air: 02E636
-				return any_true({ --02E66E
-					memory.readbyte(obj.base + 0x031) == 0,
-					memory.readbyte(obj.base + 0x0D6) > 0,
-					status ~= 0x204 and status ~= 0x200 and status ~= 0x202,
-				})
 			end
-		end,
+			memory.setregister("m68000.d1", 0)
+		end},
+		{["vsav"] = 0x029638, ["vsav2"] = 0x02893E, ["vhunt2"] = 0x02896C, 
+		func = function() --ranged throws
+			local base = memory.getregister("m68000.a4")
+			insert_throw({
+				id = bit.band(memory.getregister("m68000.d0"), 0xFF),
+				pos_x = get_x(memory.readwordsigned(base + game.offset.pos_x)),
+				pos_y = get_y(memory.readwordsigned(base + game.offset.pos_y)),
+				anim_ptr = nil, addr_table_ptr = 0x8C, id_ptr = 0x98, id_shift = 0x5, type = "throw",
+			})
+		end},
 	},
-	{
-		games = {"dstlk"},
-		number = {players = 2, projectiles = 4},
-		address = {
-			player           = 0xFF8388,
-			projectile       = 0xFFAA2E,
-			left_screen_edge = 0xFF9518,
-		},
-		offset = {
-			projectile_space = 0xC0,
-			facing_dir       = 0x09,
-			hitbox_ptr       = {player = 0x5C, projectile = 0x5C},
-			character        = 0x3A1, 
-		},
-		box = {hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6},
-		box_list = {
-			{anim_ptr = 0x1C, addr_table_ptr = 0x0A, id_ptr = 0x15, id_shift = 0x3, type = "push", no_projectile = true},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x00, id_ptr = 0x10, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_shift = 0x3, type = "vulnerability", no_projectile = true},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_shift = 0x3, type = "vulnerability", no_projectile = true},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_shift = 0x3, type = "negate"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x08, id_ptr = 0x14, id_shift = 0x4, type = "attack"},
-		},
-		throw_box_list = {
-			{x_base = 0x010, x_range = 0x1E8, y_range = 0x1E9, air_state = 0x4C, type = "throwable"},
-			{ptr = 0x1EA, offset = 0x27, y_range = 0x1E9, throw_state = 0x114, anak_width = 0x20, type = "throw"}, --width @ 033C5C
-			{ptr = 0x1EA, offset = 0x25, y_range = 0x1E9, clear = true, type = "throw"}, --airthrow
-			{hard_x_range = 0x24, y_range = 0x1E9, pleasure_state = 0xB4, type = "throw"}, --hard range @ 03B938
-		},
-		breakpoints = {
-			{["dstlk"] = 0x033BEC, cmd = "maincpu.pb@(a6+25) = d0"}, --air throws
-			{["dstlk"] = 0x033CBE, cmd = "d3 = 0"}, --attempt ground throws out of range
-		},
-		clones = {
-			["dstlka"] = 0, ["dstlkh"] = 0x2D6, ["dstlku1d"] = 0, ["dstlkur1"] = 0, ["dstlku"] = 0x2D6, 
-			["vampjr1"] = 0x24A2, ["vampja"] = 0x24B6, ["vampj"] = 0x24B6, 
-		},
-		breakables = {start = 0xFFAD2E, space = 0x80, number = 8},
-		active = function() return any_true({
-			(memory.readdword(0xFF8004) == 0x40000 and bit.band(memory.readdword(0xFF8008), 0x8FFFF) == 0x80000),
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x15D) > 0,
-			(memory.readbyte(obj.base + 0x167) == 0 and 
-			memory.readbytesigned(obj.base + 0x062) < 0 and 
-			memory.readbyte(obj.base + 0x12A) == 0),
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x1E6) > 0,
-			memory.readbyte(obj.base + 0x04D) > 0,
-		}) end,
-		unthrowable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x062) > 0,
-			memory.readword(obj.base + 0x15D) > 0,
-		}) end,
+	clones = {
+		["vsava"] = 0, ["vsavd"] = 0, ["vsavh"] = 0, ["vsavj"] = 0, ["vsavu"] = 0, 
+		["vsav2"] = 0, ["vsav2d"] = 0, ["vhunt2"] = 0, ["vhunt2d"] = 0, ["vhunt2r1"] = -0xB2
 	},
-	{
-		games = {"nwarr"},
-		number = {players = 2, projectiles = 12},
-		address = {
-			player           = 0xFF8388,
-			projectile       = 0xFFA86E,
-			left_screen_edge = 0xFF8F18,
-		},
-		offset = {
-			player_space     = 0x500,
-			projectile_space = 0xC0,
-			facing_dir       = 0x09,
-			hitbox_ptr       = {player = 0x5C, projectile = 0x5C},
-			character        = 0x4A1, 
-		},
-		box = {hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6},
-		box_list = {
-			{anim_ptr = 0x1C, addr_table_ptr = 0x0A, id_ptr = 0x15, id_shift = 0x3, type = "push", no_projectile = true},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x00, id_ptr = 0x10, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x02, id_ptr = 0x11, id_shift = 0x3, type = "vulnerability", no_projectile = true},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x04, id_ptr = 0x12, id_shift = 0x3, type = "vulnerability", no_projectile = true},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x06, id_ptr = 0x13, id_shift = 0x3, type = "negate"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x08, id_ptr = 0x14, id_shift = 0x4, type = "attack"},
-		},
-		throw_box_list = {
-			{x_base = 0x010, x_range = 0x1E8, y_range = 0x1E9, air_state = 0x41, type = "throwable"},
-			{x_base = 0x192, x_range = 0x196, y_range = 0x194, hard_y_base = 0, type = "axis throw"}, --"no_box" projectiles
-			{ptr = 0x1EA, offset = 0x27, y_range = 0x1E9, throw_state = 0x114, type = "throw"},
-			{ptr = 0x1EA, offset = 0x25, y_range = 0x1E9, clear = true, type = "throw"}, --airthrow
-			{hard_x_range = 0x22, y_range = 0x1E9, pleasure_state = 0xAE, type = "throw"}, --hard range @ 036706
-		},
-		breakpoints = {
-			{["nwarr"] = 0x029F5C, cmd = "maincpu.pb@(a6+25) = d0"}, --air throws
-			{["nwarr"] = 0x02A002, cmd = "d3 = 0"}, --attempt ground throws out of range
-		},
-		clones = {
-			["nwarra"] = -0x282, ["nwarrb"] = 0, ["nwarrh"] = 0, ["nwarrud"] = 0, ["nwarru"] = 0, 
-			["vhuntjr2"] = -0x25E, ["vhuntjr1"] = 0x024, ["vhuntj"] = 0x024, 
-		},
-		special_projectiles = {start = 0xFF9A6E, space = 0x80, number = 28, whitelist = {
-			0x56, --Demitri 263KK
-			0x4C, --Gallon 41236KK
-			0x5F, --Gallon 63214PP
-			0x50, --Lei-Lei 623P
-			0x54, --Lei-Lei 214P
-			0x6E, --Lei-Lei LK,HK,MP,MP,8
-			0x0C, --Morrigan LP,LP,6,LK,HP
-			0x40, --Morrigan LP,LP,6,MP,HP
-			0x44, --Felicia 41236KK
-			0x52, --Aulbath 41236PP
-			0x05, --Huitzil GC
-			0x22, --Huitzil 63214KK
-			0x5A, --Huitzil 623P
-			0x70, --Pyron 41236PP/KK
-		}, 
-		no_box = { --special throws
-			0x3F, --Rapter 623PP
-			0x68, --Anakaris 236P
-			0x3E, --Aulbath 623PP
-		}},
-		friends = {0x40, 0x4C, 0x50},
-		breakables = {start = 0xFFB16E, space = 0x80, number = 8},
-		active = function() return any_true({
-			(memory.readdword(0xFF8004) == 0x40000 and bit.band(memory.readdword(0xFF8008), 0x8FFFF) == 0x80000),
-			(memory.readword(0xFF8000) >= 0x0E and memory.readdword(0xFF8004) == 0),
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			(memory.readbyte(obj.base + 0x49F) == 0 and memory.readbyte(obj.base + 0x2AF) > 0),
-			memory.readbyte(obj.base + 0x15D) > 0,
-			bit.band(memory.readbyte(obj.base + 0x167), 0x0E) > 0,
-			(memory.readbyte(obj.base + 0x167) == 0 and 
-			memory.readbytesigned(obj.base + 0x062) < 0 and 
-			memory.readbyte(obj.base + 0x12A) == 0),
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x1E6) > 0,
-			memory.readbyte(obj.base + 0x04C) > 0,
-		}) end,
-		unthrowable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x062) > 0,
-			memory.readbyte(obj.base + 0x15D) > 0,
-		}) end,
+	process_throw = function(obj, box)
+		return define_box[game.box_type](obj, box)
+	end,
+	friends = {0x08, 0x10, 0x11, 0x37},
+	active = function() return any_true({
+		(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000),
+		(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x134) > 0,
+		memory.readbyte(obj.base + 0x147) > 0,
+		memory.readbyte(obj.base + 0x11E) > 0,
+		memory.readbyte(obj.base + 0x145) > 0 and memory.readbyte(obj.base + 0x1A4) == 0,
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x134) > 0,
+	}) end,
+	unthrowable = function(obj, box) return any_true({
+		not (memory.readword(obj.base + 0x004) == 0x0200 or memory.readword(obj.base + 0x004) == 0x0204),
+		memory.readbyte(obj.base + 0x143) > 0,
+		memory.readbyte(obj.base + 0x147) > 0,
+		memory.readbyte(obj.base + 0x11E) > 0,
+		bit.band(memory.readdword(obj.base + 0x094), 0xFFFFFF00) == 0,
+	}) end,
+},
+{	games = {"ringdest"},
+	number = {players = 2, projectiles = 28},
+	ground_level = 0x17,
+	address = {
+		player      = 0xFF8000,
+		projectile  = 0xFF9000,
+		screen_left = 0xFF72D2,
+		screen_top  = 0xFF72D4,
 	},
-	{
-		games = {"vsav","vhunt2","vsav2"},
-		number = {players = 2, projectiles = 32},
-		address = {
-			player           = 0xFF8400,
-			projectile       = 0xFF9400,
-			left_screen_edge = 0xFF8290,
-		},
-		offset = {
-			projectile_space = 0x100,
-			facing_dir       = 0x0B,
-			hitbox_ptr       = nil,
-		},
-		box_list = {
-			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x97, id_shift = 0x3, type = "push"},
-			{anim_ptr =  nil, addr_table_ptr = 0x80, id_ptr = 0x94, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x84, id_ptr = 0x95, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x96, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x90, id_ptr = 0x97, id_shift = 0x3, type = "throwable"}, --identical to pushbox
-			{anim_ptr = 0x1C, addr_table_ptr = 0x8C, id_ptr = 0x0A, id_shift = 0x5, type = "attack"},
-		},
-		throw_box_list = {
-			{anim_ptr =  nil, addr_table_ptr = 0x8C, id_ptr = 0x98, id_shift = 0x5, pos_offset = 0x9A, type = "throw"},
-		},
-		breakpoints = {
-			{["vsav"] = 0x029450, ["vhunt2"] = 0x028778, ["vsav2"] = 0x02874A, 
-			cmd = "maincpu.pb@(a6+98) = d0"},
-			{["vsav"] = 0x029638, ["vhunt2"] = 0x02896C, ["vsav2"] = 0x02893E, 
-			cmd = "maincpu.pb@(a6+98) = d0; maincpu.pw@(a6+9a) = maincpu.pw@(a4+10); maincpu.pw@(a6+9c) = maincpu.pw@(a4+14)"},
-		},
-		clones = {
-			["vsava"] = 0, ["vsavd"] = 0, ["vsavh"] = 0, ["vsavj"] = 0, ["vsavu"] = 0, 
-			["vhunt2"] = 0, ["vhunt2r1"] = -0xB2, ["vhunt2d"] = 0, ["vsav2"] = 0, ["vsav2d"] = 0, 
-		},
-		friends = {0x08, 0x10, 0x11, 0x37},
-		active = function() return any_true({
-			(memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000),
-			(memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0),
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x134) > 0,
-			memory.readbyte(obj.base + 0x147) > 0,
-			memory.readbyte(obj.base + 0x11E) > 0,
-			memory.readbyte(obj.base + 0x145) > 0 and memory.readbyte(obj.base + 0x1A4) == 0,
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x134) > 0,
-		}) end,
-		unthrowable = function(obj, box) return any_true({
-			not (memory.readword(obj.base + 0x004) == 0x0200 or memory.readword(obj.base + 0x004) == 0x0204),
-			memory.readbyte(obj.base + 0x143) > 0,
-			memory.readbyte(obj.base + 0x147) > 0,
-			memory.readbyte(obj.base + 0x11E) > 0,
-			bit.band(memory.readdword(obj.base + 0x094), 0xFFFFFF00) == 0,
-		}) end,
+	offset = {
+		object_space = 0x100,
+		flip_x       = 0x38,
+		id_ptr       = 0x4A,
 	},
-	{
-		games = {"ringdest"},
-		number = {players = 2, projectiles = 28},
-		ground_level = 23,
-		address = {
-			player           = 0xFF8000,
-			projectile       = 0xFF9000,
-			left_screen_edge = 0xFF72D2,
-			top_screen_edge  = 0xFF72D4,
-		},
-		offset = {
-			projectile_space = 0x100,
-			facing_dir       = 0x38,
-			id_ptr           = 0x4A,
-		},
-		box = {
-			radscale = 2,
-			hval = 0x0, vval = 0x4, hrad = 0x2, vrad = 0x6,
-		},
-		box_list = {
-			{addr_table_ptr = 0x2D8, type = "push"},
-			{addr_table_offset = 0xC956, id_shift = 0x2, type = "throwable"},
-			{addr_table_offset = 0xC92E, id_shift = 0x2, type = "vulnerability"},
-			{addr_table_offset = 0xC936, id_shift = 0x2, type = "vulnerability"},
-			{addr_table_offset = 0xC93E, id_shift = 0x2, type = "vulnerability"},
-			{addr_table_offset = 0xC946, id_shift = 0x2, type = "attack"},
-		},
-		throw_box_list = {
-			{addr_table_offset = 0xC94E, id_shift = 0x2, type = "throw"},
-		},
-		active = function() return any_true({
-			memory.readwordsigned(0xFF72D2) > 0,
-		}) end,
-		projectile_active = function(obj, box) return any_true({
-			memory.readword(obj.base) > 0x0100 and memory.readbyte(obj.base + 0x02) == 0x01,
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			obj.projectile ~= nil,
-			memory.readword(obj.base + 0x70) > 0,
-			memory.readword(obj.base + 0x98) > 0,
-		}) end,
+	box = {
+		radscale = 2,
+		val_x = 0x0, val_y = 0x4, rad_x = 0x2, rad_y = 0x6,
 	},
-	{
-		games = {"cybots"},
-		number = {players = 2, projectiles = 16},
-		address = {
-			player           = 0xFF81A0,
-			projectile       = 0xFF92A0,
-		},
-		offset = {
-			projectile_space = 0xC0,
-			facing_dir       = 0x09,
-			x_position       = 0x1A,
-			hitbox_ptr       = {player = 0x32, projectile = 0x32},
-		},
-		box_list = {
-			{anim_ptr = nil, addr_table_ptr = 0x08, id_ptr = 0x66, id_shift = 0x3, type = "push"},
-			{anim_ptr = nil, addr_table_ptr = 0x02, id_ptr = 0x63, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = nil, addr_table_ptr = 0x04, id_ptr = 0x64, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = nil, addr_table_ptr = 0x06, id_ptr = 0x65, id_shift = 0x3, type = "vulnerability"},
-			{dimensions = 0x19E, type = "throwable"},
-			{anim_ptr = nil, addr_table_ptr = 0x00, id_ptr = 0x62, id_shift = 0x4, type = "attack"},
-		},
-		throw_box_list = {
-			{dimensions = 0x3F8, clear = true, type = "throw"},
-		},
-		breakpoints = {
-			{["cybots"] = 0x002D66, ["cybots"] = 0x002DF0, cmd = "maincpu.pd@(a6+3f8) = maincpu.pd@(a6+160); " .. 
-			"maincpu.pw@(a6+3fc) = maincpu.pw@(a6+164); maincpu.pw@(a6+3fe) = maincpu.pw@(a6+164)"},
-		},
-		clones = {
-			["cybotsj"] = 0, ["cybotsud"] = 0, ["cybotsu"] = 0, 
-		},
-		get_cam_ptr = function()
-			local slot = {
-				0x6CDA, 0x6C1A, 0x6CDA, 0x6C1A, 0x6CDA, 0x6CDA, 0x6D9A, 0x6CDA, 
-				0x6CDA, 0x6D9A, 0x6D9A, 0x6D9A, 0x6C1A, 0x6D9A, 0x6CDA, 0x6CDA,
-			}
-			return 0xFF8000 + (slot[memory.readword(0xFFEA1A) + 1] or slot[1]) + 0x1A
-		end,
-		active = function() return any_true({
-			bit.band(memory.readdword(0xFF8008), 0x10FFFF) == 0x100000,
-		}) end,
-		projectile_active = function(obj) return any_true({
-			memory.readword(obj.base) > 0x0100 and bit.band(memory.readword(obj.base + 0x2), 0x8) == 0,
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			bit.band(memory.readword(obj.base + 0x126), 0x20) > 0,
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			bit.band(memory.readword(obj.base + 0x126), 0x20) > 0,
-		}) end,
-		unthrowable = function(obj, box)
-		local status = memory.readword(obj.base + 0x126)
-		return any_true({
-			memory.readword(obj.base + 0x152) > 0,
-			bit.band(status, 0x40) == 0 and bit.band(status, 0x30) > 0,
-			memory.readbyte(obj.base + 0x1A6) > 0,
-		}) end,
+	box_list = {
+		{addr_table_ptr  = 0x2D8,  type = "push"},
+		{addr_table_base = 0xC956, type = "throwable"},
+		{addr_table_base = 0xC92E, type = "vulnerability"},
+		{addr_table_base = 0xC936, type = "vulnerability"},
+		{addr_table_base = 0xC93E, type = "vulnerability"},
+		{addr_table_base = 0xC946, type = "attack"},
+		{addr_table_base = 0xC94E, type = "throw"},
 	},
-	{
-		games = {"sgemf"},
-		number = {players = 2, projectiles = 14},
-		address = {
-			player           = 0xFF8400,
-			projectile       = 0xFF8C00,
-			left_screen_edge = 0xFF8290,
-		},
-		offset = {
-			projectile_space = 0x100,
-			facing_dir       = 0x0B,
-			hitbox_ptr       = nil,
-		},
-		box = {radscale = 2},
-		box_list = {
-			{anim_ptr =  nil, addr_table_ptr = 0x8C, id_ptr = 0x93, id_shift = 0x3, type = "push"},
-			{anim_ptr =  nil, addr_table_ptr = 0x80, id_ptr = 0x90, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr =  nil, addr_table_ptr = 0x84, id_ptr = 0x91, id_shift = 0x3, type = "vulnerability"},
-			{anim_ptr = 0x1C, addr_table_ptr = 0x8C, id_ptr = 0x0B, id_shift = 0x3, type = "throwable"}, --same as pushbox?
-			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x92, id_shift = 0x5, type = "attack"},
-		},
-		throw_box_list = {
-			{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x98, id_shift = 0x5, type = "throw"},
-		},
-		breakpoints = {
-			{["sgemf"] = 0x012800, cmd = "maincpu.pb@(a6+98) = d0"},
-		},
-		clones = {
-			["pfghtj"] = 0, ["sgemfd"] = 0, ["sgemfa"] = 0, ["sgemfh"] = 0, 
-		},
-		active = function() return any_true({
-			memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000,
-			memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0,
-		}) end,
-		no_hit = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0xB1) > 0,
-		}) end,
-		invulnerable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x147) > 0,
-			memory.readbyte(obj.base + 0x132) > 0,
-			memory.readbyte(obj.base + 0x11B) > 0,
-		}) end,
-		unpushable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x1AA) > 0,
-			memory.readbyte(obj.base + 0x093) == 0,
-		}) end,
-		unthrowable = function(obj, box) return any_true({
-			memory.readbyte(obj.base + 0x143) > 0,
-			memory.readbyte(obj.base + 0x188) > 0,
-			memory.readbyte(obj.base + 0x119) == 0 and memory.readword(obj.base + 0x04) == 0x0202,
-			memory.readword(box.id_base + 0x08) == 0,
-			memory.readbyte(obj.base + 0x105) > 0 and memory.readbyte(obj.base + 0x1BE) == 0 and memory.readbyte(box.id_base + 0x17) == 0,
-		}) end,
+	active = function() return any_true({
+		memory.readwordsigned(0xFF72D2) > 0,
+	}) end,
+	projectile_active = function(obj, box) return any_true({
+		memory.readword(obj.base) > 0x0100 and memory.readbyte(obj.base + 0x02) == 0x01,
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		obj.projectile ~= nil,
+		memory.readword(obj.base + 0x70) > 0,
+		memory.readword(obj.base + 0x98) > 0,
+	}) end,
+},
+{	games = {"cybots"},
+	number = {players = 2, projectiles = 16},
+	address = {
+		player      = 0xFF81A0,
+		projectile  = 0xFF92A0,
 	},
+	offset = {
+		object_space = 0xC0,
+		flip_x       = 0x09,
+		pos_x        = 0x1A,
+		hitbox_ptr   = {player = 0x32, projectile = 0x32},
+	},
+	box_list = {
+		{anim_ptr = nil, addr_table_ptr = 0x08, id_ptr = 0x66, id_shift = 0x3, type = "push"},
+		{anim_ptr = nil, addr_table_ptr = 0x02, id_ptr = 0x63, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = nil, addr_table_ptr = 0x04, id_ptr = 0x64, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = nil, addr_table_ptr = 0x06, id_ptr = 0x65, id_shift = 0x3, type = "vulnerability"},
+		{method = "dimensions", dimensions = 0x19E, type = "throwable"},
+		{anim_ptr = nil, addr_table_ptr = 0x00, id_ptr = 0x62, id_shift = 0x4, type = "attack"},
+	},
+	breakpoints = {
+		{["cybots"] = 0x002DF0, func = function()
+			local base = memory.getregister("m68000.a6")
+			insert_throw({
+				val_x = memory.readwordsigned(base + 0x160),
+				val_y = memory.readwordsigned(base + 0x162),
+				rad_x = memory.readwordsigned(base + 0x164),
+				rad_y = memory.readwordsigned(base + 0x164), --Same as rad_x. Glitch?
+				type = "axis throw",
+			}) end},
+	},
+	clones = {
+		["cybotsj"] = 0, ["cybotsud"] = 0, ["cybotsu"] = 0, 
+	},
+	process_throw = function(obj, box)
+		box.val_x  = obj.pos_x + box.val_x * obj.flip_x
+		box.val_y  = obj.pos_y - box.val_y
+		box.left   = box.val_x - box.rad_x
+		box.right  = box.val_x + box.rad_x
+		box.top    = box.val_y - box.rad_y
+		box.bottom = box.val_y + box.rad_y
+
+		return box
+	end,
+	get_cam_ptr = function()
+		local slot = {
+			0x6CDA, 0x6C1A, 0x6CDA, 0x6C1A, 0x6CDA, 0x6CDA, 0x6D9A, 0x6CDA, 
+			0x6CDA, 0x6D9A, 0x6D9A, 0x6D9A, 0x6C1A, 0x6D9A, 0x6CDA, 0x6CDA,
+		}
+		return 0xFF8000 + (slot[memory.readword(0xFFEA1A) + 1] or slot[1]) + 0x1A
+	end,
+	active = function() return any_true({
+		bit.band(memory.readdword(0xFF8008), 0x10FFFF) == 0x100000,
+	}) end,
+	projectile_active = function(obj) return any_true({
+		memory.readword(obj.base) > 0x0100 and bit.band(memory.readword(obj.base + 0x2), 0x8) == 0,
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		bit.band(memory.readword(obj.base + 0x126), 0x20) > 0,
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		bit.band(memory.readword(obj.base + 0x126), 0x20) > 0,
+	}) end,
+	unthrowable = function(obj, box)
+	local status = memory.readword(obj.base + 0x126)
+	return any_true({
+		memory.readword(obj.base + 0x152) > 0,
+		bit.band(status, 0x40) == 0 and bit.band(status, 0x30) > 0,
+		memory.readbyte(obj.base + 0x1A6) > 0,
+	}) end,
+},
+{	games = {"sgemf"},
+	number = {players = 2, projectiles = 14},
+	address = {
+		player      = 0xFF8400,
+		projectile  = 0xFF8C00,
+		screen_left = 0xFF8290,
+	},
+	offset = {
+		object_space = 0x100,
+		flip_x       = 0x0B,
+		hitbox_ptr   = nil,
+	},
+	box = {radscale = 2},
+	box_list = {
+		{anim_ptr =  nil, addr_table_ptr = 0x8C, id_ptr = 0x93, id_shift = 0x3, type = "push"},
+		{anim_ptr =  nil, addr_table_ptr = 0x80, id_ptr = 0x90, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr =  nil, addr_table_ptr = 0x84, id_ptr = 0x91, id_shift = 0x3, type = "vulnerability"},
+		{anim_ptr = 0x1C, addr_table_ptr = 0x8C, id_ptr = 0x0B, id_shift = 0x3, type = "throwable"}, --same as pushbox?
+		{anim_ptr =  nil, addr_table_ptr = 0x88, id_ptr = 0x92, id_shift = 0x5, type = "attack"},
+	},
+	breakpoints = {
+		{["sgemf"] = 0x012800, func = function() insert_throw({
+			id = bit.band(memory.getregister("m68000.d0"), 0xFF),
+			anim_ptr = nil, addr_table_ptr = 0x88, id_ptr = 0x98, id_shift = 0x5, type = "throw",
+		}) end},
+	},
+	clones = {
+		["pfghtj"] = 0, ["sgemfd"] = 0, ["sgemfa"] = 0, ["sgemfh"] = 0, 
+	},
+	process_throw = function(obj, box)
+		return define_box[game.box_type](obj, box)
+	end,
+	active = function() return any_true({
+		memory.readdword(0xFF8004) == 0x40000 and memory.readdword(0xFF8008) == 0x40000,
+		memory.readword(0xFF8008) == 0x2 and memory.readword(0xFF800A) > 0,
+	}) end,
+	no_hit = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0xB1) > 0,
+	}) end,
+	invulnerable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x147) > 0,
+		memory.readbyte(obj.base + 0x132) > 0,
+		memory.readbyte(obj.base + 0x11B) > 0,
+	}) end,
+	unpushable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x1AA) > 0,
+		memory.readbyte(obj.base + 0x093) == 0,
+	}) end,
+	unthrowable = function(obj, box) return any_true({
+		memory.readbyte(obj.base + 0x143) > 0,
+		memory.readbyte(obj.base + 0x188) > 0,
+		memory.readbyte(obj.base + 0x119) == 0 and memory.readword(obj.base + 0x04) == 0x0202,
+		memory.readword(box.id_base + 0x08) == 0,
+		memory.readbyte(obj.base + 0x105) > 0 and memory.readbyte(obj.base + 0x1BE) == 0 and memory.readbyte(box.id_base + 0x17) == 0,
+	}) end,
+},
 }
 
 --------------------------------------------------------------------------------
--- post-process modules
-
-local function get_throw_type(entry)
-	if entry.throw_type then
-		return entry.throw_type
-	end
-	for _, trait in ipairs({
-		{entry.dimensions, "dimensions"},
-		{entry.x_range, "range given"},
-		{entry.ptr, "range pointer"},
-		{entry.pleasure_state, "midnight pleasure"},
-	}) do
-		if trait[1] then
-			return trait[2]
-		end
-	end
-	return nil
-end
+-- post-process the modules
 
 for game in ipairs(profile) do
 	local g = profile[game]
-	g.box_number = #g.box_list + #g.throw_box_list
 	g.box_type = g.offset.id_ptr and "id ptr" or "hitbox ptr"
-	for _, entry in ipairs(g.box_list) do
-		entry.throw_type = get_throw_type(entry)
-	end
-	for _, entry in ipairs(g.throw_box_list) do
-		entry.throw_type = get_throw_type(entry)
-	end
-
 	g.ground_level = g.ground_level or -0x0F
 	g.offset.player_space = g.offset.player_space or 0x400
-	g.offset.x_position   = g.offset.x_position   or 0x10
-	g.offset.y_position   = g.offset.y_position   or g.offset.x_position + 0x4
-	g.offset.hitbox_ptr   = g.offset.hitbox_ptr   or {}
-	g.friends = g.friends or {}
-	g.box     = g.box     or {}
+	g.offset.pos_x = g.offset.pos_x or 0x10
+	g.offset.pos_y = g.offset.pos_y or g.offset.pos_x + 0x4
+	g.offset.hitbox_ptr = g.offset.hitbox_ptr or {}
+	g.box = g.box or {}
 	g.box.radius_read = g.box.radius_read or memory.readword
 	g.box.offset_read = g.box.radius_read == memory.readword and memory.readwordsigned or memory.readbytesigned
-	g.box.hval        = g.box.hval or 0x0
-	g.box.vval        = g.box.vval or 0x2
-	g.box.hrad        = g.box.hrad or 0x4
-	g.box.vrad        = g.box.vrad or 0x6
-	g.box.radscale    = g.box.radscale or 1
+	g.box.val_x    = g.box.val_x or 0x0
+	g.box.val_y    = g.box.val_y or 0x2
+	g.box.rad_x    = g.box.rad_x or 0x4
+	g.box.rad_y    = g.box.rad_y or 0x6
+	g.box.radscale = g.box.radscale or 1
 	g.no_hit       = g.no_hit       or function() end
 	g.invulnerable = g.invulnerable or function() end
 	g.unpushable   = g.unpushable   or function() end
@@ -642,34 +796,78 @@ for game in ipairs(profile) do
 	g.breakables = g.breakables or {number = 0}
 end
 
-for _,box in pairs(boxes) do
+for _, box in pairs(boxes) do
 	box.fill    = bit.lshift(box.color, 8) + (globals.no_alpha and 0x00 or box.fill)
 	box.outline = bit.lshift(box.color, 8) + (globals.no_alpha and 0xFF or box.outline)
 end
 
-local game
-local frame_buffer = {}
+local projectile_type = {
+	       ["attack"] = "proj. attack",
+	["vulnerability"] = "proj. vulnerability",
+}
+
 local DRAW_DELAY = 1
 if fba then
 	DRAW_DELAY = DRAW_DELAY + 1
+end
+emu.registerfuncs = fba and memory.registerexec --0.0.7+
+
+
+--------------------------------------------------------------------------------
+-- functions referenced in the modules
+
+any_true = function(condition)
+	for n = 1, #condition do
+		if condition[n] == true then return true end
+	end
+end
+
+
+get_thrower = function()
+	local base = bit.band(0xFFFFFF, memory.getregister("m68000.a6"))
+	for _, obj in ipairs(framebuffer[DRAW_DELAY]) do
+		if base == obj.base then
+			return obj
+		end
+	end
+end
+
+
+insert_throw = function(box)
+	local obj = get_thrower()
+	if not framebuffer[DRAW_DELAY].match_active or not obj then
+		return
+	end
+	box.spawntime = emu.framecount() + 1
+	throwbuffer[obj.base] = game.process_throw(obj, box)
+end
+
+
+signed_register = function(register, bytes)
+	local bits = bit.lshift(4, bytes or 2)
+	local val = bit.band(memory.getregister("m68000." .. register), bit.lshift(1, bits) - 1)
+	if bit.arshift(val, bits-1) > 0 then
+		val = val - bit.lshift(1, bits)
+	end
+	return val
+end
+
+
+get_x = function(x)
+	return x - framebuffer[DRAW_DELAY+1].screen_left
+end
+
+
+get_y = function(y)
+	return emu.screenheight() - (y + game.ground_level) + framebuffer[DRAW_DELAY+1].screen_top
 end
 
 
 --------------------------------------------------------------------------------
 -- prepare the hitboxes
 
-local function get_x(x)
-	return x - globals.left_screen_edge
-end
-
-
-local function get_y(y)
-	return emu.screenheight() - (y + game.ground_level) + globals.top_screen_edge
-end
-
-
 local process_box_type = {
-	["vulnerability"] = function(obj, box, box_entry)
+	["vulnerability"] = function(obj, box)
 		if game.invulnerable(obj, box) or obj.friends then
 			return false
 		end
@@ -687,34 +885,27 @@ local process_box_type = {
 		end
 	end,
 
-	["tripwire"] = function(obj, box, box_entry)
-		box.id = bit.rshift(box.id, 1) + 0x3E
-		obj.throw_pos_x = memory.readwordsigned(obj.base + 0x1E4)
-		if obj.throw_pos_x == 0 or memory.readbyte(obj.base + 0x102) ~= 0x0E then
-			return false
-		end
-		obj.throw_pos_x = obj.throw_pos_x + obj.pos_x
-		if not (memory.readbyte(obj.base + 0x07) == 0x04 and memory.readbyte(obj.base + 0xAA) == 0x0C) then
-			memory.writeword(obj.base + 0x1E4, 0) --bad
-		end
-	end,
-
 	["negate"] = function(obj, box)
 	end,
 
-	["throw"] = function(obj, box, box_entry)
-		if not box_entry.id_ptr then
-			return
+	["tripwire"] = function(obj, box)
+		box.id = bit.rshift(box.id, 1) + 0x3E
+		box.pos_x = box.pos_x or memory.readwordsigned(obj.base + 0x1E4)
+		if box.pos_x == 0 or memory.readbyte(obj.base + 0x102) ~= 0x0E then
+			return false
+		elseif box.clear and not (memory.readbyte(obj.base + 0x07) == 0x04 and memory.readbyte(obj.base + 0xAA) == 0x0C) then
+			memory.writeword(obj.base + 0x1E4, 0) --sfa3 w/o registerfuncs (bad)
 		end
-		memory.writebyte(obj.base + box_entry.id_ptr, 0) --bad
-		if box_entry.pos_offset and memory.readdword(obj.base + box_entry.pos_offset) ~= 0 then --ranged throws in vsav
-			obj.throw_pos_x = get_x(memory.readword(obj.base + box_entry.pos_offset))
-			obj.throw_pos_y = get_y(memory.readword(obj.base + box_entry.pos_offset + 2))
-			memory.writedword(obj.base + box_entry.pos_offset, 0)
+		box.pos_x = obj.pos_x + box.pos_x
+	end,
+
+	["throw"] = function(obj, box)
+		if box.clear then
+			memory.writebyte(obj.base + box.id_ptr, 0) --sfa3 w/o registerfuncs (bad)
 		end
 	end,
 
-	["axis throw"] = function(obj, box, box_entry)
+	["axis throw"] = function(obj, box)
 	end,
 
 	["throwable"] = function(obj, box)
@@ -725,113 +916,124 @@ local process_box_type = {
 }
 
 
-local function set_projectile_type(obj, box)
-	if obj.projectile and not obj.friends then
-		box.type = (box.type == "vulnerability" and "proj. vulnerability") or box.type
-		box.type = (box.type == "attack" and "proj. attack") or box.type
-	end
-end
-
-
-local define_box = {
+define_box = {
 	["hitbox ptr"] = function(obj, box_entry)
-		if obj.projectile and box_entry.no_projectile then
+		local box = copytable(box_entry)
+
+		if obj.projectile and box.no_projectile then
 			return nil
 		end
 
-		local box = {type = box_entry.type}
+		if not box.id then
+			box.id_base = (box.anim_ptr and memory.readdword(obj.base + box.anim_ptr)) or obj.base
+			box.id = memory.readbyte(box.id_base + box.id_ptr)
+		end
 
-		box.id_base = (box_entry.anim_ptr and memory.readdword(obj.base + box_entry.anim_ptr)) or obj.base
-		box.id = memory.readbyte(box.id_base + box_entry.id_ptr)
-
-		if process_box_type[box.type](obj, box, box_entry) == false or box.id == 0 then
+		if process_box_type[box.type](obj, box) == false or box.id == 0 then
 			return nil
 		end
 
 		local addr_table
 		if not obj.hitbox_ptr then
-			addr_table = memory.readdword(obj.base + box_entry.addr_table_ptr)
+			addr_table = memory.readdword(obj.base + box.addr_table_ptr)
 		else
-			local table_offset = obj.projectile and box_entry.p_addr_table_ptr or box_entry.addr_table_ptr
+			local table_offset = obj.projectile and box.p_addr_table_ptr or box.addr_table_ptr
 			addr_table = obj.hitbox_ptr + memory.readwordsigned(obj.hitbox_ptr + table_offset)
 		end
-		box.address = addr_table + bit.lshift(box.id, box_entry.id_shift)
+		box.address = addr_table + bit.lshift(box.id, box.id_shift)
 
-		box.hrad = game.box.radius_read(box.address + game.box.hrad)/game.box.radscale
-		box.vrad = game.box.radius_read(box.address + game.box.vrad)/game.box.radscale
-		box.hval = game.box.offset_read(box.address + game.box.hval)
-		box.vval = game.box.offset_read(box.address + game.box.vval)
+		box.rad_x = game.box.radius_read(box.address + game.box.rad_x)/game.box.radscale
+		box.rad_y = game.box.radius_read(box.address + game.box.rad_y)/game.box.radscale
+		box.val_x = game.box.offset_read(box.address + game.box.val_x)
+		box.val_y = game.box.offset_read(box.address + game.box.val_y)
 		if box.type == "push" then
-			obj.vval, obj.vrad = box.vval, box.vrad
+			obj.val_y, obj.rad_y = box.val_y, box.rad_y
 		end
 
-		box.hval   = (obj.throw_pos_x or obj.pos_x) + box.hval * (obj.facing_dir == 1 and -1 or 1)
-		box.vval   = (obj.throw_pos_y or obj.pos_y) - box.vval
-		box.left   = box.hval - box.hrad
-		box.right  = box.hval + box.hrad
-		box.top    = box.vval - box.vrad
-		box.bottom = box.vval + box.vrad
+		box.val_x  = (box.pos_x or obj.pos_x) + box.val_x * obj.flip_x
+		box.val_y  = (box.pos_y or obj.pos_y) - box.val_y
+		box.left   = box.val_x - box.rad_x
+		box.right  = box.val_x + box.rad_x
+		box.top    = box.val_y - box.rad_y
+		box.bottom = box.val_y + box.rad_y
 
-		set_projectile_type(obj, box)
+		box.type = obj.projectile and not obj.friends and projectile_type[box.type] or box.type
 
 		return box
 	end,
 
-	["id ptr"] = function(obj, box_entry) --for ringdest only
-		local box = {type = box_entry.type}
+	["id ptr"] = function(obj, box_entry) --ringdest only
+		local box = copytable(box_entry)
 
-		if process_box_type[box.type](obj, box, box_entry) == false then
+		if process_box_type[box.type](obj, box) == false then
 			return nil
 		end
 
-		if box_entry.addr_table_offset then
-			box.address = box_entry.addr_table_offset + bit.lshift(obj.id_offset, box_entry.id_shift)
+		if box.addr_table_base then
+			box.address = box.addr_table_base + bit.lshift(obj.id_offset, 2)
 		else
-			box.address = memory.readdword(obj.base + box_entry.addr_table_ptr)
+			box.address = memory.readdword(obj.base + box.addr_table_ptr)
 		end
 
-		box.hrad = game.box.radius_read(box.address + game.box.hrad)/game.box.radscale
-		box.vrad = game.box.radius_read(box.address + game.box.vrad)/game.box.radscale
-		if box.hrad == 0 or box.vrad == 0 then
+		box.rad_x = game.box.radius_read(box.address + game.box.rad_x)/game.box.radscale
+		box.rad_y = game.box.radius_read(box.address + game.box.rad_y)/game.box.radscale
+		if box.rad_x == 0 or box.rad_y == 0 then
 			return nil
 		end
-		box.hval = game.box.offset_read(box.address + game.box.hval)
-		box.vval = game.box.offset_read(box.address + game.box.vval)
+		box.val_x = game.box.offset_read(box.address + game.box.val_x)
+		box.val_y = game.box.offset_read(box.address + game.box.val_y)
 
-		box.hval   = obj.pos_x + (box.hrad + box.hval) * (obj.facing_dir > 0 and -1 or 1)
-		box.vval   = obj.pos_y - (box.vrad + box.vval)
-		box.left   = box.hval - box.hrad
-		box.right  = box.hval + box.hrad
-		box.top    = box.vval - box.vrad
-		box.bottom = box.vval + box.vrad
+		box.val_x  = obj.pos_x + (box.rad_x + box.val_x) * obj.flip_x
+		box.val_y  = obj.pos_y - (box.rad_y + box.val_y)
+		box.left   = box.val_x - box.rad_x
+		box.right  = box.val_x + box.rad_x
+		box.top    = box.val_y - box.rad_y
+		box.bottom = box.val_y + box.rad_y
 
-		set_projectile_type(obj, box)
+		box.type = obj.projectile and projectile_type[box.type] or box.type
 
 		return box
 	end,
 
-	["dimensions"] = function(obj, box_entry) --sfa/sfa2 & cybots
-		local box = {type = box_entry.type}
+	["range given"] = function(obj, box_entry) --dstlk/nwarr throwable; nwarr ranged
+		local box = copytable(box_entry)
 
-		if process_box_type[box.type](obj, box, box_entry) == false or 
-			memory.readdword(obj.base + box_entry.dimensions + 0x4) == 0 then
+		box.base_x  = memory.readword(obj.base + box.base_x)
+		box.range_x = memory.readbyte(obj.base + box.range_x)
+		if process_box_type[box.type](obj, box) == false or box.base_x == 0 or box.range_x == 0 then
 			return nil
 		end
-		box.hval = memory.readwordsigned(obj.base + box_entry.dimensions + 0x0)
-		box.hrad = memory.readword(obj.base + box_entry.dimensions + 0x4)
-		if memory.readword(obj.base + box_entry.dimensions + 0x6) == 0 then --sfa/sfa2 ground/tripwire
-			box.vval = obj.vval or 0x28
-			box.vrad = obj.vrad or 0x28
-			box.type = "throw"
+		box.right = get_x(box.base_x) - box.range_x
+		box.left  = get_x(box.base_x) + box.range_x
+		if box.type == "axis throw" then --nwarr ranged
+			box.bottom = get_y(game.ground_level)
+			box.top    = get_y(memory.readword(obj.base + box.range_y))
 		else
-			box.vval = memory.readwordsigned(obj.base + box_entry.dimensions + 0x2)
-			box.vrad = memory.readword(obj.base + box_entry.dimensions + 0x6)
+			box.top    = obj.pos_y - memory.readbyte(obj.base + box.range_y)
+			if memory.readbyte(obj.base + box.air_state) > 0 then
+				box.bottom = box.top + 0xC --air throwable; verify range @ 033BE0 [dstlk] & 029F50 [nwarr]
+			else
+				box.bottom = obj.pos_y --ground throwable
+			end
 		end
-		if box_entry.clear then
-			memory.writedword(obj.base + box_entry.dimensions + 0x0, 0)
-			memory.writedword(obj.base + box_entry.dimensions + 0x4, 0)
+		box.val_x = (box.left + box.right)/2
+		box.val_y = (box.bottom + box.top)/2
+
+		return box
+	end,
+
+	["dimensions"] = function(obj, box_entry) --cybots throwable
+		local box = copytable(box_entry)
+
+		if process_box_type[box.type](obj, box) == false then
+			return nil
 		end
-		box.hval   = obj.pos_x + box.hval * (obj.facing_dir == 1 and -1 or 1)
+		box.hval = memory.readwordsigned(obj.base + box.dimensions + 0x0)
+		box.vval = memory.readwordsigned(obj.base + box.dimensions + 0x2)
+		box.hrad = memory.readword(obj.base + box.dimensions + 0x4)
+		box.vrad = memory.readword(obj.base + box.dimensions + 0x6)
+
+		box.hval   = obj.pos_x + box.hval * obj.flip_x
 		box.vval   = obj.pos_y - box.vval
 		box.left   = box.hval - box.hrad
 		box.right  = box.hval + box.hrad
@@ -840,120 +1042,35 @@ local define_box = {
 
 		return box
 	end,
-
-	["range given"] = function(obj, box_entry) --dstlk/nwarr throwable; nwarr ranged
-		local box = {type = box_entry.type}
-
-		local base  = memory.readword(obj.base + box_entry.x_base)
-		local range = memory.readbyte(obj.base + box_entry.x_range) * (obj.facing_dir == 1 and -1 or 1)
-		if process_box_type[box.type](obj, box, box_entry) == false or base == 0 or range == 0 then
-			return nil
-		end
-		box.right = get_x(base) - range
-		box.left  = get_x(base) + range
-		if box_entry.hard_y_base and box_entry.y_range then --nwarr ranged
-			box.bottom = get_y(box_entry.hard_y_base) --ground level is 0x28
-			box.top    = get_y(memory.readword(obj.base + box_entry.y_range))
-		else
-			box.top    = obj.pos_y - memory.readbyte(obj.base + box_entry.y_range)
-			if memory.readbyte(obj.base + box_entry.air_state) > 0 then
-				box.bottom = box.top + 0xC --air throwable; verify range @ 033BE0 [dstlk] & 029F50 [nwarr]
-			else
-				box.bottom = obj.pos_y --ground throwable
-			end
-		end
-		box.hval = (box.left + box.right)/2
-		box.vval = (box.bottom + box.top)/2
-
-		return box
-	end,
-
-	["range pointer"] = function(obj, box_entry) --dstlk/nwarr ground & air
-		local box = {type = box_entry.type}
-
-		local range_offset = memory.readbytesigned(obj.base + box_entry.offset)
-		local range = memory.readword(memory.readdword(obj.base + box_entry.ptr) + range_offset)
-		if bit.band(range_offset, 0xFE) == 0 or range == 0 or 
-			(box_entry.throw_state and memory.readbyte(obj.base + box_entry.throw_state) == 0) then
-			return nil
-		end
-		if box_entry.clear then --air: check if throw command was just input; verify @ 0451D6 [dstlk] & 0355CE [nwarr]
-			memory.writebyte(obj.base + box_entry.offset, 0)
-			local curr = memory.readword(obj.base + game.offset.player_space - 0x7A)
-			local prev = memory.readword(obj.base + game.offset.player_space - 0x78)
-			if bit.band(curr, 0x07) == 0 or bit.band(bit.band(bit.bnot(prev), curr), 0x60) == 0 then
-				return nil
-			end
-		end
-
-		box.left = obj.pos_x + range * (obj.facing_dir == 1 and -1 or 1)
-		if box_entry.anak_width and memory.readbyte(obj.base + game.offset.character) == 0x06 then --dstlk Anakaris
-			box.right = box.left - box_entry.anak_width * (obj.facing_dir == 1 and -1 or 1)
-		else
-			box.right = obj.pos_x
-		end
-		box.top = obj.pos_y - memory.readbyte(obj.base + box_entry.y_range)
-		if box_entry.clear then --air: same vertical range as throwable
-			box.bottom = box.top + 0xC
-		else --ground
-			box.bottom = obj.pos_y
-		end
-		box.hval = (box.left + box.right)/2
-		box.vval = (box.bottom + box.top)/2
-		
-		return box
-	end,
-
-	["midnight pleasure"] = function(obj, box_entry) --dstlk/nwarr
-		local box = {type = box_entry.type}
-
-		if memory.readbyte(obj.base + game.offset.character) ~= 0x01 or --Demitri
-			memory.readbyte(obj.base + 0x13C) ~= box_entry.pleasure_state or --MP in progress
-			memory.readword(obj.base + 0x020) == 0x00 then --time remaining
-			return nil
-		end
-
-		box.right  = obj.pos_x
-		box.left   = obj.pos_x + box_entry.hard_x_range * (obj.facing_dir == 1 and -1 or 1)
-		box.bottom = obj.pos_y
-		box.top    = obj.pos_y - memory.readbyte(obj.base + box_entry.y_range)
-		box.hval   = (box.left + box.right)/2
-		box.vval   = (box.bottom + box.top)/2
-		
-		return box
-	end,
 }
 
 
-local prepare_boxes = {
+local get_ptr = {
 	["hitbox ptr"] = function(obj)
 		obj.hitbox_ptr = obj.projectile and game.offset.hitbox_ptr.projectile or game.offset.hitbox_ptr.player
 		obj.hitbox_ptr = obj.hitbox_ptr and memory.readdword(obj.base + obj.hitbox_ptr) or nil
-		for _, box_entry in ipairs(game.box_list) do
-			table.insert(obj, define_box[box_entry.throw_type or game.box_type](obj, box_entry))
-		end
 	end,
 
-	["id ptr"] = function(obj) --for ringdest only
+	["id ptr"] = function(obj) --ringdest only
 		obj.id_offset = memory.readword(obj.base + game.offset.id_ptr)
-		for entry in ipairs(game.box_list) do
-			table.insert(obj, define_box[game.box_type](obj, game.box_list[entry]))
-		end
 	end,
 }
 
 
-local function update_object(obj)
-	obj.facing_dir = memory.readbyte(obj.base + game.offset.facing_dir)
-	obj.pos_x      = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
-	obj.pos_y      = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
-	prepare_boxes[game.box_type](obj)
+local update_object = function(obj)
+	obj.flip_x = memory.readbyte(obj.base + game.offset.flip_x) > 0 and -1 or 1
+	obj.pos_x  = get_x(memory.readwordsigned(obj.base + game.offset.pos_x))
+	obj.pos_y  = get_y(memory.readwordsigned(obj.base + game.offset.pos_y))
+	get_ptr[game.box_type](obj)
+	for _, box_entry in ipairs(game.box_list) do
+		table.insert(obj, define_box[box_entry.method or game.box_type](obj, box_entry))
+	end
 	return obj
 end
 
 
-local function friends_status(id)
-	for _, friend in ipairs(game.friends) do
+local friends_status = function(id)
+	for _, friend in ipairs(game.friends or {}) do
 		if id == friend then
 			return true
 		end
@@ -961,13 +1078,13 @@ local function friends_status(id)
 end
 
 
-local function read_projectiles(object_list)
+local read_projectiles = function(f)
 	for i = 1, game.number.projectiles do
-		local obj = {base = game.address.projectile + (i-1) * game.offset.projectile_space}
+		local obj = {base = game.address.projectile + (i-1) * game.offset.object_space}
 		if game.projectile_active(obj) then
 			obj.projectile = true
 			obj.friends = friends_status(memory.readbyte(obj.base + 0x02))
-			table.insert(object_list, update_object(obj))
+			table.insert(f, update_object(obj))
 		end
 	end
 
@@ -976,16 +1093,16 @@ local function read_projectiles(object_list)
 		local id = memory.readbyte(obj.base + 0x02)
 		for _, valid in ipairs(game.special_projectiles.no_box) do
 			if id == valid then
-				obj.pos_x = get_x(memory.readwordsigned(obj.base + game.offset.x_position))
-				obj.pos_y = get_y(memory.readwordsigned(obj.base + game.offset.y_position))
-				table.insert(object_list, obj)
+				obj.pos_x = get_x(memory.readwordsigned(obj.base + game.offset.pos_x))
+				obj.pos_y = get_y(memory.readwordsigned(obj.base + game.offset.pos_y))
+				table.insert(f, obj)
 				break
 			end
 		end
 		for _, valid in ipairs(game.special_projectiles.whitelist) do
 			if id == valid then
 				obj.projectile, obj.hit_only, obj.friends = true, true, friends_status(id)
-				table.insert(object_list, update_object(obj))
+				table.insert(f, update_object(obj))
 				break
 			end
 		end
@@ -996,44 +1113,63 @@ local function read_projectiles(object_list)
 		local status = memory.readbyte(obj.base + 0x04)
 		if status == 0x02 then
 			obj.projectile = true
-			obj.x_adjust = 0x1C*((globals.left_screen_edge-0x100)/0xC0-1)
-			table.insert(object_list, update_object(obj))
+			obj.x_adjust = 0x1C*((f.screen_left-0x100)/0xC0-1)
+			table.insert(f, update_object(obj))
 		end
 	end
 ]]
 end
 
 
-local function update_hitboxes()
+local update_hitboxes = function()
 	if not game then
 		return
 	end
-	globals.left_screen_edge_ptr = game.address.left_screen_edge or game.get_cam_ptr()
-	globals.top_screen_edge_ptr  = game.address.top_screen_edge or globals.left_screen_edge_ptr + 0x4
-	globals.left_screen_edge = memory.readwordsigned(globals.left_screen_edge_ptr)
-	globals.top_screen_edge  = memory.readwordsigned(globals.top_screen_edge_ptr)
+	local screen_left_ptr = game.address.screen_left or game.get_cam_ptr()
+	local screen_top_ptr  = game.address.screen_top or screen_left_ptr + 0x4
 
 	for f = 1, DRAW_DELAY do
-		frame_buffer[f] = copytable(frame_buffer[f+1])
+		framebuffer[f] = copytable(framebuffer[f+1])
 	end
 
-	frame_buffer[DRAW_DELAY+1] = {match_active = game.active()}
+	framebuffer[DRAW_DELAY+1] = {
+		match_active = game.active(),
+		screen_left = memory.readwordsigned(screen_left_ptr),
+		screen_top  = memory.readwordsigned(screen_top_ptr),
+	}
+	local f = framebuffer[DRAW_DELAY+1]
+	if not f.match_active then
+		return
+	end
 
 	for p = 1, game.number.players do
 		local player = {base = game.address.player + (p-1) * game.offset.player_space}
 		if memory.readbyte(player.base) > 0 then
-			table.insert(frame_buffer[DRAW_DELAY+1], update_object(player))
+			table.insert(f, update_object(player))
 		end
 	end
-	read_projectiles(frame_buffer[DRAW_DELAY+1])
+	read_projectiles(f)
 
-	for _, prev_frame in ipairs(frame_buffer[DRAW_DELAY] or {}) do
-		if prev_frame.projectile then
+	f = framebuffer[DRAW_DELAY]
+	for _, obj in ipairs(f or {}) do
+		if obj.projectile then
 			break
-		else
-			for _, box_entry in ipairs(game.throw_box_list) do
-				table.insert(prev_frame, define_box[box_entry.throw_type or game.box_type](prev_frame, box_entry))
+		end
+		for _, box_entry in ipairs(game.throw_box_list or {}) do
+			if not (emu.registerfuncs and box_entry.clear) then
+				table.insert(obj, define_box[box_entry.method or game.box_type](obj, box_entry))
 			end
+		end
+	end
+
+	f.max_boxes = 0
+	for _, obj in ipairs(f or {}) do
+		f.max_boxes = math.max(f.max_boxes, #obj)
+	end
+
+	for n, box in pairs(throwbuffer) do
+		if emu.framecount() > box.spawntime then
+			throwbuffer[n] = nil
 		end
 	end
 end
@@ -1047,7 +1183,7 @@ end)
 --------------------------------------------------------------------------------
 -- draw the hitboxes
 
-local function draw_hitbox(hb)
+local draw_hitbox = function(hb)
 	if not hb or any_true({
 		not globals.draw_pushboxes and hb.type == "push",
 		not globals.draw_throwable_boxes and hb.type == "throwable",
@@ -1055,24 +1191,25 @@ local function draw_hitbox(hb)
 	end
 
 	if globals.draw_mini_axis then
-		gui.drawline(hb.hval, hb.vval-globals.mini_axis_size, hb.hval, hb.vval+globals.mini_axis_size, boxes[hb.type].outline)
-		gui.drawline(hb.hval-globals.mini_axis_size, hb.vval, hb.hval+globals.mini_axis_size, hb.vval, boxes[hb.type].outline)
+		gui.drawline(hb.val_x, hb.val_y-globals.mini_axis_size, hb.val_x, hb.val_y+globals.mini_axis_size, boxes[hb.type].outline)
+		gui.drawline(hb.val_x-globals.mini_axis_size, hb.val_y, hb.val_x+globals.mini_axis_size, hb.val_y, boxes[hb.type].outline)
 	end
 
 	gui.box(hb.left, hb.top, hb.right, hb.bottom, boxes[hb.type].fill, boxes[hb.type].outline)
 end
 
 
-local function draw_axis(obj)
+local draw_axis = function(obj)
 	gui.drawline(obj.pos_x, obj.pos_y-globals.axis_size, obj.pos_x, obj.pos_y+globals.axis_size, globals.axis_color)
 	gui.drawline(obj.pos_x-globals.axis_size, obj.pos_y, obj.pos_x+globals.axis_size, obj.pos_y, globals.axis_color)
-	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X, %02X", obj.base, memory.readbyte(obj.base + 2))) --debug
+	--gui.text(obj.pos_x, obj.pos_y, string.format("%06X", obj.base)) --debug
 end
 
 
-local function render_hitboxes()
+local render_hitboxes = function()
 	gui.clearuncommitted()
-	if not game or not frame_buffer[1].match_active then
+	local f = framebuffer[1]
+	if not f.match_active then
 		return
 	end
 
@@ -1080,14 +1217,18 @@ local function render_hitboxes()
 		gui.box(0, 0, emu.screenwidth(), emu.screenheight(), globals.blank_color)
 	end
 
-	for entry = 1, game.box_number do
-		for _, obj in ipairs(frame_buffer[1]) do
+	for entry = 1, f.max_boxes or 0 do
+		for _, obj in ipairs(f) do
 			draw_hitbox(obj[entry])
 		end
 	end
 
+	for _, box in pairs(throwbuffer) do
+		draw_hitbox(box)
+	end
+
 	if globals.draw_axis then
-		for _, obj in ipairs(frame_buffer[1]) do
+		for _, obj in ipairs(f) do
 			draw_axis(obj)
 		end
 	end
@@ -1140,43 +1281,58 @@ end)
 --------------------------------------------------------------------------------
 -- initialize on game startup
 
-local function initialize_fb()
+local initialize_bps = function()
+	for _, pc in ipairs(globals.breakpoints or {}) do
+		memory.registerexec(pc, nil)
+	end
+	for _, addr in ipairs(globals.watchpoints or {}) do
+		memory.registerwrite(addr, nil)
+	end
+	globals.breakpoints, globals.watchpoints = {}, {}
+end
+
+
+local initialize_fb = function()
+	framebuffer, throwbuffer = {}, {}
 	for f = 1, DRAW_DELAY + 1 do
-		frame_buffer[f] = {}
+		framebuffer[f] = {}
 	end
 end
 
 
-local function whatgame()
+local whatgame = function()
 	print()
 	game = nil
 	initialize_fb()
+	initialize_bps()
 	for _, module in ipairs(profile) do
 		for _, shortname in ipairs(module.games) do
 			if emu.romname() == shortname or emu.parentname() == shortname then
-				print("drawing " .. emu.romname() .. " hitboxes")
+				print("drawing hitboxes for " .. emu.gamename())
 				game = module
-				if game.breakpoints then
-					if not mame then
-						print("(MAME-rr can show throwboxes for this game.)")
-						return
-					elseif (emu.parentname() ~= "0" and not game.clones[emu.romname()]) then
-						print("MAME-rr can show throwboxes, but breakpoints are unknown for clone '" .. emu.romname() .. "'.")
-						return
+				if not emu.registerfuncs then
+					if game.breakpoints then
+						print("(FBA-rr 0.0.7+ can show throwboxes for this game.)")
 					end
-					print("Copy this line into the MAME-rr debugger to show throwboxes:") print()
-					local bpstring = ""
-					for _, bp in ipairs(game.breakpoints) do
-						local bpaddr = bp[emu.romname()] or bp[shortname] + game.clones[emu.romname()]
-						bpstring = bpstring .. string.format("bp %06X, 1, {%s; g}; ", bpaddr, bp.cmd)
+					return
+				end
+				for _, bp in ipairs(game.breakpoints or {}) do
+					local pc = bp[emu.romname()] or bp[shortname] + game.clones[emu.romname()]
+					memory.registerexec(pc, bp.func)
+					table.insert(globals.breakpoints, pc)
+				end
+				for _, wp in ipairs(game.watchpoints or {}) do
+					for p = 1, game.number.players do
+						local addr = game.address.player + (p-1) * game.offset.player_space + wp.offset
+						memory.registerwrite(addr, wp.size, wp.func)
+						table.insert(globals.watchpoints, addr)
 					end
-					print(bpstring:sub(1, -3))
 				end
 				return
 			end
 		end
 	end
-	print("not prepared for " .. emu.romname() .. " hitboxes")
+	print("not prepared for " .. emu.gamename())
 end
 
 
