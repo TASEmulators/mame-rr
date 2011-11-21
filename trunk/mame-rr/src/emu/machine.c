@@ -858,9 +858,9 @@ void running_machine::handle_saveload()
 			if (m_saveload_schedule == SLS_LOAD)
 				movie_postload(*this, &file);
 			if (m_saveload_schedule == SLS_SAVE)
-				luasav_save(opname);
+				luasav_save(file.filename());
 			if (m_saveload_schedule == SLS_LOAD)
-				luasav_load(opname);
+				luasav_load(file.filename());
 		}
 
 		// close and perhaps delete the file
