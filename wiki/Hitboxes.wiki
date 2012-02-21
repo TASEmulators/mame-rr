@@ -13,14 +13,16 @@ Also see [http://combovid.com/?category_name=technical combovid] for in-depth di
 
 Some game engines have specialized kinds of boxes, but here are the types that are found in most games.
 
+[http://img96.imageshack.us/img96/6730/hitboxdemo.png]
+
 === Vulnerability and Attack ===
 The attack box must touch the opponent's vulnerability for the attack to connect. Characters may have one or several vulnerability boxes for different areas of the sprite, but most fighting games only allow attacks to have one attack box at a time.
 
 === Projectile Vulnerability and Attack ===
-If an opposing projectile's attack touches a projectile vulnerability box, the projectiles negate one another. In some games, projectiles don't have designated vulnerability areas and negate by touching attack boxes. Non-character objects in the beat-'em-ups are colored as projectiles.
+If an opposing projectile's attack touches a projectile vulnerability box, the projectiles negate one another. In some games, projectiles don't have designated vulnerability areas and negate by touching attack boxes.
 
 === Push ===
-A pushbox cannot occupy the same space as another pushbox. Attempting to press them together will cause characters to push one another. Jumping attacks that extend below and behind the pushbox allow for easier crossup attacks. Some moves cause pushboxes to disappear, allowing the character to pass through the opponent. In primitive games like Fatal Fury 1 & 2, vulnerability boxes also perform the function of pushboxes. Pushboxes are not used in beat-'em-ups.
+A pushbox cannot occupy the same space as another pushbox. Attempting to press them together will cause characters to push one another. Jumping attacks that extend below and behind the pushbox allow for easier crossup attacks. Some moves cause pushboxes to disappear, allowing the character to pass through the opponent. In primitive games like Fatal Fury 1 & 2, vulnerability boxes also perform the function of pushboxes.
 
 === Throw and Throwable ===
 A throwbox must touch the opponent's throwable box for the throw attempt to succeed. Throws are generally active for only one frame. Some games don't have designated throwable boxes and reuse the pushbox for this purpose.
@@ -28,7 +30,7 @@ A throwbox must touch the opponent's throwable box for the throw attempt to succ
 ----
 = Usage =
 
-These scripts work with either parent and clone ROMs, and with both emulators, but MAME-rr is recommended because of crashing and slowdowns in FBA-rr. Download the script file, load the appropriate ROM, launch a Lua window (ctrl-L by default), then browse for and run the .lua file. The ROM must be up to date for MAME-rr or FBA-rr, and may be out of date with respect to [http://mamedev.org/ mainline MAME].
+These scripts work with either parent and clone ROMs. Download the script file, load the appropriate ROM, launch a Lua window (ctrl-L by default), then browse for and run the .lua file. The ROM must be up to date for MAME-rr or FBA-rr, and may be out of date with respect to [http://mamedev.org/ mainline MAME].
 
 *The current versions can be downloaded from the [http://mame-rr.googlecode.com/svn/lua/ SVN repository].* Changes are trackable on the [http://code.google.com/p/mame-rr/updates/list update page] or by subscribing to the update feed.
 
@@ -42,6 +44,22 @@ The behavior can be modified by pressing Lua hotkeys. (The key bindings are assi
 The best way to get images is with the emulator's screenshot function (F12 by default).
 
 ----
+== MAME-rr vs. FBA-rr ==
+Both emulators can show boxes, but they differ in usability and accuracy.
+
+MAME-rr advantages:
+ * doesn't crash so much on loading savestates or loading new ROMs
+ * doesn't demand so much CPU when displaying partially transparent boxes
+ * more powerful cheat engine means a more reliable background removal procedure
+ * no frame sync problems for CPS2 games
+ * can use debugger breakpoints for games on any system, but this requires extra effort in coding and usage
+
+FBA-rr advantages:
+ * much better performance for CPS3 games
+ * built-in Lua breakpoints for !NeoGeo, CPS1 and CPS2 systems
+   * This means only FBA can properly show throwboxes for the `sf2` and `cps2` scripts, and is required for the `garou` script.
+
+----
 == Background removal ==
 
 The game backgrounds can make the boxes harder to see. This can be offset by increasing the fill opacity of the boxes, but this in turn makes the character sprites harder to see. The ideal solution is to remove the backgrounds entirely. One way to do this is with "cheat" codes that prevent the background and HUD from being displayed by the game.
@@ -49,21 +67,18 @@ The game backgrounds can make the boxes harder to see. This can be offset by inc
 [http://img84.imageshack.us/img84/3733/ssf2twithbg.png]
 [http://img508.imageshack.us/img508/8744/ssf2tblackbg.png]
 
-Codes covering all the currently hitboxed fighting games can be found [https://spreadsheets.google.com/spreadsheet/ccc?key=0Ass5iE_E05JhdC1EMkJiNVBhdllwN0FpWVgzTEQ4T3c here].
-
-Here is how to get them working in MAME: 
+Here is how to get the codes working in MAME: 
  # Download the [http://www.mamecheat.co.uk/ latest official cheat pack].
  # Extract cheat.zip from the downloaded archive to the base MAME folder.
- # Extract the .xml for the appropriate game from cheat.zip to MAME's _cheats_ folder.
- # Open the .xml in a text editor and paste in the code.
- # Run the ROM in MAME, find _Cheats_ from the main menu, and set the code to _On_. If the ROM is already running, select _Reload All_ from the menu to get the code to appear.
+ # Run the ROM in MAME, find _Cheats_ from the main menu, and set the code to _On_.
 
 Other information:
  * The codes for some games need to be activated before the start of the match to remove the HUD.
  * The codes are designed to only affect the game while a match is in progress.
  * The effects of some codes are not fully reversible.
  * Most of the codes patch ROM data and will only work with parent sets, not clones.
- * The background color for !NeoGeo games can easily be adjusted by editing the color value in the codes.
+ * The background color for !NeoGeo games can be adjusted by editing the color value in the codes.
+ * It possible to convert codes for some, not all, games to work in FBA.
 
 [http://img703.imageshack.us/img703/2167/ssf2tnobg.png]
 
@@ -102,52 +117,17 @@ The `color` numbers are [http://www.w3schools.com/html/html_colors.asp RGB value
 The default colors are subject to change in future versions.
 
 ----
-== Breakpoints ==
-In its current form, the Lua engine can only get information about the game state by periodically reading from memory. Some kinds of boxes do not get written to RAM or are overwritten so soon that they cannot be read between frames. They can only be detected by monitoring when certain points in the code get executed. A tool that does this is called a breakpoint. For now, the only way to use them and show those boxes is with the MAME-rr debugger.
-
-Here's how to enable the debugger. Run MAME from the command line with the `-debug` switch:
-
-{{{
-> mame sfa2 -debug -lua cps2-hitboxes.lua
-}}}
-
-Or to avoid using the command line, edit mame-rr.ini so that `debug` is `1`:
-
-{{{
-#
-# CORE DEBUGGING OPTIONS
-#
-log                       0
-verbose                   0
-update_in_pause           0
-debug                     1
-debugscript               
-}}}
-
-The debugger starts by halting execution of the game and the UI. Press F5 to release control. If the loaded game needs any BPs, the script will print them to the Lua console as one or two lines.
-
-[http://img577.imageshack.us/img577/2598/bps.png]
-
-Copy and paste the line(s) over to the debugger console and hit enter. Now all supported box types will appear correctly.
-
-[http://img43.imageshack.us/img43/3858/debugi.png]
-
-The game may glitch up when the command is entered but this only happens once. Before quitting or unloading the ROM, enter `bpc` into the debugger console to clear any installed breaks, or else MAME will crash.
-
-You can still use the scripts in FBA-rr or without the debugger, but they will not show the boxes that require BPs. Future versions of the emulators may make this procedure unnecessary.
-
-----
 = Supported games =
 
 == sf2-hitboxes.lua ==
 All of the Street Fighter II games.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/sf2 sf2]||Street Fighter II: The World Warrior||
-||[http://maws.mameworld.info/maws/romset/sf2ce sf2ce]||Street Fighter II': Champion Edition||
-||[http://maws.mameworld.info/maws/romset/sf2hf sf2hf]||Street Fighter II': Hyper Fighting||
-||[http://maws.mameworld.info/maws/romset/ssf2 ssf2]||Super Street Fighter II: The New Challengers||
-||[http://maws.mameworld.info/maws/romset/ssf2t ssf2t]||Super Street Fighter II Turbo||
-||[http://maws.mameworld.info/maws/romset/hsf2 hsf2]||Hyper Street Fighter 2: The Anniversary Edition||
+||[http://www.progettoemma.net/gioco.php?game=sf2 sf2]||Street Fighter II: The World Warrior||
+||[http://www.progettoemma.net/gioco.php?game=sf2ce sf2ce]||Street Fighter II': Champion Edition||
+||[http://www.progettoemma.net/gioco.php?game=sf2hf sf2hf]||Street Fighter II': Hyper Fighting||
+||[http://www.progettoemma.net/gioco.php?game=ssf2 ssf2]||Super Street Fighter II: The New Challengers||
+||[http://www.progettoemma.net/gioco.php?game=ssf2t ssf2t]||Super Street Fighter II Turbo||
+||[http://www.progettoemma.net/gioco.php?game=hsf2 hsf2]||Hyper Street Fighter 2: The Anniversary Edition||
 
 [http://img853.imageshack.us/img853/918/sf2sf2.png]
 [http://img827.imageshack.us/img827/9961/sf2sf2ceuc.png]
@@ -169,11 +149,11 @@ This box is susceptible to air throws but not ground throws. The opposite is tru
 == marvel-hitboxes.lua ==
 All of the Marvel/Versus games on the CPS-2 system.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/xmcota xmcota]||X-Men: Children of the Atom||
-||[http://maws.mameworld.info/maws/romset/msh msh]||Marvel Super Heroes||
-||[http://maws.mameworld.info/maws/romset/xmvsf xmvsf]||X-Men Vs. Street Fighter||
-||[http://maws.mameworld.info/maws/romset/mshvsf mshvsf]||Marvel Super Heroes Vs. Street Fighter||
-||[http://maws.mameworld.info/maws/romset/mvsc mvsc]||Marvel Vs. Capcom: Clash of Super Heroes||
+||[http://www.progettoemma.net/gioco.php?game=xmcota xmcota]||X-Men: Children of the Atom||
+||[http://www.progettoemma.net/gioco.php?game=msh msh]||Marvel Super Heroes||
+||[http://www.progettoemma.net/gioco.php?game=xmvsf xmvsf]||X-Men Vs. Street Fighter||
+||[http://www.progettoemma.net/gioco.php?game=mshvsf mshvsf]||Marvel Super Heroes Vs. Street Fighter||
+||[http://www.progettoemma.net/gioco.php?game=mvsc mvsc]||Marvel Vs. Capcom: Clash of Super Heroes||
 
 [http://img30.imageshack.us/img30/4595/marvelxmcota.png]
 [http://img844.imageshack.us/img844/5650/marvelmsh.png]
@@ -182,30 +162,29 @@ All of the Marvel/Versus games on the CPS-2 system.
 [http://img153.imageshack.us/img153/3811/marvelmvsc.png]
 
 === Notes ===
-==== Breakpoints ====
-BPs are needed to show the exact frames when throws are active and when pushboxes are inactive. Without BPs, only the potential throw range is viewable, and pushboxes tend to flicker or not disappear when inactive.
+FBA is needed to show the exact frames when throws are active and when pushboxes are inactive. In MAME, only the potential throw range is viewable, and pushboxes tend to flicker or not disappear when inactive. However, boxes sometimes update a frame early or late in FBA.
 
 [http://img23.imageshack.us/img23/4328/colorsmsh.png]
 
 ==== `potential throw` box ====
-Even without breakpoints, it's possible to show where the box would appear if a throw were attempted. This box type is fully transparent (invisible) by default and can be shown by increasing its opacity value. Showing it is not recommended since breakpoints can show the real throw attempts.
+It's possible to show where the box would appear if a throw were attempted. This box type is fully transparent (invisible) by default and can be shown by increasing its opacity value. This is unnecessary since FBA can show the real throw attempts.
 
 ----
 == cps2-hitboxes.lua ==
 All of the remaining CPS-2 fighting games, including the Street Fighter Alpha and Darkstalkers series.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/sfa sfa]||Street Fighter Alpha: Warriors' Dreams||
-||[http://maws.mameworld.info/maws/romset/sfa2 sfa2]||Street Fighter Alpha 2||
-||[http://maws.mameworld.info/maws/romset/sfz2al sfz2al]||Street Fighter Zero 2 Alpha||
-||[http://maws.mameworld.info/maws/romset/sfa3 sfa3]||Street Fighter Alpha 3||
-||[http://maws.mameworld.info/maws/romset/dstlk dstlk]||Darkstalkers: The Night Warriors||
-||[http://maws.mameworld.info/maws/romset/nwarr nwarr]||Night Warriors: Darkstalkers' Revenge||
-||[http://maws.mameworld.info/maws/romset/vsav vsav]||Vampire Savior: The Lord of Vampire||
-||[http://maws.mameworld.info/maws/romset/vhunt2 vhunt2]||Vampire Hunter 2: Darkstalkers Revenge||
-||[http://maws.mameworld.info/maws/romset/vsav2 vsav2]||Vampire Savior 2: The Lord of Vampire||
-||[http://maws.mameworld.info/maws/romset/ringdest ringdest]||Ring of Destruction: Slammasters II||
-||[http://maws.mameworld.info/maws/romset/cybots cybots]||Cyberbots: Fullmetal Madness||
-||[http://maws.mameworld.info/maws/romset/sgemf sgemf]||Super Gem Fighter Mini Mix||
+||[http://www.progettoemma.net/gioco.php?game=sfa sfa]||Street Fighter Alpha: Warriors' Dreams||
+||[http://www.progettoemma.net/gioco.php?game=sfa2 sfa2]||Street Fighter Alpha 2||
+||[http://www.progettoemma.net/gioco.php?game=sfz2al sfz2al]||Street Fighter Zero 2 Alpha||
+||[http://www.progettoemma.net/gioco.php?game=sfa3 sfa3]||Street Fighter Alpha 3||
+||[http://www.progettoemma.net/gioco.php?game=dstlk dstlk]||Darkstalkers: The Night Warriors||
+||[http://www.progettoemma.net/gioco.php?game=nwarr nwarr]||Night Warriors: Darkstalkers' Revenge||
+||[http://www.progettoemma.net/gioco.php?game=vsav vsav]||Vampire Savior: The Lord of Vampire||
+||[http://www.progettoemma.net/gioco.php?game=vhunt2 vhunt2]||Vampire Hunter 2: Darkstalkers Revenge||
+||[http://www.progettoemma.net/gioco.php?game=vsav2 vsav2]||Vampire Savior 2: The Lord of Vampire||
+||[http://www.progettoemma.net/gioco.php?game=ringdest ringdest]||Ring of Destruction: Slammasters II||
+||[http://www.progettoemma.net/gioco.php?game=cybots cybots]||Cyberbots: Fullmetal Madness||
+||[http://www.progettoemma.net/gioco.php?game=sgemf sgemf]||Super Gem Fighter Mini Mix||
 
 [http://img694.imageshack.us/img694/4024/cps2sfa.png]
 [http://img836.imageshack.us/img836/7163/cps2sfa2.png]
@@ -221,10 +200,7 @@ All of the remaining CPS-2 fighting games, including the Street Fighter Alpha an
 [http://img696.imageshack.us/img696/5448/cps2sgemf.png]
 
 === Notes ===
-==== Breakpoints ====
-BPs are needed to show all throws in: sfa, sfa2, sfz2al, vsav, vhunt2, vsav2, cybots, and sgemf.
-
-They are also needed in dstlk and nwarr to show air throws and to make ground throws be attempted at long range.
+FBA is required to show all throws in: sfa, sfa2, sfz2al, vsav, vhunt2, vsav2, cybots, and sgemf. It is also needed in dstlk and nwarr to show air throws and to make ground throws be attempted at long range. However, boxes sometimes update a frame early or late in FBA.
 
 [http://img855.imageshack.us/img855/5071/colorssfa2.png]
 
@@ -235,13 +211,13 @@ Air throws in sfa, sfa2 & sfz2al, and special ranged throws in nwarr grab at the
 == beatemup-hitboxes.lua ==
 Selected beat-em-up games on the CPS-2 system.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/ffight ffight]||Final Fight||
-||[http://maws.mameworld.info/maws/romset/dino dino]||Cadillacs and Dinosaurs||
-||[http://maws.mameworld.info/maws/romset/punisher punisher]||The Punisher||
-||[http://maws.mameworld.info/maws/romset/avsp avsp]||Alien vs. Predator||
-||[http://maws.mameworld.info/maws/romset/ddtod ddtod]||Dungeons & Dragons: Tower of Doom||
-||[http://maws.mameworld.info/maws/romset/ddsom ddsom]||Dungeons & Dragons: Shadow over Mystara||
-||[http://maws.mameworld.info/maws/romset/batcir batcir]||Battle Circuit||
+||[http://www.progettoemma.net/gioco.php?game=ffight ffight]||Final Fight||
+||[http://www.progettoemma.net/gioco.php?game=dino dino]||Cadillacs and Dinosaurs||
+||[http://www.progettoemma.net/gioco.php?game=punisher punisher]||The Punisher||
+||[http://www.progettoemma.net/gioco.php?game=avsp avsp]||Alien vs. Predator||
+||[http://www.progettoemma.net/gioco.php?game=ddtod ddtod]||Dungeons & Dragons: Tower of Doom||
+||[http://www.progettoemma.net/gioco.php?game=ddsom ddsom]||Dungeons & Dragons: Shadow over Mystara||
+||[http://www.progettoemma.net/gioco.php?game=batcir batcir]||Battle Circuit||
 
 [http://img822.imageshack.us/img822/9829/beatemupffight.png]
 [http://img819.imageshack.us/img819/744/beatemupdino.png]
@@ -251,19 +227,22 @@ Selected beat-em-up games on the CPS-2 system.
 [http://img231.imageshack.us/img231/1513/beatemupddsom.png]
 [http://img23.imageshack.us/img23/1985/beatemupbatcir.png]
 
+=== Notes ===
+Non-character objects are colored as projectiles. Pushboxes are not used.
+
 ----
 == kof-hitboxes.lua ==
 Most of the King of Fighters games on the !NeoGeo MVS system.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/kof94 kof94]||The King of Fighters '94||
-||[http://maws.mameworld.info/maws/romset/kof95 kof95]||The King of Fighters '95||
-||[http://maws.mameworld.info/maws/romset/kof96 kof96]||The King of Fighters '96||
-||[http://maws.mameworld.info/maws/romset/kof97 kof97]||The King of Fighters '97||
-||[http://maws.mameworld.info/maws/romset/kof98 kof98]||The King of Fighters '98 - The Slugfest||
-||[http://maws.mameworld.info/maws/romset/kof99 kof99]||The King of Fighters '99 - Millennium Battle||
-||[http://maws.mameworld.info/maws/romset/kof2000 kof2000]||The King of Fighters 2000||
-||[http://maws.mameworld.info/maws/romset/kof2001 kof2001]||The King of Fighters 2001||
-||[http://maws.mameworld.info/maws/romset/kof2002 kof2002]||The King of Fighters 2002||
+||[http://www.progettoemma.net/gioco.php?game=kof94 kof94]||The King of Fighters '94||
+||[http://www.progettoemma.net/gioco.php?game=kof95 kof95]||The King of Fighters '95||
+||[http://www.progettoemma.net/gioco.php?game=kof96 kof96]||The King of Fighters '96||
+||[http://www.progettoemma.net/gioco.php?game=kof97 kof97]||The King of Fighters '97||
+||[http://www.progettoemma.net/gioco.php?game=kof98 kof98]||The King of Fighters '98 - The Slugfest||
+||[http://www.progettoemma.net/gioco.php?game=kof99 kof99]||The King of Fighters '99 - Millennium Battle||
+||[http://www.progettoemma.net/gioco.php?game=kof2000 kof2000]||The King of Fighters 2000||
+||[http://www.progettoemma.net/gioco.php?game=kof2001 kof2001]||The King of Fighters 2001||
+||[http://www.progettoemma.net/gioco.php?game=kof2002 kof2002]||The King of Fighters 2002||
 
 [http://img52.imageshack.us/img52/5269/neogeokof94.png]
 [http://img600.imageshack.us/img600/9328/neogeokof95.png]
@@ -278,26 +257,25 @@ Most of the King of Fighters games on the !NeoGeo MVS system.
 === Notes ===
 All throwboxes in !NeoGeo games show up one frame late. Not enough frames pass between the box computations and the graphics update to correct this.
 
+FBA is needed to show throwboxes in `kof94` and `kof95`. The the only `axis throw` boxes for this script are the special throws in those two games.
+
 [http://img231.imageshack.us/img231/78/colorskof98.png]
 
 ==== `guard` box ====
 Attacks that hit a guardbox will be blocked, either by manually blocking, by an autoguard move, or by a special counter move.
 
-==== Breakpoints ====
-BPs are only needed to show throwboxes in `kof94` and `kof95`. The only throws that grab the axis are the special throws in those two games.
-
 ----
 == garou-hitboxes.lua ==
 The Garou Densetsu/Fatal Fury !NeoGeo series.
 ||Parent ROM||Game||
-||[http://maws.mameworld.info/maws/romset/fatfury1 fatfury1]||Fatal Fury - King of Fighters||
-||[http://maws.mameworld.info/maws/romset/fatfury2 fatfury2]||Fatal Fury 2||
-||[http://maws.mameworld.info/maws/romset/fatfursp fatfursp]||Fatal Fury Special||
-||[http://maws.mameworld.info/maws/romset/fatfury3 fatfury3]||Fatal Fury 3 - Road to the Final Victory||
-||[http://maws.mameworld.info/maws/romset/rbff1 rbff1]||Real Bout Fatal Fury||
-||[http://maws.mameworld.info/maws/romset/rbffspec rbffspec]||Real Bout Fatal Fury Special||
-||[http://maws.mameworld.info/maws/romset/rbff2 rbff2]||Real Bout Fatal Fury 2 - The Newcomers||
-||[http://maws.mameworld.info/maws/romset/garou garou]||Garou - Mark of the Wolves||
+||[http://www.progettoemma.net/gioco.php?game=fatfury1 fatfury1]||Fatal Fury - King of Fighters||
+||[http://www.progettoemma.net/gioco.php?game=fatfury2 fatfury2]||Fatal Fury 2||
+||[http://www.progettoemma.net/gioco.php?game=fatfursp fatfursp]||Fatal Fury Special||
+||[http://www.progettoemma.net/gioco.php?game=fatfury3 fatfury3]||Fatal Fury 3 - Road to the Final Victory||
+||[http://www.progettoemma.net/gioco.php?game=rbff1 rbff1]||Real Bout Fatal Fury||
+||[http://www.progettoemma.net/gioco.php?game=rbffspec rbffspec]||Real Bout Fatal Fury Special||
+||[http://www.progettoemma.net/gioco.php?game=rbff2 rbff2]||Real Bout Fatal Fury 2 - The Newcomers||
+||[http://www.progettoemma.net/gioco.php?game=garou garou]||Garou - Mark of the Wolves||
 
 [http://img215.imageshack.us/img215/2107/neogeofatfury1.png]
 [http://img841.imageshack.us/img841/8889/garoufatfury2.png]
@@ -309,26 +287,56 @@ The Garou Densetsu/Fatal Fury !NeoGeo series.
 [http://img9.imageshack.us/img9/3346/garougarou.png]
 
 === Notes ===
-This script does not work at all in FBA-rr. It may be due to FBA's different handling of memory banking, and Lua's inability to manipulate the banks in FBA.
+This script mostly doesn't work MAME due to extensive use of breakpoints. FBA is required.
+
+The backgrounds can be removed using the script itself by setting `no_background` in the `globals` section to `true`. This must be done before the match start to work.
 
 [http://img405.imageshack.us/img405/2128/colorsrbff2.png]
 
 There are no throwability or projectile vulnerability boxes.
 
-The colors of Lua drawings are not correct in `fatfursp`, but are normal in its clone, `fatfursa`.
-
-==== Breakpoints ====
-BPs are needed to show all throws, and all throws grab the axis. The exception is normal ground throws in `fatfury3`, which grab vulnerability boxes.
-
-Breakpoints are also required to show vulnerability in `fatfury1` and `fatfury2`.
-
-`fatfursp`, `rbff1`, and `rbffspec` require pasting in two lines to fit all the breakpoints.
-
 ----
-== sfiii3-hitboxes.lua ==
-||[http://maws.mameworld.info/maws/romset/sfiii3 sfiii3]||Street Fighter III 3rd Strike: Fight for the Future||
+== cps3-hitboxes.lua ==
+The CPS3 games, excluding the Jojo titles.
+||[http://www.progettoemma.net/gioco.php?game=redearth redearth]||Red Earth||
+||[http://www.progettoemma.net/gioco.php?game=sfiii sfiii]||Street Fighter III: New Generation||
+||[http://www.progettoemma.net/gioco.php?game=sfiii2 sfiii2]||Street Fighter III 2nd Impact: Giant Attack||
+||[http://www.progettoemma.net/gioco.php?game=sfiii3 sfiii3]||Street Fighter III 3rd Strike: Fight for the Future||
 
-This script was translated to Lua from the [http://code.google.com/p/mameserver/ mameserver] project. It's missing many features and may be inaccurate.
+[http://img62.imageshack.us/img62/5932/cps3redearth.png]
+[http://img715.imageshack.us/img715/9530/cps3sfiii3.png]
+
+=== Notes ===
+This script was originally translated to Lua from the [http://code.google.com/p/mameserver/ mameserver] project. The 3rd Strike code was also helped by the work of [http://ameblo.jp/3fv/ crystal cube]
+
+For now, the only way to show normal throwboxes in redearth/warzard is with the MAME-rr debugger. Run MAME from the command line with the `-debug` switch:
+
+{{{
+> mame redearth -debug -lua cps3-hitboxes.lua
+}}}
+
+Or to avoid using the command line, edit mame-rr.ini so that `debug` is `1`:
+
+{{{
+#
+# CORE DEBUGGING OPTIONS
+#
+log                       0
+verbose                   0
+update_in_pause           0
+debug                     1
+debugscript               
+}}}
+
+The debugger starts by halting execution of the game and the UI. Press F5 to release control. The script will print the BPs to the Lua console:
+
+[http://img600.imageshack.us/img600/4006/consoleluabp.png]
+
+Copy and paste the line over to the debugger console and hit enter. Now all supported box types will appear correctly.
+
+[http://img52.imageshack.us/img52/3715/consoledebuggerbpcrop.png]
+
+The game may glitch up when the command is entered but this only happens once. Before quitting or unloading the ROM, enter `bpc` into the debugger console to clear any installed breaks, or else MAME will crash.
 
 ----
 Errors or inconsistencies can be reported by leaving a comment to this page.
