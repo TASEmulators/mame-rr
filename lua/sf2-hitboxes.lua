@@ -1,5 +1,5 @@
 print("Street Fighter II hitbox viewer")
-print("November 11, 2011")
+print("February 20, 2012")
 print("http://code.google.com/p/mame-rr/wiki/Hitboxes")
 print("Lua hotkey 1: toggle blank screen")
 print("Lua hotkey 2: toggle object axis")
@@ -29,11 +29,13 @@ local globals = {
 	draw_mini_axis       = false,
 	draw_pushboxes       = true,
 	draw_throwable_boxes = false,
-	no_alpha             = true, --fill = 0x00, outline = 0xFF for all box types
+	no_alpha             = false, --fill = 0x00, outline = 0xFF for all box types
 }
 
 --------------------------------------------------------------------------------
 -- game-specific modules
+
+local rb, rbs, rw, rws, rd = memory.readbyte, memory.readbytesigned, memory.readword, memory.readwordsigned, memory.readdword
 
 local profile = {
 {	games = {"sf2"},
@@ -123,14 +125,14 @@ local profile = {
 		{addr_table = 0x8, id_ptr = 0xC, id_space = 0x14, type = "attack"},
 	},
 	match_active = function()
-		return memory.readword(0xFF8004) == 0x08
+		return rw(0xFF8004) == 0x08
 	end,
 },
 }
 
 for _, game in ipairs(profile) do
 	game.match_active = game.match_active or function()
-		return bit.band(memory.readword(0xFF8008), 0x08) > 0
+		return bit.band(rw(0xFF8008), 0x08) > 0
 	end
 end
 
@@ -139,7 +141,7 @@ for _, box in pairs(boxes) do
 	box.outline = bit.lshift(box.color, 8) + (globals.no_alpha and 0xFF or box.outline)
 end
 
-local game, framebuffer, throwbuffer
+local game, frame_buffer, throw_buffer
 local NUMBER_OF_PLAYERS = 2
 local MAX_PROJECTILES   = 8
 local MAX_BONUS_OBJECTS = 16
@@ -155,21 +157,21 @@ emu.registerfuncs = fba and memory.registerexec --0.0.7+
 
 local get_box_parameters = {
 	[1] = function(box)
-		box.val_x  = memory.readbytesigned(box.address + 0)
-		box.val_x2 = memory.readbyte(box.address + 5)
+		box.val_x  = rbs(box.address + 0)
+		box.val_x2 =  rb(box.address + 5)
 		if box.val_x2 >= 0x80 and box.type == "attack" then
 			box.val_x = -box.val_x2
 		end
-		box.val_y  = memory.readbytesigned(box.address + 1)
-		box.rad_x  = memory.readbyte(box.address + 2)
-		box.rad_y  = memory.readbyte(box.address + 3)
+		box.val_y  = rbs(box.address + 1)
+		box.rad_x  =  rb(box.address + 2)
+		box.rad_y  =  rb(box.address + 3)
 	end,
 
 	[2] = function(box)
-		box.val_x = memory.readwordsigned(box.address + 0)
-		box.val_y = memory.readwordsigned(box.address + 2)
-		box.rad_x = memory.readword(box.address + 4)
-		box.rad_y = memory.readword(box.address + 6)
+		box.val_x = rws(box.address + 0)
+		box.val_y = rws(box.address + 2)
+		box.rad_x =  rw(box.address + 4)
+		box.rad_y =  rw(box.address + 6)
 	end,
 }
 
@@ -181,7 +183,7 @@ local process_box_type = {
 	["attack"] = function(obj, box)
 		if obj.projectile then
 			box.type = "proj. attack"
-		elseif memory.readbyte(obj.base + 0x03) == 0 then
+		elseif rb(obj.base + 0x03) == 0 then
 			return false
 		end
 	end,
@@ -193,8 +195,8 @@ local process_box_type = {
 	end,
 
 	["weak"] = function(obj, box)
-		if (game.char_mode and memory.readbyte(obj.base + game.char_mode) ~= 0x4)
-			or memory.readbyte(obj.animation_ptr + 0x15) ~= 2 then
+		if (game.char_mode and rb(obj.base + game.char_mode) ~= 0x4)
+			or rb(obj.animation_ptr + 0x15) ~= 2 then
 			return false
 		end
 	end,
@@ -217,26 +219,24 @@ local process_box_type = {
 		box.right  = box.val_x + box.rad_x
 		box.top    = box.val_y - box.rad_y
 		box.bottom = box.val_y + box.rad_y
-
-		box.spawntime = emu.framecount() + DRAW_DELAY - 1
 	end,
 
 	["throwable"] = function(obj, box)
-		if (memory.readbyte(obj.animation_ptr + 0x8) == 0 and
-			memory.readbyte(obj.animation_ptr + 0x9) == 0 and
-			memory.readbyte(obj.animation_ptr + 0xA) == 0) or
-			memory.readbyte(obj.base + 0x3) == 0x0E or
-			memory.readbyte(obj.base + 0x3) == 0x14 or
-			memory.readbyte(obj.base + 0x143) > 0 or
-			memory.readbyte(obj.base + 0x1BF) > 0 or
-			memory.readbyte(obj.base + 0x1A1) > 0 then
+		if (rb(obj.animation_ptr + 0x8) == 0 and
+			rb(obj.animation_ptr + 0x9) == 0 and
+			rb(obj.animation_ptr + 0xA) == 0) or
+			rb(obj.base + 0x3) == 0x0E or
+			rb(obj.base + 0x3) == 0x14 or
+			rb(obj.base + 0x143) > 0 or
+			rb(obj.base + 0x1BF) > 0 or
+			rb(obj.base + 0x1A1) > 0 then
 			return false
-		elseif memory.readbyte(obj.base + 0x181) > 0 then
+		elseif rb(obj.base + 0x181) > 0 then
 			box.type = "air throwable"
 		end
 
-		box.rad_x  = memory.readword(box.address + 0)
-		box.rad_y  = memory.readword(box.address + 2)
+		box.rad_x  = rw(box.address + 0)
+		box.rad_y  = rw(box.address + 2)
 		box.val_x  = obj.pos_x
 		box.val_y  = obj.pos_y - box.rad_y/2
 		box.left   = box.val_x - box.rad_x
@@ -250,14 +250,14 @@ local process_box_type = {
 local define_box = function(obj, box_entry)
 	local box = {
 		type = box_entry.type,
-		id = memory.readbyte(obj.animation_ptr + box_entry.id_ptr),
+		id = rb(obj.animation_ptr + box_entry.id_ptr),
 	}
 
 	if box.id == 0 or process_box_type[box.type](obj, box) == false then
 		return nil
 	end
 
-	local addr_table = obj.hitbox_ptr + memory.readwordsigned(obj.hitbox_ptr + box_entry.addr_table)
+	local addr_table = obj.hitbox_ptr + rws(obj.hitbox_ptr + box_entry.addr_table)
 	box.address = addr_table + box.id * box_entry.id_space
 	get_box_parameters[game.box_parameter_size](box)
 
@@ -288,12 +288,12 @@ end
 
 
 local update_object = function(f, obj)
-	obj.pos_x         = memory.readwordsigned(obj.base + 0x06) - f.screen_left
-	obj.pos_y         = memory.readwordsigned(obj.base + 0x0A)
+	obj.pos_x         = rws(obj.base + 0x06) - f.screen_left
+	obj.pos_y         = rws(obj.base + 0x0A)
 	obj.pos_y         = emu.screenheight() - (obj.pos_y - 0x0F) + f.screen_top
-	obj.flip_x        = memory.readbyte(obj.base + 0x12)
-	obj.animation_ptr = memory.readdword(obj.base + 0x1A)
-	obj.hitbox_ptr    = memory.readdword(obj.base + 0x34)
+	obj.flip_x        = rb(obj.base + 0x12)
+	obj.animation_ptr = rd(obj.base + 0x1A)
+	obj.hitbox_ptr    = rd(obj.base + 0x34)
 
 	for _, box_entry in ipairs(game.box_list) do
 		table.insert(obj, define_box(obj, box_entry))
@@ -305,7 +305,7 @@ end
 local read_projectiles = function(f)
 	for i = 1, MAX_PROJECTILES do
 		local obj = {base = game.address.projectile + (i-1) * 0xC0}
-		if memory.readword(obj.base) == 0x0101 then
+		if rw(obj.base) == 0x0101 then
 			obj.projectile = true
 			table.insert(f, update_object(f, obj))
 		end
@@ -313,7 +313,7 @@ local read_projectiles = function(f)
 
 	for i = 1, MAX_BONUS_OBJECTS do
 		local obj = {base = game.address.projectile + (MAX_PROJECTILES + i-1) * 0xC0}
-		if bit.band(0xFF00, memory.readword(obj.base)) == 0x0100 then
+		if bit.band(0xFF00, rw(obj.base)) == 0x0100 then
 			obj.bonus = true
 			table.insert(f, update_object(f, obj))
 		end
@@ -322,7 +322,9 @@ end
 
 
 local adjust_delay = function(stage_address)
-	if not stage_address or not mame then
+	if fba then
+		return emu.sourcename() == "CPS2" and 0 or 1
+	elseif not stage_address then
 		return 0
 	end
 	local stage_lag = {
@@ -343,7 +345,7 @@ local adjust_delay = function(stage_address)
 		[0xE] = 0, --Fei Long
 		[0xF] = 1, --Dee Jay*
 	}
-	return stage_lag[bit.band(memory.readword(stage_address), 0xF)]
+	return stage_lag[bit.band(rw(stage_address), 0xF)]
 end
 
 
@@ -353,46 +355,43 @@ local update_hitboxes = function()
 	end
 	local effective_delay = DRAW_DELAY + adjust_delay(game.address.stage)
 	for f = 1, effective_delay do
-		framebuffer[f] = copytable(framebuffer[f+1])
+		frame_buffer[f] = copytable(frame_buffer[f+1])
 	end
 
-	framebuffer[effective_delay+1] = {match_active = game.match_active()}
-	local f = framebuffer[effective_delay+1]
+	frame_buffer[effective_delay+1] = {match_active = game.match_active()}
+	local f = frame_buffer[effective_delay+1]
 
-	f.screen_left = memory.readwordsigned(game.address.screen_left)
-	f.screen_top  = memory.readwordsigned(game.address.screen_left + 0x4)
+	f.screen_left = rws(game.address.screen_left)
+	f.screen_top  = rws(game.address.screen_left + 0x4)
 
 	for p = 1, NUMBER_OF_PLAYERS do
 		local player = {base = game.address.player + (p-1) * game.player_space}
-		if memory.readbyte(player.base) > 0 then
+		if rb(player.base) > 0 then
 			table.insert(f, update_object(f, player))
+			local tb = throw_buffer[player.base]
+			table.insert(player, tb[1])
+			for frame = 1, #tb-1 do
+				tb[frame] = tb[frame+1]
+			end
+			table.remove(tb)
 		end
 	end
 	read_projectiles(f)
 
-	f = framebuffer[effective_delay]
+	--f = frame_buffer[effective_delay]
 	for _, obj in ipairs(f or {}) do
 		if obj.projectile or obj.bonus then
 			break
 		end
 		table.insert(obj, define_throw_box(obj, {param_offset = 0x6C, type = "throwable"}))
 		if not emu.registerfuncs then
-			local box = define_throw_box(obj, {param_offset = 0x64, type = "throw", clear = true})
-			if box then
-				throwbuffer[obj.base] = box
-			end
+			table.insert(obj, define_throw_box(obj, {param_offset = 0x64, type = "throw", clear = true}))
 		end
 	end
 
 	f.max_boxes = 0
 	for _, obj in ipairs(f or {}) do
 		f.max_boxes = math.max(f.max_boxes, #obj)
-	end
-
-	for n, box in pairs(throwbuffer) do
-		if emu.framecount() > box.spawntime then
-			throwbuffer[n] = nil
-		end
 	end
 end
 
@@ -430,7 +429,7 @@ end
 local render_hitboxes = function()
 	gui.clearuncommitted()
 
-	local f = framebuffer[1]
+	local f = frame_buffer[1]
 	if not f.match_active then
 		return
 	end
@@ -443,10 +442,6 @@ local render_hitboxes = function()
 		for _, obj in ipairs(f) do
 			draw_hitbox(obj[entry])
 		end
-	end
-
-	for _, box in pairs(throwbuffer) do
-		draw_hitbox(box)
 	end
 
 	if globals.draw_axis then
@@ -512,9 +507,17 @@ end
 
 
 local initialize_fb = function()
-	framebuffer, throwbuffer = {}, {}
-	for f = 1, DRAW_DELAY + 2 do
-		framebuffer[f] = {}
+	frame_buffer = {}
+	for f = 1, DRAW_DELAY + 3 do
+		frame_buffer[f] = {}
+	end
+end
+
+
+local initialize_throw_buffer = function()
+	throw_buffer = {}
+	for p = 1, NUMBER_OF_PLAYERS do
+		throw_buffer[game.address.player + (p-1) * game.player_space] = {}
 	end
 end
 
@@ -530,15 +533,12 @@ end
 
 
 local set_wp = function()
-	local f = framebuffer[DRAW_DELAY]
+	local f = frame_buffer[DRAW_DELAY]
 	local obj = get_thrower(f)
 	if not f.match_active or not obj then
 		return
 	end
-	local box = define_throw_box(obj, {param_offset = 0x64, type = "throw"})
-	if box then
-		throwbuffer[obj.base] = box
-	end
+	table.insert(throw_buffer[obj.base], define_throw_box(obj, {param_offset = 0x64, type = "throw"}) or nil)
 end
 
 
@@ -561,13 +561,14 @@ local whatgame = function()
 			if emu.romname() == shortname or emu.parentname() == shortname then
 				print("drawing hitboxes for " .. emu.gamename())
 				game = module
+				initialize_throw_buffer()
 				local wp = throw_watch[shortname]
 				if not emu.registerfuncs then
 					return
 				elseif wp then
 					memory.registerwrite(wp, 1, set_wp)
 					table.insert(globals.watchpoints, wp)
-				else --in WW, throws will have the rad_y of the previous throw
+				elseif shortname == "sf2" then --in WW, throws will have the rad_y of the previous throw
 					for p = 1, NUMBER_OF_PLAYERS do
 						wp = game.address.player + (p-1) * game.player_space + 0x6A
 						memory.registerwrite(wp, 2, set_wp)
@@ -578,7 +579,7 @@ local whatgame = function()
 			end
 		end
 	end
-	print("not prepared for " .. emu.gamename())
+	print("unsupported game: " .. emu.gamename())
 end
 
 
