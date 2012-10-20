@@ -1,5 +1,5 @@
 print("On-screen info display for fighting games")
-print("October 13, 2011")
+print("October 20, 2012")
 print("http://code.google.com/p/mame-rr/")
 print("Lua hotkey 1: toggle numbers")
 print("Lua hotkey 2: toggle bars")
@@ -256,7 +256,7 @@ local profile = {
 			})
 			p.combo_old, p.flip_old = p.combo_old or p.combo, p.flip_old or p.flip
 			if p.flip then
-				p.text.flip = {X = game.text.life.pos_X - 0x8, Y = game.text.life.pos_Y, val = "!"}
+				p.text.flip = {X = game.text.life.pos_X() - 0x8, Y = game.text.life.pos_Y(), val = "!"}
 			end
 			if p.combo < 2 then
 				p.pseudocombo = false
