@@ -45,48 +45,50 @@ I dumped it with this configuration. In case I'll redump it desoldering pin 16 f
 #include "cpu/z80/z80.h"
 #include "sound/okim6295.h"
 
-class egghunt_state : public driver_device
+class egghunt_state
 {
 public:
-	egghunt_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, egghunt_state(machine)); }
+
+	egghunt_state(running_machine &machine) { }
+
+	/* memory pointers */
+	UINT8 *   bgram;
+	UINT8 *   atram;
+	UINT8 *   spram;
+//  UINT8 *   paletteram;   // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t   *m_bg_tilemap;
-	UINT8     m_vidram_bank;
+	tilemap_t   *bg_tilemap;
+	UINT8     vidram_bank;
 
 	/* misc */
-	UINT8     m_okibanking;
-	UINT8     m_gfx_banking;
+	UINT8     okibanking;
+	UINT8     gfx_banking;
 
 	/* devices */
-	device_t *m_audiocpu;
-
-	/* memory */
-	UINT8 *   m_atram;
-	UINT8     m_bgram[0x1000];
-	UINT8     m_spram[0x1000];
+	running_device *audiocpu;
 };
 
 
-static void draw_sprites( running_machine &machine, bitmap_t *bitmap,const rectangle *cliprect )
+static void draw_sprites( running_machine *machine, bitmap_t *bitmap,const rectangle *cliprect )
 {
-	egghunt_state *state = machine.driver_data<egghunt_state>();
+	egghunt_state *state = (egghunt_state *)machine->driver_data;
 	int flipscreen = 0;
 	int offs, sx, sy;
 
 	for (offs = 0x1000 - 0x40; offs >= 0; offs -= 0x20)
 	{
-		int code = state->m_spram[offs];
-		int attr = state->m_spram[offs + 1];
+		int code = state->spram[offs];
+		int attr = state->spram[offs + 1];
 		int color = attr & 0x0f;
-		sx = state->m_spram[offs + 3] + ((attr & 0x10) << 4);
-		sy = ((state->m_spram[offs + 2] + 8) & 0xff) - 8;
+		sx = state->spram[offs + 3] + ((attr & 0x10) << 4);
+		sy = ((state->spram[offs + 2] + 8) & 0xff) - 8;
 		code += (attr & 0xe0) << 3;
 
 		if (attr & 0xe0)
 		{
-			switch(state->m_gfx_banking & 0x30)
+			switch(state->gfx_banking & 0x30)
 			{
 	//          case 0x00:
 	//          case 0x10: code += 0; break;
@@ -100,7 +102,7 @@ static void draw_sprites( running_machine &machine, bitmap_t *bitmap,const recta
 			sx = 496 - sx;
 			sy = 240 - sy;
 		}
-		drawgfx_transpen(bitmap,cliprect,machine.gfx[1],
+		drawgfx_transpen(bitmap,cliprect,machine->gfx[1],
 				 code,
 				 color,
 				 flipscreen,flipscreen,
@@ -110,17 +112,17 @@ static void draw_sprites( running_machine &machine, bitmap_t *bitmap,const recta
 
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	egghunt_state *state = machine.driver_data<egghunt_state>();
-	int code = ((state->m_bgram[tile_index * 2 + 1] << 8) | state->m_bgram[tile_index * 2]) & 0x3fff;
-	int colour = state->m_atram[tile_index] & 0x3f;
+	egghunt_state *state = (egghunt_state *)machine->driver_data;
+	int code = ((state->bgram[tile_index * 2 + 1] << 8) | state->bgram[tile_index * 2]) & 0x3fff;
+	int colour = state->atram[tile_index] & 0x3f;
 
 	if(code & 0x2000)
 	{
-		if((state->m_gfx_banking & 3) == 2)
+		if((state->gfx_banking & 3) == 2)
 			code += 0x2000;
-		else if((state->m_gfx_banking & 3) == 3)
+		else if((state->gfx_banking & 3) == 3)
 			code += 0x4000;
-//      else if((state->m_gfx_banking & 3) == 1)
+//      else if((state->gfx_banking & 3) == 1)
 //          code += 0;
 	}
 
@@ -129,104 +131,106 @@ static TILE_GET_INFO( get_bg_tile_info )
 
 static READ8_HANDLER( egghunt_bgram_r )
 {
-	egghunt_state *state = space->machine().driver_data<egghunt_state>();
-	if (state->m_vidram_bank)
+	egghunt_state *state = (egghunt_state *)space->machine->driver_data;
+	if (state->vidram_bank)
 	{
-		return state->m_spram[offset];
+		return state->spram[offset];
 	}
 	else
 	{
-		return state->m_bgram[offset];
+		return state->bgram[offset];
 	}
 }
 
 static WRITE8_HANDLER( egghunt_bgram_w )
 {
-	egghunt_state *state = space->machine().driver_data<egghunt_state>();
-	if (state->m_vidram_bank)
+	egghunt_state *state = (egghunt_state *)space->machine->driver_data;
+	if (state->vidram_bank)
 	{
-		state->m_spram[offset] = data;
+		state->spram[offset] = data;
 	}
 	else
 	{
-		state->m_bgram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_bg_tilemap, offset / 2);
+		state->bgram[offset] = data;
+		tilemap_mark_tile_dirty(state->bg_tilemap, offset / 2);
 	}
 }
 
 static WRITE8_HANDLER( egghunt_atram_w )
 {
-	egghunt_state *state = space->machine().driver_data<egghunt_state>();
-	state->m_atram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	egghunt_state *state = (egghunt_state *)space->machine->driver_data;
+	state->atram[offset] = data;
+	tilemap_mark_tile_dirty(state->bg_tilemap, offset);
 }
 
 
 static VIDEO_START(egghunt)
 {
-	egghunt_state *state = machine.driver_data<egghunt_state>();
+	egghunt_state *state = (egghunt_state *)machine->driver_data;
 
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 64, 32);
+	state->bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 64, 32);
+	state->bgram = auto_alloc_array(machine, UINT8, 0x1000);
+	state->spram = auto_alloc_array(machine, UINT8, 0x1000);
 
-	state->save_item(NAME(state->m_bgram));
-	state->save_item(NAME(state->m_spram));
+	state_save_register_global_pointer(machine, state->bgram, 0x1000);
+	state_save_register_global_pointer(machine, state->spram, 0x1000);
 }
 
-static SCREEN_UPDATE(egghunt)
+static VIDEO_UPDATE(egghunt)
 {
-	egghunt_state *state = screen->machine().driver_data<egghunt_state>();
-	tilemap_draw(bitmap,cliprect, state->m_bg_tilemap, 0, 0);
-	draw_sprites(screen->machine(), bitmap, cliprect);
+	egghunt_state *state = (egghunt_state *)screen->machine->driver_data;
+	tilemap_draw(bitmap,cliprect, state->bg_tilemap, 0, 0);
+	draw_sprites(screen->machine, bitmap, cliprect);
 	return 0;
 }
 
 static WRITE8_HANDLER( egghunt_gfx_banking_w )
 {
-	egghunt_state *state = space->machine().driver_data<egghunt_state>();
+	egghunt_state *state = (egghunt_state *)space->machine->driver_data;
 	// data & 0x03 is used for tile banking
 	// data & 0x30 is used for sprites banking
-	state->m_gfx_banking = data & 0x33;
+	state->gfx_banking = data & 0x33;
 
-	tilemap_mark_all_tiles_dirty(state->m_bg_tilemap);
+	tilemap_mark_all_tiles_dirty(state->bg_tilemap);
 }
 
 static WRITE8_HANDLER( egghunt_vidram_bank_w )
 {
-	egghunt_state *state = space->machine().driver_data<egghunt_state>();
-	state->m_vidram_bank = data & 1;
+	egghunt_state *state = (egghunt_state *)space->machine->driver_data;
+	state->vidram_bank = data & 1;
 }
 
 static WRITE8_HANDLER( egghunt_soundlatch_w )
 {
-	egghunt_state *state = space->machine().driver_data<egghunt_state>();
+	egghunt_state *state = (egghunt_state *)space->machine->driver_data;
 	soundlatch_w(space, 0, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
 static READ8_DEVICE_HANDLER( egghunt_okibanking_r )
 {
-	egghunt_state *state = device->machine().driver_data<egghunt_state>();
-	return state->m_okibanking;
+	egghunt_state *state = (egghunt_state *)device->machine->driver_data;
+	return state->okibanking;
 }
 
 static WRITE8_DEVICE_HANDLER( egghunt_okibanking_w )
 {
-	egghunt_state *state = device->machine().driver_data<egghunt_state>();
-	state->m_okibanking = data;
+	egghunt_state *state = (egghunt_state *)device->machine->driver_data;
+	state->okibanking = data;
 	okim6295_device *oki = downcast<okim6295_device *>(device);
 	oki->set_bank_base((data & 0x10) ? 0x40000 : 0);
 }
 
-static ADDRESS_MAP_START( egghunt_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( egghunt_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM_WRITE(paletteram_xRRRRRGGGGGBBBBB_le_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0xc800, 0xcfff) AM_RAM_WRITE(egghunt_atram_w) AM_BASE_MEMBER(egghunt_state, m_atram)
+	AM_RANGE(0xc800, 0xcfff) AM_RAM_WRITE(egghunt_atram_w) AM_BASE_MEMBER(egghunt_state, atram)
 	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(egghunt_bgram_r, egghunt_bgram_w)
 	AM_RANGE(0xe000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("DSW1") AM_WRITE(egghunt_vidram_bank_w)
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("SYSTEM") AM_WRITE(egghunt_gfx_banking_w)
@@ -237,11 +241,11 @@ static ADDRESS_MAP_START( io_map, AS_IO, 8 )
 	AM_RANGE(0x07, 0x07) AM_WRITENOP
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xe000, 0xe000) AM_READ(soundlatch_r)
 	AM_RANGE(0xe001, 0xe001) AM_DEVREADWRITE("oki", egghunt_okibanking_r, egghunt_okibanking_w)
-	AM_RANGE(0xe004, 0xe004) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0xe004, 0xe004) AM_DEVREADWRITE("oki", okim6295_r, okim6295_w)
 	AM_RANGE(0xf000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
@@ -388,57 +392,60 @@ GFXDECODE_END
 
 static MACHINE_START( egghunt )
 {
-	egghunt_state *state = machine.driver_data<egghunt_state>();
+	egghunt_state *state = (egghunt_state *)machine->driver_data;
 
-	state->m_audiocpu = machine.device("audiocpu");
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_gfx_banking));
-	state->save_item(NAME(state->m_okibanking));
-	state->save_item(NAME(state->m_vidram_bank));
+	state_save_register_global(machine, state->gfx_banking);
+	state_save_register_global(machine, state->okibanking);
+	state_save_register_global(machine, state->vidram_bank);
 }
 
 static MACHINE_RESET( egghunt )
 {
-	egghunt_state *state = machine.driver_data<egghunt_state>();
-	state->m_gfx_banking = 0;
-	state->m_okibanking = 0;
-	state->m_vidram_bank = 0;
+	egghunt_state *state = (egghunt_state *)machine->driver_data;
+	state->gfx_banking = 0;
+	state->okibanking = 0;
+	state->vidram_bank = 0;
 }
 
-static MACHINE_CONFIG_START( egghunt, egghunt_state )
+static MACHINE_DRIVER_START( egghunt )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(egghunt_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,12000000/2)		 /* 6 MHz ?*/
-	MCFG_CPU_PROGRAM_MAP(egghunt_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold) // or 2 like mitchell.c?
+	MDRV_CPU_ADD("maincpu", Z80,12000000/2)		 /* 6 MHz ?*/
+	MDRV_CPU_PROGRAM_MAP(egghunt_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold) // or 2 like mitchell.c?
 
-	MCFG_CPU_ADD("audiocpu", Z80,12000000/2)		 /* 6 MHz ?*/
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,12000000/2)		 /* 6 MHz ?*/
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(egghunt)
-	MCFG_MACHINE_RESET(egghunt)
+	MDRV_MACHINE_START(egghunt)
+	MDRV_MACHINE_RESET(egghunt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, 56*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(egghunt)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, 56*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(egghunt)
-	MCFG_PALETTE_LENGTH(0x400)
+	MDRV_GFXDECODE(egghunt)
+	MDRV_PALETTE_LENGTH(0x400)
 
-	MCFG_VIDEO_START(egghunt)
+	MDRV_VIDEO_START(egghunt)
+	MDRV_VIDEO_UPDATE(egghunt)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 ROM_START( egghunt )
 	ROM_REGION( 0x20000, "maincpu", 0 )

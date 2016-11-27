@@ -1,58 +1,48 @@
 
-#include "sound/msm5232.h"
-
 #define POPDRUMKIT 0
 
 
-class equites_state : public driver_device
+class equites_state
 {
 public:
-	equites_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, equites_state(machine)); }
+
+	equites_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_bg_videoram;
-	UINT8  *  m_fg_videoram;	// 8bits
-	UINT16 *  m_spriteram;
-	UINT16 *  m_spriteram_2;
-	UINT16 *  m_workram;
-	UINT8  *  m_mcu_ram;	// 8bits
-//  UINT16 *  m_nvram;    // currently this uses generic nvram handling
+	UINT16 *  bg_videoram;
+	UINT8  *  fg_videoram;	// 8bits
+	UINT16 *  spriteram;
+	UINT16 *  spriteram_2;
+	UINT16 *  workram;
+	UINT8  *  mcu_ram;	// 8bits
+//  UINT16 *  nvram;    // currently this uses generic nvram handling
 
 	/* video-related */
-	tilemap_t *m_fg_tilemap;
-	tilemap_t *m_bg_tilemap;
-	int       m_fg_char_bank;
-	UINT8     m_bgcolor;
-	UINT16    m_splndrbt_bg_scrollx;
-	UINT16	  m_splndrbt_bg_scrolly;
+	tilemap_t   *fg_tilemap, *bg_tilemap;
+	int       fg_char_bank;
+	UINT8     bgcolor;
+	UINT16    splndrbt_bg_scrollx, splndrbt_bg_scrolly;
 
 	/* misc */
-	int       m_sound_prom_address;
-	UINT8     m_dac_latch;
-	UINT8     m_eq8155_port_b;
-	UINT8     m_eq8155_port_a;
-	UINT8     m_eq8155_port_c;
-	UINT8     m_ay_port_a;
-	UINT8     m_ay_port_b;
-	UINT8     m_eq_cymbal_ctrl;
-	emu_timer *m_nmi_timer;
-	emu_timer *m_adjuster_timer;
-	float     m_cymvol;
-	float     m_hihatvol;
-	int       m_timer_count;
-	int       m_unknown_bit;	// Gekisou special handling
+	int       sound_prom_address;
+	UINT8     dac_latch;
+	UINT8     eq8155_port_b;
+	UINT8     eq8155_port_a,eq8155_port_c,ay_port_a,ay_port_b,eq_cymbal_ctrl;
+	emu_timer *nmi_timer, *adjuster_timer;
+	float     cymvol,hihatvol;
+	int       timer_count;
+	int       unknown_bit;	// Gekisou special handling
 #if POPDRUMKIT
-	int       m_hihat;
-	int       m_cymbal;
+	int       hihat,cymbal;
 #endif
 
 	/* devices */
-	device_t *m_mcu;
-	device_t *m_audio_cpu;
-	msm5232_device *m_msm;
-	device_t *m_dac_1;
-	device_t *m_dac_2;
+	running_device *mcu;
+	running_device *audio_cpu;
+	running_device *msm;
+	running_device *dac_1;
+	running_device *dac_2;
 };
 
 
@@ -74,7 +64,7 @@ extern WRITE16_HANDLER(splndrbt_bg_scrolly_w);
 
 extern PALETTE_INIT( equites );
 extern VIDEO_START( equites );
-extern SCREEN_UPDATE( equites );
+extern VIDEO_UPDATE( equites );
 extern PALETTE_INIT( splndrbt );
 extern VIDEO_START( splndrbt );
-extern SCREEN_UPDATE( splndrbt );
+extern VIDEO_UPDATE( splndrbt );

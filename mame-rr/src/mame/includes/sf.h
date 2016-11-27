@@ -4,29 +4,27 @@
 
 *************************************************************************/
 
-class sf_state : public driver_device
+class sf_state
 {
 public:
-	sf_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, sf_state(machine)); }
+
+	sf_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_videoram;
-	UINT16 *    m_objectram;
-//  UINT16 *    m_paletteram;    // currently this uses generic palette handling
-	size_t      m_videoram_size;
+	UINT16 *    videoram;
+	UINT16 *    objectram;
+//  UINT16 *    paletteram;    // currently this uses generic palette handling
+	size_t      videoram_size;
 
 	/* video-related */
-	tilemap_t     *m_bg_tilemap;
-	tilemap_t     *m_fg_tilemap;
-	tilemap_t     *m_tx_tilemap;
-	int         m_sf_active;
-	UINT16      m_bgscroll;
-	UINT16      m_fgscroll;
+	tilemap_t     *bg_tilemap, *fg_tilemap, *tx_tilemap;
+	int         sf_active;
+	UINT16      bgscroll, fgscroll;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 
@@ -38,4 +36,4 @@ WRITE16_HANDLER( sf_videoram_w );
 WRITE16_HANDLER( sf_gfxctrl_w );
 
 VIDEO_START( sf );
-SCREEN_UPDATE( sf );
+VIDEO_UPDATE( sf );

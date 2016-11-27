@@ -45,36 +45,35 @@ so it could be by them instead
 #include "cpu/i86/i86.h"
 #include "sound/ay8910.h"
 
-class hotblock_state : public driver_device
+class hotblock_state
 {
 public:
-	hotblock_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, hotblock_state(machine)); }
+
+	hotblock_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_vram;
+	UINT8 *  vram;
+	UINT8 *  pal;
 
 	/* misc */
-	int      m_port0;
-	int      m_port4;
-
-	/* memory */
-	UINT8    m_pal[0x10000];
+	int      port0;
+	int      port4;
 };
 
 
 
 static READ8_HANDLER( hotblock_video_read )
 {
-	hotblock_state *state = space->machine().driver_data<hotblock_state>();
+	hotblock_state *state = (hotblock_state *)space->machine->driver_data;
 	/* right?, anything else?? */
-	if (state->m_port0 & 0x20) // port 0 = a8 e8 -- palette
+	if (state->port0 & 0x20) // port 0 = a8 e8 -- palette
 	{
-		return state->m_pal[offset];
+		return state->pal[offset];
 	}
 	else // port 0 = 88 c8
 	{
-		return state->m_vram[offset];
+		return state->vram[offset];
 	}
 }
 
@@ -88,42 +87,42 @@ static READ8_HANDLER( hotblock_port4_r )
 
 static WRITE8_HANDLER( hotblock_port4_w )
 {
-//  mame_printf_debug("port4_w: pc = %06x : data %04x\n", cpu_get_pc(&space->device()), data);
-//  popmessage("port4_w: pc = %06x : data %04x", cpu_get_pc(&space->device()), data);
-	hotblock_state *state = space->machine().driver_data<hotblock_state>();
-	state->m_port4 = data;
+//  mame_printf_debug("port4_w: pc = %06x : data %04x\n", cpu_get_pc(space->cpu), data);
+//  popmessage("port4_w: pc = %06x : data %04x", cpu_get_pc(space->cpu), data);
+	hotblock_state *state = (hotblock_state *)space->machine->driver_data;
+	state->port4 = data;
 }
 
 
 
 static WRITE8_HANDLER( hotblock_port0_w )
 {
-//  popmessage("port4_w: pc = %06x : data %04x", cpu_get_pc(&space->device()), data);
-	hotblock_state *state = space->machine().driver_data<hotblock_state>();
-	state->m_port0 = data;
+//  popmessage("port4_w: pc = %06x : data %04x", cpu_get_pc(space->cpu), data);
+	hotblock_state *state = (hotblock_state *)space->machine->driver_data;
+	state->port0 = data;
 }
 
 static WRITE8_HANDLER( hotblock_video_write )
 {
-	hotblock_state *state = space->machine().driver_data<hotblock_state>();
+	hotblock_state *state = (hotblock_state *)space->machine->driver_data;
 	/* right?, anything else?? */
-	if (state->m_port0 & 0x20) // port 0 = a8 e8 -- palette
+	if (state->port0 & 0x20) // port 0 = a8 e8 -- palette
 	{
-		state->m_pal[offset] = data;
+		state->pal[offset] = data;
 	}
 	else // port 0 = 88 c8
 	{
-		state->m_vram[offset] = data;
+		state->vram[offset] = data;
 	}
 }
 
-static ADDRESS_MAP_START( hotblock_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( hotblock_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x00000, 0x0ffff) AM_RAM
-	AM_RANGE(0x10000, 0x1ffff) AM_READWRITE(hotblock_video_read, hotblock_video_write) AM_BASE_MEMBER(hotblock_state, m_vram)
+	AM_RANGE(0x10000, 0x1ffff) AM_READWRITE(hotblock_video_read, hotblock_video_write) AM_BASE_MEMBER(hotblock_state, vram)
 	AM_RANGE(0x20000, 0xfffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( hotblock_io, AS_IO, 8 )
+static ADDRESS_MAP_START( hotblock_io, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x0000, 0x0000) AM_WRITE(hotblock_port0_w)
 	AM_RANGE(0x0004, 0x0004) AM_READWRITE(hotblock_port4_r, hotblock_port4_w)
 	AM_RANGE(0x8000, 0x8001) AM_DEVWRITE("aysnd", ay8910_address_data_w)
@@ -134,23 +133,24 @@ ADDRESS_MAP_END
 
 static VIDEO_START(hotblock)
 {
-	hotblock_state *state = machine.driver_data<hotblock_state>();
-	state->save_item(NAME(state->m_pal));
+	hotblock_state *state = (hotblock_state *)machine->driver_data;
+	state->pal = auto_alloc_array(machine, UINT8, 0x10000);
+	state_save_register_global_pointer(machine, state->pal, 0x10000);
 }
 
-static SCREEN_UPDATE(hotblock)
+static VIDEO_UPDATE(hotblock)
 {
-	hotblock_state *state = screen->machine().driver_data<hotblock_state>();
+	hotblock_state *state = (hotblock_state *)screen->machine->driver_data;
 	int y, x, count;
 	int i;
 	static const int xxx = 320, yyy = 204;
 
-	bitmap_fill(bitmap, 0, get_black_pen(screen->machine()));
+	bitmap_fill(bitmap, 0, get_black_pen(screen->machine));
 
 	for (i = 0; i < 256; i++)
 	{
-		int dat = (state->m_pal[i * 2 + 1] << 8) | state->m_pal[i * 2];
-		palette_set_color_rgb(screen->machine(), i, pal5bit(dat >> 0), pal5bit(dat >> 5), pal5bit(dat >> 10));
+		int dat = (state->pal[i * 2 + 1] << 8) | state->pal[i * 2];
+		palette_set_color_rgb(screen->machine, i, pal5bit(dat >> 0), pal5bit(dat >> 5), pal5bit(dat >> 10));
 	}
 
 	count = 0;
@@ -158,8 +158,8 @@ static SCREEN_UPDATE(hotblock)
 	{
 		for(x = 0; x < xxx; x++)
 		{
-			if (state->m_port0 & 0x40)
-				*BITMAP_ADDR16(bitmap, y, x) = state->m_vram[count];
+			if (state->port0 & 0x40)
+				*BITMAP_ADDR16(bitmap, y, x) = state->vram[count];
 			count++;
 		}
 	}
@@ -193,7 +193,7 @@ INPUT_PORTS_END
 
 static INTERRUPT_GEN( hotblocks_irq ) /* right? */
 {
-	device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static const ay8910_interface ay8910_config =
@@ -207,34 +207,37 @@ static const ay8910_interface ay8910_config =
 };
 
 
-static MACHINE_CONFIG_START( hotblock, hotblock_state )
+static MACHINE_DRIVER_START( hotblock )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(hotblock_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", I8088, 10000000)
-	MCFG_CPU_PROGRAM_MAP(hotblock_map)
-	MCFG_CPU_IO_MAP(hotblock_io)
-	MCFG_CPU_VBLANK_INT("screen", hotblocks_irq)
+	MDRV_CPU_ADD("maincpu", I8088, 10000000)
+	MDRV_CPU_PROGRAM_MAP(hotblock_map)
+	MDRV_CPU_IO_MAP(hotblock_io)
+	MDRV_CPU_VBLANK_INT("screen", hotblocks_irq)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(1024,1024)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 0, 200-1)
-	MCFG_SCREEN_UPDATE(hotblock)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(1024,1024)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 0, 200-1)
 
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(hotblock)
+	MDRV_VIDEO_START(hotblock)
+	MDRV_VIDEO_UPDATE(hotblock)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 1000000)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 1000000)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 ROM_START( hotblock )
 	ROM_REGION( 0x100000, "maincpu", 0 )

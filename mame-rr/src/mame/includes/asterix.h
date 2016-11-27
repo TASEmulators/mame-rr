@@ -4,42 +4,42 @@
 
 *************************************************************************/
 
-class asterix_state : public driver_device
+class asterix_state
 {
 public:
-	asterix_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, asterix_state(machine)); }
+
+	asterix_state(running_machine &machine) { }
 
 	/* memory pointers */
-//  UINT16 *    m_paletteram;    // currently this uses generic palette handling
+//  UINT16 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int         m_sprite_colorbase;
-	int         m_layer_colorbase[4];
-	int         m_layerpri[3];
-	UINT16      m_spritebank;
-	int         m_tilebanks[4];
-	int         m_spritebanks[4];
+	int         sprite_colorbase;
+	int         layer_colorbase[4], layerpri[3];
+	UINT16      spritebank;
+	int         tilebanks[4];
+	int         spritebanks[4];
 
 	/* misc */
-	UINT8       m_cur_control2;
-	UINT16      m_prot[2];
+	UINT8       cur_control2;
+	UINT16      prot[2];
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k053260;
-	device_t *m_k056832;
-	device_t *m_k053244;
-	device_t *m_k053251;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k053260;
+	running_device *k056832;
+	running_device *k053244;
+	running_device *k053251;
 };
 
 
 
 /*----------- defined in video/asterix.c -----------*/
 
-SCREEN_UPDATE( asterix );
+VIDEO_UPDATE( asterix );
 WRITE16_HANDLER( asterix_spritebank_w );
 
-extern void asterix_tile_callback(running_machine &machine, int layer, int *code, int *color, int *flags);
-extern void asterix_sprite_callback(running_machine &machine, int *code, int *color, int *priority_mask);
+extern void asterix_tile_callback(running_machine *machine, int layer, int *code, int *color, int *flags);
+extern void asterix_sprite_callback(running_machine *machine, int *code, int *color, int *priority_mask);

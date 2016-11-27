@@ -1,30 +1,25 @@
 
-class paradise_state : public driver_device
+class paradise_state
 {
 public:
-	paradise_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, paradise_state(machine)); }
+
+	paradise_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_vram_0;
-	UINT8 *  m_vram_1;
-	UINT8 *  m_vram_2;
-	UINT8 *  m_videoram;
-	UINT8 *  m_paletteram;
-	UINT8 *  m_spriteram;
-	size_t   m_spriteram_size;
+	UINT8 *  vram_0;
+	UINT8 *  vram_1;
+	UINT8 *  vram_2;
+	UINT8 *  videoram;
+	UINT8 *  paletteram;
+	UINT8 *  spriteram;
+	size_t   spriteram_size;
 
 	/* video-related */
-	tilemap_t *m_tilemap_0;
-	tilemap_t *m_tilemap_1;
-	tilemap_t *m_tilemap_2;
-	bitmap_t *m_tmpbitmap;
-	UINT8 m_palbank;
-	UINT8 m_priority;
-	UINT8 m_pixbank;
-	int m_sprite_inc;
-
-	int irq_count;
+	tilemap_t *tilemap_0, *tilemap_1, *tilemap_2;
+	bitmap_t *tmpbitmap;
+	UINT8 palbank, priority;
+	int sprite_inc;
 };
 
 /*----------- defined in video/paradise.c -----------*/
@@ -43,6 +38,6 @@ WRITE8_HANDLER( paradise_palbank_w );
 
 VIDEO_START( paradise );
 
-SCREEN_UPDATE( paradise );
-SCREEN_UPDATE( torus );
-SCREEN_UPDATE( madball );
+VIDEO_UPDATE( paradise );
+VIDEO_UPDATE( torus );
+VIDEO_UPDATE( madball );

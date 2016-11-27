@@ -72,19 +72,19 @@ const debug_view_memory::memory_view_pos debug_view_memory::s_memory_pos_table[9
 //  debug_view_memory_source - constructors
 //-------------------------------------------------
 
-debug_view_memory_source::debug_view_memory_source(const char *name, address_space &space)
-	: debug_view_source(name, &space.device()),
+debug_view_memory_source::debug_view_memory_source(const char *name, const address_space &space)
+	: debug_view_source(name, space.cpu),
 	  m_space(&space),
-	  m_memintf(dynamic_cast<device_memory_interface *>(&space.device())),
+	  m_memintf(dynamic_cast<device_memory_interface *>(space.cpu)),
 	  m_base(NULL),
 	  m_length(0),
 	  m_offsetxor(0),
-	  m_endianness(space.endianness()),
-	  m_prefsize(space.data_width() / 8)
+	  m_endianness(space.endianness),
+	  m_prefsize(space.dbits / 8)
 {
 }
 
-debug_view_memory_source::debug_view_memory_source(const char *name, const memory_region &region)
+debug_view_memory_source::debug_view_memory_source(const char *name, const region_info &region)
 	: debug_view_source(name),
 	  m_space(NULL),
 	  m_memintf(NULL),
@@ -153,22 +153,22 @@ void debug_view_memory::enumerate_sources()
 
 	// first add all the devices' address spaces
 	device_memory_interface *memintf = NULL;
-	for (bool gotone = machine().devicelist().first(memintf); gotone; gotone = memintf->next(memintf))
-		for (address_spacenum spacenum = AS_0; spacenum < ADDRESS_SPACES; spacenum++)
+	for (bool gotone = m_machine.m_devicelist.first(memintf); gotone; gotone = memintf->next(memintf))
+		for (int spacenum = 0; spacenum < ADDRESS_SPACES; spacenum++)
 		{
-			address_space *space = memintf->space(spacenum);
+			const address_space *space = memintf->space(spacenum);
 			if (space != NULL)
 			{
-				name.printf("%s '%s' %s space memory", memintf->device().name(), memintf->device().tag(), space->name());
-				m_source_list.append(*auto_alloc(machine(), debug_view_memory_source(name, *space)));
+				name.printf("%s '%s' %s space memory", memintf->device().name(), memintf->device().tag(), space->name);
+				m_source_list.append(*auto_alloc(&m_machine, debug_view_memory_source(name, *space)));
 			}
 		}
 
 	// then add all the memory regions
-	for (const memory_region *region = machine().first_region(); region != NULL; region = region->next())
+	for (const region_info *region = m_machine.m_regionlist.first(); region != NULL; region = region->next())
 	{
 		name.printf("Region '%s'", region->name());
-		m_source_list.append(*auto_alloc(machine(), debug_view_memory_source(name, *region)));
+		m_source_list.append(*auto_alloc(&m_machine, debug_view_memory_source(name, *region)));
 	}
 
 	// finally add all global array symbols
@@ -177,7 +177,7 @@ void debug_view_memory::enumerate_sources()
 		// stop when we run out of items
 		UINT32 valsize, valcount;
 		void *base;
-		const char *itemname = machine().save().indexed_item(itemnum, base, valsize, valcount);
+		const char *itemname = state_save_get_indexed_item(&m_machine, itemnum, &base, &valsize, &valcount);
 		if (itemname == NULL)
 			break;
 
@@ -185,7 +185,7 @@ void debug_view_memory::enumerate_sources()
 		if (valcount > 1 && strstr(itemname, "globals/"))
 		{
 			name.cpy(strrchr(itemname, '/') + 1);
-			m_source_list.append(*auto_alloc(machine(), debug_view_memory_source(name, base, valsize, valcount)));
+			m_source_list.append(*auto_alloc(&m_machine, debug_view_memory_source(name, base, valsize, valcount)));
 		}
 	}
 
@@ -213,7 +213,7 @@ void debug_view_memory::view_notify(debug_view_notification type)
 		m_chunks_per_row = m_bytes_per_chunk * m_chunks_per_row / source.m_prefsize;
 		m_bytes_per_chunk = source.m_prefsize;
 		if (source.m_space != NULL)
-			m_expression.set_context(&source.m_space->device().debug()->symtable());
+			m_expression.set_context(source.m_space->cpu->debug()->symtable());
 		else
 			m_expression.set_context(NULL);
 	}
@@ -263,7 +263,7 @@ void debug_view_memory::view_update()
 		if (effrow < m_total.y)
 		{
 			offs_t addrbyte = m_byte_offset + effrow * m_bytes_per_row;
-			offs_t address = (source.m_space != NULL) ? source.m_space->byte_to_address(addrbyte) : addrbyte;
+			offs_t address = (source.m_space != NULL) ? memory_byte_to_address(source.m_space, addrbyte) : addrbyte;
 			char addrtext[20];
 
 			// generate the address
@@ -441,8 +441,8 @@ void debug_view_memory::recompute()
 	int addrchars;
 	if (source.m_space != NULL)
 	{
-		m_maxaddr = m_no_translation ? source.m_space->bytemask() : source.m_space->logbytemask();
-		addrchars = m_no_translation ? source.m_space->addrchars() : source.m_space->logaddrchars();
+		m_maxaddr = m_no_translation ? source.m_space->bytemask : source.m_space->logbytemask;
+		addrchars = m_no_translation ? source.m_space->addrchars : source.m_space->logaddrchars;
 	}
 	else
 	{
@@ -457,9 +457,9 @@ void debug_view_memory::recompute()
 		m_addrformat.printf("%%0%dX%*s", addrchars, 8 - addrchars, "");
 
 	// if we are viewing a space with a minimum chunk size, clamp the bytes per chunk
-	if (source.m_space != NULL && source.m_space->byte_to_address(1) > 1)
+	if (source.m_space != NULL && source.m_space->ashift < 0)
 	{
-		UINT32 min_bytes_per_chunk = source.m_space->byte_to_address(1);
+		UINT32 min_bytes_per_chunk = 1 << -source.m_space->ashift;
 		while (m_bytes_per_chunk < min_bytes_per_chunk)
 		{
 			m_bytes_per_chunk *= 2;
@@ -521,7 +521,7 @@ bool debug_view_memory::needs_recompute()
 		const debug_view_memory_source &source = downcast<const debug_view_memory_source &>(*m_source);
 		offs_t resultbyte;
 		if (source.m_space != NULL)
-			resultbyte  = source.m_space->address_to_byte(m_expression.value()) & source.m_space->logbytemask();
+			resultbyte  = memory_address_to_byte(source.m_space, m_expression.value()) & source.m_space->logbytemask;
 		else
 			resultbyte = m_expression.value();
 
@@ -621,7 +621,7 @@ bool debug_view_memory::read(UINT8 size, offs_t offs, UINT64 &data)
 	{
 		offs_t dummyaddr = offs;
 
-		bool ismapped = m_no_translation ? true : source.m_memintf->translate(source.m_space->spacenum(), TRANSLATE_READ_DEBUG, dummyaddr);
+		bool ismapped = m_no_translation ? true : source.m_memintf->translate(source.m_space->spacenum, TRANSLATE_READ_DEBUG, dummyaddr);
 		data = ~(UINT64)0;
 		if (ismapped)
 		{
@@ -707,10 +707,10 @@ void debug_view_memory::write(UINT8 size, offs_t offs, UINT64 data)
 
 // hack for FD1094 editing
 #ifdef FD1094_HACK
-	if (source.m_base == machine().region("user2"))
+	if (source.m_base == *m_machine.region("user2"))
 	{
-		extern void fd1094_regenerate_key(running_machine &machine);
-		fd1094_regenerate_key(machine());
+		extern void fd1094_regenerate_key(running_machine *machine);
+		fd1094_regenerate_key(&m_machine);
 	}
 #endif
 }

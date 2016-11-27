@@ -36,21 +36,20 @@ TODO:
 #include "cpu/z80/z80.h"
 #include "sound/2203intf.h"
 #include "sound/msm5205.h"
-#include "machine/nvram.h"
 #include "includes/hnayayoi.h"
 
 
 static READ8_HANDLER( keyboard_0_r )
 {
-	hnayayoi_state *state = space->machine().driver_data<hnayayoi_state>();
+	hnayayoi_state *state = (hnayayoi_state *)space->machine->driver_data;
 	int res = 0x3f;
 	int i;
 	static const char *const keynames[] = { "KEY0", "KEY1", "KEY2", "KEY3", "KEY4" };
 
 	for (i = 0; i < 5; i++)
 	{
-		if (~state->m_keyb & (1 << i))
-			res &= input_port_read(space->machine(), keynames[i]);
+		if (~state->keyb & (1 << i))
+			res &= input_port_read(space->machine, keynames[i]);
 	}
 
 	return res;
@@ -64,8 +63,8 @@ static READ8_HANDLER( keyboard_1_r )
 
 static WRITE8_HANDLER( keyboard_w )
 {
-	hnayayoi_state *state = space->machine().driver_data<hnayayoi_state>();
-	state->m_keyb = data;
+	hnayayoi_state *state = (hnayayoi_state *)space->machine->driver_data;
+	state->keyb = data;
 }
 
 
@@ -90,13 +89,13 @@ static WRITE8_DEVICE_HANDLER( adpcm_reset_inv_w )
 }
 
 
-static ADDRESS_MAP_START( hnayayoi_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( hnayayoi_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
-	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( hnayayoi_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( hnayayoi_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVWRITE("ymsnd", ym2203_w)
 	AM_RANGE(0x02, 0x03) AM_DEVREAD("ymsnd", ym2203_r)
@@ -116,9 +115,9 @@ static ADDRESS_MAP_START( hnayayoi_io_map, AS_IO, 8 )
 	AM_RANGE(0x62, 0x67) AM_WRITE(dynax_blitter_rev1_param_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( hnfubuki_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( hnfubuki_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
-	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x8000, 0xfeff) AM_ROM
 	AM_RANGE(0xff00, 0xff01) AM_DEVWRITE("ymsnd", ym2203_w)
 	AM_RANGE(0xff02, 0xff03) AM_DEVREAD("ymsnd", ym2203_r)
@@ -138,13 +137,13 @@ static ADDRESS_MAP_START( hnfubuki_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xff62, 0xff67) AM_WRITE(dynax_blitter_rev1_param_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( untoucha_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( untoucha_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
-	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( untoucha_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( untoucha_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x10, 0x10) AM_DEVWRITE("ymsnd", ym2203_control_port_w)
 	AM_RANGE(0x11, 0x11) AM_DEVREAD("ymsnd", ym2203_status_port_r)
@@ -500,10 +499,10 @@ INPUT_PORTS_END
 
 
 
-static void irqhandler(device_t *device, int irq)
+static void irqhandler(running_device *device, int irq)
 {
 	popmessage("irq");
-//  cputag_set_input_line(device->machine(), "maincpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
+//  cputag_set_input_line(device->machine, "maincpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
@@ -530,85 +529,90 @@ static const msm5205_interface msm5205_config =
 
 static MACHINE_START( hnayayoi )
 {
-	hnayayoi_state *state = machine.driver_data<hnayayoi_state>();
+	hnayayoi_state *state = (hnayayoi_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_palbank));
-	state->save_item(NAME(state->m_blit_layer));
-	state->save_item(NAME(state->m_blit_dest));
-	state->save_item(NAME(state->m_blit_src));
-	state->save_item(NAME(state->m_keyb));
+	state_save_register_global(machine, state->palbank);
+	state_save_register_global(machine, state->blit_layer);
+	state_save_register_global(machine, state->blit_dest);
+	state_save_register_global(machine, state->blit_src);
+	state_save_register_global(machine, state->keyb);
 }
 
 static MACHINE_RESET( hnayayoi )
 {
-	hnayayoi_state *state = machine.driver_data<hnayayoi_state>();
+	hnayayoi_state *state = (hnayayoi_state *)machine->driver_data;
 
 	/* start with the MSM5205 reset */
-	msm5205_reset_w(machine.device("msm"), 1);
+	msm5205_reset_w(machine->device("msm"), 1);
 
-	state->m_palbank = 0;
-	state->m_blit_layer = 0;
-	state->m_blit_dest = 0;
-	state->m_blit_src = 0;
-	state->m_keyb = 0;
+	state->palbank = 0;
+	state->blit_layer = 0;
+	state->blit_dest = 0;
+	state->blit_src = 0;
+	state->keyb = 0;
 }
 
 
-static MACHINE_CONFIG_START( hnayayoi, hnayayoi_state )
+static MACHINE_DRIVER_START( hnayayoi )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(hnayayoi_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 20000000/4 )        /* 5 MHz ???? */
-	MCFG_CPU_PROGRAM_MAP(hnayayoi_map)
-	MCFG_CPU_IO_MAP(hnayayoi_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse, 8000)
+	MDRV_CPU_ADD("maincpu", Z80, 20000000/4 )        /* 5 MHz ???? */
+	MDRV_CPU_PROGRAM_MAP(hnayayoi_map)
+	MDRV_CPU_IO_MAP(hnayayoi_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_PERIODIC_INT(nmi_line_pulse, 8000)
 
-	MCFG_MACHINE_START(hnayayoi)
-	MCFG_MACHINE_RESET(hnayayoi)
+	MDRV_MACHINE_START(hnayayoi)
+	MDRV_MACHINE_RESET(hnayayoi)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(hnayayoi)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
 
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(hnayayoi)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(hnayayoi)
+	MDRV_VIDEO_UPDATE(hnayayoi)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 20000000/8)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 0.25)
-	MCFG_SOUND_ROUTE(2, "mono", 0.25)
-	MCFG_SOUND_ROUTE(3, "mono", 0.80)
+	MDRV_SOUND_ADD("ymsnd", YM2203, 20000000/8)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 0.25)
+	MDRV_SOUND_ROUTE(2, "mono", 0.25)
+	MDRV_SOUND_ROUTE(3, "mono", 0.80)
 
-	MCFG_SOUND_ADD("msm", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( hnfubuki, hnayayoi )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(hnfubuki_map)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( hnfubuki )
+	MDRV_IMPORT_FROM(hnayayoi)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(hnfubuki_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( untoucha, hnayayoi )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(untoucha_map)
-	MCFG_CPU_IO_MAP(untoucha_io_map)
+static MACHINE_DRIVER_START( untoucha )
+	MDRV_IMPORT_FROM(hnayayoi)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(untoucha_map)
+	MDRV_CPU_IO_MAP(untoucha_io_map)
 
-	MCFG_VIDEO_START(untoucha)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(untoucha)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -677,8 +681,8 @@ ROM_END
 
 static DRIVER_INIT( hnfubuki )
 {
-	UINT8 *rom = machine.region("gfx1")->base();
-	int len = machine.region("gfx1")->bytes();
+	UINT8 *rom = memory_region(machine, "gfx1");
+	int len = memory_region_length(machine, "gfx1");
 	int i, j;
 
 	/* interestingly, the blitter data has a slight encryption */

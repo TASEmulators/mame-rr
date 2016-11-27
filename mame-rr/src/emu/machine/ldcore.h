@@ -83,9 +83,9 @@ typedef enum _slider_position slider_position;
 #define GENERIC_SEARCH_SPEED		(5000)					/* 5000x normal speed */
 
 /* generic timings; use player-specific information where appropriate */
-#define GENERIC_EJECT_TIME			(attotime::from_seconds(5))
-#define GENERIC_SPINUP_TIME			(attotime::from_seconds(2))
-#define GENERIC_LOAD_TIME			(attotime::from_seconds(5))
+#define GENERIC_EJECT_TIME			(ATTOTIME_IN_SEC(5))
+#define GENERIC_SPINUP_TIME			(ATTOTIME_IN_SEC(2))
+#define GENERIC_LOAD_TIME			(ATTOTIME_IN_SEC(5))
 
 
 
@@ -121,7 +121,7 @@ struct _ldplayer_state
 typedef struct _laserdisc_state laserdisc_state;
 struct _laserdisc_state
 {
-	device_t *		device;					/* pointer to owning device */
+	running_device *		device;					/* pointer to owning device */
 	screen_device *	screen;					/* pointer to the screen device */
 	ldcore_data *			core;					/* private core data */
 	ldplayer_data *			player;					/* private player data */
@@ -147,9 +147,8 @@ struct _ldplayer_interface
 	int						type;					/* type of the player */
 	size_t					statesize;				/* size of the state */
 	const char *			name;					/* name of the player */
-	const char *			shortname;				/* shortname of the player */
 	const rom_entry *		romregion;				/* pointer to ROM region information */
-	machine_config_constructor machine_config;		/* pointer to machine configuration */
+	const machine_config_token *machine_config;		/* pointer to machine configuration */
 	laserdisc_init_func		init;					/* initialization callback */
 	laserdisc_vsync_func	vsync;					/* vsync begin callback */
 	laserdisc_update_func	update;					/* update callback (line 16) */
@@ -185,7 +184,7 @@ extern const ldplayer_interface vp932_interface;
 /* ----- player interface ----- */
 
 /* return a token with type checking from a device */
-laserdisc_state *ldcore_get_safe_token(device_t *device);
+laserdisc_state *ldcore_get_safe_token(running_device *device);
 
 /* set the left/right audio squelch states */
 void ldcore_set_audio_squelch(laserdisc_state *ld, UINT8 squelchleft, UINT8 squelchright);

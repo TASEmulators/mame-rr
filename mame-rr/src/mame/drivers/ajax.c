@@ -25,7 +25,7 @@ static WRITE8_HANDLER( sound_bank_w );
 
 /****************************************************************************/
 
-static ADDRESS_MAP_START( ajax_main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ajax_main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x01c0) AM_READWRITE(ajax_ls138_f10_r, ajax_ls138_f10_w)	/* bankswitch + sound command + FIRQ command */
 	AM_RANGE(0x0800, 0x0807) AM_DEVREADWRITE("k051960", k051937_r, k051937_w)					/* sprite control registers */
 	AM_RANGE(0x0c00, 0x0fff) AM_DEVREADWRITE("k051960", k051960_r, k051960_w)					/* sprite RAM 2128SL at J7 */
@@ -36,7 +36,7 @@ static ADDRESS_MAP_START( ajax_main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0xffff) AM_ROM												/* ROM N11 */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( ajax_sub_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ajax_sub_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_DEVREADWRITE("k051316", k051316_r, k051316_w)	/* 051316 zoom/rotation layer */
 	AM_RANGE(0x0800, 0x080f) AM_DEVWRITE("k051316", k051316_ctrl_w)				/* 051316 control registers */
 	AM_RANGE(0x1000, 0x17ff) AM_DEVREAD("k051316", k051316_rom_r)				/* 051316 (ROM test) */
@@ -47,7 +47,7 @@ static ADDRESS_MAP_START( ajax_sub_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xa000, 0xffff) AM_ROM									/* ROM I16 */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( ajax_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ajax_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM								/* ROM F6 */
 	AM_RANGE(0x8000, 0x87ff) AM_RAM								/* RAM 2128SL at D16 */
 	AM_RANGE(0x9000, 0x9000) AM_WRITE(sound_bank_w)				/* 007232 bankswitch */
@@ -137,21 +137,21 @@ INPUT_PORTS_END
 
 static WRITE8_HANDLER( sound_bank_w )
 {
-	ajax_state *state = space->machine().driver_data<ajax_state>();
+	ajax_state *state = (ajax_state *)space->machine->driver_data;
 	int bank_A, bank_B;
 
 	/* banks # for the 007232 (chip 1) */
 	bank_A = BIT(data, 1);
 	bank_B = BIT(data, 0);
-	k007232_set_bank(state->m_k007232_1, bank_A, bank_B);
+	k007232_set_bank(state->k007232_1, bank_A, bank_B);
 
 	/* banks # for the 007232 (chip 2) */
 	bank_A = ((data >> 4) & 0x03);
 	bank_B = ((data >> 2) & 0x03);
-	k007232_set_bank(state->m_k007232_2, bank_A, bank_B);
+	k007232_set_bank(state->k007232_2, bank_A, bank_B);
 }
 
-static void volume_callback0(device_t *device, int v)
+static void volume_callback0(running_device *device, int v)
 {
 	k007232_set_volume(device, 0, (v >> 4) * 0x11, 0);
 	k007232_set_volume(device, 1, 0, (v & 0x0f) * 0x11);
@@ -163,7 +163,7 @@ static WRITE8_DEVICE_HANDLER( k007232_extvol_w )
 	k007232_set_volume(device, 0, (data & 0x0f) * 0x11/2, (data & 0x0f) * 0x11/2);
 }
 
-static void volume_callback1(device_t *device, int v)
+static void volume_callback1(running_device *device, int v)
 {
 	/* channel B volume/pan */
 	k007232_set_volume(device, 1, (v & 0x0f) * 0x11/2, (v >> 4) * 0x11/2);
@@ -205,62 +205,64 @@ static const k051316_interface ajax_k051316_intf =
 	ajax_zoom_callback
 };
 
-static MACHINE_CONFIG_START( ajax, ajax_state )
+static MACHINE_DRIVER_START( ajax )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(ajax_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", KONAMI, 3000000)	/* 12/4 MHz*/
-	MCFG_CPU_PROGRAM_MAP(ajax_main_map)
-	MCFG_CPU_VBLANK_INT("screen", ajax_interrupt)	/* IRQs triggered by the 051960 */
+	MDRV_CPU_ADD("maincpu", KONAMI, 3000000)	/* 12/4 MHz*/
+	MDRV_CPU_PROGRAM_MAP(ajax_main_map)
+	MDRV_CPU_VBLANK_INT("screen", ajax_interrupt)	/* IRQs triggered by the 051960 */
 
-	MCFG_CPU_ADD("sub", M6809, 3000000)	/* ? */
-	MCFG_CPU_PROGRAM_MAP(ajax_sub_map)
+	MDRV_CPU_ADD("sub", M6809, 3000000)	/* ? */
+	MDRV_CPU_PROGRAM_MAP(ajax_sub_map)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3579545)	/* 3.58 MHz */
-	MCFG_CPU_PROGRAM_MAP(ajax_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 3579545)	/* 3.58 MHz */
+	MDRV_CPU_PROGRAM_MAP(ajax_sound_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_RESET(ajax)
-	MCFG_MACHINE_START(ajax)
+	MDRV_MACHINE_RESET(ajax)
+	MDRV_MACHINE_START(ajax)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(ajax)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_VIDEO_START(ajax)
+	MDRV_VIDEO_UPDATE(ajax)
 
-	MCFG_VIDEO_START(ajax)
-
-	MCFG_K052109_ADD("k052109", ajax_k052109_intf)
-	MCFG_K051960_ADD("k051960", ajax_k051960_intf)
-	MCFG_K051316_ADD("k051316", ajax_k051316_intf)
+	MDRV_K052109_ADD("k052109", ajax_k052109_intf)
+	MDRV_K051960_ADD("k051960", ajax_k051960_intf)
+	MDRV_K051316_ADD("k051316", ajax_k051316_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 3579545)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 3579545)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
-	MCFG_SOUND_ADD("k007232_1", K007232, 3579545)
-	MCFG_SOUND_CONFIG(k007232_interface_1)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.20)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 0.20)
-	MCFG_SOUND_ROUTE(1, "lspeaker", 0.20)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.20)
+	MDRV_SOUND_ADD("k007232_1", K007232, 3579545)
+	MDRV_SOUND_CONFIG(k007232_interface_1)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.20)
+	MDRV_SOUND_ROUTE(0, "rspeaker", 0.20)
+	MDRV_SOUND_ROUTE(1, "lspeaker", 0.20)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.20)
 
-	MCFG_SOUND_ADD("k007232_2", K007232, 3579545)
-	MCFG_SOUND_CONFIG(k007232_interface_2)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.50)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("k007232_2", K007232, 3579545)
+	MDRV_SOUND_CONFIG(k007232_interface_2)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.50)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.50)
+MACHINE_DRIVER_END
 
 
 /*

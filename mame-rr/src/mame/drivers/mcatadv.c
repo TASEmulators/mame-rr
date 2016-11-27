@@ -60,7 +60,7 @@ U92 & U93 are unpopulated
 NOS-SN-00.U53 Sound samples (Near the YMF286-K)
 
 NOS-B0-00.U58-
-NOS-B0-01.U59 \ Background (separate for each 038 chip?)
+NOS-B0-01.U59 \ Background (Seperate for each 038 chip?)
 NOS-B1-00.U60 /
 NOS-B1-01.U61-
 
@@ -146,10 +146,10 @@ Stephh's notes (based on the games M68000 code and some tests) :
 
 static WRITE16_HANDLER( mcat_soundlatch_w )
 {
-	mcatadv_state *state = space->machine().driver_data<mcatadv_state>();
+	mcatadv_state *state = (mcatadv_state *)space->machine->driver_data;
 
 	soundlatch_w(space, 0, data);
-	device_set_input_line(state->m_soundcpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->soundcpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 #if 0 // mcat only.. install read handler?
@@ -157,10 +157,10 @@ static WRITE16_HANDLER( mcat_coin_w )
 {
 	if(ACCESSING_BITS_8_15)
 	{
-		coin_counter_w(space->machine(), 0, data & 0x1000);
-		coin_counter_w(space->machine(), 1, data & 0x2000);
-		coin_lockout_w(space->machine(), 0, ~data & 0x4000);
-		coin_lockout_w(space->machine(), 1, ~data & 0x8000);
+		coin_counter_w(space->machine, 0, data & 0x1000);
+		coin_counter_w(space->machine, 1, data & 0x2000);
+		coin_lockout_w(space->machine, 0, ~data & 0x4000);
+		coin_lockout_w(space->machine, 1, ~data & 0x8000);
 	}
 }
 #endif
@@ -172,22 +172,22 @@ static READ16_HANDLER( mcat_wd_r )
 }
 
 
-static ADDRESS_MAP_START( mcatadv_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mcatadv_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAM
 
 //  AM_RANGE(0x180018, 0x18001f) AM_READNOP // ?
 
-	AM_RANGE(0x200000, 0x200005) AM_RAM AM_BASE_MEMBER(mcatadv_state, m_scroll1)
-	AM_RANGE(0x300000, 0x300005) AM_RAM AM_BASE_MEMBER(mcatadv_state, m_scroll2)
+	AM_RANGE(0x200000, 0x200005) AM_RAM AM_BASE_MEMBER(mcatadv_state, scroll1)
+	AM_RANGE(0x300000, 0x300005) AM_RAM AM_BASE_MEMBER(mcatadv_state, scroll2)
 
-	AM_RANGE(0x400000, 0x401fff) AM_RAM_WRITE(mcatadv_videoram1_w) AM_BASE_MEMBER(mcatadv_state, m_videoram1) // Tilemap 0
-	AM_RANGE(0x500000, 0x501fff) AM_RAM_WRITE(mcatadv_videoram2_w) AM_BASE_MEMBER(mcatadv_state, m_videoram2) // Tilemap 1
+	AM_RANGE(0x400000, 0x401fff) AM_RAM_WRITE(mcatadv_videoram1_w) AM_BASE_MEMBER(mcatadv_state, videoram1) // Tilemap 0
+	AM_RANGE(0x500000, 0x501fff) AM_RAM_WRITE(mcatadv_videoram2_w) AM_BASE_MEMBER(mcatadv_state, videoram2) // Tilemap 1
 
 	AM_RANGE(0x600000, 0x601fff) AM_RAM_WRITE(paletteram16_xGGGGGRRRRRBBBBB_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x602000, 0x602fff) AM_RAM // Bigger than needs to be?
 
-	AM_RANGE(0x700000, 0x707fff) AM_RAM AM_BASE_SIZE_MEMBER(mcatadv_state, m_spriteram, m_spriteram_size) // Sprites, two halves for double buffering
+	AM_RANGE(0x700000, 0x707fff) AM_RAM AM_BASE_SIZE_MEMBER(mcatadv_state, spriteram, spriteram_size) // Sprites, two halves for double buffering
 	AM_RANGE(0x708000, 0x70ffff) AM_RAM // Tests more than is needed?
 
 	AM_RANGE(0x800000, 0x800001) AM_READ_PORT("P1")
@@ -196,7 +196,7 @@ static ADDRESS_MAP_START( mcatadv_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xa00000, 0xa00001) AM_READ_PORT("DSW1")
 	AM_RANGE(0xa00002, 0xa00003) AM_READ_PORT("DSW2")
 
-	AM_RANGE(0xb00000, 0xb0000f) AM_RAM AM_BASE_MEMBER(mcatadv_state, m_vidregs)
+	AM_RANGE(0xb00000, 0xb0000f) AM_RAM AM_BASE_MEMBER(mcatadv_state, vidregs)
 
 	AM_RANGE(0xb00018, 0xb00019) AM_WRITE(watchdog_reset16_w) // NOST Only
 	AM_RANGE(0xb0001e, 0xb0001f) AM_READ(mcat_wd_r) // MCAT Only
@@ -207,11 +207,11 @@ ADDRESS_MAP_END
 
 static WRITE8_HANDLER ( mcatadv_sound_bw_w )
 {
-	memory_set_bank(space->machine(), "bank1", data);
+	memory_set_bank(space->machine, "bank1", data);
 }
 
 
-static ADDRESS_MAP_START( mcatadv_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mcatadv_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM						// ROM
 	AM_RANGE(0x4000, 0xbfff) AM_ROMBANK("bank1")				// ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM						// RAM
@@ -219,19 +219,19 @@ static ADDRESS_MAP_START( mcatadv_sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xf000) AM_WRITE(mcatadv_sound_bw_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mcatadv_sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mcatadv_sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x80, 0x80) AM_READWRITE(soundlatch_r, soundlatch2_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( nost_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( nost_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM						// ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")				// ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM						// RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( nost_sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( nost_sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x03) AM_DEVWRITE("ymsnd", ym2610_w)
 	AM_RANGE(0x04, 0x07) AM_DEVREAD("ymsnd", ym2610_r)
@@ -414,10 +414,10 @@ GFXDECODE_END
 
 
 /* Stolen from Psikyo.c */
-static void sound_irq( device_t *device, int irq )
+static void sound_irq( running_device *device, int irq )
 {
-	mcatadv_state *state = device->machine().driver_data<mcatadv_state>();
-	device_set_input_line(state->m_soundcpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	mcatadv_state *state = (mcatadv_state *)device->machine->driver_data;
+	cpu_set_input_line(state->soundcpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2610_interface mcatadv_ym2610_interface =
@@ -428,66 +428,70 @@ static const ym2610_interface mcatadv_ym2610_interface =
 
 static MACHINE_START( mcatadv )
 {
-	mcatadv_state *state = machine.driver_data<mcatadv_state>();
-	UINT8 *ROM = machine.region("soundcpu")->base();
+	mcatadv_state *state = (mcatadv_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "soundcpu");
 
 	memory_configure_bank(machine, "bank1", 0, 8, &ROM[0x10000], 0x4000);
 	memory_set_bank(machine, "bank1", 1);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_soundcpu = machine.device("soundcpu");
+	state->maincpu = machine->device("maincpu");
+	state->soundcpu = machine->device("soundcpu");
 
-	state->save_item(NAME(state->m_palette_bank1));
-	state->save_item(NAME(state->m_palette_bank2));
+	state_save_register_global(machine, state->palette_bank1);
+	state_save_register_global(machine, state->palette_bank2);
 }
 
-static MACHINE_CONFIG_START( mcatadv, mcatadv_state )
+static MACHINE_DRIVER_START( mcatadv )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mcatadv_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_16MHz) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(mcatadv_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_16MHz) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(mcatadv_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_CPU_ADD("soundcpu", Z80, XTAL_16MHz/4) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(mcatadv_sound_map)
-	MCFG_CPU_IO_MAP(mcatadv_sound_io_map)
+	MDRV_CPU_ADD("soundcpu", Z80, XTAL_16MHz/4) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(mcatadv_sound_map)
+	MDRV_CPU_IO_MAP(mcatadv_sound_io_map)
 
-	MCFG_MACHINE_START(mcatadv)
+	MDRV_MACHINE_START(mcatadv)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(320, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 0, 224-1)
-	MCFG_SCREEN_UPDATE(mcatadv)
-	MCFG_SCREEN_EOF(mcatadv) // Buffer Spriteram
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(320, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 0, 224-1)
 
-	MCFG_GFXDECODE(mcatadv)
-	MCFG_PALETTE_LENGTH(0x2000/2)
+	MDRV_GFXDECODE(mcatadv)
+	MDRV_PALETTE_LENGTH(0x2000/2)
 
-	MCFG_WATCHDOG_TIME_INIT(attotime::from_seconds(3))	/* a guess, and certainly wrong */
+	MDRV_WATCHDOG_TIME_INIT(SEC(3))	/* a guess, and certainly wrong */
 
-	MCFG_VIDEO_START(mcatadv)
+	MDRV_VIDEO_START(mcatadv)
+	MDRV_VIDEO_EOF(mcatadv) // Buffer Spriteram
+	MDRV_VIDEO_UPDATE(mcatadv)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, XTAL_16MHz/2) /* verified on pcb */
-	MCFG_SOUND_CONFIG(mcatadv_ym2610_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker",  0.32)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 0.32)
-	MCFG_SOUND_ROUTE(1, "lspeaker",  0.5)
-	MCFG_SOUND_ROUTE(2, "rspeaker", 0.5)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2610, XTAL_16MHz/2) /* verified on pcb */
+	MDRV_SOUND_CONFIG(mcatadv_ym2610_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker",  0.32)
+	MDRV_SOUND_ROUTE(0, "rspeaker", 0.32)
+	MDRV_SOUND_ROUTE(1, "lspeaker",  0.5)
+	MDRV_SOUND_ROUTE(2, "rspeaker", 0.5)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( nost, mcatadv )
+static MACHINE_DRIVER_START( nost )
+	MDRV_IMPORT_FROM( mcatadv )
 
-	MCFG_CPU_MODIFY("soundcpu")
-	MCFG_CPU_PROGRAM_MAP(nost_sound_map)
-	MCFG_CPU_IO_MAP(nost_sound_io_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("soundcpu")
+	MDRV_CPU_PROGRAM_MAP(nost_sound_map)
+	MDRV_CPU_IO_MAP(nost_sound_io_map)
+MACHINE_DRIVER_END
 
 
 ROM_START( mcatadv )

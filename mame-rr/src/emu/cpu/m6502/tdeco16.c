@@ -187,8 +187,8 @@ OP(07) { RD_DUM; ILL; }									/* 2 ILL / 5 RMB0 ZPG ?? */
 OP(27) { RD_DUM; ILL; }									/* 2 ILL / 5 RMB2 ZPG ?? */
 OP(47) { RD_DUM; ILL; }									/* 2 ILL / 5 RMB4 ZPG ?? */
 OP(67) {
-	RD_IMM_DISCARD;
-	cpustate->a=cpustate->io->read_byte(0);
+	int tmp; RD_IMM;
+	cpustate->a=memory_read_byte_8le(cpustate->io,0);
 
 //  logerror("%04x: VBL (0x67)\n",PCW);
 
@@ -271,10 +271,10 @@ OP(0b) { int tmp; cpustate->icount -= 1; RD_IMM;
 
 				}
 OP(2b) { RD_DUM; ILL; } 								/* 2 ILL */
-OP(4b) { cpustate->icount -= 1; RD_IMM_DISCARD;
+OP(4b) { int tmp; cpustate->icount -= 1; RD_IMM;
 	//logerror("%04x: OP4B %02x\n",PCW,tmp);
 	/* TODO: Maybe it's just read I/O 0 and do a logic AND with bit 1? */
-	cpustate->a=cpustate->io->read_byte(1);
+	cpustate->a=memory_read_byte_8le(cpustate->io,1);
 
 //tilt??
 
@@ -367,7 +367,7 @@ OP(8f) { int tmp; cpustate->icount -= 1; RD_IMM;
 	if (DECO16_VERBOSE)
 		logerror("%04x: BANK (8F) %02x\n",PCW,tmp);
 
-	cpustate->io->write_byte(0,tmp);
+	memory_write_byte_8le(cpustate->io,0,tmp);
 
 	//swap bank in/out
 } /*  */

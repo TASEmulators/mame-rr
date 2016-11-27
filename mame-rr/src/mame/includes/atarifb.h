@@ -15,45 +15,38 @@
 #define ATARIFB_HIT_EN			NODE_05
 
 
-class atarifb_state : public driver_device
+class atarifb_state
 {
 public:
-	atarifb_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, atarifb_state(machine)); }
+
+	atarifb_state(running_machine &machine) { }
 
 	/* video-related */
-	UINT8 *  m_alphap1_videoram;
-	UINT8 *  m_alphap2_videoram;
-	UINT8 *  m_field_videoram;
-	UINT8 *  m_spriteram;
-	UINT8 *  m_scroll_register;
-	size_t   m_spriteram_size;
+	UINT8 *  alphap1_videoram;
+	UINT8 *  alphap2_videoram;
+	UINT8 *  field_videoram;
+	UINT8 *  spriteram;
+	UINT8 *  scroll_register;
+	size_t   spriteram_size;
 
-	tilemap_t  *m_alpha1_tilemap;
-	tilemap_t  *m_alpha2_tilemap;
-	tilemap_t  *m_field_tilemap;
+	tilemap_t  *alpha1_tilemap;
+	tilemap_t  *alpha2_tilemap;
+	tilemap_t  *field_tilemap;
 
 	/* sound-related */
-	int m_CTRLD;
-	int m_sign_x_1;
-	int m_sign_y_1;
-	int m_sign_x_2;
-	int m_sign_y_2;
-	int m_sign_x_3;
-	int m_sign_y_3;
-	int m_sign_x_4;
-	int m_sign_y_4;
-	int m_counter_x_in0;
-	int m_counter_y_in0;
-	int m_counter_x_in0b;
-	int m_counter_y_in0b;
-	int m_counter_x_in2;
-	int m_counter_y_in2;
-	int m_counter_x_in2b;
-	int m_counter_y_in2b;
+	int CTRLD;
+	int sign_x_1, sign_y_1;
+	int sign_x_2, sign_y_2;
+	int sign_x_3, sign_y_3;
+	int sign_x_4, sign_y_4;
+	int counter_x_in0, counter_y_in0;
+	int counter_x_in0b, counter_y_in0b;
+	int counter_x_in2, counter_y_in2;
+	int counter_x_in2b, counter_y_in2b;
 
 	/* devices */
-	device_t *m_maincpu;
+	running_device *maincpu;
 };
 
 
@@ -84,9 +77,9 @@ DISCRETE_SOUND_EXTERN( abaseb );
 /*----------- defined in video/atarifb.c -----------*/
 
 VIDEO_START( atarifb );
-SCREEN_UPDATE( atarifb );
-SCREEN_UPDATE( abaseb );
-SCREEN_UPDATE( soccer );
+VIDEO_UPDATE( atarifb );
+VIDEO_UPDATE( abaseb );
+VIDEO_UPDATE( soccer );
 
 WRITE8_HANDLER( atarifb_alpha1_videoram_w );
 WRITE8_HANDLER( atarifb_alpha2_videoram_w );

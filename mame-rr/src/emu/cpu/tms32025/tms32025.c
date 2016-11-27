@@ -127,13 +127,13 @@ Table 3-2.  TMS32025/26 Memory Blocks
 
 #define SET_PC(x)	do { cpustate->PC = (x); } while (0)
 
-#define P_IN(A)			(cpustate->io->read_word((A)<<1))
-#define P_OUT(A,V)		(cpustate->io->write_word(((A)<<1),(V)))
-#define S_IN(A)			(cpustate->io->read_word((A)<<1))
-#define S_OUT(A,V)		(cpustate->io->write_word(((A)<<1),(V)))
+#define P_IN(A)			(memory_read_word_16be(cpustate->io, (A)<<1))
+#define P_OUT(A,V)		(memory_write_word_16be(cpustate->io, ((A)<<1),(V)))
+#define S_IN(A)			(memory_read_word_16be(cpustate->io, (A)<<1))
+#define S_OUT(A,V)		(memory_write_word_16be(cpustate->io, ((A)<<1),(V)))
 
-#define M_RDOP(A)		((cpustate->pgmmap[(A) >> 7]) ? (cpustate->pgmmap[(A) >> 7][(A) & 0x7f]) : cpustate->direct->read_decrypted_word((A)<<1))
-#define M_RDOP_ARG(A)	((cpustate->pgmmap[(A) >> 7]) ? (cpustate->pgmmap[(A) >> 7][(A) & 0x7f]) : cpustate->direct->read_decrypted_word((A)<<1))
+#define M_RDOP(A)		((cpustate->pgmmap[(A) >> 7]) ? (cpustate->pgmmap[(A) >> 7][(A) & 0x7f]) : memory_decrypted_read_word(cpustate->program, (A)<<1))
+#define M_RDOP_ARG(A)	((cpustate->pgmmap[(A) >> 7]) ? (cpustate->pgmmap[(A) >> 7][(A) & 0x7f]) : memory_decrypted_read_word(cpustate->program, (A)<<1))
 
 
 
@@ -174,16 +174,15 @@ struct _tms32025_state
 	int		waiting_for_serial_frame;
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *data;
-	address_space *io;
+	const address_space *program;
+	const address_space *data;
+	const address_space *io;
 
 	UINT16 *pgmmap[0x200];
 	UINT16 *datamap[0x200];
 };
 
-INLINE tms32025_state *get_safe_token(device_t *device)
+INLINE tms32025_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TMS32025 ||
@@ -325,7 +324,7 @@ INLINE UINT16 M_RDROM(tms32025_state *cpustate, offs_t addr)
 	addr &= 0xffff;
 	ram = cpustate->pgmmap[addr >> 7];
 	if (ram) return ram[addr & 0x7f];
-	return cpustate->program->read_word(addr << 1);
+	return memory_read_word_16be(cpustate->program, addr << 1);
 }
 
 INLINE void M_WRTROM(tms32025_state *cpustate, offs_t addr, UINT16 data)
@@ -334,7 +333,7 @@ INLINE void M_WRTROM(tms32025_state *cpustate, offs_t addr, UINT16 data)
 	addr &= 0xffff;
 	ram = cpustate->pgmmap[addr >> 7];
 	if (ram) { ram[addr & 0x7f] = data; }
-	else cpustate->program->write_word(addr << 1, data);
+	else memory_write_word_16be(cpustate->program, addr << 1, data);
 }
 
 INLINE UINT16 M_RDRAM(tms32025_state *cpustate, offs_t addr)
@@ -343,7 +342,7 @@ INLINE UINT16 M_RDRAM(tms32025_state *cpustate, offs_t addr)
 	addr &= 0xffff;
 	ram = cpustate->datamap[addr >> 7];
 	if (ram) return ram[addr & 0x7f];
-	return cpustate->data->read_word(addr << 1);
+	return memory_read_word_16be(cpustate->data, addr << 1);
 }
 
 INLINE void M_WRTRAM(tms32025_state *cpustate, offs_t addr, UINT16 data)
@@ -360,7 +359,7 @@ INLINE void M_WRTRAM(tms32025_state *cpustate, offs_t addr, UINT16 data)
 				cpustate->IFR |= 0x20;
 		}
 	}
-	else cpustate->data->write_word(addr << 1, data);
+	else memory_write_word_16be(cpustate->data, addr << 1, data);
 }
 
 
@@ -454,7 +453,9 @@ INLINE void CALCULATE_ADD_OVERFLOW(tms32025_state *cpustate, INT32 addval)
 		SET0(cpustate, OV_FLAG);
 		if (OVM)
 		{
-			cpustate->ACC.d = ((INT32)cpustate->oldacc.d < 0) ? 0x80000000 : 0x7fffffff;
+		// Stroff:HACK! support for overflow capping as implemented results in bad DSP floating point math in many
+		// System22 games - for example, the score display in Prop Cycle.
+		//  cpustate->ACC.d = ((INT32)cpustate->oldacc.d < 0) ? 0x80000000 : 0x7fffffff;
 		}
 	}
 }
@@ -618,7 +619,7 @@ static void addh(tms32025_state *cpustate)
 	if ( ((INT16)(cpustate->oldacc.w.h) < 0) && ((INT16)(cpustate->ACC.w.h) >= 0) ) {
 		SET1(cpustate, C_FLAG);
 	}
-	/* Carry flag is not cleared, if no carry occurred */
+	/* Carry flag is not cleared, if no carry occured */
 }
 static void addk(tms32025_state *cpustate)
 {
@@ -1491,25 +1492,37 @@ static void subb(tms32025_state *cpustate)
 	CALCULATE_SUB_OVERFLOW(cpustate, cpustate->ALU.d);
 	CALCULATE_SUB_CARRY(cpustate);
 }
+
+
 static void subc(tms32025_state *cpustate)
 {
-	PAIR temp_alu;
-	cpustate->oldacc.d = cpustate->ACC.d;
+	/**
+    * conditional subtraction, which may be used for division
+    * execute 16 times for 16-bit division
+    *
+    * input:   32 bit numerator in accumulator
+    *          16 bit denominator in data memory
+    *
+    * output:  remainder in upper 16 bits
+    *          quotient in lower 16 bits
+    */
 	GETDATA(cpustate, 15, SXM);
-	cpustate->ACC.d -= cpustate->ALU.d;		/* Temporary switch to ACC. Actual calculation is done as (ACC)-[mem] -> ALU, will be preserved later on. */
-	temp_alu.d = cpustate->ACC.d;
-	if ((INT32)((cpustate->oldacc.d ^ cpustate->ALU.d) & (cpustate->oldacc.d ^ cpustate->ACC.d)) < 0) {
-		SET0(cpustate, OV_FLAG);			/* Not affected by OVM */
-	}
-	CALCULATE_SUB_CARRY(cpustate);
-	if( cpustate->oldacc.d >= cpustate->ALU.d ) {
-		cpustate->ACC.d = (cpustate->oldacc.d - cpustate->ALU.d)*2+1;
+	if( cpustate->ACC.d >= cpustate->ALU.d ) {
+		cpustate->ACC.d = (cpustate->ACC.d - cpustate->ALU.d)*2+1;
 	}
 	else {
-		cpustate->ACC.d = cpustate->oldacc.d*2;
+		cpustate->ACC.d = cpustate->ACC.d*2;
 	}
-	cpustate->ALU.d = temp_alu.d;
+// Stroff: HACK! support for overflow capping as implemented results in bad DSP floating point math in many
+// System22 games - for example, the score display in Prop Cycle.
+//  cpustate->ACC.d = ((INT32)cpustate->oldacc.d < 0) ? 0x80000000 : 0x7fffffff;
+
+//  if ((INT32)((cpustate->oldacc.d ^ subval ) & (cpustate->oldacc.d ^ cpustate->ALU.d)) < 0) {
+//      SET0(cpustate, OV_FLAG);
+//  }
+//  CALCULATE_SUB_CARRY(cpustate);
 }
+
 static void subh(tms32025_state *cpustate)
 {
 	cpustate->oldacc.d = cpustate->ACC.d;
@@ -1523,7 +1536,7 @@ static void subh(tms32025_state *cpustate)
 	if ( ((INT16)(cpustate->oldacc.w.h) >= 0) && ((INT16)(cpustate->ACC.w.h) < 0) ) {
 		CLR1(cpustate, C_FLAG);
 	}
-	/* Carry flag is not affected, if no borrow occurred */
+	/* Carry flag is not affected, if no borrow occured */
 }
 static void subk(tms32025_state *cpustate)
 {
@@ -1705,53 +1718,52 @@ static CPU_INIT( tms32025 )
 {
 	tms32025_state *cpustate = get_safe_token(device);
 
-	cpustate->intRAM = auto_alloc_array(device->machine(), UINT16, 0x800);
+	cpustate->intRAM = auto_alloc_array(device->machine, UINT16, 0x800);
 	cpustate->irq_callback = irqcallback;
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->data = device->space(AS_DATA);
 	cpustate->io = device->space(AS_IO);
 
-	device->save_item(NAME(cpustate->PC));
-	device->save_item(NAME(cpustate->STR0));
-	device->save_item(NAME(cpustate->STR1));
-	device->save_item(NAME(cpustate->PFC));
-	device->save_item(NAME(cpustate->IFR));
-	device->save_item(NAME(cpustate->RPTC));
-	device->save_item(NAME(cpustate->ACC.d));
-	device->save_item(NAME(cpustate->ALU.d));
-	device->save_item(NAME(cpustate->Preg.d));
-	device->save_item(NAME(cpustate->Treg));
-	device->save_item(NAME(cpustate->AR[0]));
-	device->save_item(NAME(cpustate->AR[1]));
-	device->save_item(NAME(cpustate->AR[2]));
-	device->save_item(NAME(cpustate->AR[3]));
-	device->save_item(NAME(cpustate->AR[4]));
-	device->save_item(NAME(cpustate->AR[5]));
-	device->save_item(NAME(cpustate->AR[6]));
-	device->save_item(NAME(cpustate->AR[7]));
-	device->save_item(NAME(cpustate->STACK[0]));
-	device->save_item(NAME(cpustate->STACK[1]));
-	device->save_item(NAME(cpustate->STACK[2]));
-	device->save_item(NAME(cpustate->STACK[3]));
-	device->save_item(NAME(cpustate->STACK[4]));
-	device->save_item(NAME(cpustate->STACK[5]));
-	device->save_item(NAME(cpustate->STACK[6]));
-	device->save_item(NAME(cpustate->STACK[7]));
+	state_save_register_device_item(device, 0, cpustate->PC);
+	state_save_register_device_item(device, 0, cpustate->STR0);
+	state_save_register_device_item(device, 0, cpustate->STR1);
+	state_save_register_device_item(device, 0, cpustate->PFC);
+	state_save_register_device_item(device, 0, cpustate->IFR);
+	state_save_register_device_item(device, 0, cpustate->RPTC);
+	state_save_register_device_item(device, 0, cpustate->ACC.d);
+	state_save_register_device_item(device, 0, cpustate->ALU.d);
+	state_save_register_device_item(device, 0, cpustate->Preg.d);
+	state_save_register_device_item(device, 0, cpustate->Treg);
+	state_save_register_device_item(device, 0, cpustate->AR[0]);
+	state_save_register_device_item(device, 0, cpustate->AR[1]);
+	state_save_register_device_item(device, 0, cpustate->AR[2]);
+	state_save_register_device_item(device, 0, cpustate->AR[3]);
+	state_save_register_device_item(device, 0, cpustate->AR[4]);
+	state_save_register_device_item(device, 0, cpustate->AR[5]);
+	state_save_register_device_item(device, 0, cpustate->AR[6]);
+	state_save_register_device_item(device, 0, cpustate->AR[7]);
+	state_save_register_device_item(device, 0, cpustate->STACK[0]);
+	state_save_register_device_item(device, 0, cpustate->STACK[1]);
+	state_save_register_device_item(device, 0, cpustate->STACK[2]);
+	state_save_register_device_item(device, 0, cpustate->STACK[3]);
+	state_save_register_device_item(device, 0, cpustate->STACK[4]);
+	state_save_register_device_item(device, 0, cpustate->STACK[5]);
+	state_save_register_device_item(device, 0, cpustate->STACK[6]);
+	state_save_register_device_item(device, 0, cpustate->STACK[7]);
 
-	device->save_item(NAME(cpustate->oldacc));
-	device->save_item(NAME(cpustate->memaccess));
-	device->save_item(NAME(cpustate->icount));
-	device->save_item(NAME(cpustate->mHackIgnoreARP));
+	state_save_register_device_item(device, 0, cpustate->oldacc);
+	state_save_register_device_item(device, 0, cpustate->memaccess);
+	state_save_register_device_item(device, 0, cpustate->icount);
+	state_save_register_device_item(device, 0, cpustate->mHackIgnoreARP);
 
-	device->save_item(NAME(cpustate->idle));
-	device->save_item(NAME(cpustate->hold));
-	device->save_item(NAME(cpustate->external_mem_access));
-	device->save_item(NAME(cpustate->init_load_addr));
-	device->save_item(NAME(cpustate->PREVPC));
+	state_save_register_device_item(device, 0, cpustate->idle);
+	state_save_register_device_item(device, 0, cpustate->hold);
+	state_save_register_device_item(device, 0, cpustate->external_mem_access);
+	state_save_register_device_item(device, 0, cpustate->init_load_addr);
+	state_save_register_device_item(device, 0, cpustate->PREVPC);
 
-//  device->save_pointer(NAME(cpustate->intRAM), 0x800*2);
+//  state_save_register_device_item_pointer(device, 0, cpustate->intRAM, 0x800*2);
 }
 
 /****************************************************************************
@@ -1881,7 +1893,7 @@ static int process_IRQs(tms32025_state *cpustate)
 			return cpustate->tms32025_irq_cycles;
 		}
 		if ((cpustate->IFR & 0x10) && (IMR & 0x10)) {		/* Serial port receive IRQ (internal) */
-//          logerror("TMS32025:  Active RINT (Serial receive)\n");
+//          logerror("TMS32025:  Active RINT (Serial recieve)\n");
 			DRR = S_IN(TMS32025_DR);
 			SET_PC(0x001A);
 			cpustate->idle = 0;
@@ -2141,20 +2153,19 @@ static CPU_READ( tms32025 )
 
 	switch (space)
 	{
-		case AS_PROGRAM:
+		case ADDRESS_SPACE_PROGRAM:
 			ptr = cpustate->pgmmap[offset >> 8];
 			if (!ptr)
 				return 0;
 			break;
 
-		case AS_DATA:
+		case ADDRESS_SPACE_DATA:
 			ptr = cpustate->datamap[offset >> 8];
 			if (!ptr)
 				return 0;
 			break;
 
-		default:
-		case AS_IO:
+		case ADDRESS_SPACE_IO:
 			return 0;
 	}
 
@@ -2194,20 +2205,19 @@ static CPU_WRITE( tms32025 )
 
 	switch (space)
 	{
-		case AS_PROGRAM:
+		case ADDRESS_SPACE_PROGRAM:
 			ptr = cpustate->pgmmap[offset >> 8];
 			if (!ptr)
 				return 0;
 			break;
 
-		case AS_DATA:
+		case ADDRESS_SPACE_DATA:
 			ptr = cpustate->datamap[offset >> 8];
 			if (!ptr)
 				return 0;
 			break;
 
-		default:
-		case AS_IO:
+		case ADDRESS_SPACE_IO:
 			return 0;
 	}
 
@@ -2312,15 +2322,15 @@ CPU_GET_INFO( tms32025 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1*CLK;						break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 5*CLK;						break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -1;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = -1;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 17;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 17;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = -1;					break;
 
 		case CPUINFO_INT_INPUT_STATE + TMS32025_INT0:		info->i = (cpustate->IFR & 0x01) ? ASSERT_LINE : CLEAR_LINE; break;
 		case CPUINFO_INT_INPUT_STATE + TMS32025_INT1:		info->i = (cpustate->IFR & 0x02) ? ASSERT_LINE : CLEAR_LINE; break;

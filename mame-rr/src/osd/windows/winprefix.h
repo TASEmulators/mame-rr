@@ -42,7 +42,6 @@
 #define _WIN32_WINNT 0x0501
 
 #ifdef _MSC_VER
-#include <assert.h>
 #include <malloc.h>
 #define alloca _alloca
 #define round(x) floor((x) + 0.5)
@@ -55,8 +54,6 @@
 #ifndef alloca
 #define alloca	__builtin_alloca
 #endif
-#define min(x,y) fmin(x,y)
-#define max(x,y) fmax(x,y)
 #endif
 
 #define PATH_SEPARATOR		"\\"

@@ -115,7 +115,7 @@ CPU_DISASSEMBLE( sh2 );
 
 #define LOG(x)	do { if (VERBOSE) logerror x; } while (0)
 
-INLINE sh2_state *get_safe_token(device_t *device)
+INLINE sh2_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->token != NULL);
@@ -131,12 +131,12 @@ INLINE UINT8 RB(sh2_state *sh2, offs_t A)
 		return sh2_internal_r(sh2->internal, (A & 0x1fc)>>2, 0xff << (((~A) & 3)*8)) >> (((~A) & 3)*8);
 
 	if (A >= 0xc0000000)
-		return sh2->program->read_byte(A);
+		return memory_read_byte_32be(sh2->program, A);
 
 	if (A >= 0x40000000)
 		return 0xa5;
 
-	return sh2->program->read_byte(A & AM);
+	return memory_read_byte_32be(sh2->program, A & AM);
 }
 
 INLINE UINT16 RW(sh2_state *sh2, offs_t A)
@@ -145,12 +145,12 @@ INLINE UINT16 RW(sh2_state *sh2, offs_t A)
 		return sh2_internal_r(sh2->internal, (A & 0x1fc)>>2, 0xffff << (((~A) & 2)*8)) >> (((~A) & 2)*8);
 
 	if (A >= 0xc0000000)
-		return sh2->program->read_word(A);
+		return memory_read_word_32be(sh2->program, A);
 
 	if (A >= 0x40000000)
 		return 0xa5a5;
 
-	return sh2->program->read_word(A & AM);
+	return memory_read_word_32be(sh2->program, A & AM);
 }
 
 INLINE UINT32 RL(sh2_state *sh2, offs_t A)
@@ -159,12 +159,12 @@ INLINE UINT32 RL(sh2_state *sh2, offs_t A)
 		return sh2_internal_r(sh2->internal, (A & 0x1fc)>>2, 0xffffffff);
 
 	if (A >= 0xc0000000)
-		return sh2->program->read_dword(A);
+		return memory_read_dword_32be(sh2->program, A);
 
 	if (A >= 0x40000000)
 		return 0xa5a5a5a5;
 
-  return sh2->program->read_dword(A & AM);
+  return memory_read_dword_32be(sh2->program, A & AM);
 }
 
 INLINE void WB(sh2_state *sh2, offs_t A, UINT8 V)
@@ -178,14 +178,14 @@ INLINE void WB(sh2_state *sh2, offs_t A, UINT8 V)
 
 	if (A >= 0xc0000000)
 	{
-		sh2->program->write_byte(A,V);
+		memory_write_byte_32be(sh2->program, A,V);
 		return;
 	}
 
 	if (A >= 0x40000000)
 		return;
 
-	sh2->program->write_byte(A & AM,V);
+	memory_write_byte_32be(sh2->program, A & AM,V);
 }
 
 INLINE void WW(sh2_state *sh2, offs_t A, UINT16 V)
@@ -198,14 +198,14 @@ INLINE void WW(sh2_state *sh2, offs_t A, UINT16 V)
 
 	if (A >= 0xc0000000)
 	{
-		sh2->program->write_word(A,V);
+		memory_write_word_32be(sh2->program, A,V);
 		return;
 	}
 
 	if (A >= 0x40000000)
 		return;
 
-	sh2->program->write_word(A & AM,V);
+	memory_write_word_32be(sh2->program, A & AM,V);
 }
 
 INLINE void WL(sh2_state *sh2, offs_t A, UINT32 V)
@@ -218,14 +218,14 @@ INLINE void WL(sh2_state *sh2, offs_t A, UINT32 V)
 
 	if (A >= 0xc0000000)
 	{
-		sh2->program->write_dword(A,V);
+		memory_write_dword_32be(sh2->program, A,V);
 		return;
 	}
 
 	if (A >= 0x40000000)
 		return;
 
-	sh2->program->write_dword(A & AM,V);
+	memory_write_dword_32be(sh2->program, A & AM,V);
 }
 
 /*  code                 cycles  t-bit
@@ -2147,8 +2147,7 @@ static CPU_RESET( sh2 )
 	sh2_state *sh2 = get_safe_token(device);
 	emu_timer *tsave, *tsaved0, *tsaved1;
 	UINT32 *m;
-	int  (*dma_callback_kludge)(device_t *device, UINT32 src, UINT32 dst, UINT32 data, int size);
-	int  (*dma_callback_fifo_data_available)(device_t *device, UINT32 src, UINT32 dst, UINT32 data, int size);
+	int  (*dma_callback_kludge)(UINT32 src, UINT32 dst, UINT32 data, int size);
 	int save_is_slave;
 
 	void (*f)(UINT32 data);
@@ -2156,14 +2155,13 @@ static CPU_RESET( sh2 )
 
 	m = sh2->m;
 	tsave = sh2->timer;
-	tsaved0 = sh2->dma_current_active_timer[0];
-	tsaved1 = sh2->dma_current_active_timer[1];
+	tsaved0 = sh2->dma_timer[0];
+	tsaved1 = sh2->dma_timer[1];
 
 	f = sh2->ftcsr_read_callback;
 	save_irqcallback = sh2->irq_callback;
 	save_is_slave = sh2->is_slave;
 	dma_callback_kludge = sh2->dma_callback_kludge;
-	dma_callback_fifo_data_available = sh2->dma_callback_fifo_data_available;
 
 	sh2->ppc = sh2->pc = sh2->pr = sh2->sr = sh2->gbr = sh2->vbr = sh2->mach = sh2->macl = 0;
 	sh2->evec = sh2->irqsr = 0;
@@ -2178,15 +2176,14 @@ static CPU_RESET( sh2 )
 	sh2->dma_timer_active[0] = sh2->dma_timer_active[1] = 0;
 
 	sh2->dma_callback_kludge = dma_callback_kludge;
-	sh2->dma_callback_fifo_data_available = dma_callback_fifo_data_available;
 	sh2->is_slave = save_is_slave;
 	sh2->ftcsr_read_callback = f;
 	sh2->irq_callback = save_irqcallback;
 	sh2->device = device;
 
 	sh2->timer = tsave;
-	sh2->dma_current_active_timer[0] = tsaved0;
-	sh2->dma_current_active_timer[1] = tsaved1;
+	sh2->dma_timer[0] = tsaved0;
+	sh2->dma_timer[1] = tsaved1;
 	sh2->m = m;
 	memset(sh2->m, 0, 0x200);
 
@@ -2219,29 +2216,17 @@ static CPU_EXECUTE( sh2 )
 		return;
 	}
 
-	// run any active DMAs now
-#ifndef USE_TIMER_FOR_DMA
-	for ( int i = 0; i < sh2->icount ; i++)
-	{
-		for( int dma=0;dma<1;dma++)
-		{
-			if (sh2->dma_timer_active[dma])
-				sh2_do_dma(sh2, dma);
-		}
-	}
-#endif
-
 	do
 	{
 		UINT32 opcode;
 
 		if (sh2->delay)
 		{
-			opcode = sh2->program->read_word(((UINT32)(sh2->delay & AM)));
+			opcode = memory_decrypted_read_word(sh2->program, WORD_XOR_BE((UINT32)(sh2->delay & AM)));
 			sh2->pc -= 2;
 		}
 		else
-			opcode = sh2->program->read_word(((UINT32)(sh2->pc & AM)));
+			opcode = memory_decrypted_read_word(sh2->program, WORD_XOR_BE((UINT32)(sh2->pc & AM)));
 
 		debugger_instruction_hook(device, sh2->pc);
 
@@ -2367,15 +2352,15 @@ CPU_GET_INFO( sh2 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 4;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + SH2_INT_VBLIN:	info->i = sh2->irq_line_state[SH2_INT_VBLIN]; break;
 		case CPUINFO_INT_INPUT_STATE + SH2_INT_VBLOUT:	info->i = sh2->irq_line_state[SH2_INT_VBLOUT]; break;
@@ -2492,12 +2477,12 @@ CPU_GET_INFO( sh1 )
 	}
 }
 
-void sh2drc_set_options(device_t *device, UINT32 options)
+void sh2drc_set_options(running_device *device, UINT32 options)
 {
 	/* doesn't apply here */
 }
 
-void sh2drc_add_pcflush(device_t *device, offs_t address)
+void sh2drc_add_pcflush(running_device *device, offs_t address)
 {
 	/* doesn't apply here */
 }

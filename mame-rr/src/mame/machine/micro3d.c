@@ -29,14 +29,14 @@
  *
  *************************************/
 
-void micro3d_duart_irq_handler(device_t *device, UINT8 vector)
+void micro3d_duart_irq_handler(running_device *device, UINT8 vector)
 {
-	cputag_set_input_line_and_vector(device->machine(), "maincpu", 3, HOLD_LINE, vector);
+	cputag_set_input_line_and_vector(device->machine, "maincpu", 3, HOLD_LINE, vector);
 };
 
-void micro3d_duart_tx(device_t *device, int channel, UINT8 data)
+void micro3d_duart_tx(running_device *device, int channel, UINT8 data)
 {
-	micro3d_state *state = device->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)device->machine->driver_data;
 
 	if (channel == 0)
 	{
@@ -46,23 +46,21 @@ void micro3d_duart_tx(device_t *device, int channel, UINT8 data)
 	}
 	else
 	{
-		state->m_m68681_tx0 = data;
-		cputag_set_input_line(device->machine(), "audiocpu", MCS51_RX_LINE, ASSERT_LINE);
-		// TODO: next line should be behind a timer callback which lasts one audiocpu clock cycle
-		cputag_set_input_line(device->machine(), "audiocpu", MCS51_RX_LINE, CLEAR_LINE);
+		state->m68681_tx0 = data;
+		cputag_set_input_line(device->machine, "audiocpu", MCS51_RX_LINE, HOLD_LINE);
 	}
 };
 
-static int data_to_i8031(device_t *device)
+static int data_to_i8031(running_device *device)
 {
-	micro3d_state *state = device->machine().driver_data<micro3d_state>();
-	return state->m_m68681_tx0;
+	micro3d_state *state = (micro3d_state*)device->machine->driver_data;
+	return state->m68681_tx0;
 }
 
-static void data_from_i8031(device_t *device, int data)
+static void data_from_i8031(running_device *device, int data)
 {
-	micro3d_state *state = device->machine().driver_data<micro3d_state>();
-	duart68681_rx_data(state->m_duart68681, 1, data);
+	micro3d_state *state = (micro3d_state*)device->machine->driver_data;
+	duart68681_rx_data(state->duart68681, 1, data);
 }
 
 /*
@@ -73,7 +71,7 @@ static void data_from_i8031(device_t *device, int data)
  * 4: -
  * 5: -
  */
-UINT8 micro3d_duart_input_r(device_t *device)
+UINT8 micro3d_duart_input_r(running_device *device)
 {
 	return 0x2;
 }
@@ -82,9 +80,129 @@ UINT8 micro3d_duart_input_r(device_t *device)
  * 5: /I8051 reset
  * 7: Status LED
 */
-void micro3d_duart_output_w(device_t *device, UINT8 data)
+void micro3d_duart_output_w(running_device *device, UINT8 data)
 {
-	cputag_set_input_line(device->machine(), "audiocpu", INPUT_LINE_RESET, data & 0x20 ? CLEAR_LINE : ASSERT_LINE);
+	cputag_set_input_line(device->machine, "audiocpu", INPUT_LINE_RESET, data & 0x20 ? CLEAR_LINE : ASSERT_LINE);
+}
+
+
+/*************************************
+ *
+ *  68901
+ *
+ *************************************/
+
+enum
+{
+	TMRB = 0,
+	TXERR,
+	TBE,
+	RXERR,
+	RBF,
+	TMRA,
+	GPIP6,
+	GPIP7,
+	GPIP0,
+	GPIP1,
+	GPIP2,
+	GPIP3,
+	TMRD,
+	TMRC,
+	GPIP4,
+	GPIP5
+};
+
+
+static void micro3d_mc68901_int_gen(running_machine *machine, int source)
+{
+	micro3d_state *state = (micro3d_state*)machine->driver_data;
+	UINT8 *ien = source & 8 ? &state->mc68901.ierb : &state->mc68901.iera;
+	UINT8 *ipend = source & 8 ? &state->mc68901.iprb : &state->mc68901.ipra;
+	UINT8 *imask = source & 8 ? &state->mc68901.imrb : &state->mc68901.imra;
+	int bit = source & 7;
+
+	if (*ien & (1 << bit))
+	{
+		*ipend |= (1 << bit);
+	}
+
+	if (*imask & (1 << bit))
+	{
+		cputag_set_input_line(machine, "maincpu", 4, HOLD_LINE);
+	}
+}
+
+static TIMER_CALLBACK( mfp_timer_a_cb )
+{
+	micro3d_mc68901_int_gen(machine, TMRA);
+}
+
+READ16_HANDLER( micro3d_mc68901_r )
+{
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
+	UINT16 val = 0;
+
+	switch (offset)
+	{
+		case 0:
+			val = 0xff;
+			break;
+		default:
+			val = state->mc68901.regs[offset] << 8;
+	}
+
+	return val;
+}
+
+WRITE16_HANDLER( micro3d_mc68901_w )
+{
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
+
+	data >>= 8;
+	state->mc68901.regs[offset] = data;
+
+	switch (offset)
+	{
+		case 0x0f:
+		{
+			int mode = state->mc68901.tacr & 0xf;
+
+			state->mc68901.tadr = data;
+
+			/* Timer stopped */
+			if (mode == 0)
+			{
+				timer_enable(state->mc68901.timer_a, 0);
+			}
+			else if (mode < 8)
+			{
+				int divisor = 1;
+				attotime period;
+
+				switch (mode)
+				{
+					case 1: divisor = 4; break;
+					case 2: divisor = 10; break;
+					case 3: divisor = 16; break;
+					case 4: divisor = 50; break;
+					case 5: divisor = 64; break;
+					case 6: divisor = 100; break;
+					case 7: divisor = 200; break;
+				}
+
+				period = attotime_mul(ATTOTIME_IN_HZ(4000000 / divisor), data);
+
+				timer_adjust_periodic(state->mc68901.timer_a, period, 0, period);
+			}
+			else
+			{
+				fatalerror("MC68901: Unsupported Timer A mode! (%x)", state->mc68901.tadr);
+			}
+			break;
+		}
+		default:
+			state->mc68901.regs[offset] = data;
+	}
 }
 
 
@@ -102,57 +220,57 @@ enum
 
 WRITE16_HANDLER( micro3d_ti_uart_w )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x0:
 		{
-			state->m_ti_uart[TX] = data;
+			state->ti_uart[TX] = data;
 #if VGB_MONITOR_DISPLAY
 			mame_debug_printf("%c",data);
 #endif
-			state->m_ti_uart[STATUS] |= 1;
+			state->ti_uart[STATUS] |= 1;
 			break;
 		}
 		case 0x1:
 		{
-			if (state->m_ti_uart_mode_cycle == 0)
+			if (state->ti_uart_mode_cycle == 0)
 			{
-				state->m_ti_uart[MODE1] = data;
-				state->m_ti_uart_mode_cycle = 1;
+				state->ti_uart[MODE1] = data;
+				state->ti_uart_mode_cycle = 1;
 			}
 			else
 			{
-				state->m_ti_uart[MODE2] = data;
-				state->m_ti_uart_mode_cycle = 0;
+				state->ti_uart[MODE2] = data;
+				state->ti_uart_mode_cycle = 0;
 			}
 			break;
 		}
 		case 0x2:
 		{
-			if (state->m_ti_uart_sync_cycle == 0)
+			if (state->ti_uart_sync_cycle == 0)
 			{
-				state->m_ti_uart[SYN1] = data;
-				state->m_ti_uart_mode_cycle = 1;
+				state->ti_uart[SYN1] = data;
+				state->ti_uart_mode_cycle = 1;
 			}
-			else if (state->m_ti_uart_sync_cycle == 1)
+			else if (state->ti_uart_sync_cycle == 1)
 			{
-				state->m_ti_uart[SYN2] = data;
-				state->m_ti_uart_mode_cycle = 2;
+				state->ti_uart[SYN2] = data;
+				state->ti_uart_mode_cycle = 2;
 			}
 			else
 			{
-				state->m_ti_uart[DLE] = data;
-				state->m_ti_uart_mode_cycle = 0;
+				state->ti_uart[DLE] = data;
+				state->ti_uart_mode_cycle = 0;
 			}
 			break;
 		}
 		case 0x3:
 		{
-			state->m_ti_uart[COMMAND] = data;
-			state->m_ti_uart_mode_cycle = 0;
-			state->m_ti_uart_sync_cycle = 0;
+			state->ti_uart[COMMAND] = data;
+			state->ti_uart_mode_cycle = 0;
+			state->ti_uart_sync_cycle = 0;
 			break;
 		}
 	}
@@ -160,36 +278,36 @@ WRITE16_HANDLER( micro3d_ti_uart_w )
 
 READ16_HANDLER( micro3d_ti_uart_r )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x0:
 		{
-			state->m_ti_uart[STATUS] ^= 2;
-			return state->m_ti_uart[RX];
+			state->ti_uart[STATUS] ^= 2;
+			return state->ti_uart[RX];
 		}
 		case 0x1:
 		{
-			if (state->m_ti_uart_mode_cycle == 0)
+			if (state->ti_uart_mode_cycle == 0)
 			{
-				state->m_ti_uart_mode_cycle = 1;
-				return state->m_ti_uart[MODE1];
+				state->ti_uart_mode_cycle = 1;
+				return state->ti_uart[MODE1];
 			}
 			else
 			{
-				state->m_ti_uart_mode_cycle = 0;
-				return state->m_ti_uart[MODE2];
+				state->ti_uart_mode_cycle = 0;
+				return state->ti_uart[MODE2];
 			}
 		}
 		case 0x2:
 		{
-			return state->m_ti_uart[STATUS];
+			return state->ti_uart[STATUS];
 		}
 		case 0x3:
 		{
-			state->m_ti_uart_mode_cycle = state->m_ti_uart_sync_cycle = 0;
-			return state->m_ti_uart[COMMAND];
+			state->ti_uart_mode_cycle = state->ti_uart_sync_cycle = 0;
+			return state->ti_uart[COMMAND];
 		}
 		default:
 		{
@@ -231,12 +349,12 @@ READ32_HANDLER( micro3d_scc_r )
 
 READ16_HANDLER( micro3d_tms_host_r )
 {
-	return tms34010_host_r(space->machine().device("vgb"), offset);
+	return tms34010_host_r(space->machine->device("vgb"), offset);
 }
 
 WRITE16_HANDLER( micro3d_tms_host_w )
 {
-	tms34010_host_w(space->machine().device("vgb"), offset, data);
+	tms34010_host_w(space->machine->device("vgb"), offset, data);
 }
 
 
@@ -264,31 +382,31 @@ INLINE INT64 normalised_multiply(INT32 a, INT32 b)
 
 static TIMER_CALLBACK( mac_done_callback )
 {
-	micro3d_state *state = machine.driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)machine->driver_data;
 
 	cputag_set_input_line(machine, "drmath", AM29000_INTR0, ASSERT_LINE);
-	state->m_mac_stat = 0;
+	state->mac_stat = 0;
 }
 
 
 WRITE32_HANDLER( micro3d_mac1_w )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	state->m_vtx_addr = (data & 0x3ffff);
-	state->m_sram_w_addr = (data >> 18) & 0xfff;
+	state->vtx_addr = (data & 0x3ffff);
+	state->sram_w_addr = (data >> 18) & 0xfff;
 }
 
 READ32_HANDLER( micro3d_mac2_r )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	return (state->m_mac_inst << 1) | state->m_mac_stat;
+	return (state->mac_inst << 1) | state->mac_stat;
 }
 
 WRITE32_HANDLER( micro3d_mac2_w )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
 	UINT32 cnt = data & 0xff;
 	UINT32 inst = (data >> 8) & 0x1f;
@@ -300,19 +418,19 @@ WRITE32_HANDLER( micro3d_mac2_w )
 	UINT32 sram_w_addr;
 	UINT32 *mac_sram;
 
-	state->m_mac_stat = BIT(data, 13);
-	state->m_mac_inst = inst & 0x7;
-	state->m_mrab11 = (data >> 18) & (1 << 11);
-	state->m_sram_r_addr = (data >> 18) & 0xfff;
+	state->mac_stat = BIT(data, 13);
+	state->mac_inst = inst & 0x7;
+	state->mrab11 = (data >> 18) & (1 << 11);
+	state->sram_r_addr = (data >> 18) & 0xfff;
 
-	mrab11 = state->m_mrab11;
-	vtx_addr = state->m_vtx_addr;
-	sram_r_addr = state->m_sram_r_addr;
-	sram_w_addr = state->m_sram_w_addr;
-	mac_sram = state->m_mac_sram;
+	mrab11 = state->mrab11;
+	vtx_addr = state->vtx_addr;
+	sram_r_addr = state->sram_r_addr;
+	sram_w_addr = state->sram_w_addr;
+	mac_sram = state->mac_sram;
 
 	if (data & (1 << 14))
-		cputag_set_input_line(space->machine(), "drmath", AM29000_INTR0, CLEAR_LINE);
+		cputag_set_input_line(space->machine, "drmath", AM29000_INTR0, CLEAR_LINE);
 
 	switch (inst)
 	{
@@ -325,7 +443,7 @@ WRITE32_HANDLER( micro3d_mac2_w )
 		case 0x08:
 		{
 			int i;
-			const UINT16 *rom = (UINT16*)space->machine().region("vertex")->base();
+			const UINT16 *rom = (UINT16*)memory_region(space->machine, "vertex");
 
 			for (i = 0; i <= cnt; ++i)
 			{
@@ -364,7 +482,7 @@ WRITE32_HANDLER( micro3d_mac2_w )
 		case 0x0c:
 		{
 			int i;
-			const UINT16 *rom = (UINT16*)space->machine().region("vertex")->base();
+			const UINT16 *rom = (UINT16*)memory_region(space->machine, "vertex");
 
 			for (i = 0; i <= cnt; ++i)
 			{
@@ -397,7 +515,7 @@ WRITE32_HANDLER( micro3d_mac2_w )
 		case 0x0f:
 		{
 			int i;
-			const UINT16 *rom = (UINT16*)space->machine().region("vertex")->base();
+			const UINT16 *rom = (UINT16*)memory_region(space->machine, "vertex");
 
 			for (i = 0; i <= cnt; ++i, vtx_addr += 4)
 			{
@@ -475,13 +593,13 @@ WRITE32_HANDLER( micro3d_mac2_w )
 	}
 
 	/* TODO: Calculate a better estimate for timing */
-	if (state->m_mac_stat)
-		space->machine().scheduler().timer_set(attotime::from_hz(MAC_CLK) * mac_cycles, FUNC(mac_done_callback));
+	if (state->mac_stat)
+		timer_set(space->machine, attotime_mul(ATTOTIME_IN_HZ(MAC_CLK), mac_cycles), NULL, 0, mac_done_callback);
 
-	state->m_mrab11 = mrab11;
-	state->m_vtx_addr = vtx_addr;
-	state->m_sram_r_addr = sram_r_addr;
-	state->m_sram_w_addr = sram_w_addr;
+	state->mrab11 = mrab11;
+	state->vtx_addr = vtx_addr;
+	state->sram_r_addr = sram_r_addr;
+	state->sram_w_addr = sram_w_addr;
 }
 
 
@@ -493,29 +611,29 @@ WRITE32_HANDLER( micro3d_mac2_w )
 
 READ16_HANDLER( micro3d_encoder_h_r )
 {
-	UINT16 x_encoder = input_port_read_safe(space->machine(), "JOYSTICK_X", 0);
-	UINT16 y_encoder = input_port_read_safe(space->machine(), "JOYSTICK_Y", 0);
+	UINT16 x_encoder = input_port_read_safe(space->machine, "JOYSTICK_X", 0);
+	UINT16 y_encoder = input_port_read_safe(space->machine, "JOYSTICK_Y", 0);
 
 	return (y_encoder & 0xf00) | ((x_encoder & 0xf00) >> 8);
 }
 
 READ16_HANDLER( micro3d_encoder_l_r )
 {
-	UINT16 x_encoder = input_port_read_safe(space->machine(), "JOYSTICK_X", 0);
-	UINT16 y_encoder = input_port_read_safe(space->machine(), "JOYSTICK_Y", 0);
+	UINT16 x_encoder = input_port_read_safe(space->machine, "JOYSTICK_X", 0);
+	UINT16 y_encoder = input_port_read_safe(space->machine, "JOYSTICK_Y", 0);
 
 	return ((y_encoder & 0xff) << 8) | (x_encoder & 0xff);
 }
 
 static TIMER_CALLBACK( adc_done_callback )
 {
-	micro3d_state *state = machine.driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)machine->driver_data;
 
 	switch (param)
 	{
-		case 0: state->m_adc_val = input_port_read_safe(machine, "THROTTLE", 0);
+		case 0: state->adc_val = input_port_read_safe(machine, "THROTTLE", 0);
 				break;
-		case 1: state->m_adc_val = (UINT8)((255.0/100.0) * input_port_read(machine, "VOLUME") + 0.5);
+		case 1: state->adc_val = (UINT8)((255.0/100.0) * input_port_read(machine, "VOLUME") + 0.5);
 				break;
 		case 2: break;
 		case 3: break;
@@ -526,9 +644,9 @@ static TIMER_CALLBACK( adc_done_callback )
 
 READ16_HANDLER( micro3d_adc_r )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	return state->m_adc_val;
+	return state->adc_val;
 }
 
 WRITE16_HANDLER( micro3d_adc_w )
@@ -540,29 +658,29 @@ WRITE16_HANDLER( micro3d_adc_w )
 		return;
 	}
 
-	space->machine().scheduler().timer_set(attotime::from_usec(40), FUNC(adc_done_callback), data & ~4);
+	timer_set(space->machine, ATTOTIME_IN_USEC(40), NULL, data & ~4, adc_done_callback);
 }
 
 CUSTOM_INPUT( botssa_hwchk_r )
 {
-	micro3d_state *state = field.machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)field->port->machine->driver_data;
 
-	return state->m_botssa_latch;
+	return state->botssa_latch;
 }
 
 READ16_HANDLER( botssa_140000_r )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	state->m_botssa_latch = 0;
+	state->botssa_latch = 0;
 	return 0xffff;
 }
 
 READ16_HANDLER( botssa_180000_r )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	state->m_botssa_latch = 1;
+	state->botssa_latch = 1;
 	return 0xffff;
 }
 
@@ -575,15 +693,15 @@ READ16_HANDLER( botssa_180000_r )
 WRITE16_HANDLER( micro3d_reset_w )
 {
 	data >>= 8;
-	cputag_set_input_line(space->machine(), "drmath", INPUT_LINE_RESET, data & 1 ? CLEAR_LINE : ASSERT_LINE);
-	cputag_set_input_line(space->machine(), "vgb", INPUT_LINE_RESET, data & 2 ? CLEAR_LINE : ASSERT_LINE);
+	cputag_set_input_line(space->machine, "drmath", INPUT_LINE_RESET, data & 1 ? CLEAR_LINE : ASSERT_LINE);
+	cputag_set_input_line(space->machine, "vgb", INPUT_LINE_RESET, data & 2 ? CLEAR_LINE : ASSERT_LINE);
 	/* TODO: Joystick reset? */
 }
 
 WRITE16_HANDLER( host_drmath_int_w )
 {
-	cputag_set_input_line(space->machine(), "drmath", AM29000_INTR2, ASSERT_LINE);
-	space->machine().scheduler().boost_interleave(attotime::zero, attotime::from_usec(10));
+	cputag_set_input_line(space->machine, "drmath", AM29000_INTR2, ASSERT_LINE);
+	cpuexec_boost_interleave(space->machine, attotime_zero, ATTOTIME_IN_USEC(10));
 }
 
 
@@ -595,27 +713,27 @@ WRITE16_HANDLER( host_drmath_int_w )
 
 WRITE32_HANDLER( micro3d_shared_w )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	state->m_shared_ram[offset * 2 + 1] = data & 0xffff;
-	state->m_shared_ram[offset * 2 + 0] = data >> 16;
+	state->shared_ram[offset * 2 + 1] = data & 0xffff;
+	state->shared_ram[offset * 2 + 0] = data >> 16;
 }
 
 READ32_HANDLER( micro3d_shared_r )
 {
-	micro3d_state *state = space->machine().driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)space->machine->driver_data;
 
-	return (state->m_shared_ram[offset * 2] << 16) | state->m_shared_ram[offset * 2 + 1];
+	return (state->shared_ram[offset * 2] << 16) | state->shared_ram[offset * 2 + 1];
 }
 
 WRITE32_HANDLER( drmath_int_w )
 {
-	cputag_set_input_line(space->machine(), "maincpu", 5, HOLD_LINE);
+	cputag_set_input_line(space->machine, "maincpu", 5, HOLD_LINE);
 }
 
 WRITE32_HANDLER( drmath_intr2_ack )
 {
-	cputag_set_input_line(space->machine(), "drmath", AM29000_INTR2, CLEAR_LINE);
+	cputag_set_input_line(space->machine, "drmath", AM29000_INTR2, CLEAR_LINE);
 }
 
 
@@ -627,40 +745,42 @@ WRITE32_HANDLER( drmath_intr2_ack )
 
 DRIVER_INIT( micro3d )
 {
-	micro3d_state *state = machine.driver_data<micro3d_state>();
-	address_space *space = machine.device("drmath")->memory().space(AS_DATA);
+	micro3d_state *state = (micro3d_state*)machine->driver_data;
+	const address_space *space = cputag_get_address_space(machine, "drmath", ADDRESS_SPACE_DATA);
 
-	i8051_set_serial_tx_callback(machine.device("audiocpu"), data_from_i8031);
-	i8051_set_serial_rx_callback(machine.device("audiocpu"), data_to_i8031);
+	i8051_set_serial_tx_callback(machine->device("audiocpu"), data_from_i8031);
+	i8051_set_serial_rx_callback(machine->device("audiocpu"), data_to_i8031);
 
-	state->m_duart68681 = machine.device("duart68681");
+	state->duart68681 = machine->device("duart68681");
 
 	/* The Am29000 program seems to rely on RAM from 0x00470000 onwards being
     non-zero on a reset, otherwise the 3D object data doesn't get uploaded! */
-	space->write_dword(0x00470000, 0xa5a5a5a5);
+	memory_write_dword(space, 0x00470000, 0xa5a5a5a5);
+
+	state->mc68901.timer_a = timer_alloc(machine, mfp_timer_a_cb, NULL);
 
 	/* TODO? BOTSS crashes when starting the final stage because the 68000
     overwrites memory in use by the Am29000. Slowing down the 68000 slightly
     avoids this */
-	machine.device("maincpu")->set_clock_scale(0.945f);
+	machine->device("maincpu")->set_clock_scale(0.945f);
 }
 
 DRIVER_INIT( botssa )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
 	/* Required to pass the hardware version check */
-	space->install_legacy_read_handler(0x140000, 0x140001, FUNC(botssa_140000_r) );
-	space->install_legacy_read_handler(0x180000, 0x180001, FUNC(botssa_180000_r) );
+	memory_install_read16_handler(space, 0x140000, 0x140001, 0, 0, botssa_140000_r );
+	memory_install_read16_handler(space, 0x180000, 0x180001, 0, 0, botssa_180000_r );
 
 	DRIVER_INIT_CALL(micro3d);
 }
 
 MACHINE_RESET( micro3d )
 {
-	micro3d_state *state = machine.driver_data<micro3d_state>();
+	micro3d_state *state = (micro3d_state*)machine->driver_data;
 
-	state->m_ti_uart[STATUS] = 1;
+	state->ti_uart[STATUS] = 1;
 
 	cputag_set_input_line(machine, "vgb", INPUT_LINE_RESET, ASSERT_LINE);
 	cputag_set_input_line(machine, "drmath", INPUT_LINE_RESET, ASSERT_LINE);

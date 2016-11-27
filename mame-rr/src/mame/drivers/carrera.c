@@ -51,26 +51,19 @@ TODO:
 #include "sound/ay8910.h"
 #include "video/mc6845.h"
 
-
-class carrera_state : public driver_device
-{
-public:
-	carrera_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8* m_tileram;
-};
+static UINT8* carrera_tileram;
 
 
-static ADDRESS_MAP_START( carrera_map, AS_PROGRAM, 8 )
+
+static ADDRESS_MAP_START( carrera_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x4fff) AM_ROM
 	AM_RANGE(0xe000, 0xe7ff) AM_RAM
-	AM_RANGE(0xe800, 0xe800) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe801, 0xe801) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xf000, 0xffff) AM_RAM AM_BASE_MEMBER(carrera_state, m_tileram)
+	AM_RANGE(0xe800, 0xe800) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe801, 0xe801) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xf000, 0xffff) AM_RAM AM_BASE(&carrera_tileram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("IN0")
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("IN1")
@@ -244,9 +237,8 @@ static GFXDECODE_START( carrera )
 	GFXDECODE_ENTRY( "gfx1", 0, tiles8x8_layout, 0, 1 )
 GFXDECODE_END
 
-static SCREEN_UPDATE(carrera)
+static VIDEO_UPDATE(carrera)
 {
-	carrera_state *state = screen->machine().driver_data<carrera_state>();
 
 	int x,y;
 	int count = 0;
@@ -255,9 +247,9 @@ static SCREEN_UPDATE(carrera)
 	{
 		for (x=0;x<64;x++)
 		{
-			int tile = state->m_tileram[count&0x7ff] | state->m_tileram[(count&0x7ff)+0x800]<<8;
+			int tile = carrera_tileram[count&0x7ff] | carrera_tileram[(count&0x7ff)+0x800]<<8;
 
-			drawgfx_opaque(bitmap,cliprect,screen->machine().gfx[0],tile,0,0,0,x*8,y*8);
+			drawgfx_opaque(bitmap,cliprect,screen->machine->gfx[0],tile,0,0,0,x*8,y*8);
 			count++;
 		}
 	}
@@ -266,7 +258,7 @@ static SCREEN_UPDATE(carrera)
 
 static READ8_DEVICE_HANDLER( unknown_r )
 {
-	return device->machine().rand();
+	return mame_rand(device->machine);
 }
 
 /* these are set as input, but I have no idea which input port it uses is for the AY */
@@ -285,7 +277,7 @@ static PALETTE_INIT(carrera)
 	int br_bit0, br_bit1, bit0, bit1, r, g, b;
 	int	i;
 
-	for (i = 0; i < 0x20; ++i)
+	for (i = 0; i < 0x40; ++i)
 	{
 		br_bit0 = (color_prom[0] >> 6) & 0x01;
 		br_bit1 = (color_prom[0] >> 7) & 0x01;
@@ -321,35 +313,36 @@ static const mc6845_interface mc6845_intf =
 };
 
 
-static MACHINE_CONFIG_START( carrera, carrera_state )
+static MACHINE_DRIVER_START( carrera )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK / 6)
-	MCFG_CPU_PROGRAM_MAP(carrera_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK / 6)
+	MDRV_CPU_PROGRAM_MAP(carrera_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(carrera)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
 
-	MCFG_MC6845_ADD("crtc", MC6845, MASTER_CLOCK / 16, mc6845_intf)
+	MDRV_MC6845_ADD("crtc", MC6845, MASTER_CLOCK / 16, mc6845_intf)
 
-	MCFG_GFXDECODE(carrera)
-	MCFG_PALETTE_LENGTH(32)
-	MCFG_PALETTE_INIT(carrera)
+	MDRV_GFXDECODE(carrera)
+	MDRV_PALETTE_LENGTH(32)
+	MDRV_PALETTE_INIT(carrera)
+
+	MDRV_VIDEO_UPDATE(carrera)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, MASTER_CLOCK/12)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, MASTER_CLOCK/12)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
+MACHINE_DRIVER_END
 
 
 ROM_START( carrera )

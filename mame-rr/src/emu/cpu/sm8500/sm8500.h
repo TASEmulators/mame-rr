@@ -5,8 +5,8 @@
 
 
 typedef struct {
-	void (*handle_dma)(device_t *device, int cycles);
-	void (*handle_timers)(device_t *device, int cycles);
+	void (*handle_dma)(running_device *device, int cycles);
+	void (*handle_timers)(running_device *device, int cycles);
 } SM8500_CONFIG;
 
 /* interrupts */
@@ -35,5 +35,7 @@ enum
 DECLARE_LEGACY_CPU_DEVICE(SM8500, sm8500);
 
 extern CPU_DISASSEMBLE( sm8500 );
+
+UINT8 *sm8500_get_internal_ram(legacy_cpu_device *device);
 
 #endif /* __SM8500_H__ */

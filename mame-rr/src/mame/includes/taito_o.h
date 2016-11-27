@@ -4,20 +4,21 @@
 
 *************************************************************************/
 
-class taitoo_state : public driver_device
+class taitoo_state
 {
 public:
-	taitoo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, taitoo_state(machine)); }
+
+	taitoo_state(running_machine &machine) { }
 
 	/* memory pointers */
 //  UINT16 *    paletteram;    // currently this uses generic palette handling
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_tc0080vco;
+	running_device *maincpu;
+	running_device *tc0080vco;
 };
 
 /*----------- defined in video/taito_o.c -----------*/
 
-SCREEN_UPDATE( parentj );
+VIDEO_UPDATE( parentj );

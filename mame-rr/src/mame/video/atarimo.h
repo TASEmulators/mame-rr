@@ -94,7 +94,7 @@ struct _atarimo_rect_list
 ***************************************************************************/
 
 /* setup/shutdown */
-void atarimo_init(running_machine &machine, int map, const atarimo_desc *desc);
+void atarimo_init(running_machine *machine, int map, const atarimo_desc *desc);
 UINT16 *atarimo_get_code_lookup(int map, int *size);
 UINT8 *atarimo_get_color_lookup(int map, int *size);
 UINT8 *atarimo_get_gfx_lookup(int map, int *size);
@@ -106,20 +106,13 @@ bitmap_t *atarimo_render(int map, const rectangle *cliprect, atarimo_rect_list *
 void atarimo_set_bank(int map, int bank);
 void atarimo_set_xscroll(int map, int xscroll);
 void atarimo_set_yscroll(int map, int yscroll);
-void atarimo_set_slipram(int map, UINT16 *ram);
 
 /* atrribute getters */
 int atarimo_get_bank(int map);
 int atarimo_get_xscroll(int map);
 int atarimo_get_yscroll(int map);
 
-/* read/write handlers */
-READ16_HANDLER( atarimo_0_spriteram_r );
-READ16_HANDLER( atarimo_0_slipram_r );
-
-READ16_HANDLER( atarimo_1_spriteram_r );
-READ16_HANDLER( atarimo_1_slipram_r );
-
+/* write handlers */
 WRITE16_HANDLER( atarimo_0_spriteram_w );
 WRITE16_HANDLER( atarimo_0_spriteram_expanded_w );
 WRITE16_HANDLER( atarimo_0_slipram_w );
@@ -127,7 +120,17 @@ WRITE16_HANDLER( atarimo_0_slipram_w );
 WRITE16_HANDLER( atarimo_1_spriteram_w );
 WRITE16_HANDLER( atarimo_1_slipram_w );
 
-void atarimo_mark_high_palette(bitmap_t *bitmap, UINT16 *pf, UINT16 *mo, int x, int y);
+
+
+/***************************************************************************
+    GLOBAL VARIABLES
+***************************************************************************/
+
+extern UINT16 *atarimo_0_spriteram;
+extern UINT16 *atarimo_0_slipram;
+
+extern UINT16 *atarimo_1_spriteram;
+extern UINT16 *atarimo_1_slipram;
 
 
 #endif

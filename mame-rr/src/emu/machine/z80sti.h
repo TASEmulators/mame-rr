@@ -40,9 +40,9 @@
 //  DEVICE CONFIGURATION MACROS
 //**************************************************************************
 
-#define MCFG_Z80STI_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD((_tag), Z80STI, _clock)	\
-	MCFG_DEVICE_CONFIG(_config)
+#define MDRV_Z80STI_ADD(_tag, _clock, _config) \
+	MDRV_DEVICE_ADD((_tag), Z80STI, _clock)	\
+	MDRV_DEVICE_CONFIG(_config)
 
 #define Z80STI_INTERFACE(name) const z80sti_interface (name) =
 
@@ -61,31 +61,54 @@ struct z80sti_interface
 	int	m_tx_clock;			// serial transmit clock
 
 	// this gets called on each change of the _INT pin (pin 17)
-	devcb_write_line		m_out_int_cb;
+	devcb_write_line		m_out_int_func;
 
 	// this is called on each read of the GPIO pins
-	devcb_read8				m_in_gpio_cb;
+	devcb_read8				m_in_gpio_func;
 
 	// this is called on each write of the GPIO pins
-	devcb_write8			m_out_gpio_cb;
+	devcb_write8			m_out_gpio_func;
 
 	// this gets called for each read of the SI pin (pin 38)
-	devcb_read_line			m_in_si_cb;
+	devcb_read_line			m_in_si_func;
 
 	// this gets called for each change of the SO pin (pin 37)
-	devcb_write_line		m_out_so_cb;
+	devcb_write_line		m_out_so_func;
 
 	// this gets called for each change of the TAO pin (pin 1)
-	devcb_write_line		m_out_tao_cb;
+	devcb_write_line		m_out_tao_func;
 
 	// this gets called for each change of the TBO pin (pin 2)
-	devcb_write_line		m_out_tbo_cb;
+	devcb_write_line		m_out_tbo_func;
 
 	// this gets called for each change of the TCO pin (pin 3)
-	devcb_write_line		m_out_tco_cb;
+	devcb_write_line		m_out_tco_func;
 
 	// this gets called for each change of the TDO pin (pin 4)
-	devcb_write_line		m_out_tdo_cb;
+	devcb_write_line		m_out_tdo_func;
+};
+
+
+
+// ======================> z80sti_device_config
+
+class z80sti_device_config :	public device_config,
+								public device_config_z80daisy_interface,
+								public z80sti_interface
+{
+	friend class z80sti_device;
+
+	// construction/destruction
+	z80sti_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+
+public:
+	// allocators
+	static device_config *static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+	virtual device_t *alloc_device(running_machine &machine) const;
+
+protected:
+	// device_config overrides
+	virtual void device_config_complete();
 };
 
 
@@ -93,13 +116,14 @@ struct z80sti_interface
 // ======================> z80sti_device
 
 class z80sti_device :	public device_t,
-						public device_z80daisy_interface,
-						public z80sti_interface
+						public device_z80daisy_interface
 {
-public:
-	// construction/destruction
-	z80sti_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock);
+	friend class z80sti_device_config;
 
+	// construction/destruction
+	z80sti_device(running_machine &_machine, const z80sti_device_config &config);
+
+public:
 	// I/O accessors
 	UINT8 read(offs_t offset);
 	void write(offs_t offset, UINT8 data);
@@ -111,7 +135,6 @@ public:
 
 private:
 	// device-level overrides
-	virtual void device_config_complete();
 	virtual void device_start();
 	virtual void device_reset();
 
@@ -130,6 +153,9 @@ private:
 	static TIMER_CALLBACK( static_tx_tick ) { reinterpret_cast<z80sti_device *>(ptr)->serial_transmit(); }
 
 	static TIMER_CALLBACK( static_timer_count ) { reinterpret_cast<z80sti_device *>(ptr)->timer_count(param); }
+
+	// internal state
+	const z80sti_device_config &m_config;
 
 	// device callbacks
 	devcb_resolved_read8				m_in_gpio_func;

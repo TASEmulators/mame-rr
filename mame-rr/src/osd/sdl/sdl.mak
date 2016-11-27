@@ -49,7 +49,7 @@
 USE_DISPATCH_GL = 1
 
 # uncomment and change the next line to compile and link to specific
-# SDL library. This is currently supported for unix and win32.
+# SDL library. This is currently only supported for unix!
 # There is no need to play with this option unless you are doing
 # active development on sdlmame or SDL.
 
@@ -134,14 +134,12 @@ endif
 ifeq ($(TARGETOS),linux)
 BASE_TARGETOS = unix
 SYNC_IMPLEMENTATION = tc
-SDL_NETWORK = on
 endif
 
 ifeq ($(TARGETOS),freebsd)
 BASE_TARGETOS = unix
 SYNC_IMPLEMENTATION = tc
 DEFS += -DNO_AFFINITY_NP
-LIBS += -lutil
 # /usr/local/include is not considered a system include directory
 # on FreeBSD. GL.h resides there and throws warnings
 CCOMFLAGS += -isystem /usr/local/include
@@ -153,13 +151,6 @@ endif
 ifeq ($(TARGETOS),openbsd)
 BASE_TARGETOS = unix
 SYNC_IMPLEMENTATION = ntc
-LIBS += -lutil
-endif
-
-ifeq ($(TARGETOS),netbsd)
-BASE_TARGETOS = unix
-SYNC_IMPLEMENTATION = ntc
-LIBS += -lutil
 endif
 
 ifeq ($(TARGETOS),solaris)
@@ -170,7 +161,7 @@ endif
 
 ifeq ($(TARGETOS),macosx)
 BASE_TARGETOS = macosx
-DEFS += -DSDLMAME_UNIX -DSDLMAME_MACOSX -DSDLMAME_DARWIN
+DEFS += -DSDLMAME_UNIX -DSDLMAME_MACOSX
 DEBUGOBJS = $(SDLOBJ)/debugosx.o
 SYNC_IMPLEMENTATION = ntc
 SDLMAIN = $(SDLOBJ)/SDLMain_tmpl.o
@@ -217,8 +208,8 @@ else
 DEBUGOBJS = $(SDLOBJ)/debugwin.o $(SDLOBJ)/dview.o $(SDLOBJ)/debug-sup.o $(SDLOBJ)/debug-intf.o
 LIBS += -lgtk-win32-2.0 -lgdk-win32-2.0 -lgmodule-2.0 -lglib-2.0 -lgobject-2.0 \
 	-lpango-1.0 -latk-1.0 -lgdk_pixbuf-2.0
-CCOMFLAGS += -mms-bitfields
-INCPATH += -I$(GTK_INSTALL_ROOT)/include/gtk-2.0 -I$(GTK_INSTALL_ROOT)/include/glib-2.0 \
+CCOMFLAGS += -mms-bitfields \
+	-I$(GTK_INSTALL_ROOT)/include/gtk-2.0 -I$(GTK_INSTALL_ROOT)/include/glib-2.0 \
 	-I$(GTK_INSTALL_ROOT)/include/cairo -I$(GTK_INSTALL_ROOT)/include/pango-1.0 \
 	-I$(GTK_INSTALL_ROOT)/include/atk-1.0 \
 	-I$(GTK_INSTALL_ROOT)/lib/glib-2.0/include -I$(GTK_INSTALL_ROOT)/lib/gtk-2.0/include
@@ -266,8 +257,6 @@ OSDCOREOBJS = \
 	$(SDLOBJ)/strconv.o	\
 	$(SDLOBJ)/sdldir.o	\
 	$(SDLOBJ)/sdlfile.o 	\
-	$(SDLOBJ)/sdlptty_$(BASE_TARGETOS).o	\
-	$(SDLOBJ)/sdlsocket.o	\
 	$(SDLOBJ)/sdlmisc_$(BASE_TARGETOS).o	\
 	$(SDLOBJ)/sdlos_$(BASE_TARGETOS).o	\
 	$(SDLOBJ)/sdlsync_$(SYNC_IMPLEMENTATION).o     \
@@ -283,8 +272,7 @@ OSDOBJS = \
 	$(SDLOBJ)/video.o \
 	$(SDLOBJ)/drawsdl.o \
 	$(SDLOBJ)/window.o \
-	$(SDLOBJ)/output.o \
-	$(SDLOBJ)/watchdog.o
+	$(SDLOBJ)/output.o
 
 # Add SDL1.3 support
 ifdef SDL_INSTALL_ROOT
@@ -301,10 +289,10 @@ DEFS += "-DSDLMAME_ARCH=$(ARCHOPTS)" -DSYNC_IMPLEMENTATION=$(SYNC_IMPLEMENTATION
 OSDCLEAN = sdlclean
 
 # add the debugger includes
-INCPATH += -Isrc/debug
+CCOMFLAGS += -Isrc/debug
 
 # add the prefix file
-INCPATH += -include $(SDLSRC)/sdlprefix.h
+CCOMFLAGS += -include $(SDLSRC)/sdlprefix.h
 
 #-------------------------------------------------
 # BASE_TARGETOS specific configurations
@@ -349,30 +337,12 @@ endif
 endif
 
 ifndef SDL_INSTALL_ROOT
-INCPATH += `sdl-config --cflags  | sed -e 's:/SDL::' -e 's:\(-D[^ ]*\)::g'`
-CCOMFLAGS += `sdl-config --cflags  | sed -e 's:/SDL::' -e 's:\(-I[^ ]*\)::g'`
+CCOMFLAGS += `sdl-config --cflags`
 LIBS += -lm `sdl-config --libs`
-
 else
-# The commented out statements document what sdl-config returns when build from svn.
-# sdl-config --libs on ubuntu returns "-L/usr/lib -lSDL" which is not what we really
-# want in a multi-version SDL environment. Should the svn sdl-config at some point
-# return the same output, we need the commented out section again.
-
-#INCPATH += -I$(SDL_INSTALL_ROOT)/include
-#CCOMFLAGS += -D_GNU_SOURCE=1
-#LIBS += -lm -L$(SDL_INSTALL_ROOT)/lib -Wl,-rpath,$(SDL_INSTALL_ROOT)/lib -lSDL
-
-# FIXME: remove the directfb ref. later. This is just there for now to work around an issue with SDL1.3.
-INCPATH += -I$(SDL_INSTALL_ROOT)/include/directfb
-INCPATH += `$(SDL_INSTALL_ROOT)/bin/sdl-config --cflags  | sed -e 's:/SDL::' -e 's:\(-D[^ ]*\)::g'`
-CCOMFLAGS += `$(SDL_INSTALL_ROOT)/bin/sdl-config --cflags  | sed -e 's:/SDL::' -e 's:\(-I[^ ]*\)::g'`
-LIBS += -lm `$(SDL_INSTALL_ROOT)/bin/sdl-config --libs`
+CCOMFLAGS += -I$(SDL_INSTALL_ROOT)/include -D_GNU_SOURCE=1
+LIBS += -lm -L$(SDL_INSTALL_ROOT)/lib -Wl,-rpath,$(SDL_INSTALL_ROOT)/lib -lSDL
 endif
-
-INCPATH += `pkg-config --cflags fontconfig`
-LIBS += `pkg-config --libs fontconfig`
-LIBS += -lSDL_ttf -lutil
 
 endif # Unix
 
@@ -387,7 +357,7 @@ ifeq ($(BASE_TARGETOS),win32)
 OSDCOREOBJS += $(SDLMAIN)
 
 ifdef SDL_INSTALL_ROOT
-INCPATH += -I$(SDL_INSTALL_ROOT)/include
+CCOMFLAGS += -I$(SDL_INSTALL_ROOT)/include
 LIBS += -L$(SDL_INSTALL_ROOT)/lib
 #-Wl,-rpath,$(SDL_INSTALL_ROOT)/lib
 endif
@@ -396,7 +366,7 @@ endif
 # Static linking
 
 LDFLAGS += -static-libgcc
-LIBS += -lSDL.dll
+LIBS += -Wl,-Bstatic -lSDL -Wl,-Bdynamic
 LIBS += -luser32 -lgdi32 -lddraw -ldsound -ldxguid -lwinmm -ladvapi32 -lcomctl32 -lshlwapi
 
 endif	# Win32
@@ -406,7 +376,7 @@ endif	# Win32
 #-------------------------------------------------
 
 ifeq ($(BASE_TARGETOS),macosx)
-OSDCOREOBJS += $(SDLOBJ)/osxutils.o
+#OSDCOREOBJS += $(SDLOBJ)/osxutils.o
 
 ifndef MACOSX_USE_LIBSDL
 # Compile using framework (compile using libSDL is the exception)
@@ -417,11 +387,9 @@ else
 # Remove the "/SDL" component from the include path so that we can compile
 # files (header files are #include "SDL/something.h", so the extra "/SDL"
 # causes a significant problem)
-INCPATH += `sdl-config --cflags | sed 's:/SDL::'`
-CCOMFLAGS += -DNO_SDL_GLEXT
+CCOMFLAGS += `sdl-config --cflags | sed 's:/SDL::'` -DNO_SDL_GLEXT
 # Remove libSDLmain, as its symbols conflict with SDLMain_tmpl.m
 LIBS += `sdl-config --libs | sed 's/-lSDLmain//'` -lpthread
-DEFS += -DMACOSX_USE_LIBSDL
 endif
 
 endif	# Mac OS X
@@ -432,7 +400,7 @@ endif	# Mac OS X
 
 ifeq ($(BASE_TARGETOS),os2)
 
-INCPATH += `sdl-config --cflags`
+CCOMFLAGS += `sdl-config --cflags`
 LIBS += `sdl-config --libs`
 
 endif # OS2
@@ -469,7 +437,7 @@ ifneq ($(USE_DISPATCH_GL),1)
 ifdef MESA_INSTALL_ROOT
 LIBS += -L$(MESA_INSTALL_ROOT)/lib
 LDFLAGS += -Wl,-rpath=$(MESA_INSTALL_ROOT)/lib
-INCPATH += -I$(MESA_INSTALL_ROOT)/include
+CCOMFLAGS += -I$(MESA_INSTALL_ROOT)/include
 endif
 endif
 
@@ -486,30 +454,15 @@ LIBS += -lX11 -lXinerama
 
 # the new debugger relies on GTK+ in addition to the base SDLMAME needs
 # Non-X11 builds can not use the debugger
-INCPATH += `pkg-config --cflags-only-I gtk+-2.0` `pkg-config --cflags-only-I gconf-2.0`
-CCOMFLAGS += `pkg-config --cflags-only-other gtk+-2.0` `pkg-config --cflags-only-other gconf-2.0`
+CCOMFLAGS += `pkg-config --cflags gtk+-2.0` `pkg-config --cflags gconf-2.0`
 LIBS += `pkg-config --libs gtk+-2.0` `pkg-config --libs gconf-2.0`
 #CCOMFLAGS += -DGTK_DISABLE_DEPRECATED
 
 # some systems still put important things in a different prefix
 LIBS += -L/usr/X11/lib -L/usr/X11R6/lib -L/usr/openwin/lib
 # make sure we can find X headers
-INCPATH += -I/usr/X11/include -I/usr/X11R6/include -I/usr/openwin/include
+CCOMFLAGS += -I/usr/X11/include -I/usr/X11R6/include -I/usr/openwin/include
 endif # NO_X11
-
-#-------------------------------------------------
-# Network (TAP/TUN)
-#-------------------------------------------------
-
-ifdef USE_NETWORK
-ifeq ($(SDL_NETWORK),on)
-OSDOBJS += \
-	$(SDLOBJ)/netdev.o \
-	$(SDLOBJ)/netdev_tap.o
-
-DEFS += -DSDLMAME_NETWORK
-endif
-endif
 
 #-------------------------------------------------
 # Dependencies
@@ -529,8 +482,7 @@ $(OBJ)/emu/video/tms9927.o : CCOMFLAGS += -Wno-error
 endif # solaris
 
 # drawSDL depends on the core software renderer, so make sure it exists
-$(SDLOBJ)/drawsdl.o : $(SRC)/emu/rendersw.c $(SDLSRC)/drawogl.c
-$(SDLOBJ)/drawogl.o : $(SDLSRC)/texcopy.c $(SDLSRC)/texsrc.h
+$(SDLOBJ)/drawsdl.o : $(SRC)/emu/rendersw.c $(SDLSRC)/drawogl.c $(SDLSRC)/texcopy.c
 
 # draw13 depends on blit13.h
 $(SDLOBJ)/draw13.o : $(SDLSRC)/blit13.h
@@ -584,5 +536,19 @@ EXCLUDES = -x "*/.svn/*"
 
 zip:
 	zip -rq ../mame_$(BUILD_VERSION).zip $(DISTFILES) $(EXCLUDES)
+
+DEPENDFILE = .depend_$(EMULATOR)
+
+makedepend:
+	@echo Generating $(DEPENDFILE)
+	rm -f $(DEPENDFILE)
+	@for i in `find src -name "*.c"` ; do \
+		echo processing $$i; \
+		mt=`echo $$i | sed -e "s/\\.c/\\.o/" -e "s!^src/!$(OBJ)/!"` ; \
+		g++ -MM -MT $$mt $(CDEFS) $(CCOMFLAGS) $$i 2>/dev/null \
+		| sed -e "s!$$i!!g" >> $(DEPENDFILE) ; \
+	done
+
+-include $(DEPENDFILE)
 
 endif

@@ -33,39 +33,39 @@ Notes:
 
 static INTERRUPT_GEN( mainevt_interrupt )
 {
-	mainevt_state *state = device->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)device->machine->driver_data;
 
-	if (k052109_is_irq_enabled(state->m_k052109))
+	if (k052109_is_irq_enabled(state->k052109))
 		irq0_line_hold(device);
 }
 
 static WRITE8_HANDLER( dv_nmienable_w )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
-	state->m_nmi_enable = data;
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
+	state->nmi_enable = data;
 }
 
 static INTERRUPT_GEN( dv_interrupt )
 {
-	mainevt_state *state = device->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)device->machine->driver_data;
 
-	if (state->m_nmi_enable)
+	if (state->nmi_enable)
 		nmi_line_pulse(device);
 }
 
 
 static WRITE8_HANDLER( mainevt_bankswitch_w )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
 
 	/* bit 0-1 ROM bank select */
-	memory_set_bank(space->machine(), "bank1", data & 0x03);
+	memory_set_bank(space->machine, "bank1", data & 0x03);
 
 	/* TODO: bit 5 = select work RAM or palette? */
 	//palette_selected = data & 0x20;
 
 	/* bit 6 = enable char ROM reading through the video RAM */
-	k052109_set_rmrd_line(state->m_k052109, (data & 0x40) ? ASSERT_LINE : CLEAR_LINE);
+	k052109_set_rmrd_line(state->k052109, (data & 0x40) ? ASSERT_LINE : CLEAR_LINE);
 
 	/* bit 7 = NINITSET (unknown) */
 
@@ -74,18 +74,18 @@ static WRITE8_HANDLER( mainevt_bankswitch_w )
 
 static WRITE8_HANDLER( mainevt_coin_w )
 {
-	coin_counter_w(space->machine(), 0, data & 0x10);
-	coin_counter_w(space->machine(), 1, data & 0x20);
-	set_led_status(space->machine(), 0, data & 0x01);
-	set_led_status(space->machine(), 1, data & 0x02);
-	set_led_status(space->machine(), 2, data & 0x04);
-	set_led_status(space->machine(), 3, data & 0x08);
+	coin_counter_w(space->machine, 0, data & 0x10);
+	coin_counter_w(space->machine, 1, data & 0x20);
+	set_led_status(space->machine, 0, data & 0x01);
+	set_led_status(space->machine, 1, data & 0x02);
+	set_led_status(space->machine, 2, data & 0x04);
+	set_led_status(space->machine, 3, data & 0x08);
 }
 
 static WRITE8_HANDLER( mainevt_sh_irqtrigger_w )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
-	device_set_input_line_and_vector(state->m_audiocpu, 0, HOLD_LINE, 0xff);
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
+	cpu_set_input_line_and_vector(state->audiocpu, 0, HOLD_LINE, 0xff);
 }
 
 static READ8_DEVICE_HANDLER( mainevt_sh_busy_r )
@@ -95,10 +95,10 @@ static READ8_DEVICE_HANDLER( mainevt_sh_busy_r )
 
 static WRITE8_HANDLER( mainevt_sh_irqcontrol_w )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
 
-	upd7759_reset_w(state->m_upd, data & 2);
-	upd7759_start_w(state->m_upd, data & 1);
+	upd7759_reset_w(state->upd, data & 2);
+	upd7759_start_w(state->upd, data & 1);
 
 	interrupt_enable_w(space, 0, data & 4);
 }
@@ -110,25 +110,25 @@ static WRITE8_HANDLER( devstor_sh_irqcontrol_w )
 
 static WRITE8_HANDLER( mainevt_sh_bankswitch_w )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
 	int bank_A, bank_B;
 
-//logerror("CPU #1 PC: %04x bank switch = %02x\n",cpu_get_pc(&space->device()),data);
+//logerror("CPU #1 PC: %04x bank switch = %02x\n",cpu_get_pc(space->cpu),data);
 
 	/* bits 0-3 select the 007232 banks */
 	bank_A = (data & 0x3);
 	bank_B = ((data >> 2) & 0x3);
-	k007232_set_bank(state->m_k007232, bank_A, bank_B);
+	k007232_set_bank(state->k007232, bank_A, bank_B);
 
 	/* bits 4-5 select the UPD7759 bank */
-	upd7759_set_bank_base(state->m_upd, ((data >> 4) & 0x03) * 0x20000);
+	upd7759_set_bank_base(state->upd, ((data >> 4) & 0x03) * 0x20000);
 }
 
 static WRITE8_DEVICE_HANDLER( dv_sh_bankswitch_w )
 {
 	int bank_A, bank_B;
 
-//logerror("CPU #1 PC: %04x bank switch = %02x\n",cpu_get_pc(&space->device()),data);
+//logerror("CPU #1 PC: %04x bank switch = %02x\n",cpu_get_pc(space->cpu),data);
 
 	/* bits 0-3 select the 007232 banks */
 	bank_A = (data & 0x3);
@@ -138,35 +138,35 @@ static WRITE8_DEVICE_HANDLER( dv_sh_bankswitch_w )
 
 static READ8_HANDLER( k052109_051960_r )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
 
-	if (k052109_get_rmrd_line(state->m_k052109) == CLEAR_LINE)
+	if (k052109_get_rmrd_line(state->k052109) == CLEAR_LINE)
 	{
 		if (offset >= 0x3800 && offset < 0x3808)
-			return k051937_r(state->m_k051960, offset - 0x3800);
+			return k051937_r(state->k051960, offset - 0x3800);
 		else if (offset < 0x3c00)
-			return k052109_r(state->m_k052109, offset);
+			return k052109_r(state->k052109, offset);
 		else
-			return k051960_r(state->m_k051960, offset - 0x3c00);
+			return k051960_r(state->k051960, offset - 0x3c00);
 	}
 	else
-		return k052109_r(state->m_k052109, offset);
+		return k052109_r(state->k052109, offset);
 }
 
 static WRITE8_HANDLER( k052109_051960_w )
 {
-	mainevt_state *state = space->machine().driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)space->machine->driver_data;
 
 	if (offset >= 0x3800 && offset < 0x3808)
-		k051937_w(state->m_k051960, offset - 0x3800, data);
+		k051937_w(state->k051960, offset - 0x3800, data);
 	else if (offset < 0x3c00)
-		k052109_w(state->m_k052109, offset, data);
+		k052109_w(state->k052109, offset, data);
 	else
-		k051960_w(state->m_k051960, offset - 0x3c00, data);
+		k051960_w(state->k051960, offset - 0x3c00, data);
 }
 
 
-static ADDRESS_MAP_START( mainevt_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mainevt_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x1f80, 0x1f80) AM_WRITE(mainevt_bankswitch_w)
 	AM_RANGE(0x1f84, 0x1f84) AM_WRITE(soundlatch_w)				/* probably */
 	AM_RANGE(0x1f88, 0x1f88) AM_WRITE(mainevt_sh_irqtrigger_w)	/* probably */
@@ -191,7 +191,7 @@ static ADDRESS_MAP_START( mainevt_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( devstors_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( devstors_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x1f80, 0x1f80) AM_WRITE(mainevt_bankswitch_w)
 	AM_RANGE(0x1f84, 0x1f84) AM_WRITE(soundlatch_w)				/* probably */
 	AM_RANGE(0x1f88, 0x1f88) AM_WRITE(mainevt_sh_irqtrigger_w)	/* probably */
@@ -215,7 +215,7 @@ static ADDRESS_MAP_START( devstors_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( mainevt_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mainevt_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x83ff) AM_RAM
 	AM_RANGE(0x9000, 0x9000) AM_DEVWRITE("upd", upd7759_port_w)
@@ -226,7 +226,7 @@ static ADDRESS_MAP_START( mainevt_sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xf000) AM_WRITE(mainevt_sh_bankswitch_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( devstors_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( devstors_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x83ff) AM_RAM
 	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)
@@ -388,7 +388,7 @@ INPUT_PORTS_END
 
 /*****************************************************************************/
 
-static void volume_callback(device_t *device, int v)
+static void volume_callback(running_device *device, int v)
 {
 	k007232_set_volume(device, 0, (v >> 4) * 0x11, 0);
 	k007232_set_volume(device, 1, 0, (v & 0x0f) * 0x11);
@@ -417,71 +417,74 @@ static const k051960_interface mainevt_k051960_intf =
 
 static MACHINE_START( mainevt )
 {
-	mainevt_state *state = machine.driver_data<mainevt_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	mainevt_state *state = (mainevt_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x10000], 0x2000);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_upd = machine.device("upd");
-	state->m_k007232 = machine.device("k007232");
-	state->m_k052109 = machine.device("k052109");
-	state->m_k051960 = machine.device("k051960");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->upd = machine->device("upd");
+	state->k007232 = machine->device("k007232");
+	state->k052109 = machine->device("k052109");
+	state->k051960 = machine->device("k051960");
 
-	state->save_item(NAME(state->m_nmi_enable));
+	state_save_register_global(machine, state->nmi_enable);
 }
 
 static MACHINE_RESET( mainevt )
 {
-	mainevt_state *state = machine.driver_data<mainevt_state>();
+	mainevt_state *state = (mainevt_state *)machine->driver_data;
 
-	state->m_nmi_enable = 0;
+	state->nmi_enable = 0;
 }
 
-static MACHINE_CONFIG_START( mainevt, mainevt_state )
+static MACHINE_DRIVER_START( mainevt )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mainevt_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", HD6309, 3000000*4)	/* ?? */
-	MCFG_CPU_PROGRAM_MAP(mainevt_map)
-	MCFG_CPU_VBLANK_INT("screen", mainevt_interrupt)
+	MDRV_CPU_ADD("maincpu", HD6309, 3000000*4)	/* ?? */
+	MDRV_CPU_PROGRAM_MAP(mainevt_map)
+	MDRV_CPU_VBLANK_INT("screen", mainevt_interrupt)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3579545)	/* 3.579545 MHz */
-	MCFG_CPU_PROGRAM_MAP(mainevt_sound_map)
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse,8*60)	/* ??? */
+	MDRV_CPU_ADD("audiocpu", Z80, 3579545)	/* 3.579545 MHz */
+	MDRV_CPU_PROGRAM_MAP(mainevt_sound_map)
+	MDRV_CPU_PERIODIC_INT(nmi_line_pulse,8*60)	/* ??? */
 
-	MCFG_MACHINE_START(mainevt)
-	MCFG_MACHINE_RESET(mainevt)
+	MDRV_MACHINE_START(mainevt)
+	MDRV_MACHINE_RESET(mainevt)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(mainevt)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
 
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(mainevt)
+	MDRV_VIDEO_START(mainevt)
+	MDRV_VIDEO_UPDATE(mainevt)
 
-	MCFG_K052109_ADD("k052109", mainevt_k052109_intf)
-	MCFG_K051960_ADD("k051960", mainevt_k051960_intf)
+	MDRV_K052109_ADD("k052109", mainevt_k052109_intf)
+	MDRV_K051960_ADD("k051960", mainevt_k051960_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("k007232", K007232, 3579545)
-	MCFG_SOUND_CONFIG(k007232_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.20)
-	MCFG_SOUND_ROUTE(1, "mono", 0.20)
+	MDRV_SOUND_ADD("k007232", K007232, 3579545)
+	MDRV_SOUND_CONFIG(k007232_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.20)
+	MDRV_SOUND_ROUTE(1, "mono", 0.20)
 
-	MCFG_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 static const k052109_interface dv_k052109_intf =
@@ -500,51 +503,54 @@ static const k051960_interface dv_k051960_intf =
 	dv_sprite_callback
 };
 
-static MACHINE_CONFIG_START( devstors, mainevt_state )
+static MACHINE_DRIVER_START( devstors )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mainevt_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", HD6309, 3000000*4)	/* ?? */
-	MCFG_CPU_PROGRAM_MAP(devstors_map)
-	MCFG_CPU_VBLANK_INT("screen", dv_interrupt)
+	MDRV_CPU_ADD("maincpu", HD6309, 3000000*4)	/* ?? */
+	MDRV_CPU_PROGRAM_MAP(devstors_map)
+	MDRV_CPU_VBLANK_INT("screen", dv_interrupt)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3579545)	/* 3.579545 MHz */
-	MCFG_CPU_PROGRAM_MAP(devstors_sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,4*60) /* ??? */
+	MDRV_CPU_ADD("audiocpu", Z80, 3579545)	/* 3.579545 MHz */
+	MDRV_CPU_PROGRAM_MAP(devstors_sound_map)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold,4*60) /* ??? */
 
-	MCFG_MACHINE_START(mainevt)
-	MCFG_MACHINE_RESET(mainevt)
+	MDRV_MACHINE_START(mainevt)
+	MDRV_MACHINE_RESET(mainevt)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(13*8, (64-13)*8-1, 2*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(dv)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(13*8, (64-13)*8-1, 2*8, 30*8-1 )
 
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(dv)
+	MDRV_VIDEO_START(dv)
+	MDRV_VIDEO_UPDATE(dv)
 
-	MCFG_K052109_ADD("k052109", dv_k052109_intf)
-	MCFG_K051960_ADD("k051960", dv_k051960_intf)
-	MCFG_K051733_ADD("k051733")
+	MDRV_K052109_ADD("k052109", dv_k052109_intf)
+	MDRV_K051960_ADD("k051960", dv_k051960_intf)
+	MDRV_K051733_ADD("k051733")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 3579545)
-	MCFG_SOUND_ROUTE(0, "mono", 0.30)
-	MCFG_SOUND_ROUTE(1, "mono", 0.30)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 3579545)
+	MDRV_SOUND_ROUTE(0, "mono", 0.30)
+	MDRV_SOUND_ROUTE(1, "mono", 0.30)
 
-	MCFG_SOUND_ADD("k007232", K007232, 3579545)
-	MCFG_SOUND_CONFIG(k007232_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.20)
-	MCFG_SOUND_ROUTE(1, "mono", 0.20)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("k007232", K007232, 3579545)
+	MDRV_SOUND_CONFIG(k007232_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.20)
+	MDRV_SOUND_ROUTE(1, "mono", 0.20)
+MACHINE_DRIVER_END
 
 
 

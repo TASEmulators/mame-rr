@@ -4,27 +4,27 @@
 
 *************************************************************************/
 
-class commando_state : public driver_device
+class commando_state
 {
 public:
-	commando_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, commando_state(machine)); }
+
+	commando_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	UINT8 *  m_colorram;
-	UINT8 *  m_videoram2;
-	UINT8 *  m_colorram2;
-//  UINT8 *  m_spriteram; // currently this uses generic buffered_spriteram
+	UINT8 *  videoram;
+	UINT8 *  colorram;
+	UINT8 *  videoram2;
+	UINT8 *  colorram2;
+//  UINT8 *  spriteram; // currently this uses generic buffered_spriteram
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
-	tilemap_t  *m_fg_tilemap;
-	UINT8 m_scroll_x[2];
-	UINT8 m_scroll_y[2];
+	tilemap_t  *bg_tilemap, *fg_tilemap;
+	UINT8 scroll_x[2];
+	UINT8 scroll_y[2];
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -40,5 +40,5 @@ WRITE8_HANDLER( commando_scrolly_w );
 WRITE8_HANDLER( commando_c804_w );
 
 VIDEO_START( commando );
-SCREEN_UPDATE( commando );
-SCREEN_EOF( commando );
+VIDEO_UPDATE( commando );
+VIDEO_EOF( commando );

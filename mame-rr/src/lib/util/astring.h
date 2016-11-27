@@ -43,15 +43,8 @@
 #define __ASTRING_H__
 
 #include <stdarg.h>
-#include <ctype.h>
 #include "osdcomm.h"
 
-#ifdef toupper
-#undef toupper
-#endif
-#ifdef tolower
-#undef tolower
-#endif
 
 /***************************************************************************
     TYPE DEFINITIONS
@@ -303,10 +296,6 @@ INLINE astring *astring_assemble_5(astring *dst, const char *src1, const char *s
 ***************************************************************************/
 
 #ifdef __cplusplus
-#ifdef SDLMAME_NETBSD
-#undef toupper
-#undef tolower
-#endif
 
 /* derived class for C++ */
 class astring : public astring_base
@@ -319,40 +308,19 @@ public:
 	~astring();
 
 	astring(const char *string) { init().cpy(string); }
-	astring(const char *string, int length) { init().cpy(string, length); }
 	astring(const char *str1, const char *str2) { init().cpy(str1).cat(str2); }
 	astring(const char *str1, const char *str2, const char *str3) { init().cpy(str1).cat(str2).cat(str3); }
 	astring(const char *str1, const char *str2, const char *str3, const char *str4) { init().cpy(str1).cat(str2).cat(str3).cat(str4); }
 	astring(const char *str1, const char *str2, const char *str3, const char *str4, const char *str5) { init().cpy(str1).cat(str2).cat(str3).cat(str4).cat(str5); }
 	astring(const astring &string) { init().cpy(string); }
-	astring(const astring &string, int start, int count = -1) { init().cpysubstr(string, start, count); }
 
 	astring &operator=(const char *string) { return cpy(string); }
 	astring &operator=(const astring &string) { return cpy(string); }
 
-	astring& operator+=(const astring &string) { return cat(string); }
-	friend astring operator+(const astring &lhs, const astring &rhs) { return astring(lhs) += rhs; }
-	friend astring operator+(const astring &lhs, const char *rhs) { return astring(lhs) += rhs; }
-	friend astring operator+(const char *lhs, const astring &rhs) { return astring(lhs) += rhs; }
-
-	bool operator==(const char *string) const { return (cmp(string) == 0); }
-	bool operator==(const astring &string) const { return (cmp(string) == 0); }
-	bool operator!=(const char *string) const { return (cmp(string) != 0); }
-	bool operator!=(const astring &string) const { return (cmp(string) != 0); }
-	bool operator<(const char *string) const { return (cmp(string) < 0); }
-	bool operator<(const astring &string) const { return (cmp(string) < 0); }
-	bool operator<=(const char *string) const { return (cmp(string) <= 0); }
-	bool operator<=(const astring &string) const { return (cmp(string) <= 0); }
-	bool operator>(const char *string) const { return (cmp(string) > 0); }
-	bool operator>(const astring &string) const { return (cmp(string) > 0); }
-	bool operator>=(const char *string) const { return (cmp(string) >= 0); }
-	bool operator>=(const astring &string) const { return (cmp(string) >= 0); }
-
 	astring &reset() { return cpy(""); }
 	astring &expand(int length) { astring_expand(this, length); return *this; }
 
-	operator bool() { return this->text[0] != 0; }
-	operator bool() const { return this->text[0] != 0; }
+	operator char *() { return this->text; }
 	operator const char *() const { return astring_c(this); }
 	const char *cstr() const { return astring_c(this); }
 	int len() const { return astring_len(this); }
@@ -362,7 +330,6 @@ public:
 	astring &cpy(const char *src, int count) { return *astring_cpych(this, src, count); }
 	astring &cpysubstr(const astring &src, int start, int count) { return *astring_cpysubstr(this, &src, start, count); }
 
-	astring &cat(char ch) { return *astring_insch(this, -1, &ch, 1); }
 	astring &cat(const astring &src) { return ins(-1, src); }
 	astring &cat(const char *src) { return ins(-1, src); }
 	astring &cat(const char *src, int count) { return ins(-1, src, count); }

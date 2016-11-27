@@ -65,8 +65,8 @@ struct _mn102_info
 	int cycles;
 
 	legacy_cpu_device *device;
-	address_space *program;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 };
 
 static void mn10200_w(mn102_info *mn102, UINT32 adr, UINT32 data, int type);
@@ -79,7 +79,7 @@ INLINE UINT8 mn102_read_byte(mn102_info *mn102, UINT32 address)
 		return mn10200_r(mn102, address-0xfc00, MEM_BYTE);
 	}
 
-	return mn102->program->read_byte(address);
+	return memory_read_byte_16le(mn102->program, address);
 }
 
 INLINE UINT16 mn102_read_word(mn102_info *mn102, UINT32 address)
@@ -91,10 +91,10 @@ INLINE UINT16 mn102_read_word(mn102_info *mn102, UINT32 address)
 
 	if (address & 1)
 	{
-		return mn102->program->read_byte(address) | (mn102->program->read_byte(address+1)<<8);
+		return memory_read_byte_16le(mn102->program, address) | (memory_read_byte_16le(mn102->program, address+1)<<8);
 	}
 
-	return mn102->program->read_word(address);
+	return memory_read_word_16le(mn102->program, address);
 }
 
 INLINE void mn102_write_byte(mn102_info *mn102, UINT32 address, UINT8 data)
@@ -105,7 +105,7 @@ INLINE void mn102_write_byte(mn102_info *mn102, UINT32 address, UINT8 data)
 		return;
 	}
 
-	mn102->program->write_byte(address, data);
+	memory_write_byte_16le(mn102->program, address, data);
 }
 
 INLINE void mn102_write_word(mn102_info *mn102, UINT32 address, UINT16 data)
@@ -118,12 +118,12 @@ INLINE void mn102_write_word(mn102_info *mn102, UINT32 address, UINT16 data)
 
 	if (address & 1)
 	{
-		mn102->program->write_byte(address, data&0xff);
-		mn102->program->write_byte(address+1, (data>>8)&0xff);
+		memory_write_byte_16le(mn102->program, address, data&0xff);
+		memory_write_byte_16le(mn102->program, address+1, (data>>8)&0xff);
 		return;
 	}
 
-	mn102->program->write_word(address, data);
+	memory_write_word_16le(mn102->program, address, data);
 }
 
 INLINE INT32 r24u(mn102_info *mn102, offs_t adr)
@@ -146,7 +146,7 @@ INLINE void mn102_change_pc(mn102_info *mn102, UINT32 pc)
 	 mn102->pc = pc & 0xffffff;
 }
 
-INLINE mn102_info *get_safe_token(device_t *device)
+INLINE mn102_info *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == MN10200);
@@ -192,7 +192,7 @@ static void refresh_timer(mn102_info *cpustate, int tmr)
 				rate /= cpustate->simple_timer[tmr].base;
 
 				if (tmr != 8)	// HACK: timer 8 is run at 500 kHz by the Taito program for no obvious reason, which kills performance
-					cpustate->timer_timers[tmr]->adjust(attotime::from_hz(rate), tmr);
+					timer_adjust_oneshot(cpustate->timer_timers[tmr], ATTOTIME_IN_HZ(rate), tmr);
 			}
 			else
 			{
@@ -202,7 +202,7 @@ static void refresh_timer(mn102_info *cpustate, int tmr)
 	}
 	else	// disabled, so stop it
 	{
-		cpustate->timer_timers[tmr]->adjust(attotime::never, tmr);
+		timer_adjust_oneshot(cpustate->timer_timers[tmr], attotime_never, tmr);
 	}
 }
 
@@ -278,25 +278,25 @@ static CPU_INIT(mn10200)
 	cpustate->program = device->space(AS_PROGRAM);
 	cpustate->io = device->space(AS_IO);
 
-	device->save_item(NAME(cpustate->pc));
-	device->save_item(NAME(cpustate->d));
-	device->save_item(NAME(cpustate->a));
-	device->save_item(NAME(cpustate->nmicr));
-	device->save_item(NAME(cpustate->iagr));
-	device->save_item(NAME(cpustate->icrl));
-	device->save_item(NAME(cpustate->icrh));
-	device->save_item(NAME(cpustate->psw));
-	device->save_item(NAME(cpustate->mdr));
-//  device->save_item(NAME(cpustate->simple_timer));
-//  device->save_item(NAME(cpustate->prescaler));
-//  device->save_item(NAME(cpustate->dma));
-//  device->save_item(NAME(cpustate->serial));
-	device->save_item(NAME(cpustate->ddr));
+	state_save_register_device_item(device, 0, cpustate->pc);
+	state_save_register_device_item_array(device, 0, cpustate->d);
+	state_save_register_device_item_array(device, 0, cpustate->a);
+	state_save_register_device_item(device, 0, cpustate->nmicr);
+	state_save_register_device_item(device, 0, cpustate->iagr);
+	state_save_register_device_item_array(device, 0, cpustate->icrl);
+	state_save_register_device_item_array(device, 0, cpustate->icrh);
+	state_save_register_device_item(device, 0, cpustate->psw);
+	state_save_register_device_item(device, 0, cpustate->mdr);
+//  state_save_register_device_item_array(device, 0, cpustate->simple_timer);
+//  state_save_register_device_item_array(device, 0, cpustate->prescaler);
+//  state_save_register_device_item_array(device, 0, cpustate->dma);
+//  state_save_register_device_item_array(device, 0, cpustate->serial);
+	state_save_register_device_item_array(device, 0, cpustate->ddr);
 
 	for (tmr = 0; tmr < NUM_TIMERS_8BIT; tmr++)
 	{
-		cpustate->timer_timers[tmr] = device->machine().scheduler().timer_alloc(FUNC(simple_timer_cb), cpustate);
-		cpustate->timer_timers[tmr]->adjust(attotime::never, tmr);
+		cpustate->timer_timers[tmr] = timer_alloc(device->machine, simple_timer_cb, cpustate);
+		timer_adjust_oneshot(cpustate->timer_timers[tmr], attotime_never, tmr);
 	}
 }
 
@@ -319,7 +319,7 @@ static CPU_RESET(mn10200)
 		cpustate->simple_timer[tmr].mode = 0;
 		cpustate->simple_timer[tmr].cur = 0;
 		cpustate->simple_timer[tmr].base = 0;
-		cpustate->timer_timers[tmr]->adjust(attotime::never, tmr);
+		timer_adjust_oneshot(cpustate->timer_timers[tmr], attotime_never, tmr);
 	}
 
 	// clear all interrupt groups
@@ -1923,7 +1923,7 @@ static void mn10200_w(mn102_info *mn102, UINT32 adr, UINT32 data, int type)
   case 0x181: case 0x191: {
     int ser = (adr-0x180) >> 4;
     mn102->serial[ser].ctrlh = data;
-//    log_event("MN102", "Serial %d transmit=%s, receive=%s, break=%s, proto=%s, order=%s",
+//    log_event("MN102", "Serial %d transmit=%s, recieve=%s, break=%s, proto=%s, order=%s",
 //        ser,
 //        data & 0x80 ? "on" : "off", data & 0x40 ? "on" : "off",
 //        data & 0x20 ? "on" : "off", data & 8 ? "sync" : "async",
@@ -2057,7 +2057,7 @@ static void mn10200_w(mn102_info *mn102, UINT32 adr, UINT32 data, int type)
     break;
 
   case 0x264:
-	mn102->io->write_byte(MN10200_PORT1, data);
+	memory_write_byte_8le(mn102->io, MN10200_PORT1, data);
     break;
 
   case 0x280: case 0x290: case 0x2a0: case 0x2b0: case 0x2c0: case 0x2d0: case 0x2e0: case 0x2f0: {
@@ -2211,15 +2211,15 @@ static void mn10200_w(mn102_info *mn102, UINT32 adr, UINT32 data, int type)
     break;
 
 	case 0x3c0:	// port 0 data
-		mn102->io->write_byte(MN10200_PORT0, data);
+		memory_write_byte_8le(mn102->io, MN10200_PORT0, data);
 		break;
 
 	case 0x3c2:	// port 2 data
-		mn102->io->write_byte(MN10200_PORT2, data);
+		memory_write_byte_8le(mn102->io, MN10200_PORT2, data);
 		break;
 
 	case 0x3c3:	// port 3 data
-		mn102->io->write_byte(MN10200_PORT3, data);
+		memory_write_byte_8le(mn102->io, MN10200_PORT3, data);
 		break;
 
 	case 0x3e0:	// port0 ddr
@@ -2304,7 +2304,7 @@ static UINT32 mn10200_r(mn102_info *mn102, UINT32 adr, int type)
 		break;
 
 	case 0x264:	// port 1 data
-		return mn102->io->read_byte(MN10200_PORT1);
+		return memory_read_byte_8le(mn102->io, MN10200_PORT1);
 
 	case 0x28c: case 0x29c: case 0x2ac: case 0x2bc: case 0x2cc: case 0x2dc: case 0x2ec: case 0x2fc:
 		{
@@ -2313,13 +2313,13 @@ static UINT32 mn10200_r(mn102_info *mn102, UINT32 adr, int type)
 		}
 
 	case 0x3c0:	// port 0 data
-		return mn102->io->read_byte(MN10200_PORT0);
+		return memory_read_byte_8le(mn102->io, MN10200_PORT0);
 
 	case 0x3c2:	// port 2 data
-		return mn102->io->read_byte(MN10200_PORT2);
+		return memory_read_byte_8le(mn102->io, MN10200_PORT2);
 
 	case 0x3c3:	// port 3 data
-		return mn102->io->read_byte(MN10200_PORT3);
+		return memory_read_byte_8le(mn102->io, MN10200_PORT3);
 
   default:
     log_event("MN102", "internal_r %04x (%03x)", adr+0xfc00, adr);
@@ -2375,15 +2375,15 @@ CPU_GET_INFO( mn10200 )
 		case CPUINFO_INT_MIN_CYCLES:            info->i = 1;                    break;
 		case CPUINFO_INT_MAX_CYCLES:            info->i = 8;                    break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM: info->i = 16;                   break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 24;                   break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;                    break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:    info->i = 0;                    break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:    info->i = 0;                    break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:    info->i = 0;                    break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:      info->i = 8;                    break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:      info->i = 8;                    break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:      info->i = 0;                    break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;                   break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 24;                   break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;                    break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:      info->i = 8;                    break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:      info->i = 8;                    break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:      info->i = 0;                    break;
 
 		case CPUINFO_INT_PC:    /* intentional fallthrough */
 		case CPUINFO_INT_REGISTER + MN10200_PC:    info->i = cpustate->pc;                      break;

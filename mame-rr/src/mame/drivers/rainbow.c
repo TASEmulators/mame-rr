@@ -203,7 +203,7 @@ Notes on Rainbow Islands Extra by Robert Gallagher
    In Rainbow Islands Extra (as in Rainbow Islands), if you collect 2 of any colour 'cane'...
      (canes are collected for collecting 7 of one colour of diamond, WITHOUT 'complete' happening, or
      if 'complete', you must collect 7 of the same colour diamond within one round. (the diamond
-     counters are reset to one at the beginning of each round once 'complete' has occurred).
+     counters are reset to one at the beginning of each round once 'complete' has occured).
    ...you will receive a 'Potion' (not Rainbow powerup potions)
    of the appropriate colour. Once collected, you will receive a
    100,000pts. large fruit item at 'GOAL IN' for that round. Although the code for this is present in
@@ -331,12 +331,12 @@ Stephh's notes (based on the game M68000 code and some tests) :
 
 static WRITE16_HANDLER( jumping_sound_w )
 {
-	rainbow_state *state = space->machine().driver_data<rainbow_state>();
+	rainbow_state *state = (rainbow_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_0_7)
 	{
-		state->m_jumping_latch = data & 0xff; /*M68000 writes .b to $400007*/
-		device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+		state->jumping_latch = data & 0xff; /*M68000 writes .b to $400007*/
+		cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 	}
 }
 
@@ -345,7 +345,7 @@ static WRITE16_HANDLER( jumping_sound_w )
                             MEMORY STRUCTURES
 ***************************************************************************/
 
-static ADDRESS_MAP_START( rainbow_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( rainbow_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x10c000, 0x10ffff) AM_RAM				/* main RAM */
 	AM_RANGE(0x200000, 0x200fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
@@ -366,7 +366,7 @@ static ADDRESS_MAP_START( rainbow_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xd00000, 0xd03fff) AM_DEVREADWRITE("pc090oj", pc090oj_word_r, pc090oj_word_w)	/* sprite ram + other stuff */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( jumping_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( jumping_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x09ffff) AM_ROM
 	AM_RANGE(0x10c000, 0x10ffff) AM_RAM				/* main RAM */
 	AM_RANGE(0x200000, 0x200fff) AM_RAM_WRITE(paletteram16_xxxxBBBBGGGGRRRR_word_w) AM_BASE_GENERIC(paletteram)
@@ -380,7 +380,7 @@ static ADDRESS_MAP_START( jumping_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x400006, 0x400007) AM_WRITE(jumping_sound_w)
 	AM_RANGE(0x420000, 0x420001) AM_READNOP			/* read, but result not used */
 	AM_RANGE(0x430000, 0x430003) AM_DEVWRITE("pc080sn", pc080sn_yscroll_word_w)
-	AM_RANGE(0x440000, 0x4407ff) AM_RAM AM_BASE_SIZE_MEMBER(rainbow_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x440000, 0x4407ff) AM_RAM AM_BASE_SIZE_MEMBER(rainbow_state, spriteram, spriteram_size)
 	AM_RANGE(0x800000, 0x80ffff) AM_WRITENOP		/* original c-chip location (not used) */
 	AM_RANGE(0xc00000, 0xc0ffff) AM_DEVREADWRITE("pc080sn", pc080sn_word_r, pc080sn_word_w)
 	AM_RANGE(0xc20000, 0xc20003) AM_WRITENOP		/* seems it is a leftover from rainbow: scroll y written here too */
@@ -398,17 +398,17 @@ ADDRESS_MAP_END
 
 static WRITE8_DEVICE_HANDLER( bankswitch_w )
 {
-	memory_set_bank(device->machine(), "bank1", data & 3);
+	memory_set_bank(device->machine, "bank1", data & 3);
 }
 
 static READ8_HANDLER( jumping_latch_r )
 {
-	rainbow_state *state = space->machine().driver_data<rainbow_state>();
-	return state->m_jumping_latch;
+	rainbow_state *state = (rainbow_state *)space->machine->driver_data;
+	return state->jumping_latch;
 }
 
 
-static ADDRESS_MAP_START( rainbow_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rainbow_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
@@ -418,7 +418,7 @@ static ADDRESS_MAP_START( rainbow_sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xa001, 0xa001) AM_DEVREADWRITE("tc0140syt", tc0140syt_slave_comm_r, tc0140syt_slave_comm_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( jumping_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( jumping_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
 	AM_RANGE(0xb000, 0xb001) AM_DEVREADWRITE("ym1", ym2203_r,ym2203_w)
@@ -625,10 +625,10 @@ GFXDECODE_END
 
 /* handler called by the YM2151 emulator when the internal timers cause an IRQ */
 
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	rainbow_state *state = device->machine().driver_data<rainbow_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	rainbow_state *state = (rainbow_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2151_interface ym2151_config =
@@ -666,95 +666,102 @@ static const tc0140syt_interface rainbow_tc0140syt_intf =
 
 static MACHINE_START( rainbow )
 {
-	rainbow_state *state = machine.driver_data<rainbow_state>();
+	rainbow_state *state = (rainbow_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_pc080sn = machine.device("pc080sn");
-	state->m_pc090oj = machine.device("pc090oj");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->pc080sn = machine->device("pc080sn");
+	state->pc090oj = machine->device("pc090oj");
 }
 
-static MACHINE_CONFIG_START( rainbow, rainbow_state )
+static MACHINE_DRIVER_START( rainbow )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(rainbow_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_16MHz/2) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(rainbow_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_16MHz/2) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(rainbow_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(rainbow_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(rainbow_sound_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
+	MDRV_QUANTUM_TIME(HZ(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
 
-	MCFG_MACHINE_START(rainbow)
+	MDRV_MACHINE_START(rainbow)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(rainbow)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(rainbow)
-	MCFG_PALETTE_LENGTH(8192)
+	MDRV_GFXDECODE(rainbow)
+	MDRV_PALETTE_LENGTH(8192)
 
-	MCFG_PC080SN_ADD("pc080sn", rainbow_pc080sn_intf)
-	MCFG_PC090OJ_ADD("pc090oj", rainbow_pc090oj_intf)
+	MDRV_VIDEO_UPDATE(rainbow)
+
+	MDRV_PC080SN_ADD("pc080sn", rainbow_pc080sn_intf)
+	MDRV_PC090OJ_ADD("pc090oj", rainbow_pc090oj_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, XTAL_16MHz/4) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, XTAL_16MHz/4) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", rainbow_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", rainbow_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
 /* Jumping: The PCB has 2 Xtals, 24MHz and 18,432MHz */
-static MACHINE_CONFIG_START( jumping, rainbow_state )
+static MACHINE_DRIVER_START( jumping )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(rainbow_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_24MHz/3)	/* not verified but matches original */
-	MCFG_CPU_PROGRAM_MAP(jumping_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_24MHz/3)	/* not verified but matches original */
+	MDRV_CPU_PROGRAM_MAP(jumping_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_18_432MHz/6)	/* not verified but music tempo matches original */
-	MCFG_CPU_PROGRAM_MAP(jumping_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_18_432MHz/6)	/* not verified but music tempo matches original */
+	MDRV_CPU_PROGRAM_MAP(jumping_sound_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))	/* 10 CPU slices per frame - enough ? */
+	MDRV_QUANTUM_TIME(HZ(600))	/* 10 CPU slices per frame - enough ? */
 
-	MCFG_MACHINE_START(rainbow)
+	MDRV_MACHINE_START(rainbow)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(jumping)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(jumping)
-	MCFG_PALETTE_LENGTH(8192)
+	MDRV_GFXDECODE(jumping)
+	MDRV_PALETTE_LENGTH(8192)
 
-	MCFG_VIDEO_START(jumping)
+	MDRV_VIDEO_START(jumping)
+	MDRV_VIDEO_UPDATE(jumping)
 
-	MCFG_PC080SN_ADD("pc080sn", jumping_pc080sn_intf)
+	MDRV_PC080SN_ADD("pc080sn", jumping_pc080sn_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, XTAL_18_432MHz/6)	/* not verified */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("ym1", YM2203, XTAL_18_432MHz/6)	/* not verified */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ym2", YM2203, XTAL_18_432MHz/6)	/* not verified */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, XTAL_18_432MHz/6)	/* not verified */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -870,7 +877,7 @@ ROM_END
 
 static DRIVER_INIT( rainbow )
 {
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0xc000], 0x4000);
 
@@ -879,7 +886,7 @@ static DRIVER_INIT( rainbow )
 
 static DRIVER_INIT( rainbowe )
 {
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0xc000], 0x4000);
 
@@ -888,18 +895,18 @@ static DRIVER_INIT( rainbowe )
 
 static DRIVER_INIT( jumping )
 {
-	rainbow_state *state = machine.driver_data<rainbow_state>();
-	int i, len = machine.region("gfx2")->bytes();
-	UINT8 *rom = machine.region("gfx2")->base();
+	rainbow_state *state = (rainbow_state *)machine->driver_data;
+	int i, len = memory_region_length(machine, "gfx2");
+	UINT8 *rom = memory_region(machine, "gfx2");
 
 	/* Sprite colour map is reversed - switch to normal */
 
 	for (i = 0; i < len; i++)
 		rom[i] ^= 0xff;
 
-	state->m_jumping_latch = 0;
+	state->jumping_latch = 0;
 
-	state->save_item(NAME(state->m_jumping_latch));
+	state_save_register_global(machine, state->jumping_latch);
 }
 
 

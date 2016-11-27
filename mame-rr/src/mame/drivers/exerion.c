@@ -38,7 +38,7 @@ Stephh's notes (based on the games Z80 code and some tests) :
     If checksum doesn't match the hardcoded value (0xb5), you get one more credit
     and you are allowed to continue the game with an extra life (score, charge and
     level are not reset to original values).
-  - At the beginning of each life of each player, a checksum is computed from 0x4100
+  - At the begining of each life of each player, a checksum is computed from 0x4100
     to 0x4dff (code at 0x07d8) if 1st score in the high-score table is >= 80000.
     If checksum doesn't match the hardcoded value (0x63), you get 255 credits !
     Notice that the displayed number of credits won't be correct as the game
@@ -63,7 +63,7 @@ Stephh's notes (based on the games Z80 code and some tests) :
     match, its only effect is to set lives to 0, which is always the case when the
     game is over, so it doesn't seem to have any real effect.
     Was it supposed to be called at another time ?
-  - The routine at 0x5f90 writes to addresses 0x6008-0x600c values read from AY port A
+  - The routine at 0x5f90 writes to adresses 0x6008-0x600c values read from AY port A
     (one write after one read). This routine is called by the 2 unknown routines.
 
 2) 'exeriont'
@@ -112,7 +112,7 @@ Stephh's notes (based on the games Z80 code and some tests) :
   - The first unknown routine at 0x5f70 has been patched, so the game can't reset.
   - The second unknown routine at 0x414e has been patched, so lives can't be set to 0.
   - The routine at 0x5f90 is completely different : it reads values from AY port A,
-    but nothing is written to addresses 0x6008-0x600c, and there are lots of writes
+    but nothing is written to adresses 0x6008-0x600c, and there are lots of writes
     to AY port B (0xd001) due to extra code at 0x0050 and extra data at 0x0040.
 
 ***************************************************************************/
@@ -133,16 +133,16 @@ Stephh's notes (based on the games Z80 code and some tests) :
 static CUSTOM_INPUT( exerion_controls_r )
 {
 	static const char *const inname[2] = { "P1", "P2" };
-	exerion_state *state = field.machine().driver_data<exerion_state>();
-	return input_port_read(field.machine(), inname[state->m_cocktail_flip]) & 0x3f;
+	exerion_state *state = (exerion_state *)field->port->machine->driver_data;
+	return input_port_read(field->port->machine, inname[state->cocktail_flip]) & 0x3f;
 }
 
 
 static INPUT_CHANGED( coin_inserted )
 {
-	exerion_state *state = field.machine().driver_data<exerion_state>();
+	exerion_state *state = (exerion_state *)field->port->machine->driver_data;
 	/* coin insertion causes an NMI */
-	device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
+	cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
 }
 
 
@@ -157,18 +157,18 @@ static INPUT_CHANGED( coin_inserted )
 /* protection or some sort of timer. */
 static READ8_DEVICE_HANDLER( exerion_porta_r )
 {
-	exerion_state *state = device->machine().driver_data<exerion_state>();
-	state->m_porta ^= 0x40;
-	return state->m_porta;
+	exerion_state *state = (exerion_state *)device->machine->driver_data;
+	state->porta ^= 0x40;
+	return state->porta;
 }
 
 
 static WRITE8_DEVICE_HANDLER( exerion_portb_w )
 {
-	exerion_state *state = device->machine().driver_data<exerion_state>();
+	exerion_state *state = (exerion_state *)device->machine->driver_data;
 	/* pull the expected value from the ROM */
-	state->m_porta = device->machine().region("maincpu")->base()[0x5f76];
-	state->m_portb = data;
+	state->porta = memory_region(device->machine, "maincpu")[0x5f76];
+	state->portb = data;
 
 	logerror("Port B = %02X\n", data);
 }
@@ -176,11 +176,11 @@ static WRITE8_DEVICE_HANDLER( exerion_portb_w )
 
 static READ8_HANDLER( exerion_protection_r )
 {
-	exerion_state *state = space->machine().driver_data<exerion_state>();
-	if (cpu_get_pc(&space->device()) == 0x4143)
-		return space->machine().region("maincpu")->base()[0x33c0 + (state->m_main_ram[0xd] << 2) + offset];
+	exerion_state *state = (exerion_state *)space->machine->driver_data;
+	if (cpu_get_pc(space->cpu) == 0x4143)
+		return memory_region(space->machine, "maincpu")[0x33c0 + (state->main_ram[0xd] << 2) + offset];
 	else
-		return state->m_main_ram[0x8 + offset];
+		return state->main_ram[0x8 + offset];
 }
 
 
@@ -191,12 +191,12 @@ static READ8_HANDLER( exerion_protection_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6008, 0x600b) AM_READ(exerion_protection_r)
-	AM_RANGE(0x6000, 0x67ff) AM_RAM AM_BASE_MEMBER(exerion_state, m_main_ram)
-	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_SIZE_MEMBER(exerion_state, m_videoram, m_videoram_size)
-	AM_RANGE(0x8800, 0x887f) AM_RAM AM_BASE_SIZE_MEMBER(exerion_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x6000, 0x67ff) AM_RAM AM_BASE_MEMBER(exerion_state, main_ram)
+	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_SIZE_MEMBER(exerion_state, videoram, videoram_size)
+	AM_RANGE(0x8800, 0x887f) AM_RAM AM_BASE_SIZE_MEMBER(exerion_state, spriteram, spriteram_size)
 	AM_RANGE(0x8800, 0x8bff) AM_RAM
 	AM_RANGE(0xa000, 0xa000) AM_READ_PORT("IN0")
 	AM_RANGE(0xa800, 0xa800) AM_READ_PORT("DSW0")
@@ -216,7 +216,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( sub_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sub_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x4000, 0x47ff) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_READ(soundlatch_r)
@@ -384,68 +384,71 @@ static const ay8910_interface ay8910_config =
 
 static MACHINE_START( exerion )
 {
-	exerion_state *state = machine.driver_data<exerion_state>();
+	exerion_state *state = (exerion_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
+	state->maincpu = machine->device("maincpu");
 
-	state->save_item(NAME(state->m_porta));
-	state->save_item(NAME(state->m_portb));
-	state->save_item(NAME(state->m_cocktail_flip));
-	state->save_item(NAME(state->m_char_palette));
-	state->save_item(NAME(state->m_sprite_palette));
-	state->save_item(NAME(state->m_char_bank));
-	state->save_item(NAME(state->m_background_latches));
+	state_save_register_global(machine, state->porta);
+	state_save_register_global(machine, state->portb);
+	state_save_register_global(machine, state->cocktail_flip);
+	state_save_register_global(machine, state->char_palette);
+	state_save_register_global(machine, state->sprite_palette);
+	state_save_register_global(machine, state->char_bank);
+	state_save_register_global_array(machine, state->background_latches);
 }
 
 static MACHINE_RESET( exerion )
 {
-	exerion_state *state = machine.driver_data<exerion_state>();
+	exerion_state *state = (exerion_state *)machine->driver_data;
 	int i;
 
-	state->m_porta = 0;
-	state->m_portb = 0;
-	state->m_cocktail_flip = 0;
-	state->m_char_palette = 0;
-	state->m_sprite_palette = 0;
-	state->m_char_bank = 0;
+	state->porta = 0;
+	state->portb = 0;
+	state->cocktail_flip = 0;
+	state->char_palette = 0;
+	state->sprite_palette = 0;
+	state->char_bank = 0;
 
 	for (i = 0; i < 13; i++)
-		state->m_background_latches[i] = 0;
+		state->background_latches[i] = 0;
 }
 
-static MACHINE_CONFIG_START( exerion, exerion_state )
+static MACHINE_DRIVER_START( exerion )
 
-	MCFG_CPU_ADD("maincpu", Z80, EXERION_CPU_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(main_map)
+	/* driver data */
+	MDRV_DRIVER_DATA(exerion_state)
 
-	MCFG_CPU_ADD("sub", Z80, EXERION_CPU_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(sub_map)
+	MDRV_CPU_ADD("maincpu", Z80, EXERION_CPU_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(main_map)
 
-	MCFG_MACHINE_START(exerion)
-	MCFG_MACHINE_RESET(exerion)
+	MDRV_CPU_ADD("sub", Z80, EXERION_CPU_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(sub_map)
+
+	MDRV_MACHINE_START(exerion)
+	MDRV_MACHINE_RESET(exerion)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(EXERION_PIXEL_CLOCK, EXERION_HTOTAL, EXERION_HBEND, EXERION_HBSTART, EXERION_VTOTAL, EXERION_VBEND, EXERION_VBSTART)
-	MCFG_SCREEN_UPDATE(exerion)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(EXERION_PIXEL_CLOCK, EXERION_HTOTAL, EXERION_HBEND, EXERION_HBSTART, EXERION_VTOTAL, EXERION_VBEND, EXERION_VBSTART)
 
-	MCFG_GFXDECODE(exerion)
-	MCFG_PALETTE_LENGTH(256*3)
+	MDRV_GFXDECODE(exerion)
+	MDRV_PALETTE_LENGTH(256*3)
 
-	MCFG_PALETTE_INIT(exerion)
-	MCFG_VIDEO_START(exerion)
+	MDRV_PALETTE_INIT(exerion)
+	MDRV_VIDEO_START(exerion)
+	MDRV_VIDEO_UPDATE(exerion)
 
 	/* audio hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, EXERION_AY8910_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("ay1", AY8910, EXERION_AY8910_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ay2", AY8910, EXERION_AY8910_CLOCK)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, EXERION_AY8910_CLOCK)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
 
 
@@ -562,8 +565,8 @@ static DRIVER_INIT( exerion )
 
 	/* make a temporary copy of the character data */
 	src = temp;
-	dst = machine.region("gfx1")->base();
-	length = machine.region("gfx1")->bytes();
+	dst = memory_region(machine, "gfx1");
+	length = memory_region_length(machine, "gfx1");
 	memcpy(src, dst, length);
 
 	/* decode the characters */
@@ -580,8 +583,8 @@ static DRIVER_INIT( exerion )
 
 	/* make a temporary copy of the sprite data */
 	src = temp;
-	dst = machine.region("gfx2")->base();
-	length = machine.region("gfx2")->bytes();
+	dst = memory_region(machine, "gfx2");
+	length = memory_region_length(machine, "gfx2");
 	memcpy(src, dst, length);
 
 	/* decode the sprites */
@@ -603,7 +606,7 @@ static DRIVER_INIT( exerion )
 
 static DRIVER_INIT( exerionb )
 {
-	UINT8 *ram = machine.region("maincpu")->base();
+	UINT8 *ram = memory_region(machine, "maincpu");
 	int addr;
 
 	/* the program ROMs have data lines D1 and D2 swapped. Decode them. */

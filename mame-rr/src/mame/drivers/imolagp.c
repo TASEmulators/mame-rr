@@ -29,7 +29,7 @@ it was the bank of 4116 rams that made me take a closer look.
 I hooked it up and saw some video on my scope, then it died.
 The +12v had shorted.. Suspecting the godamn tantalum capacitors
 (often short out for no reason) i found a shorted one, removed
-it and away we went. It had separate H + V sync, so i loaded
+it and away we went. It had seperate H + V sync, so i loaded
 a 74ls08 into a spare ic space and AND'ed the two signals to get
 composite, voila, i got a stable picture. The colours aren't right,
 and maybe the video isn't quite right either, but it worked enough
@@ -83,33 +83,32 @@ Known issues:
 #define HLE_COM
 
 
-class imolagp_state : public driver_device
+class imolagp_state
 {
 public:
-	imolagp_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, imolagp_state(machine)); }
 
-	UINT8 *m_slave_workram; // used only ifdef HLE_COM
+	imolagp_state(running_machine &machine) { }
+
+	UINT8 *slave_workram; // used only ifdef HLE_COM
 
 #ifdef HLE_COM
-	UINT8 m_mComData[0x100];
-	int   m_mComCount;
+	UINT8 mComData[0x100];
+	int   mComCount;
 
 #else
-	UINT8 m_mLatchedData[2];
+	UINT8 mLatchedData[2];
 #endif
 
-	UINT8 m_control;
-	UINT8 m_scroll;
-	UINT8 m_steerlatch;
-	int   m_draw_mode;
-	int   m_oldsteer;
+	UINT8 control;
+	UINT8 scroll;
+	UINT8 steerlatch;
+	UINT8 *videoram[3];
+	int   draw_mode;
+	int   oldsteer;
 
 	/* devices */
-	device_t *m_slavecpu;
-
-	/* memory */
-	UINT8  m_videoram[3][0x4000];
+	running_device *slavecpu;
 };
 
 
@@ -117,8 +116,8 @@ public:
 
 static WRITE8_HANDLER( transmit_data_w )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	state->m_mComData[state->m_mComCount++] = data;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	state->mComData[state->mComCount++] = data;
 }
 
 static READ8_HANDLER( trigger_slave_nmi_r )
@@ -137,24 +136,24 @@ static READ8_HANDLER( receive_data_r )
  */
 static WRITE8_HANDLER( transmit_data_w )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	state->m_mLatchedData[offset] = data;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	state->mLatchedData[offset] = data;
 }
 static READ8_HANDLER( trigger_slave_nmi_r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	device_set_input_line(state->m_slave, INPUT_LINE_NMI, PULSE_LINE);
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	cpu_set_input_line(state->slave, INPUT_LINE_NMI, PULSE_LINE);
 	return 0;
 }
 
 static READ8_HANDLER( receive_data_r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	return state->m_mLatchedData[offset];
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	return state->mLatchedData[offset];
 }
 #endif
 
-static void initialize_colors( running_machine &machine )
+static void initialize_colors( running_machine *machine )
 {
 	/* optional runtime remapping of colors */
 	static const UINT8 color[0x10][3] =
@@ -186,24 +185,31 @@ static void initialize_colors( running_machine &machine )
 
 static VIDEO_START( imolagp )
 {
-	imolagp_state *state = machine.driver_data<imolagp_state>();
+	imolagp_state *state = (imolagp_state *)machine->driver_data;
+	int i;
+	for (i = 0; i < 3; i++)
+	{
+		state->videoram[i] = auto_alloc_array(machine, UINT8, 0x4000);
+		memset(state->videoram[i], 0x00, 0x4000);
+	}
 
-	memset(state->m_videoram, 0, sizeof(state->m_videoram));
-	state->save_item(NAME(state->m_videoram));
+	state_save_register_global_pointer(machine, state->videoram[0], 0x4000);
+	state_save_register_global_pointer(machine, state->videoram[1], 0x4000);
+	state_save_register_global_pointer(machine, state->videoram[2], 0x4000);
 
 	initialize_colors(machine);
 }
 
 
-static SCREEN_UPDATE( imolagp )
+static VIDEO_UPDATE( imolagp )
 {
-	imolagp_state *state = screen->machine().driver_data<imolagp_state>();
-	int scroll2 = state->m_scroll ^ 0x03;
+	imolagp_state *state = (imolagp_state *)screen->machine->driver_data;
+	int scroll2 = state->scroll ^ 0x03;
 	int pass;
 	for (pass = 0; pass < 2; pass++)
 	{
 		int i;
-		const UINT8 *source = state->m_videoram[pass * 2];
+		const UINT8 *source = state->videoram[pass * 2];
 
 		for (i = 0; i < 0x4000; i++)
 		{
@@ -275,22 +281,22 @@ static WRITE8_HANDLER( imola_ledram_w )
 
 static READ8_HANDLER( steerlatch_r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	return state->m_steerlatch;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	return state->steerlatch;
 }
 
 static WRITE8_HANDLER( screenram_w )
 { /* ?! */
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	switch (state->m_draw_mode)
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	switch (state->draw_mode)
 	{
 	case 0x82:
 	case 0x81:
 	case 0x05:
-		state->m_videoram[1][offset] = data;
+		state->videoram[1][offset] = data;
 		break;
 	case 0x06:
-		state->m_videoram[0][offset] = data;
+		state->videoram[0][offset] = data;
 		break;
 	default:
 		break;
@@ -299,62 +305,62 @@ static WRITE8_HANDLER( screenram_w )
 
 static READ8_HANDLER( imola_slave_port05r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	memcpy(state->m_videoram[2], state->m_videoram[1], 0x4000); /* hack! capture before sprite plane is erased */
-	state->m_draw_mode = 0x05;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	memcpy(state->videoram[2], state->videoram[1], 0x4000); /* hack! capture before sprite plane is erased */
+	state->draw_mode = 0x05;
 	return 0;
 }
 
 static READ8_HANDLER( imola_slave_port06r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	state->m_draw_mode = 0x06;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	state->draw_mode = 0x06;
 	return 0;
 }
 
 static READ8_HANDLER( imola_slave_port81r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	state->m_draw_mode = 0x81;
-	memcpy(state->m_videoram[2], state->m_videoram[1], 0x4000); /* hack! capture before sprite plane is erased */
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	state->draw_mode = 0x81;
+	memcpy(state->videoram[2], state->videoram[1], 0x4000); /* hack! capture before sprite plane is erased */
 	return 0;
 }
 
 static READ8_HANDLER( imola_slave_port82r )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	state->m_draw_mode = 0x82;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	state->draw_mode = 0x82;
 	return 0;
 }
 
 static WRITE8_HANDLER( vreg_control_w )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	state->m_control = data;
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	state->control = data;
 }
 
 static WRITE8_HANDLER( vreg_data_w )
 {
-	imolagp_state *state = space->machine().driver_data<imolagp_state>();
-	switch (state->m_control)
+	imolagp_state *state = (imolagp_state *)space->machine->driver_data;
+	switch (state->control)
 	{
 	case 0x0e:
-		state->m_scroll = data;
+		state->scroll = data;
 		break;
 	case 0x07: /* always 0xff? */
 	case 0x0f: /* 0xff or 0x00 */
 	default:
-		logerror("vreg[0x%02x]:=0x%02x\n", state->m_control, data);
+		logerror("vreg[0x%02x]:=0x%02x\n", state->control, data);
 		break;
 	}
 }
 
-static ADDRESS_MAP_START( readport_master, AS_IO, 8 )
+static ADDRESS_MAP_START( readport_master, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ(trigger_slave_nmi_r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( imolagp_master, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( imolagp_master, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x23ff) AM_RAM
 	AM_RANGE(0x2800, 0x2800) AM_READ_PORT("2800")	/* gas */
@@ -371,7 +377,7 @@ static ADDRESS_MAP_START( imolagp_master, AS_PROGRAM, 8 )
 	AM_RANGE(0x6000, 0x6000) AM_READ_PORT("DSWB")	/* DSWB */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( readport_slave, AS_IO, 8 )
+static ADDRESS_MAP_START( readport_slave, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x05,0x05) AM_READ(imola_slave_port05r)
 	AM_RANGE(0x06,0x06) AM_READ(imola_slave_port06r)
@@ -379,12 +385,12 @@ static ADDRESS_MAP_START( readport_slave, AS_IO, 8 )
 	AM_RANGE(0x82,0x82) AM_READ(imola_slave_port82r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( imolagp_slave, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( imolagp_slave, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x03ff) AM_ROM
 	AM_RANGE(0x0800, 0x0bff) AM_ROM
 	AM_RANGE(0x1000, 0x13ff) AM_ROM
 	AM_RANGE(0x1c00, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x43ff) AM_RAM AM_BASE_MEMBER(imolagp_state, m_slave_workram)
+	AM_RANGE(0x4000, 0x43ff) AM_RAM AM_BASE_MEMBER(imolagp_state, slave_workram)
 	AM_RANGE(0x9fff, 0xa000) AM_READ(receive_data_r)
 	AM_RANGE(0xc000, 0xffff) AM_WRITE(screenram_w)
 ADDRESS_MAP_END
@@ -465,33 +471,33 @@ INPUT_PORTS_END
 
 static INTERRUPT_GEN( master_interrupt )
 {
-	imolagp_state *state = device->machine().driver_data<imolagp_state>();
+	imolagp_state *state = (imolagp_state *)device->machine->driver_data;
 	int which = cpu_getiloops(device);
 	if (which == 0)
 	{
 #ifdef HLE_COM
-		memcpy(&state->m_slave_workram[0x80], state->m_mComData, state->m_mComCount);
-		state->m_mComCount = 0;
+		memcpy(&state->slave_workram[0x80], state->mComData, state->mComCount);
+		state->mComCount = 0;
 #endif
-		device_set_input_line(device, 0, HOLD_LINE);
+		cpu_set_input_line(device, 0, HOLD_LINE);
 	}
 	else
 	{
-		int newsteer = input_port_read(device->machine(), "2802") & 0xf;
-		if (newsteer != state->m_oldsteer)
+		int newsteer = input_port_read(device->machine, "2802") & 0xf;
+		if (newsteer != state->oldsteer)
 		{
-			if (state->m_steerlatch == 0)
-				state->m_steerlatch = 0x03;
-			else if ((newsteer - state->m_oldsteer) & 0x8)
+			if (state->steerlatch == 0)
+				state->steerlatch = 0x03;
+			else if ((newsteer - state->oldsteer) & 0x8)
 			{
-				state->m_steerlatch = ((state->m_steerlatch << 1) | (state->m_steerlatch >> 3)) & 0xf;
-				state->m_oldsteer = (state->m_oldsteer - 1) & 0xf;
+				state->steerlatch = ((state->steerlatch << 1) | (state->steerlatch >> 3)) & 0xf;
+				state->oldsteer = (state->oldsteer - 1) & 0xf;
 			}
 			else
 			{
-				state->m_oldsteer = (state->m_oldsteer + 1) & 0xf;
+				state->oldsteer = (state->oldsteer + 1) & 0xf;
 			}
-			device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+			cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 		}
 	}
 } /* master_interrupt */
@@ -510,74 +516,75 @@ static const ppi8255_interface ppi8255_intf =
 
 static MACHINE_START( imolagp )
 {
-	imolagp_state *state = machine.driver_data<imolagp_state>();
+	imolagp_state *state = (imolagp_state *)machine->driver_data;
 
-	state->m_slavecpu = machine.device("slave");
+	state->slavecpu = machine->device("slave");
 
-	state->save_item(NAME(state->m_control));
-	state->save_item(NAME(state->m_scroll));
-	state->save_item(NAME(state->m_steerlatch));
-	state->save_item(NAME(state->m_draw_mode));
-	state->save_item(NAME(state->m_oldsteer));
+	state_save_register_global(machine, state->control);
+	state_save_register_global(machine, state->scroll);
+	state_save_register_global(machine, state->steerlatch);
+	state_save_register_global(machine, state->draw_mode);
+	state_save_register_global(machine, state->oldsteer);
 #ifdef HLE_COM
-	state->save_item(NAME(state->m_mComData));
-	state->save_item(NAME(state->m_mComCount));
+	state_save_register_global_array(machine, state->mComData);
+	state_save_register_global(machine, state->mComCount);
 #else
-	state->save_item(NAME(state->m_mLatchedData));
+	state_save_register_global_array(machine, state->mLatchedData);
 #endif
 }
 
 static MACHINE_RESET( imolagp )
 {
-	imolagp_state *state = machine.driver_data<imolagp_state>();
+	imolagp_state *state = (imolagp_state *)machine->driver_data;
 
-	state->m_control = 0;
-	state->m_scroll = 0;
-	state->m_steerlatch = 0;
-	state->m_draw_mode = 0;
-	state->m_oldsteer = 0;
+	state->control = 0;
+	state->scroll = 0;
+	state->steerlatch = 0;
+	state->draw_mode = 0;
+	state->oldsteer = 0;
 #ifdef HLE_COM
-	state->m_mComCount = 0;
-	memset(state->m_mComData, 0, 0x100);
+	state->mComCount = 0;
+	memset(state->mComData, 0, 0x100);
 #else
-	state->m_mLatchedData[0] = 0;
-	state->m_mLatchedData[1] = 0;
+	state->mLatchedData[0] = 0;
+	state->mLatchedData[1] = 0;
 #endif
 }
 
-static MACHINE_CONFIG_START( imolagp, imolagp_state )
+static MACHINE_DRIVER_START( imolagp )
+	MDRV_DRIVER_DATA(imolagp_state)
 
-	MCFG_CPU_ADD("maincpu", Z80,8000000) /* ? */
-	MCFG_CPU_PROGRAM_MAP(imolagp_master)
-	MCFG_CPU_IO_MAP(readport_master)
-	MCFG_CPU_VBLANK_INT_HACK(master_interrupt,4)
+	MDRV_CPU_ADD("maincpu", Z80,8000000) /* ? */
+	MDRV_CPU_PROGRAM_MAP(imolagp_master)
+	MDRV_CPU_IO_MAP(readport_master)
+	MDRV_CPU_VBLANK_INT_HACK(master_interrupt,4)
 
-	MCFG_CPU_ADD("slave", Z80,8000000) /* ? */
-	MCFG_CPU_PROGRAM_MAP(imolagp_slave)
-	MCFG_CPU_IO_MAP(readport_slave)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("slave", Z80,8000000) /* ? */
+	MDRV_CPU_PROGRAM_MAP(imolagp_slave)
+	MDRV_CPU_IO_MAP(readport_slave)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	MDRV_QUANTUM_TIME(HZ(6000))
 
-	MCFG_MACHINE_START(imolagp)
-	MCFG_MACHINE_RESET(imolagp)
+	MDRV_MACHINE_START(imolagp)
+	MDRV_MACHINE_RESET(imolagp)
 
-	MCFG_PPI8255_ADD( "ppi8255", ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255", ppi8255_intf )
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256,256)
-	MCFG_SCREEN_VISIBLE_AREA(0+64-16,255,0+16,255)
-	MCFG_SCREEN_UPDATE(imolagp)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256,256)
+	MDRV_SCREEN_VISIBLE_AREA(0+64-16,255,0+16,255)
 
-	MCFG_PALETTE_LENGTH(0x20)
-	MCFG_VIDEO_START(imolagp)
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("aysnd", AY8910, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_PALETTE_LENGTH(0x20)
+	MDRV_VIDEO_START(imolagp)
+	MDRV_VIDEO_UPDATE(imolagp)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("aysnd", AY8910, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 ROM_START( imolagp )
 	ROM_REGION( 0x10000, "maincpu", 0 ) /* Z80 code */

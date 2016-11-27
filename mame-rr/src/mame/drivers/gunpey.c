@@ -50,28 +50,15 @@ Notes:
 #include "sound/okim6295.h"
 #include "sound/ymz280b.h"
 
-
-class gunpey_state : public driver_device
-{
-public:
-	gunpey_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT16 *m_blit_buffer;
-	UINT16 m_blit_ram[0x10];
-};
-
+static UINT16 *blit_buffer;
 
 static VIDEO_START( gunpey )
 {
-	gunpey_state *state = machine.driver_data<gunpey_state>();
-	state->m_blit_buffer = auto_alloc_array(machine, UINT16, 512*512);
+	blit_buffer = auto_alloc_array(machine, UINT16, 512*512);
 }
 
-static SCREEN_UPDATE( gunpey )
+static VIDEO_UPDATE( gunpey )
 {
-	gunpey_state *state = screen->machine().driver_data<gunpey_state>();
-	UINT16 *blit_buffer = state->m_blit_buffer;
 	int x,y;
 	int count;
 
@@ -116,11 +103,11 @@ static READ8_HANDLER( gunpey_inputs_r )
 {
 	switch(offset+0x7f40)
 	{
-		case 0x7f40: return input_port_read(space->machine(), "DSW1");
-		case 0x7f41: return input_port_read(space->machine(), "DSW2");
-		case 0x7f42: return input_port_read(space->machine(), "P1");
-		case 0x7f43: return input_port_read(space->machine(), "P2");
-		case 0x7f44: return input_port_read(space->machine(), "SYSTEM");
+		case 0x7f40: return input_port_read(space->machine, "DSW1");
+		case 0x7f41: return input_port_read(space->machine, "DSW2");
+		case 0x7f42: return input_port_read(space->machine, "P1");
+		case 0x7f43: return input_port_read(space->machine, "P2");
+		case 0x7f44: return input_port_read(space->machine, "SYSTEM");
 	}
 
 	return 0xff;
@@ -128,10 +115,8 @@ static READ8_HANDLER( gunpey_inputs_r )
 
 static WRITE8_HANDLER( gunpey_blitter_w )
 {
-	gunpey_state *state = space->machine().driver_data<gunpey_state>();
-	UINT16 *blit_buffer = state->m_blit_buffer;
-	UINT16 *blit_ram = state->m_blit_ram;
-	UINT8 *blit_rom = space->machine().region("blit_data")->base();
+	static UINT16 blit_ram[0x10];
+	UINT8 *blit_rom = memory_region(space->machine, "blit_data");
 	int x,y;
 
 	blit_ram[offset] = data;
@@ -171,30 +156,30 @@ static WRITE8_HANDLER( gunpey_blitter_w )
 		}
 
 
-//      printf("%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x\n"
-//      ,blit_ram[0],blit_ram[1],blit_ram[2],blit_ram[3]
-//      ,blit_ram[4],blit_ram[5],blit_ram[6],blit_ram[7]
-//      ,blit_ram[8],blit_ram[9],blit_ram[0xa],blit_ram[0xb]
-//      ,blit_ram[0xc],blit_ram[0xd],blit_ram[0xe],blit_ram[0xf]);
+		printf("%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x\n"
+		,blit_ram[0],blit_ram[1],blit_ram[2],blit_ram[3]
+		,blit_ram[4],blit_ram[5],blit_ram[6],blit_ram[7]
+		,blit_ram[8],blit_ram[9],blit_ram[0xa],blit_ram[0xb]
+		,blit_ram[0xc],blit_ram[0xd],blit_ram[0xe],blit_ram[0xf]);
 	}
 }
 
 /***************************************************************************************/
 
-static ADDRESS_MAP_START( mem_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mem_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x00000, 0x0ffff) AM_RAM
 //  AM_RANGE(0x50000, 0x500ff) AM_RAM
 //  AM_RANGE(0x50100, 0x502ff) AM_NOP
 	AM_RANGE(0x80000, 0xfffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( io_map, AS_IO, 16 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 16 )
 	AM_RANGE(0x7f40, 0x7f45) AM_READ8(gunpey_inputs_r,0xffff)
 
 //  AM_RANGE(0x7f48, 0x7f48) AM_WRITE(output_w)
 	AM_RANGE(0x7f80, 0x7f81) AM_DEVREADWRITE8("ymz", ymz280b_r, ymz280b_w, 0xffff)
 
-	AM_RANGE(0x7f88, 0x7f89) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0xff00)
+	AM_RANGE(0x7f88, 0x7f89) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0xff00)
 
 	AM_RANGE(0x7fc8, 0x7fc9) AM_READWRITE8( gunpey_status_r,  gunpey_status_w, 0xffff )
 	AM_RANGE(0x7fd0, 0x7fdf) AM_WRITE8( gunpey_blitter_w, 0xffff )
@@ -204,7 +189,7 @@ ADDRESS_MAP_END
 /***************************************************************************************/
 
 
-static void sound_irq_gen(device_t *device, int state)
+static void sound_irq_gen(running_device *device, int state)
 {
 	logerror("sound irq\n");
 }
@@ -304,7 +289,7 @@ INPUT_PORTS_END
 static PALETTE_INIT( gunpey )
 {
 	int i,r,g,b,val;
-	UINT8 *blit_rom = machine.region("blit_data")->base();
+	UINT8 *blit_rom = memory_region(machine, "blit_data");
 
 	for (i = 0; i < 512; i+=2)
 	{
@@ -324,43 +309,43 @@ static PALETTE_INIT( gunpey )
 
 static INTERRUPT_GEN( gunpey_interrupt )
 {
-	device_set_input_line_and_vector(device,0,HOLD_LINE,0x200/4);
+	cpu_set_input_line_and_vector(device,0,HOLD_LINE,0x200/4);
 }
 
 /***************************************************************************************/
-static MACHINE_CONFIG_START( gunpey, gunpey_state )
+static MACHINE_DRIVER_START( gunpey )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", V30, 57242400 / 4)
-	MCFG_CPU_PROGRAM_MAP(mem_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", gunpey_interrupt)
+	MDRV_CPU_ADD("maincpu", V30, 57242400 / 4)
+	MDRV_CPU_PROGRAM_MAP(mem_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", gunpey_interrupt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 512-1, 0*8, 512-1)
-	MCFG_SCREEN_UPDATE(gunpey)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(512, 512)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 512-1, 0*8, 512-1)
 
-	MCFG_PALETTE_LENGTH(0x800)
-	MCFG_PALETTE_INIT(gunpey)
+	MDRV_PALETTE_LENGTH(0x800)
+	MDRV_PALETTE_INIT(gunpey)
 
-	MCFG_VIDEO_START(gunpey)
+	MDRV_VIDEO_START(gunpey)
+	MDRV_VIDEO_UPDATE(gunpey)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker","rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker","rspeaker")
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16_9344MHz / 8 / 165, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.25)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.25)
+	MDRV_OKIM6295_ADD("oki", XTAL_16_9344MHz / 8 / 165, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.25)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.25)
 
-	MCFG_SOUND_ADD("ymz", YMZ280B, XTAL_16_9344MHz)
-	MCFG_SOUND_CONFIG(ymz280b_intf)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.25)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymz", YMZ280B, XTAL_16_9344MHz)
+	MDRV_SOUND_CONFIG(ymz280b_intf)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.25)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.25)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************************/
@@ -382,7 +367,7 @@ ROM_END
 
 static DRIVER_INIT( gunpey )
 {
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 
 	/* patch SLOOOOW cycle checks ... */
 	rom[0x848b5] = 0x7e;

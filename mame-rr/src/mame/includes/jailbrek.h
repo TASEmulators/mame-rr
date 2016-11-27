@@ -7,26 +7,26 @@
 #define MASTER_CLOCK        XTAL_18_432MHz
 #define VOICE_CLOCK         XTAL_3_579545MHz
 
-class jailbrek_state : public driver_device
+class jailbrek_state
 {
 public:
-	jailbrek_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, jailbrek_state(machine)); }
+
+	jailbrek_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *      m_videoram;
-	UINT8 *      m_colorram;
-	UINT8 *      m_spriteram;
-	UINT8 *      m_scroll_x;
-	UINT8 *      m_scroll_dir;
-	size_t       m_spriteram_size;
+	UINT8 *      videoram;
+	UINT8 *      colorram;
+	UINT8 *      spriteram;
+	UINT8 *      scroll_x;
+	UINT8 *      scroll_dir;
+	size_t       spriteram_size;
 
 	/* video-related */
-	tilemap_t      *m_bg_tilemap;
+	tilemap_t      *bg_tilemap;
 
 	/* misc */
-	UINT8        m_irq_enable;
-	UINT8        m_nmi_enable;
+	UINT8        irq_enable, nmi_enable;
 };
 
 
@@ -37,4 +37,4 @@ WRITE8_HANDLER( jailbrek_colorram_w );
 
 PALETTE_INIT( jailbrek );
 VIDEO_START( jailbrek );
-SCREEN_UPDATE( jailbrek );
+VIDEO_UPDATE( jailbrek );

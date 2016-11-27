@@ -12,20 +12,21 @@
 #define HITME_ENABLE_VAL         NODE_03
 #define HITME_OUT1               NODE_04
 
-class hitme_state : public driver_device
+class hitme_state
 {
 public:
-	hitme_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, hitme_state(machine)); }
+
+	hitme_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
+	UINT8 *  videoram;
 
 	/* video-related */
-	tilemap_t  *m_tilemap;
+	tilemap_t  *tilemap;
 
 	/* misc */
-	attotime m_timeout_time;
+	attotime timeout_time;
 };
 
 

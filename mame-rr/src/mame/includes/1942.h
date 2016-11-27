@@ -4,26 +4,26 @@
 
 ***************************************************************************/
 
-class _1942_state : public driver_device
+class _1942_state
 {
 public:
-	_1942_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, _1942_state(machine)); }
+
+	_1942_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_fg_videoram;
-	UINT8 * m_bg_videoram;
-	UINT8 * m_spriteram;
-	size_t  m_spriteram_size;
+	UINT8 * fg_videoram;
+	UINT8 * bg_videoram;
+	UINT8 * spriteram;
+	size_t  spriteram_size;
 
 	/* video-related */
-	tilemap_t *m_fg_tilemap;
-	tilemap_t *m_bg_tilemap;
-	int m_palette_bank;
-	UINT8 m_scroll[2];
+	tilemap_t *fg_tilemap, *bg_tilemap;
+	int palette_bank;
+	UINT8 scroll[2];
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -38,4 +38,4 @@ extern WRITE8_HANDLER( c1942_palette_bank_w );
 
 extern PALETTE_INIT( 1942 );
 extern VIDEO_START( 1942 );
-extern SCREEN_UPDATE( 1942 );
+extern VIDEO_UPDATE( 1942 );

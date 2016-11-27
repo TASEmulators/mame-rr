@@ -15,7 +15,7 @@ Year + Game                     PCB        CPU    Sound         Custom          
 96  Shu Zi Le Yuan              NO-0131-4  Z180   M6295 YM2413  IGS017 8255           Battery
 97  Mj Super Da Man Guan II     NO-0147-6  68000  M6295         IGS031 8255           Battery
 97  Mj Tian Jiang Shen Bing     NO-0157-2  Z180   M6295 YM2413  IGS017 IGS025         Battery
-97  Mj Man Guan Da Heng         NO-0252    68000  M6295         IGS031 IGS025 IGS???* Battery
+97  Mj Man Guan Da Heng         NO-0252    68000  M6295         IGS031 IGS025         Battery
 98  Mj Long Hu Zheng Ba 2       NO-0206    68000  M6295         IGS031 IGS025 IGS022* Battery
 98  Mj Shuang Long Qiang Zhu 2  NO-0207    68000  M6295         IGS031 IGS025 IGS022  Battery
 98  Mj Man Guan Cai Shen        NO-0192-1  68000  M6295         IGS017 IGS025 IGS029  Battery
@@ -23,19 +23,19 @@ Year + Game                     PCB        CPU    Sound         Custom          
 99? Tarzan (V109C)?             NO-0228?   Z180   M6295         IGS031 IGS025 IGS029  Battery
 00? Super Tarzan (V100I)        NO-0230-1  Z180   M6295         IGS031 IGS025         Battery
 -------------------------------------------------------------------------------------------------------------
-                                                                                    * not present in one set
+                                                                                    * not preset in one set
 To Do:
 
 - Protection emulation, instead of patching the roms.
 - NVRAM.
+- tjsb: finish sprites decryption (data lines scrambling), protection, inputs.
 - iqblockf: protection.
-- mgcs: implement joystick inputs. Sound banking and DSW go through protection.
+- mgcs, mgdh, sdmg2: implement joystick inputs
 
 Notes:
 
 - iqblocka: keep start or test pressed during boot to enter test mode A or B.
-- mgcs, tjsb: press service + stats during test mode for sound test.
-- mgdh: press A + B during test mode for sound test (B1+B2+B3 when using a joystick).
+- mgcs: press service + stats during test mode for sound test.
 - mgdh: test mode is accessed by keeping test pressed during boot (as usual), but pressing F2+F3 in MAME
   does not actually work. It does work if F2 is pressed in the debug window at boot, and held while closing it.
 
@@ -49,46 +49,18 @@ Notes:
 #include "sound/2413intf.h"
 #include "sound/okim6295.h"
 
-
-class igs017_state : public driver_device
-{
-public:
-	igs017_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	int m_toggle;
-	int m_debug_addr;
-	int m_debug_width;
-	UINT8 m_video_disable;
-	UINT8 *m_fg_videoram;
-	UINT8 *m_bg_videoram;
-	tilemap_t *m_fg_tilemap;
-	tilemap_t *m_bg_tilemap;
-	UINT8 *m_sprites_gfx;
-	int m_sprites_gfx_size;
-	int m_nmi_enable;
-	int m_irq_enable;
-	UINT8 m_input_select;
-	UINT8 m_hopper;
-	UINT16 m_igs_magic[2];
-	UINT8 m_scramble_data;
-	int m_irq1_enable;
-	int m_irq2_enable;
-	UINT8 *m_spriteram;
-};
-
-
+static int toggle, debug_addr, debug_width;
 
 /***************************************************************************
                                 Video Hardware
 ***************************************************************************/
 
+static UINT8 video_disable;
 static WRITE8_HANDLER( video_disable_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	state->m_video_disable = data & 1;
+	video_disable = data & 1;
 	if (data & (~1))
-		logerror("PC %06X: unknown bits of video_disable written = %02x\n",cpu_get_pc(&space->device()),data);
+		logerror("PC %06X: unknown bits of video_disable written = %02x\n",cpu_get_pc(space->cpu),data);
 //  popmessage("VIDEO %02X",data);
 }
 static WRITE16_HANDLER( video_disable_lsb_w )
@@ -99,48 +71,44 @@ static WRITE16_HANDLER( video_disable_lsb_w )
 
 static VIDEO_RESET( igs017 )
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	state->m_video_disable = 0;
+	video_disable = 0;
 }
 
+static UINT8 *fg_videoram, *bg_videoram;
+static tilemap_t *fg_tilemap, *bg_tilemap;
 
 #define COLOR(_X)	(((_X)>>2)&7)
 
 static TILE_GET_INFO( get_fg_tile_info )
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	int code = state->m_fg_videoram[tile_index*4+0] + (state->m_fg_videoram[tile_index*4+1] << 8);
-	int attr = state->m_fg_videoram[tile_index*4+2] + (state->m_fg_videoram[tile_index*4+3] << 8);
+	int code = fg_videoram[tile_index*4+0] + (fg_videoram[tile_index*4+1] << 8);
+	int attr = fg_videoram[tile_index*4+2] + (fg_videoram[tile_index*4+3] << 8);
 	SET_TILE_INFO(0, code, COLOR(attr), TILE_FLIPXY( attr >> 5 ));
 }
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	int code = state->m_bg_videoram[tile_index*4+0] + (state->m_bg_videoram[tile_index*4+1] << 8);
-	int attr = state->m_bg_videoram[tile_index*4+2] + (state->m_bg_videoram[tile_index*4+3] << 8);
+	int code = bg_videoram[tile_index*4+0] + (bg_videoram[tile_index*4+1] << 8);
+	int attr = bg_videoram[tile_index*4+2] + (bg_videoram[tile_index*4+3] << 8);
 	SET_TILE_INFO(0, code, COLOR(attr)+8, TILE_FLIPXY( attr >> 5 ));
 }
 
 static WRITE8_HANDLER( fg_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	state->m_fg_videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_fg_tilemap,offset/4);
+	fg_videoram[offset] = data;
+	tilemap_mark_tile_dirty(fg_tilemap,offset/4);
 }
 
 static WRITE8_HANDLER( bg_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	state->m_bg_videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap,offset/4);
+	bg_videoram[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap,offset/4);
 }
 
 // 16-bit handlers for an 8-bit chip
 
 static READ16_HANDLER( fg_lsb_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	return state->m_fg_videoram[offset];
+	return fg_videoram[offset];
 }
 static WRITE16_HANDLER( fg_lsb_w )
 {
@@ -150,8 +118,7 @@ static WRITE16_HANDLER( fg_lsb_w )
 
 static READ16_HANDLER( bg_lsb_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	return state->m_bg_videoram[offset];
+	return bg_videoram[offset];
 }
 static WRITE16_HANDLER( bg_lsb_w )
 {
@@ -161,52 +128,50 @@ static WRITE16_HANDLER( bg_lsb_w )
 
 static READ16_HANDLER( spriteram_lsb_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	return state->m_spriteram[offset];
+	return space->machine->generic.spriteram.u8[offset];
 }
 static WRITE16_HANDLER( spriteram_lsb_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
 	if (ACCESSING_BITS_0_7)
-		state->m_spriteram[offset] = data;
+		space->machine->generic.spriteram.u8[offset] = data;
 }
 
 
+static UINT8 *sprites_gfx;
+static int sprites_gfx_size;
 
 // Eeach 16 bit word in the sprites gfx roms contains three 5 bit pens: x-22222-11111-00000.
 // This routine expands each word into three bytes.
-static void expand_sprites(running_machine &machine)
+static void expand_sprites(running_machine *machine)
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	UINT8 *rom	=	machine.region("sprites")->base();
-	int size	=	machine.region("sprites")->bytes();
+	UINT8 *rom	=	memory_region(machine, "sprites");
+	int size	=	memory_region_length(machine, "sprites");
 	int i;
 
-	state->m_sprites_gfx_size	=	size / 2 * 3;
-	state->m_sprites_gfx		=	auto_alloc_array(machine, UINT8, state->m_sprites_gfx_size);
+	sprites_gfx_size	=	size / 2 * 3;
+	sprites_gfx			=	auto_alloc_array(machine, UINT8, sprites_gfx_size);
 
 	for (i = 0; i < size / 2 ; i++)
 	{
 		UINT16 pens = (rom[i*2+1] << 8) | rom[i*2];
 
-		state->m_sprites_gfx[i * 3 + 0] = (pens >>  0) & 0x1f;
-		state->m_sprites_gfx[i * 3 + 1] = (pens >>  5) & 0x1f;
-		state->m_sprites_gfx[i * 3 + 2] = (pens >> 10) & 0x1f;
+		sprites_gfx[i * 3 + 0] = (pens >>  0) & 0x1f;
+		sprites_gfx[i * 3 + 1] = (pens >>  5) & 0x1f;
+		sprites_gfx[i * 3 + 2] = (pens >> 10) & 0x1f;
 	}
 }
 
 static VIDEO_START( igs017 )
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	state->m_fg_tilemap = tilemap_create(machine, get_fg_tile_info,tilemap_scan_rows,8,8,64,32);
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info,tilemap_scan_rows,8,8,64,32);
+	fg_tilemap = tilemap_create(machine, get_fg_tile_info,tilemap_scan_rows,8,8,64,32);
+	bg_tilemap = tilemap_create(machine, get_bg_tile_info,tilemap_scan_rows,8,8,64,32);
 
-	tilemap_set_transparent_pen(state->m_fg_tilemap,0xf);
-	tilemap_set_transparent_pen(state->m_bg_tilemap,0xf);
+	tilemap_set_transparent_pen(fg_tilemap,0xf);
+	tilemap_set_transparent_pen(bg_tilemap,0xf);
 
-	state->m_toggle = 0;
-	state->m_debug_addr = 0;
-	state->m_debug_width = 512;
+	toggle = 0;
+	debug_addr = 0;
+	debug_width = 512;
 
 	expand_sprites(machine);
 }
@@ -244,17 +209,16 @@ static VIDEO_START( igs017 )
 
 ***************************************************************************/
 
-static void draw_sprite(running_machine &machine, bitmap_t *bitmap,const rectangle *cliprect, int sx, int sy, int dimx, int dimy, int flipx, int flipy, int color, int addr)
+static void draw_sprite(running_machine *machine, bitmap_t *bitmap,const rectangle *cliprect, int sx, int sy, int dimx, int dimy, int flipx, int flipy, int color, int addr)
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
 	// prepare GfxElement on the fly
-	gfx_element gfx(machine);
+	gfx_element gfx;
 
 	// Bounds checking
-	if ( addr + dimx * dimy >= state->m_sprites_gfx_size )
+	if ( addr + dimx * dimy >= sprites_gfx_size )
 		return;
 
-	gfx_element_build_temporary(&gfx, machine, state->m_sprites_gfx + addr, dimx, dimy, dimx, 0x100, 32, 0);
+	gfx_element_build_temporary(&gfx, machine, sprites_gfx + addr, dimx, dimy, dimx, 0x100, 32, 0);
 
 	drawgfx_transpen(	bitmap,cliprect, &gfx,
 				0, color,
@@ -262,11 +226,10 @@ static void draw_sprite(running_machine &machine, bitmap_t *bitmap,const rectang
 				sx, sy, 0x1f	);
 }
 
-static void draw_sprites(running_machine &machine, bitmap_t *bitmap,const rectangle *cliprect)
+static void draw_sprites(running_machine *machine, bitmap_t *bitmap,const rectangle *cliprect)
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	UINT8 *s	=	state->m_spriteram;
-	UINT8 *end	=	state->m_spriteram + 0x800;
+	UINT8 *s	=	machine->generic.spriteram.u8;
+	UINT8 *end	=	machine->generic.spriteram.u8 + 0x800;
 
 	for ( ; s < end; s += 8 )
 	{
@@ -298,31 +261,30 @@ static void draw_sprites(running_machine &machine, bitmap_t *bitmap,const rectan
 }
 
 // A simple gfx viewer (toggle with T)
-static int debug_viewer(running_machine &machine, bitmap_t *bitmap,const rectangle *cliprect)
+static int debug_viewer(running_machine *machine, bitmap_t *bitmap,const rectangle *cliprect)
 {
 #ifdef MAME_DEBUG
-	igs017_state *state = machine.driver_data<igs017_state>();
-	if (machine.input().code_pressed_once(KEYCODE_T))	state->m_toggle = 1-state->m_toggle;
-	if (state->m_toggle)	{
-		int h = 256, w = state->m_debug_width, a = state->m_debug_addr;
+	if (input_code_pressed_once(machine, KEYCODE_T))	toggle = 1-toggle;
+	if (toggle)	{
+		int h = 256, w = debug_width, a = debug_addr;
 
-		if (machine.input().code_pressed(KEYCODE_O))		w += 1;
-		if (machine.input().code_pressed(KEYCODE_I))		w -= 1;
+		if (input_code_pressed(machine, KEYCODE_O))		w += 1;
+		if (input_code_pressed(machine, KEYCODE_I))		w -= 1;
 
-		if (machine.input().code_pressed(KEYCODE_U))		w += 8;
-		if (machine.input().code_pressed(KEYCODE_Y))		w -= 8;
+		if (input_code_pressed(machine, KEYCODE_U))		w += 8;
+		if (input_code_pressed(machine, KEYCODE_Y))		w -= 8;
 
-		if (machine.input().code_pressed(KEYCODE_RIGHT))	a += 1;
-		if (machine.input().code_pressed(KEYCODE_LEFT))	a -= 1;
+		if (input_code_pressed(machine, KEYCODE_RIGHT))	a += 1;
+		if (input_code_pressed(machine, KEYCODE_LEFT))	a -= 1;
 
-		if (machine.input().code_pressed(KEYCODE_DOWN))	a += w;
-		if (machine.input().code_pressed(KEYCODE_UP))		a -= w;
+		if (input_code_pressed(machine, KEYCODE_DOWN))	a += w;
+		if (input_code_pressed(machine, KEYCODE_UP))		a -= w;
 
-		if (machine.input().code_pressed(KEYCODE_PGDN))	a += w * h;
-		if (machine.input().code_pressed(KEYCODE_PGUP))	a -= w * h;
+		if (input_code_pressed(machine, KEYCODE_PGDN))	a += w * h;
+		if (input_code_pressed(machine, KEYCODE_PGUP))	a -= w * h;
 
 		if (a < 0)		a = 0;
-		if (a > state->m_sprites_gfx_size)	a = state->m_sprites_gfx_size;
+		if (a > sprites_gfx_size)	a = sprites_gfx_size;
 
 		if (w <= 0)		w = 0;
 		if (w > 1024)	w = 1024;
@@ -331,9 +293,9 @@ static int debug_viewer(running_machine &machine, bitmap_t *bitmap,const rectang
 
 		draw_sprite(machine, bitmap, cliprect, 0,0, w,h, 0,0, 0, a);
 
-		popmessage("a: %08X w: %03X p: %02X-%02x-%02x",a,w,state->m_sprites_gfx[a/3*3+0],state->m_sprites_gfx[a/3*3+1],state->m_sprites_gfx[a/3*3+2]);
-		state->m_debug_addr = a;
-		state->m_debug_width = w;
+		popmessage("a: %08X w: %03X p: %02X-%02x-%02x",a,w,sprites_gfx[a/3*3+0],sprites_gfx[a/3*3+1],sprites_gfx[a/3*3+2]);
+		debug_addr = a;
+		debug_width = w;
 		osd_sleep(200000);
 		return 1;
 	}
@@ -341,35 +303,34 @@ static int debug_viewer(running_machine &machine, bitmap_t *bitmap,const rectang
 	return 0;
 }
 
-static SCREEN_UPDATE( igs017 )
+static VIDEO_UPDATE( igs017 )
 {
-	igs017_state *state = screen->machine().driver_data<igs017_state>();
 	int layers_ctrl = -1;
 
 #ifdef MAME_DEBUG
-	if (screen->machine().input().code_pressed(KEYCODE_Z))
+	if (input_code_pressed(screen->machine, KEYCODE_Z))
 	{
 		int mask = 0;
-		if (screen->machine().input().code_pressed(KEYCODE_Q))	mask |= 1;
-		if (screen->machine().input().code_pressed(KEYCODE_W))	mask |= 2;
-		if (screen->machine().input().code_pressed(KEYCODE_A))	mask |= 4;
+		if (input_code_pressed(screen->machine, KEYCODE_Q))	mask |= 1;
+		if (input_code_pressed(screen->machine, KEYCODE_W))	mask |= 2;
+		if (input_code_pressed(screen->machine, KEYCODE_A))	mask |= 4;
 		if (mask != 0) layers_ctrl &= mask;
 	}
 #endif
 
-	if (debug_viewer(screen->machine(), bitmap,cliprect))
+	if (debug_viewer(screen->machine, bitmap,cliprect))
 		return 0;
 
-	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
+	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 
-	if (state->m_video_disable)
+	if (video_disable)
 		return 0;
 
-	if (layers_ctrl & 1)	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, TILEMAP_DRAW_OPAQUE, 0);
+	if (layers_ctrl & 1)	tilemap_draw(bitmap, cliprect, bg_tilemap, TILEMAP_DRAW_OPAQUE, 0);
 
-	if (layers_ctrl & 4)	draw_sprites(screen->machine(), bitmap, cliprect);
+	if (layers_ctrl & 4)	draw_sprites(screen->machine, bitmap, cliprect);
 
-	if (layers_ctrl & 2)	tilemap_draw(bitmap, cliprect, state->m_fg_tilemap, 0, 0);
+	if (layers_ctrl & 2)	tilemap_draw(bitmap, cliprect, fg_tilemap, 0, 0);
 
 	return 0;
 }
@@ -378,10 +339,10 @@ static SCREEN_UPDATE( igs017 )
                                 Decryption
 ***************************************************************************/
 
-static void decrypt_program_rom(running_machine &machine, int mask, int a7, int a6, int a5, int a4, int a3, int a2, int a1, int a0)
+static void decrypt_program_rom(running_machine *machine, int mask, int a7, int a6, int a5, int a4, int a3, int a2, int a1, int a0)
 {
-	int length = machine.region("maincpu")->bytes();
-	UINT8 *rom = machine.region("maincpu")->base();
+	int length = memory_region_length(machine, "maincpu");
+	UINT8 *rom = memory_region(machine, "maincpu");
 	UINT8 *tmp = auto_alloc_array(machine, UINT8, length);
 	int i;
 
@@ -431,9 +392,9 @@ static void decrypt_program_rom(running_machine &machine, int mask, int a7, int 
 
 // iqblocka
 
-static void iqblocka_patch_rom(running_machine &machine)
+static void iqblocka_patch_rom(running_machine *machine)
 {
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 
 //  rom[0x7b64] = 0xc9;
 
@@ -472,49 +433,46 @@ static DRIVER_INIT( iqblockf )
 
 // tjsb
 
-static void tjsb_decrypt_sprites(running_machine &machine)
+static void tjsb_decrypt_sprites(running_machine *machine)
 {
-	int length = machine.region("sprites")->bytes();
-	UINT8 *rom = machine.region("sprites")->base();
+	int length = memory_region_length(machine, "sprites");
+	UINT8 *rom = memory_region(machine, "sprites");
 	UINT8 *tmp = auto_alloc_array(machine, UINT8, length);
-	int i, addr;
+	int i;
 
 	// address lines swap (to do: collapse into one bitswap)
-	memcpy(tmp, rom, length);
-	for (i = 0; i < length; i++)
+	memcpy(tmp,rom,length);
+	for (i = 0;i < length;i++)
 	{
-		addr = (i & ~0xff) | BITSWAP8(i,7,6,5,4,1,2,3,0);
+		int addr = (i & ~0xff) | BITSWAP8(i,7,6,5,4,1,2,3,0);
 		rom[i] = tmp[addr];
 	}
 
-	memcpy(tmp, rom, length);
-	for (i = 0; i < length; i++)
+	memcpy(tmp,rom,length);
+	for (i = 0;i < length;i++)
 	{
-		addr = (i & ~0xff) | BITSWAP8(i,7,6,5,2,4,3,1,0);
+		int addr = (i & ~0xff) | BITSWAP8(i,7,6,5,2,4,3,1,0);
 		rom[i] = tmp[addr];
 	}
 
-	memcpy(tmp, rom, length);
-	for (i = 0; i < length; i++)
+	memcpy(tmp,rom,length);
+	for (i = 0;i < length;i++)
 	{
-		addr = (i & ~0xff) | BITSWAP8(i,7,6,5,3,4,2,1,0);
-		rom[i] = tmp[addr];
+		int addr = (i & ~0xff) | BITSWAP8(i,7,6,5,3,4,2,1,0);
+		rom[i] = BITSWAP8(tmp[addr],7,6,5,4,3,2,1,0);
 	}
+}
 
-	// data lines swap
-	for (i = 0; i < length; i += 2)
-	{
-		// x-22222-11111-00000
-		UINT16 data = (rom[i+1] << 8) | rom[i+0];
-		data = BITSWAP16(data, 15, 14,13,12,11,10, 9,1,7,6,5, 4,3,2,8,0);
-		rom[i+1] = data >> 8;
-		rom[i+0] = data;
-	}
+static void tjsb_patch_rom(running_machine *machine)
+{
+	UINT8 *rom = memory_region(machine, "maincpu");
+	rom[0x011df] = 0x18;
 }
 
 static DRIVER_INIT( tjsb )
 {
 	decrypt_program_rom(machine, 0x05, 7, 6, 3, 2, 5, 4, 1, 0);
+	tjsb_patch_rom(machine);
 
 	tjsb_decrypt_sprites(machine);
 }
@@ -522,10 +480,10 @@ static DRIVER_INIT( tjsb )
 
 // mgcs
 
-static void mgcs_decrypt_program_rom(running_machine &machine)
+static void mgcs_decrypt_program_rom(running_machine *machine)
 {
 	int i;
-	UINT16 *src = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *src = (UINT16 *)memory_region(machine, "maincpu");
 
 	int rom_size = 0x80000;
 
@@ -572,10 +530,10 @@ static void mgcs_decrypt_program_rom(running_machine &machine)
 	}
 }
 
-static void mgcs_decrypt_tiles(running_machine &machine)
+static void mgcs_decrypt_tiles(running_machine *machine)
 {
-	int length = machine.region("tilemaps")->bytes();
-	UINT8 *rom = machine.region("tilemaps")->base();
+	int length = memory_region_length(machine, "tilemaps");
+	UINT8 *rom = memory_region(machine, "tilemaps");
 	UINT8 *tmp = auto_alloc_array(machine, UINT8, length);
 	int i;
 
@@ -589,10 +547,10 @@ static void mgcs_decrypt_tiles(running_machine &machine)
 	auto_free(machine, tmp);
 }
 
-static void mgcs_flip_sprites(running_machine &machine)
+static void mgcs_flip_sprites(running_machine *machine)
 {
-	int length = machine.region("sprites")->bytes();
-	UINT8 *rom = machine.region("sprites")->base();
+	int length = memory_region_length(machine, "sprites");
+	UINT8 *rom = memory_region(machine, "sprites");
 	int i;
 
 	for (i = 0;i < length;i+=2)
@@ -610,9 +568,9 @@ static void mgcs_flip_sprites(running_machine &machine)
 	}
 }
 
-static void mgcs_patch_rom(running_machine &machine)
+static void mgcs_patch_rom(running_machine *machine)
 {
-	UINT16 *rom = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *rom = (UINT16 *)memory_region(machine, "maincpu");
 
 	rom[0x4e036/2] = 0x6006;
 
@@ -638,7 +596,7 @@ static DRIVER_INIT( mgcs )
 // decryption is incomplete, the first part of code doesn't seem right.
 static DRIVER_INIT( tarzan )
 {
-	UINT16 *ROM = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *ROM = (UINT16 *)memory_region(machine,"maincpu");
 	int i;
 	int size = 0x40000;
 
@@ -664,7 +622,7 @@ static DRIVER_INIT( tarzan )
 // by iq_132
 static DRIVER_INIT( tarzana )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine,"maincpu");
 	int i;
 	int size = 0x80000;
 
@@ -683,16 +641,18 @@ static DRIVER_INIT( tarzana )
 
 // starzan
 
-// decryption is incomplete, data encryption is correct but opcodes are encrypted differently.
-
-static void starzan_decrypt(UINT8 *ROM, int size, bool isOpcode)
+// decryption is incomplete, the first part of code doesn't seem right.
+static DRIVER_INIT( starzan )
 {
-	for(int i=0; i<size; i++)
+	UINT8 *ROM = memory_region(machine,"maincpu");
+	int i;
+	int size = 0x040000;
+
+	for(i=0; i<size; i++)
 	{
-#if 1
 		UINT8 x = ROM[i];
 
-		// this seems ok for opcodes too
+#if 1
 		if ( (i & 0x10) && (i & 0x01) )
 		{
 			if ( !(!(i & 0x2000) && !(i & 0x100) && !(i & 0x80)) )
@@ -704,20 +664,17 @@ static void starzan_decrypt(UINT8 *ROM, int size, bool isOpcode)
 				x ^= 0x01;
 		}
 
-		// 2x no xor (opcode)
-		// 3x no xor (opcode)
-		// 60-66 no xor (opcode)
-		if ( !(i & 0x100) || (i & 0x80) || (i & 0x20) )
+		if ( ((i & 0xf000)<0xe000) && (!(i & 0x100) || (i & 0x80) || (i & 0x20)) )
 			x ^= 0x20;
 
-		// 2x needs xor (opcode)
-		// 3x needs xor (opcode)
-		if ( (i & 0x200) || (i & 0x40) || !(i & 0x20) )
+		if ( !(!(i & 0x200) && !(i & 0x40) && (i & 0x20)) )
 			x ^= 0x40;
 
-		if ( (!(i & 0x100) && (i & 0x80)) || (i & 0x20) )
+		if ( ((i & 0xf000)<0xe000) && ((!(i & 0x100) && (i & 0x80)) || (i & 0x20)) )
 			x ^= 0x80;
 
+//if ( (i & 0xffff) < 0x20 )
+//  x ^= 0x80;
 #else
 		// by iq_132
 		if ((i & 0x00011) == 0x00011) x ^= 0x01;
@@ -729,22 +686,9 @@ static void starzan_decrypt(UINT8 *ROM, int size, bool isOpcode)
 		if ((i & 0x00020) == 0x00020) x ^= 0x80;
 		if ((i & 0x001a0) == 0x00080) x ^= 0x80;
 #endif
+
 		ROM[i] = x;
 	}
-}
-
-static DRIVER_INIT( starzan )
-{
-	int size = 0x040000;
-
-	UINT8 *data = machine.region("maincpu")->base();
-	UINT8 *code = auto_alloc_array(machine, UINT8, size);
-	memcpy(code, data, size);
-
-	starzan_decrypt(data, size, false);	// data
-	starzan_decrypt(code, size, true);	// opcodes
-
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->set_decrypted_region(0x00000, 0x3ffff, code);
 
 	mgcs_flip_sprites(machine);
 }
@@ -755,7 +699,7 @@ static DRIVER_INIT( starzan )
 static DRIVER_INIT( sdmg2 )
 {
 	int i;
-	UINT16 *src = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *src = (UINT16 *)memory_region(machine, "maincpu");
 
 	int rom_size = 0x80000;
 
@@ -807,12 +751,12 @@ static DRIVER_INIT( sdmg2 )
 }
 
 
-// mgdh, mgdha
+// mgdh
 
-static DRIVER_INIT( mgdha )
+static DRIVER_INIT( mgdh )
 {
 	int i;
-	UINT16 *src = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *src = (UINT16 *)memory_region(machine, "maincpu");
 
 	int rom_size = 0x80000;
 
@@ -843,23 +787,13 @@ static DRIVER_INIT( mgdha )
 	mgcs_flip_sprites(machine);
 }
 
-static DRIVER_INIT( mgdh )
-{
-	DRIVER_INIT_CALL( mgdha );
-
-	UINT16 *rom = (UINT16 *)machine.region("maincpu")->base();
-
-	// additional protection
-	rom[0x4ad50/2] = 0x4e71;
-}
-
 
 // lhzb2
 
 static DRIVER_INIT( lhzb2 )
 {
 	int i;
-	UINT16 *src = (UINT16 *) (machine.region("maincpu")->base());
+	UINT16 *src = (UINT16 *) (memory_region(machine, "maincpu"));
 
 	int rom_size = 0x80000;
 
@@ -949,7 +883,7 @@ static DRIVER_INIT( lhzb2 )
 static DRIVER_INIT( lhzb2a )
 {
 	int i;
-	UINT16 *src = (UINT16 *) (machine.region("maincpu")->base());
+	UINT16 *src = (UINT16 *) (memory_region(machine, "maincpu"));
 
 	int rom_size = 0x80000;
 
@@ -1011,7 +945,7 @@ static DRIVER_INIT( lhzb2a )
 static DRIVER_INIT( slqz2 )
 {
 	int i;
-	UINT16 *src = (UINT16 *) (machine.region("maincpu")->base());
+	UINT16 *src = (UINT16 *) (memory_region(machine, "maincpu"));
 
 	int rom_size = 0x80000;
 
@@ -1089,43 +1023,42 @@ static DRIVER_INIT( slqz2 )
                                 Memory Maps
 ***************************************************************************/
 
-static ADDRESS_MAP_START( iqblocka_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( iqblocka_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE( 0x00000, 0x0dfff ) AM_ROM
 	AM_RANGE( 0x0e000, 0x0efff ) AM_RAM
 	AM_RANGE( 0x0f000, 0x0ffff ) AM_RAM
 	AM_RANGE( 0x10000, 0x3ffff ) AM_ROM
 ADDRESS_MAP_END
 
+static int nmi_enable;
 static WRITE8_HANDLER( nmi_enable_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	state->m_nmi_enable = data & 1;
+	nmi_enable = data & 1;
 	if (data & (~1))
-		logerror("PC %06X: nmi_enable = %02x\n",cpu_get_pc(&space->device()),data);
+		logerror("PC %06X: nmi_enable = %02x\n",cpu_get_pc(space->cpu),data);
 }
 
+static int irq_enable;
 static WRITE8_HANDLER( irq_enable_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	state->m_irq_enable = data & 1;
+	irq_enable = data & 1;
 	if (data & (~1))
-		logerror("PC %06X: irq_enable = %02x\n",cpu_get_pc(&space->device()),data);
+		logerror("PC %06X: irq_enable = %02x\n",cpu_get_pc(space->cpu),data);
 }
 
+static UINT8 input_select, hopper;
 static WRITE8_HANDLER( input_select_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	state->m_input_select = data;
+	input_select = data;
 }
 
 static READ8_HANDLER( input_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	switch (state->m_input_select)
+	switch (input_select)
 	{
-		case 0x00:	return input_port_read(space->machine(), "PLAYER1");
-		case 0x01:	return input_port_read(space->machine(), "PLAYER2");
-		case 0x02:	return input_port_read(space->machine(), "COINS");
+		case 0x00:	return input_port_read(space->machine, "PLAYER1");
+		case 0x01:	return input_port_read(space->machine, "PLAYER2");
+		case 0x02:	return input_port_read(space->machine, "COINS");
 
 		case 0x03:	return 01;
 
@@ -1152,15 +1085,15 @@ static READ8_HANDLER( input_r )
 		case 0x34:	return 0x32;
 
 		default:
-			logerror("PC %06X: input %02x read\n",cpu_get_pc(&space->device()),state->m_input_select);
+			logerror("PC %06X: input %02x read\n",cpu_get_pc(space->cpu),input_select);
 			return 0xff;
 	}
 }
 
-static ADDRESS_MAP_START( iqblocka_io, AS_IO, 8 )
+static ADDRESS_MAP_START( iqblocka_io, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE( 0x0000, 0x003f ) AM_RAM // internal regs
 
-	AM_RANGE( 0x1000, 0x17ff ) AM_RAM AM_BASE_MEMBER(igs017_state, m_spriteram)
+	AM_RANGE( 0x1000, 0x17ff ) AM_RAM AM_BASE_GENERIC( spriteram )
 	AM_RANGE( 0x1800, 0x1bff ) AM_RAM_WRITE( paletteram_xRRRRRGGGGGBBBBB_le_w ) AM_BASE_GENERIC(paletteram)
 	AM_RANGE( 0x1c00, 0x1fff ) AM_RAM
 
@@ -1172,13 +1105,13 @@ static ADDRESS_MAP_START( iqblocka_io, AS_IO, 8 )
 	AM_RANGE( 0x2014, 0x2014 ) AM_WRITE( nmi_enable_w )
 	AM_RANGE( 0x2015, 0x2015 ) AM_WRITE( irq_enable_w )
 
-	AM_RANGE( 0x4000, 0x5fff ) AM_RAM_WRITE( fg_w ) AM_BASE_MEMBER(igs017_state, m_fg_videoram )
-	AM_RANGE( 0x6000, 0x7fff ) AM_RAM_WRITE( bg_w ) AM_BASE_MEMBER(igs017_state, m_bg_videoram )
+	AM_RANGE( 0x4000, 0x5fff ) AM_RAM_WRITE( fg_w ) AM_BASE( &fg_videoram )
+	AM_RANGE( 0x6000, 0x7fff ) AM_RAM_WRITE( bg_w ) AM_BASE( &bg_videoram )
 
 	AM_RANGE( 0x8000, 0x8000 ) AM_WRITE( input_select_w )
 	AM_RANGE( 0x8001, 0x8001 ) AM_READ ( input_r )
 
-	AM_RANGE( 0x9000, 0x9000 ) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE( 0x9000, 0x9000 ) AM_DEVREADWRITE( "oki", okim6295_r, okim6295_w )
 
 	AM_RANGE( 0xa000, 0xa000 ) AM_READ_PORT( "BUTTONS" )
 
@@ -1188,31 +1121,32 @@ ADDRESS_MAP_END
 
 // mgcs
 
+static UINT16 igs_magic[2];
+static UINT8 scramble_data;
 
 static WRITE16_HANDLER( mgcs_magic_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	COMBINE_DATA(&state->m_igs_magic[offset]);
+	COMBINE_DATA(&igs_magic[offset]);
 
 	if (offset == 0)
 		return;
 
-	switch(state->m_igs_magic[0])
+	switch(igs_magic[0])
 	{
 		case 0x00:
 			if (ACCESSING_BITS_0_7)
 			{
-				state->m_input_select = data & 0xff;
+				input_select = data & 0xff;
 			}
 
-			if ( state->m_input_select & ~0xf8 )
-				logerror("%06x: warning, unknown bits written in input_select = %02x\n", cpu_get_pc(&space->device()), state->m_input_select);
+			if ( input_select & ~0xf8 )
+				logerror("%06x: warning, unknown bits written in input_select = %02x\n", cpu_get_pc(space->cpu), input_select);
 			break;
 
 		case 0x01:
 			if (ACCESSING_BITS_0_7)
 			{
-				state->m_scramble_data = data & 0xff;
+				scramble_data = data & 0xff;
 			}
 			break;
 
@@ -1220,20 +1154,19 @@ static WRITE16_HANDLER( mgcs_magic_w )
 		// case 0x03: ?
 
 		default:
-			logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(&space->device()), state->m_igs_magic[0], data);
+			logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(space->cpu), igs_magic[0], data);
 	}
 }
 
 static READ16_HANDLER( mgcs_magic_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	switch(state->m_igs_magic[0])
+	switch(igs_magic[0])
 	{
 		case 0x01:
-			return BITSWAP8(state->m_scramble_data, 4,5,6,7, 0,1,2,3);
+			return BITSWAP8(scramble_data, 4,5,6,7, 0,1,2,3);
 
 		default:
-			logerror("%06x: warning, reading with igs_magic = %02x\n", cpu_get_pc(&space->device()), state->m_igs_magic[0]);
+			logerror("%06x: warning, reading with igs_magic = %02x\n", cpu_get_pc(space->cpu), igs_magic[0]);
 			break;
 	}
 
@@ -1242,215 +1175,213 @@ static READ16_HANDLER( mgcs_magic_r )
 
 static READ8_DEVICE_HANDLER( mgcs_keys_r )
 {
-	igs017_state *state = device->machine().driver_data<igs017_state>();
-	if (~state->m_input_select & 0x08)	return input_port_read(device->machine(), "KEY0");
-	if (~state->m_input_select & 0x10)	return input_port_read(device->machine(), "KEY1");
-	if (~state->m_input_select & 0x20)	return input_port_read(device->machine(), "KEY2");
-	if (~state->m_input_select & 0x40)	return input_port_read(device->machine(), "KEY3");
-	if (~state->m_input_select & 0x80)	return input_port_read(device->machine(), "KEY4");
+	if (~input_select & 0x08)	return input_port_read(device->machine, "KEY0");
+	if (~input_select & 0x10)	return input_port_read(device->machine, "KEY1");
+	if (~input_select & 0x20)	return input_port_read(device->machine, "KEY2");
+	if (~input_select & 0x40)	return input_port_read(device->machine, "KEY3");
+	if (~input_select & 0x80)	return input_port_read(device->machine, "KEY4");
 
-	logerror("%s: warning, reading key with input_select = %02x\n", device->machine().describe_context(), state->m_input_select);
+	logerror("%s: warning, reading key with input_select = %02x\n", cpuexec_describe_context(device->machine), input_select);
 	return 0xff;
 }
 
+static int irq1_enable;
 static WRITE16_HANDLER( irq1_enable_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
 	if (ACCESSING_BITS_0_7)
-		state->m_irq1_enable = data & 1;
+		irq1_enable = data & 1;
 
 	if (data != 0 && data != 0xff)
-		logerror("PC %06X: irq1_enable = %04x\n",cpu_get_pc(&space->device()),data);
+		logerror("PC %06X: irq1_enable = %04x\n",cpu_get_pc(space->cpu),data);
 }
 
+static int irq2_enable;
 static WRITE16_HANDLER( irq2_enable_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
 	if (ACCESSING_BITS_0_7)
-		state->m_irq2_enable = data & 1;
+		irq2_enable = data & 1;
 
 	if (data != 0 && data != 0xff)
-		logerror("PC %06X: irq2_enable = %04x\n",cpu_get_pc(&space->device()),data);
+		logerror("PC %06X: irq2_enable = %04x\n",cpu_get_pc(space->cpu),data);
 }
 
-static WRITE16_HANDLER( mgcs_paletteram_w )
+static WRITE16_HANDLER( mgcs_paletteram_xRRRRRGGGGGBBBBB_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u16[offset]);
+	int rgb;
 
-	int bgr = ((space->machine().generic.paletteram.u16[offset/2*2+0] & 0xff) << 8) | (space->machine().generic.paletteram.u16[offset/2*2+1] & 0xff);
+	COMBINE_DATA(&space->machine->generic.paletteram.u16[offset]);
+
+	rgb = ((space->machine->generic.paletteram.u16[offset/2*2+0] & 0xff) << 8) | (space->machine->generic.paletteram.u16[offset/2*2+1] & 0xff);
 
 	// bitswap
-	bgr = BITSWAP16(bgr, 7,8,9,2,14,3,13,15,12,11,10,0,1,4,5,6);
+	rgb = BITSWAP16(rgb,7,8,9,2,14,3,13,15,12,11,10,0,1,4,5,6);
 
-	palette_set_color_rgb(space->machine(), offset/2, pal5bit(bgr >> 0), pal5bit(bgr >> 5), pal5bit(bgr >> 10));
+	palette_set_color_rgb(space->machine, offset/2, pal5bit(rgb >> 0), pal5bit(rgb >> 5), pal5bit(rgb >> 10));
 }
 
-static ADDRESS_MAP_START( mgcs, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mgcs, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE( 0x000000, 0x07ffff ) AM_ROM
 	AM_RANGE( 0x300000, 0x303fff ) AM_RAM
 	AM_RANGE( 0x49c000, 0x49c003 ) AM_WRITE( mgcs_magic_w )
 	AM_RANGE( 0x49c002, 0x49c003 ) AM_READ ( mgcs_magic_r )
-	AM_RANGE( 0xa02000, 0xa02fff ) AM_READWRITE( spriteram_lsb_r, spriteram_lsb_w ) AM_BASE_MEMBER(igs017_state, m_spriteram)
-	AM_RANGE( 0xa03000, 0xa037ff ) AM_RAM_WRITE( mgcs_paletteram_w ) AM_BASE_GENERIC( paletteram )
+	AM_RANGE( 0xa02000, 0xa02fff ) AM_READWRITE( spriteram_lsb_r, spriteram_lsb_w ) AM_BASE_GENERIC( spriteram )
+	AM_RANGE( 0xa03000, 0xa037ff ) AM_RAM_WRITE( mgcs_paletteram_xRRRRRGGGGGBBBBB_w ) AM_BASE_GENERIC( paletteram )
 	AM_RANGE( 0xa04020, 0xa04027 ) AM_DEVREAD8( "ppi8255", ppi8255_r, 0x00ff )
 	AM_RANGE( 0xa04024, 0xa04025 ) AM_WRITE( video_disable_lsb_w )
 	AM_RANGE( 0xa04028, 0xa04029 ) AM_WRITE( irq2_enable_w )
 	AM_RANGE( 0xa0402a, 0xa0402b ) AM_WRITE( irq1_enable_w )
-	AM_RANGE( 0xa08000, 0xa0bfff ) AM_READWRITE( fg_lsb_r, fg_lsb_w ) AM_BASE_MEMBER(igs017_state, m_fg_videoram )
-	AM_RANGE( 0xa0c000, 0xa0ffff ) AM_READWRITE( bg_lsb_r, bg_lsb_w ) AM_BASE_MEMBER(igs017_state, m_bg_videoram )
-	AM_RANGE( 0xa12000, 0xa12001 ) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff )
+	AM_RANGE( 0xa08000, 0xa0bfff ) AM_READWRITE( fg_lsb_r, fg_lsb_w ) AM_BASE( (UINT16**)&fg_videoram )
+	AM_RANGE( 0xa0c000, 0xa0ffff ) AM_READWRITE( bg_lsb_r, bg_lsb_w ) AM_BASE( (UINT16**)&bg_videoram )
+	AM_RANGE( 0xa12000, 0xa12001 ) AM_DEVREADWRITE8( "oki", okim6295_r, okim6295_w, 0x00ff )
 	// oki banking through protection (code at $1a350)?
 ADDRESS_MAP_END
 
 
 // sdmg2
 
-static WRITE16_HANDLER( sdmg2_paletteram_w )
+static WRITE16_HANDLER( sdmg2_paletteram_xRRRRRGGGGGBBBBB_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u16[offset]);
+	int rgb;
 
-	int bgr = ((space->machine().generic.paletteram.u16[offset/2*2+1] & 0xff) << 8) | (space->machine().generic.paletteram.u16[offset/2*2+0] & 0xff);
+	COMBINE_DATA(&space->machine->generic.paletteram.u16[offset]);
 
-	palette_set_color_rgb(space->machine(), offset/2, pal5bit(bgr >> 0), pal5bit(bgr >> 5), pal5bit(bgr >> 10));
+	rgb = ((space->machine->generic.paletteram.u16[offset/2*2+1] & 0xff) << 8) | (space->machine->generic.paletteram.u16[offset/2*2+0] & 0xff);
+
+	palette_set_color_rgb(space->machine, offset/2, pal5bit(rgb >> 0), pal5bit(rgb >> 5), pal5bit(rgb >> 10));
 }
 
 static READ8_HANDLER( sdmg2_keys_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	if (~state->m_input_select & 0x01)	return input_port_read(space->machine(), "KEY0");
-	if (~state->m_input_select & 0x02)	return input_port_read(space->machine(), "KEY1");
-	if (~state->m_input_select & 0x04)	return input_port_read(space->machine(), "KEY2");
-	if (~state->m_input_select & 0x08)	return input_port_read(space->machine(), "KEY3");
-	if (~state->m_input_select & 0x10)	return input_port_read(space->machine(), "KEY4");
+	if (~input_select & 0x01)	return input_port_read(space->machine, "KEY0");
+	if (~input_select & 0x02)	return input_port_read(space->machine, "KEY1");
+	if (~input_select & 0x04)	return input_port_read(space->machine, "KEY2");
+	if (~input_select & 0x08)	return input_port_read(space->machine, "KEY3");
+	if (~input_select & 0x10)	return input_port_read(space->machine, "KEY4");
 
-	if (state->m_input_select == 0x1f)	return input_port_read(space->machine(), "KEY0");	// in joystick mode
+	if (input_select == 0x1f)	return input_port_read(space->machine, "KEY0");	// in joystick mode
 
-	logerror("%s: warning, reading key with input_select = %02x\n", space->machine().describe_context(), state->m_input_select);
+	logerror("%s: warning, reading key with input_select = %02x\n", cpuexec_describe_context(space->machine), input_select);
 	return 0xff;
 }
 
 static WRITE16_HANDLER( sdmg2_magic_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	COMBINE_DATA(&state->m_igs_magic[offset]);
+	COMBINE_DATA(&igs_magic[offset]);
 
 	if (offset == 0)
 		return;
 
-	switch(state->m_igs_magic[0])
+	switch(igs_magic[0])
 	{
 		// case 0x00: ? 0x80
 
 		case 0x01:
 			if (ACCESSING_BITS_0_7)
 			{
-				state->m_input_select	=	data & 0x1f;
-				coin_counter_w(space->machine(), 0,	data & 0x20);
+				input_select	=	data & 0x1f;
+				coin_counter_w(space->machine, 0,	data & 0x20);
 				//  coin out        data & 0x40
-				state->m_hopper			=	data & 0x80;
+				hopper			=	data & 0x80;
 			}
 			break;
 
 		case 0x02:
 			if (ACCESSING_BITS_0_7)
 			{
-				okim6295_device *oki = space->machine().device<okim6295_device>("oki");
+				okim6295_device *oki = space->machine->device<okim6295_device>("oki");
 				oki->set_bank_base((data & 0x80) ? 0x40000 : 0);
 			}
 			break;
 
 		default:
-			logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(&space->device()), state->m_igs_magic[0], data);
+			logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(space->cpu), igs_magic[0], data);
 	}
 }
 
 static READ16_HANDLER( sdmg2_magic_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	switch(state->m_igs_magic[0])
+	switch(igs_magic[0])
 	{
 		case 0x00:
 		{
-			UINT16 hopper_bit = (state->m_hopper && ((space->machine().primary_screen->frame_number()/10)&1)) ? 0x0000 : 0x0001;
-			return input_port_read(space->machine(), "COINS") | hopper_bit;
+			UINT16 hopper_bit = (hopper && ((space->machine->primary_screen->frame_number()/10)&1)) ? 0x0000 : 0x0001;
+			return input_port_read(space->machine, "COINS") | hopper_bit;
 		}
 
 		case 0x02:
 			return sdmg2_keys_r(space, 0);
 
 		default:
-			logerror("%06x: warning, reading with igs_magic = %02x\n", cpu_get_pc(&space->device()), state->m_igs_magic[0]);
+			logerror("%06x: warning, reading with igs_magic = %02x\n", cpu_get_pc(space->cpu), igs_magic[0]);
 			break;
 	}
 
 	return 0xffff;
 }
 
-static ADDRESS_MAP_START( sdmg2, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( sdmg2, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x1f0000, 0x1fffff) AM_RAM
-	AM_RANGE(0x202000, 0x202fff) AM_READWRITE( spriteram_lsb_r, spriteram_lsb_w ) AM_BASE_MEMBER(igs017_state, m_spriteram)
-	AM_RANGE(0x203000, 0x2037ff) AM_RAM_WRITE( sdmg2_paletteram_w ) AM_BASE_GENERIC( paletteram )
+	AM_RANGE(0x202000, 0x202fff) AM_READWRITE( spriteram_lsb_r, spriteram_lsb_w ) AM_BASE_GENERIC( spriteram )
+	AM_RANGE(0x203000, 0x2037ff) AM_RAM_WRITE( sdmg2_paletteram_xRRRRRGGGGGBBBBB_w ) AM_BASE_GENERIC( paletteram )
 	AM_RANGE(0x204020, 0x204027) AM_DEVREAD8( "ppi8255", ppi8255_r, 0x00ff )
 	AM_RANGE(0x204024, 0x204025) AM_WRITE( video_disable_lsb_w )
 	AM_RANGE(0x204028, 0x204029) AM_WRITE( irq2_enable_w )
 	AM_RANGE(0x20402a, 0x20402b) AM_WRITE( irq1_enable_w )
-	AM_RANGE(0x208000, 0x20bfff) AM_READWRITE( fg_lsb_r, fg_lsb_w ) AM_BASE_MEMBER(igs017_state, m_fg_videoram )
-	AM_RANGE(0x20c000, 0x20ffff) AM_READWRITE( bg_lsb_r, bg_lsb_w ) AM_BASE_MEMBER(igs017_state, m_bg_videoram )
-	AM_RANGE(0x210000, 0x210001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff )
+	AM_RANGE(0x208000, 0x20bfff) AM_READWRITE( fg_lsb_r, fg_lsb_w ) AM_BASE( (UINT16**)&fg_videoram )
+	AM_RANGE(0x20c000, 0x20ffff) AM_READWRITE( bg_lsb_r, bg_lsb_w ) AM_BASE( (UINT16**)&bg_videoram )
+	AM_RANGE(0x210000, 0x210001) AM_DEVREADWRITE8( "oki", okim6295_r, okim6295_w, 0x00ff )
 	AM_RANGE(0x300000, 0x300003) AM_WRITE( sdmg2_magic_w )
 	AM_RANGE(0x300002, 0x300003) AM_READ ( sdmg2_magic_r )
 ADDRESS_MAP_END
 
 
-// mgdh, mgdha
+// mgdh
 
 static READ8_HANDLER( mgdh_keys_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	if (~state->m_input_select & 0x04)	return input_port_read(space->machine(), "KEY0");
-	if (~state->m_input_select & 0x08)	return input_port_read(space->machine(), "KEY1");
-	if (~state->m_input_select & 0x10)	return input_port_read(space->machine(), "KEY2");
-	if (~state->m_input_select & 0x20)	return input_port_read(space->machine(), "KEY3");
-	if (~state->m_input_select & 0x40)	return input_port_read(space->machine(), "KEY4");
+	if (~input_select & 0x04)	return input_port_read(space->machine, "KEY0");
+	if (~input_select & 0x08)	return input_port_read(space->machine, "KEY1");
+	if (~input_select & 0x10)	return input_port_read(space->machine, "KEY2");
+	if (~input_select & 0x20)	return input_port_read(space->machine, "KEY3");
+	if (~input_select & 0x40)	return input_port_read(space->machine, "KEY4");
 
-	if ((state->m_input_select & 0xfc) == 0xfc)	return input_port_read(space->machine(), "DSW1");
+	if ((input_select & 0xfc) == 0xfc)	return input_port_read(space->machine, "DSW1");
 
-	logerror("%s: warning, reading key with input_select = %02x\n", space->machine().describe_context(), state->m_input_select);
+	logerror("%s: warning, reading key with input_select = %02x\n", cpuexec_describe_context(space->machine), input_select);
 	return 0xff;
 }
 
-static WRITE16_HANDLER( mgdha_magic_w )
+static WRITE16_HANDLER( mgdh_magic_w )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	COMBINE_DATA(&state->m_igs_magic[offset]);
+	COMBINE_DATA(&igs_magic[offset]);
 
 	if (offset == 0)
 		return;
 
-	switch(state->m_igs_magic[0])
+	switch(igs_magic[0])
 	{
 		case 0x00:
 			if (ACCESSING_BITS_0_7)
 			{
 				//  coin out     data & 0x40
-				coin_counter_w(space->machine(), 0, data & 0x80);
+				coin_counter_w(space->machine, 0, data & 0x80);
 			}
 
 			if ( data & ~0xc0 )
-				logerror("%06x: warning, unknown bits written to igs_magic 00 = %02x\n", cpu_get_pc(&space->device()), data);
+				logerror("%06x: warning, unknown bits written to igs_magic 00 = %02x\n", cpu_get_pc(space->cpu), data);
 
 			break;
 
 		case 0x01:
 			if (ACCESSING_BITS_0_7)
 			{
-				state->m_input_select = data & 0xff;
-				state->m_hopper = data & 0x01;
+				input_select = data & 0xff;
+				hopper = data & 0x01;
 			}
 
-			if ( state->m_input_select & ~0xfd )
-				logerror("%06x: warning, unknown bits written in input_select = %02x\n", cpu_get_pc(&space->device()), state->m_input_select);
+			if ( input_select & ~0xfd )
+				logerror("%06x: warning, unknown bits written in input_select = %02x\n", cpu_get_pc(space->cpu), input_select);
 
 			break;
 
@@ -1458,168 +1389,57 @@ static WRITE16_HANDLER( mgdha_magic_w )
 			if (ACCESSING_BITS_0_7)
 			{
 				// bit 7?
-				okim6295_device *oki = space->machine().device<okim6295_device>("oki");
+				okim6295_device *oki = space->machine->device<okim6295_device>("oki");
 				oki->set_bank_base((data & 0x40) ? 0x40000 : 0);
 			}
 			break;
 
 		default:
-/*
-            04aba0: warning, writing to igs_magic 08 = d0
-            04abb0: warning, writing to igs_magic 09 = 76
-            04abc0: warning, writing to igs_magic 0a = 97
-            04abd0: warning, writing to igs_magic 0b = bf
-            04abe0: warning, writing to igs_magic 0c = ff
-            04abf0: warning, writing to igs_magic 04 = 3f
-            04ac00: warning, writing to igs_magic 05 = 82
-            04ac10: warning, writing to igs_magic 06 = ff
-            04ac20: warning, writing to igs_magic 07 = 3f
-*/
-			logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(&space->device()), state->m_igs_magic[0], data);
+			logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(space->cpu), igs_magic[0], data);
 	}
 }
 
-static READ16_HANDLER( mgdha_magic_r )
+static READ16_HANDLER( mgdh_magic_r )
 {
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	switch(state->m_igs_magic[0])
+	switch(igs_magic[0])
 	{
 		case 0x00:
 			return mgdh_keys_r(space, 0);
 
 		case 0x01:
-			return input_port_read(space->machine(), "BUTTONS");
+			return input_port_read(space->machine, "BUTTONS");
 
 		case 0x02:
-			return BITSWAP8(input_port_read(space->machine(), "DSW2"), 0,1,2,3,4,5,6,7);
+			return BITSWAP8(input_port_read(space->machine, "DSW2"), 0,1,2,3,4,5,6,7);
 
 		case 0x03:
 		{
-			UINT16 hopper_bit = (state->m_hopper && ((space->machine().primary_screen->frame_number()/10)&1)) ? 0x0000 : 0x0001;
-			return input_port_read(space->machine(), "COINS") | hopper_bit;
+			UINT16 hopper_bit = (hopper && ((space->machine->primary_screen->frame_number()/10)&1)) ? 0x0000 : 0x0001;
+			return input_port_read(space->machine, "COINS") | hopper_bit;
 		}
 
 		default:
-			logerror("%06x: warning, reading with igs_magic = %02x\n", cpu_get_pc(&space->device()), state->m_igs_magic[0]);
+			logerror("%06x: warning, reading with igs_magic = %02x\n", cpu_get_pc(space->cpu), igs_magic[0]);
 			break;
 	}
 
 	return 0xffff;
 }
 
-static ADDRESS_MAP_START( mgdha_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mgdh_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x600000, 0x603fff) AM_RAM
-	AM_RANGE(0x876000, 0x876003) AM_WRITE( mgdha_magic_w )
-	AM_RANGE(0x876002, 0x876003) AM_READ ( mgdha_magic_r )
-	AM_RANGE(0xa02000, 0xa02fff) AM_READWRITE( spriteram_lsb_r, spriteram_lsb_w ) AM_BASE_MEMBER(igs017_state, m_spriteram)
-	AM_RANGE(0xa03000, 0xa037ff) AM_RAM_WRITE( sdmg2_paletteram_w ) AM_BASE_GENERIC( paletteram )
-//  AM_RANGE(0xa04014, 0xa04015) // written with FF at boot
+	AM_RANGE(0x876000, 0x876003) AM_WRITE( mgdh_magic_w )
+	AM_RANGE(0x876002, 0x876003) AM_READ ( mgdh_magic_r )
+	AM_RANGE(0xa02000, 0xa02fff) AM_READWRITE( spriteram_lsb_r, spriteram_lsb_w ) AM_BASE_GENERIC( spriteram )
+	AM_RANGE(0xa03000, 0xa037ff) AM_RAM_WRITE( sdmg2_paletteram_xRRRRRGGGGGBBBBB_w ) AM_BASE_GENERIC( paletteram )
 	AM_RANGE(0xa04020, 0xa04027) AM_DEVREAD8( "ppi8255", ppi8255_r, 0x00ff )
 	AM_RANGE(0xa04024, 0xa04025) AM_WRITE( video_disable_lsb_w )
 	AM_RANGE(0xa04028, 0xa04029) AM_WRITE( irq2_enable_w )
 	AM_RANGE(0xa0402a, 0xa0402b) AM_WRITE( irq1_enable_w )
-	AM_RANGE(0xa08000, 0xa0bfff) AM_READWRITE( fg_lsb_r, fg_lsb_w ) AM_BASE_MEMBER(igs017_state, m_fg_videoram )
-	AM_RANGE(0xa0c000, 0xa0ffff) AM_READWRITE( bg_lsb_r, bg_lsb_w ) AM_BASE_MEMBER(igs017_state, m_bg_videoram )
-	AM_RANGE(0xa10000, 0xa10001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff )
-ADDRESS_MAP_END
-
-
-// tjsb
-
-static WRITE8_HANDLER( tjsb_paletteram_w )
-{
-	space->machine().generic.paletteram.u8[offset] = data;
-	int bgr = (space->machine().generic.paletteram.u8[offset/2*2+1] << 8) | space->machine().generic.paletteram.u8[offset/2*2+0];
-
-	// bitswap
-	bgr = BITSWAP16(bgr, 15, 12,3,6,10,5, 4,2,9,13,8, 7,11,1,0,14);
-
-	palette_set_color_rgb(space->machine(), offset/2, pal5bit(bgr >> 0), pal5bit(bgr >> 5), pal5bit(bgr >> 10));
-}
-
-static WRITE8_HANDLER( tjsb_output_w )
-{
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	switch(state->m_input_select)
-	{
-		case 0x00:
-			coin_counter_w(space->machine(), 0,	data & 0x80);	// coin in
-			if (!(data & ~0x80))
-				return;
-			break;
-
-		case 0x01:
-			coin_counter_w(space->machine(), 1,	data & 0x01);	// coin out
-			if (!(data & ~0x01))
-				return;
-			break;
-
-		case 0x02:
-			space->machine().device<okim6295_device>("oki")->set_bank_base((data & 0x10) ? 0x40000 : 0);	// oki bank (0x20/0x30)
-			if (!(data & ~0x30))
-				return;
-			break;
-
-		case 0x03:
-			state->m_hopper = data & 0x40;
-			if (!(data & ~0x40))
-				return;
-			break;
-	}
-	logerror("%06x: warning, writing to igs_magic %02x = %02x\n", cpu_get_pc(&space->device()), state->m_input_select, data);
-}
-
-static READ8_HANDLER( tjsb_input_r )
-{
-	igs017_state *state = space->machine().driver_data<igs017_state>();
-	switch (state->m_input_select)
-	{
-		case 0x00:	return input_port_read(space->machine(), "PLAYER1");
-		case 0x01:	return input_port_read(space->machine(), "PLAYER2");
-		case 0x02:	return input_port_read(space->machine(), "COINS");
-		case 0x03:
-		{
-			UINT8 hopper_bit = (state->m_hopper && ((space->machine().primary_screen->frame_number()/10)&1)) ? 0x00 : 0x20;
-			return input_port_read(space->machine(), "HOPPER") | hopper_bit;
-		}
-
-		default:
-			logerror("PC %06X: input %02x read\n",cpu_get_pc(&space->device()),state->m_input_select);
-			return 0xff;
-	}
-}
-
-static ADDRESS_MAP_START( tjsb_map, AS_PROGRAM, 8 )
-	AM_RANGE( 0x00000, 0x0dfff ) AM_ROM
-	AM_RANGE( 0x0e000, 0x0e000 ) AM_WRITE( input_select_w )
-	AM_RANGE( 0x0e001, 0x0e001 ) AM_READWRITE( tjsb_input_r, tjsb_output_w )
-	AM_RANGE( 0x0e002, 0x0efff ) AM_RAM
-	AM_RANGE( 0x0f000, 0x0ffff ) AM_RAM
-	AM_RANGE( 0x10000, 0x3ffff ) AM_ROM
-ADDRESS_MAP_END
-
-static ADDRESS_MAP_START( tjsb_io, AS_IO, 8 )
-	AM_RANGE( 0x0000, 0x003f ) AM_RAM // internal regs
-
-	AM_RANGE( 0x1000, 0x17ff ) AM_RAM AM_BASE_MEMBER(igs017_state, m_spriteram)
-	AM_RANGE( 0x1800, 0x1bff ) AM_RAM_WRITE( tjsb_paletteram_w ) AM_BASE_GENERIC(paletteram)
-	AM_RANGE( 0x1c00, 0x1fff ) AM_RAM
-
-//  AM_RANGE(0x200a, 0x200a) AM_WRITENOP
-
-	AM_RANGE( 0x2010, 0x2013 ) AM_DEVREAD("ppi8255", ppi8255_r)
-	AM_RANGE( 0x2012, 0x2012 ) AM_WRITE( video_disable_w )
-
-	AM_RANGE( 0x2014, 0x2014 ) AM_WRITE( nmi_enable_w )
-	AM_RANGE( 0x2015, 0x2015 ) AM_WRITE( irq_enable_w )
-
-	AM_RANGE( 0x4000, 0x5fff ) AM_RAM_WRITE( fg_w ) AM_BASE_MEMBER(igs017_state, m_fg_videoram )
-	AM_RANGE( 0x6000, 0x7fff ) AM_RAM_WRITE( bg_w ) AM_BASE_MEMBER(igs017_state, m_bg_videoram )
-
-	AM_RANGE( 0x9000, 0x9000 ) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
-
-	AM_RANGE( 0xb000, 0xb001 ) AM_DEVWRITE( "ymsnd", ym2413_w )
+	AM_RANGE(0xa08000, 0xa0bfff) AM_READWRITE( fg_lsb_r, fg_lsb_w ) AM_BASE( (UINT16**)&fg_videoram )
+	AM_RANGE(0xa0c000, 0xa0ffff) AM_READWRITE( bg_lsb_r, bg_lsb_w ) AM_BASE( (UINT16**)&bg_videoram )
+	AM_RANGE(0xa10000, 0xa10001) AM_DEVREADWRITE8( "oki", okim6295_r, okim6295_w, 0x00ff )
 ADDRESS_MAP_END
 
 
@@ -1798,14 +1618,14 @@ static INPUT_PORTS_START( mgcs )
 	// the top 2 bits of COINS (port A) and KEYx (port B) are read and combined with the bottom 4 bits read from port C (see code at 1C83A)
 
 	PORT_START("COINS")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW,  IPT_SERVICE2 ) // hopper switch (unimplemented)
-	PORT_SERVICE_NO_TOGGLE( 0x02,   IP_ACTIVE_LOW ) // service mode (keep pressed during boot too)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW,  IPT_SERVICE1 ) PORT_NAME("Statistics")	// press with the above for sound test
-	PORT_BIT( 0x08, IP_ACTIVE_LOW,  IPT_COIN1    ) PORT_IMPULSE(5)
-	PORT_BIT( 0x10, IP_ACTIVE_LOW,  IPT_OTHER    ) PORT_NAME("Pay Out") PORT_CODE(KEYCODE_O)
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_SERVICE3 ) // ? must be high to display numbers (shown in service mode)
-	PORT_BIT( 0x40, IP_ACTIVE_LOW,  IPT_UNKNOWN  )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW,  IPT_UNKNOWN  )
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE2 ) // ? (shown in service mode)
+	PORT_SERVICE_NO_TOGGLE( 0x02, IP_ACTIVE_LOW ) // service mode (keep pressed during boot too)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Statistics")	// press with the above for sound test
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1    ) PORT_IMPULSE(5)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_OTHER    ) PORT_NAME("Pay Out") PORT_CODE(KEYCODE_O)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE3 ) // ? (shown in service mode)
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN  )
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN  )
 
 	PORT_START("KEY0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_MAHJONG_A )
@@ -2119,103 +1939,6 @@ static INPUT_PORTS_START( mgdh )
 
 INPUT_PORTS_END
 
-static INPUT_PORTS_START( tjsb )
-
-	PORT_START("DSW1")
-	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Coinage ) )
-	PORT_DIPSETTING(    0x03, DEF_STR( 1C_1C ) )
-	PORT_DIPSETTING(    0x02, DEF_STR( 1C_2C ) )
-	PORT_DIPSETTING(    0x01, DEF_STR( 1C_3C ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( 1C_5C ) )
-	PORT_DIPNAME( 0x0c, 0x0c, "Credits Per Note" )
-	PORT_DIPSETTING(    0x0c, "10" )
-	PORT_DIPSETTING(    0x08, "20" )
-	PORT_DIPSETTING(    0x04, "50" )
-	PORT_DIPSETTING(    0x00, "100" )
-	PORT_DIPNAME( 0x10, 0x10, "Max Note Credits" )
-	PORT_DIPSETTING(    0x10, "1000" )
-	PORT_DIPSETTING(    0x00, "5000" )
-	PORT_DIPNAME( 0x20, 0x20, "Money Type" )
-	PORT_DIPSETTING(    0x20, "Coins" )
-	PORT_DIPSETTING(    0x00, "Notes" )
-	PORT_DIPNAME( 0x40, 0x40, "Pay Out Type" )	// 2/4
-	PORT_DIPSETTING(    0x40, "Coins" )
-	PORT_DIPSETTING(    0x00, "Notes" )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Demo_Sounds ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
-
-	PORT_START("DSW2")
-	PORT_DIPNAME( 0x03, 0x03, "Min Bet" )
-	PORT_DIPSETTING(    0x03, "1000" )
-	PORT_DIPSETTING(    0x02, "2000" )
-	PORT_DIPSETTING(    0x01, "3000" )
-	PORT_DIPSETTING(    0x00, "4000" )
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x0c, "1" )
-	PORT_DIPSETTING(    0x08, "3" )
-	PORT_DIPSETTING(    0x04, "5" )
-	PORT_DIPSETTING(    0x00, "10" )
-	PORT_DIPNAME( 0x10, 0x10, "Bonus Round" )	// show bonus round in demo mode -> protection check
-	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0x20, 0x20, "Number Type" )
-	PORT_DIPSETTING(    0x20, "Number" )
-	PORT_DIPSETTING(    0x00, "Dice" )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-
-	PORT_START("DSW3")	// check: (val^ff) & 9a == 0a
-	PORT_DIPNAME( 0xff, 0xf5, "Bonus Round Protection Check" )
-	PORT_DIPSETTING(    0xf5, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0xff, DEF_STR( On ) )
-
-	PORT_START("PLAYER1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1         )	PORT_NAME("Start / Don Den")
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_UP    )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN  )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT  )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1        ) // choose
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON2        ) // bet
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN        )
-
-	PORT_START("PLAYER2")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
-	PORT_START("COINS")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW,  IPT_SERVICE1  ) PORT_NAME("Statistics")
-	PORT_SERVICE_NO_TOGGLE( 0x02,   IP_ACTIVE_LOW )	// keep pressed while booting
-	PORT_BIT( 0x04, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW,  IPT_COIN1     )
-
-	PORT_START("HOPPER")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON3 )
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ? shown in test mode
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_OTHER ) PORT_NAME("Pay Out") PORT_CODE(KEYCODE_O)
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH,IPT_SPECIAL ) // hopper switch
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
-INPUT_PORTS_END
-
 
 /***************************************************************************
                                 Graphics Layout
@@ -2273,16 +1996,15 @@ GFXDECODE_END
 
 static INTERRUPT_GEN( iqblocka_interrupt )
 {
-	igs017_state *state = device->machine().driver_data<igs017_state>();
 	if (cpu_getiloops(device) & 1)
 	{
-		 if (state->m_nmi_enable)
-			device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+		 if (nmi_enable)
+			cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 	}
 	else
 	{
-		 if (state->m_irq_enable)
-			device_set_input_line(device, 0, HOLD_LINE);
+		 if (irq_enable)
+			cpu_set_input_line(device, 0, HOLD_LINE);
 	}
 }
 
@@ -2300,45 +2022,44 @@ static const ppi8255_interface iqblocka_ppi8255_intf =
 
 static MACHINE_RESET( iqblocka )
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
-	state->m_nmi_enable = 0;
-	state->m_irq_enable = 0;
-	state->m_input_select = 0;
+	nmi_enable = 0;
+	irq_enable = 0;
+	input_select = 0;
 }
 
-static MACHINE_CONFIG_START( iqblocka, igs017_state )
-	MCFG_CPU_ADD("maincpu", Z180, XTAL_16MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(iqblocka_map)
-	MCFG_CPU_IO_MAP(iqblocka_io)
-	MCFG_CPU_VBLANK_INT_HACK(iqblocka_interrupt,2)
+static MACHINE_DRIVER_START( iqblocka )
+	MDRV_CPU_ADD("maincpu", Z180, XTAL_16MHz / 2)
+	MDRV_CPU_PROGRAM_MAP(iqblocka_map)
+	MDRV_CPU_IO_MAP(iqblocka_io)
+	MDRV_CPU_VBLANK_INT_HACK(iqblocka_interrupt,2)
 
-	MCFG_PPI8255_ADD( "ppi8255", iqblocka_ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255", iqblocka_ppi8255_intf )
 
-	MCFG_MACHINE_RESET(iqblocka)
+	MDRV_MACHINE_RESET(iqblocka)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 240-1)
-	MCFG_SCREEN_UPDATE(igs017)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 240-1)
 
-	MCFG_GFXDECODE(igs017)
-	MCFG_PALETTE_LENGTH(0x100*2)
+	MDRV_GFXDECODE(igs017)
+	MDRV_PALETTE_LENGTH(0x100*2)
 
-	MCFG_VIDEO_START(igs017)
-	MCFG_VIDEO_RESET(igs017)
+	MDRV_VIDEO_START(igs017)
+	MDRV_VIDEO_UPDATE(igs017)
+	MDRV_VIDEO_RESET(igs017)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL_3_579545MHz)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("ymsnd", YM2413, XTAL_3_579545MHz)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz / 16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", XTAL_16MHz / 16, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+MACHINE_DRIVER_END
 
 
 
@@ -2346,27 +2067,25 @@ MACHINE_CONFIG_END
 
 static INTERRUPT_GEN( mgcs_interrupt )
 {
-	igs017_state *state = device->machine().driver_data<igs017_state>();
 	if (cpu_getiloops(device) & 1)
 	{
-		 if (state->m_irq2_enable)
-			device_set_input_line(device, 2, HOLD_LINE);
+		 if (irq2_enable)
+			cpu_set_input_line(device, 2, HOLD_LINE);
 	}
 	else
 	{
-		 if (state->m_irq1_enable)
-			device_set_input_line(device, 1, HOLD_LINE);
+		 if (irq1_enable)
+			cpu_set_input_line(device, 1, HOLD_LINE);
 	}
 }
 
 static MACHINE_RESET( mgcs )
 {
-	igs017_state *state = machine.driver_data<igs017_state>();
 	MACHINE_RESET_CALL( iqblocka );
-	state->m_irq1_enable = 0;
-	state->m_irq2_enable = 0;
-	state->m_scramble_data = 0;
-	memset(state->m_igs_magic, 0, sizeof(state->m_igs_magic));
+	irq1_enable = 0;
+	irq2_enable = 0;
+	scramble_data = 0;
+	memset(igs_magic, 0, sizeof(igs_magic));
 }
 
 static const ppi8255_interface mgcs_ppi8255_intf =
@@ -2380,35 +2099,35 @@ static const ppi8255_interface mgcs_ppi8255_intf =
 	DEVCB_NULL					// Port C write
 };
 
-static MACHINE_CONFIG_START( mgcs, igs017_state )
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_22MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(mgcs)
-	MCFG_CPU_VBLANK_INT_HACK(mgcs_interrupt,2)
+static MACHINE_DRIVER_START( mgcs )
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_22MHz / 2)
+	MDRV_CPU_PROGRAM_MAP(mgcs)
+	MDRV_CPU_VBLANK_INT_HACK(mgcs_interrupt,2)
 
-	MCFG_MACHINE_RESET(mgcs)
+	MDRV_MACHINE_RESET(mgcs)
 
-	MCFG_PPI8255_ADD( "ppi8255", mgcs_ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255", mgcs_ppi8255_intf )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 240-1)
-	MCFG_SCREEN_UPDATE(igs017)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 240-1)
 
-	MCFG_GFXDECODE(igs017_flipped)
-	MCFG_PALETTE_LENGTH(0x100*2)
+	MDRV_GFXDECODE(igs017_flipped)
+	MDRV_PALETTE_LENGTH(0x100*2)
 
-	MCFG_VIDEO_START(igs017)
-	MCFG_VIDEO_RESET(igs017)
+	MDRV_VIDEO_START(igs017)
+	MDRV_VIDEO_UPDATE(igs017)
+	MDRV_VIDEO_RESET(igs017)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_OKIM6295_ADD("oki", XTAL_8MHz / 8, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_OKIM6295_ADD("oki", XTAL_8MHz / 8, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+MACHINE_DRIVER_END
 
 
 
@@ -2425,51 +2144,50 @@ static const ppi8255_interface sdmg2_ppi8255_intf =
 	DEVCB_NULL					// Port C write
 };
 
-static MACHINE_CONFIG_START( sdmg2, igs017_state )
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_22MHz/2)
-	MCFG_CPU_PROGRAM_MAP(sdmg2)
-	MCFG_CPU_VBLANK_INT_HACK(mgcs_interrupt,2)
+static MACHINE_DRIVER_START( sdmg2 )
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_22MHz/2)
+	MDRV_CPU_PROGRAM_MAP(sdmg2)
+	MDRV_CPU_VBLANK_INT_HACK(mgcs_interrupt,2)
 
-	MCFG_MACHINE_RESET(mgcs)
+	MDRV_MACHINE_RESET(mgcs)
 
-	MCFG_PPI8255_ADD( "ppi8255", sdmg2_ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255", sdmg2_ppi8255_intf )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)	// VSync 60Hz, HSync 15.3kHz
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-16-1)
-	MCFG_SCREEN_UPDATE(igs017)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)	// VSync 60Hz, HSync 15.3kHz
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-16-1)
 
-	MCFG_GFXDECODE(igs017)
-	MCFG_PALETTE_LENGTH(0x100*2)
+	MDRV_GFXDECODE(igs017)
+	MDRV_PALETTE_LENGTH(0x100*2)
 
-	MCFG_VIDEO_START(igs017)
-	MCFG_VIDEO_RESET(igs017)
+	MDRV_VIDEO_START(igs017)
+	MDRV_VIDEO_UPDATE(igs017)
+	MDRV_VIDEO_RESET(igs017)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_OKIM6295_ADD("oki", XTAL_22MHz / 22, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_OKIM6295_ADD("oki", XTAL_22MHz / 22, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+MACHINE_DRIVER_END
 
 
-// mgdh
+//mgdh
 
 static INTERRUPT_GEN( mgdh_interrupt )
 {
-	igs017_state *state = device->machine().driver_data<igs017_state>();
 	if (cpu_getiloops(device) & 1)
 	{
-		 if (state->m_irq2_enable)
-			device_set_input_line(device, 3, HOLD_LINE);	// lev 3 instead of 2
+		 if (irq2_enable)
+			cpu_set_input_line(device, 3, HOLD_LINE);	// lev 3 instead of 2
 	}
 	else
 	{
-		 if (state->m_irq1_enable)
-			device_set_input_line(device, 1, HOLD_LINE);
+		 if (irq1_enable)
+			cpu_set_input_line(device, 1, HOLD_LINE);
 	}
 }
 
@@ -2484,72 +2202,35 @@ static const ppi8255_interface mgdh_ppi8255_intf =
 	DEVCB_NULL					// Port C write
 };
 
-static MACHINE_CONFIG_START( mgdha, igs017_state )
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_22MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(mgdha_map)
-	MCFG_CPU_VBLANK_INT_HACK(mgdh_interrupt,2)
+static MACHINE_DRIVER_START( mgdh )
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_22MHz / 2)
+	MDRV_CPU_PROGRAM_MAP(mgdh_map)
+	MDRV_CPU_VBLANK_INT_HACK(mgdh_interrupt,2)
 
-	MCFG_MACHINE_RESET(mgcs)
+	MDRV_MACHINE_RESET(mgcs)
 
-	MCFG_PPI8255_ADD( "ppi8255", mgdh_ppi8255_intf )
-
-	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-16-1)
-	MCFG_SCREEN_UPDATE(igs017)
-
-	MCFG_GFXDECODE(igs017_swapped)
-	MCFG_PALETTE_LENGTH(0x100*2)
-
-	MCFG_VIDEO_START(igs017)
-	MCFG_VIDEO_RESET(igs017)
-
-	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_OKIM6295_ADD("oki", XTAL_22MHz / 22, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
-
-
-// tjsb
-
-static MACHINE_CONFIG_START( tjsb, igs017_state )
-	MCFG_CPU_ADD("maincpu", Z180, XTAL_16MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(tjsb_map)
-	MCFG_CPU_IO_MAP(tjsb_io)
-	MCFG_CPU_VBLANK_INT_HACK(iqblocka_interrupt,2)
-
-	MCFG_PPI8255_ADD( "ppi8255", iqblocka_ppi8255_intf )
-
-	MCFG_MACHINE_RESET(iqblocka)
+	MDRV_PPI8255_ADD( "ppi8255", mgdh_ppi8255_intf )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 240-1)
-	MCFG_SCREEN_UPDATE(igs017)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-16-1)
 
-	MCFG_GFXDECODE(igs017)
-	MCFG_PALETTE_LENGTH(0x100*2)
+	MDRV_GFXDECODE(igs017_swapped)
+	MDRV_PALETTE_LENGTH(0x100*2)
 
-	MCFG_VIDEO_START(igs017)
-	MCFG_VIDEO_RESET(igs017)
+	MDRV_VIDEO_START(igs017)
+	MDRV_VIDEO_UPDATE(igs017)
+	MDRV_VIDEO_RESET(igs017)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL_3_579545MHz)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz / 16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_OKIM6295_ADD("oki", XTAL_22MHz / 22, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -2680,8 +2361,8 @@ ROM_START( tjsb )
 	ROM_REGION( 0x40000, "maincpu", 0 )
 	ROM_LOAD( "p0700.u16", 0x00000, 0x40000,CRC(1b2a50df) SHA1(95a272e624f727df9523667864f933118d9e633c) )
 
-	ROM_REGION( 0x400000, "sprites", 0 )
-	ROM_LOAD( "a0701.u3", 0x00000, 0x400000, CRC(27502a0a) SHA1(cca79e253697f47b688ef781b1b6de9d2945f199) )	// FIXED BITS (xxxxxxxx0xxxxxxx)
+	ROM_REGION( 0x200000, "sprites", 0 )
+	ROM_LOAD( "a0701.u3", 0x000000, 0x200000, CRC(aa182140) SHA1(37c2053386c183ff726ba417d13f2063cf9a22df) )	// FIXED BITS (xxxxxxxx0xxxxxxx)
 
 	ROM_REGION( 0x80000, "tilemaps", 0 )
 	ROM_LOAD( "text.u6", 0x00000, 0x80000,  CRC(3be886b8) SHA1(15b3624ed076640c1828d065b01306a8656f5a9b) )	// BADADDR --xxxxxxxxxxxxxxxxx
@@ -2945,7 +2626,7 @@ ROM_END
 /***************************************************************************
 
 Mahjong Man Guan Da Heng (V123T1)
-(c) 1997 IGS
+IGS
 
 PCB Layout
 ----------
@@ -2982,7 +2663,7 @@ Notes:
 
 ***************************************************************************/
 
-ROM_START( mgdha )
+ROM_START( mgdh )
 	ROM_REGION( 0x80000, "maincpu", 0 )
 	ROM_LOAD16_WORD_SWAP( "flash.u19", 0x00000, 0x80000, CRC(ff3aed2c) SHA1(829140e6fc7e4dfc039b0e7b647ce26d59b23b3d) )
 
@@ -2994,31 +2675,6 @@ ROM_START( mgdha )
 
 	ROM_REGION( 0x80000, "oki", 0 )
 	ROM_LOAD( "s1002.u22", 0x00000, 0x80000, CRC(ac6b55f2) SHA1(7ff91fd1107272ad6bce071dc9ae2f374ebf5e3e) )
-ROM_END
-
-/***************************************************************************
-
-Mahjong Man Guan Da Heng (V125T1)
-(c) 1997 IGS
-
-No hardware info, no sprites rom for this set.
-It has additional protection.
-
-***************************************************************************/
-
-ROM_START( mgdh )
-	ROM_REGION( 0x80000, "maincpu", 0 )
-	ROM_LOAD16_WORD_SWAP( "igs_f4bd.125", 0x00000, 0x80000, CRC(8bb0b870) SHA1(f0313f0b8b7575f4fff1feb99d48699d50556ef5) )
-
-	ROM_REGION( 0x400000, "sprites", 0 )
-	// not in this set
-	ROM_LOAD( "m1001.u4", 0x000000, 0x400000, CRC(0cfb60d6) SHA1(e099aca730e7fd91a72915c27e569ad3d21f0d8f) )	// FIXED BITS (xxxxxxx0xxxxxxxx)
-
-	ROM_REGION( 0x20000, "tilemaps", 0 )
-	ROM_LOAD( "igs_512e.u6", 0x00000, 0x20000, CRC(db50f8fc) SHA1(e2ce4a42f5bdc0b4b7988ad9e8d14661f17c3d51) )	// == text.u6
-
-	ROM_REGION( 0x80000, "oki", 0 )
-	ROM_LOAD( "ig2_8836.u14", 0x00000, 0x80000, CRC(ac1f4da8) SHA1(789a2e0b58750292909dabca42c7e5ad72af3db5) )
 ROM_END
 
 /***************************************************************************
@@ -3136,11 +2792,10 @@ ROM_END
 
 GAME( 1996,  iqblocka, iqblock, iqblocka, iqblocka, iqblocka, ROT0, "IGS",              "Shu Zi Le Yuan (V127M)",                      GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )
 GAME( 1996,  iqblockf, iqblock, iqblocka, iqblocka, iqblockf, ROT0, "IGS",              "Shu Zi Le Yuan (V113FR)",                     GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )
-GAME( 1997,  tjsb,     0,       tjsb,     tjsb,     tjsb,     ROT0, "IGS",              "Mahjong Tian Jiang Shen Bing (V137C)",        GAME_UNEMULATED_PROTECTION )
+GAME( 1997,  tjsb,     0,       iqblocka, iqblocka, tjsb,     ROT0, "IGS",              "Mahjong Tian Jiang Shen Bing",                GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )
 GAME( 1997,  sdmg2,    0,       sdmg2,    sdmg2,    sdmg2,    ROT0, "IGS",              "Mahjong Super Da Man Guan II (China, V754C)", 0 )
-GAME( 1997,  mgdh,     0,       mgdha,    mgdh,     mgdh,     ROT0, "IGS",              "Mahjong Man Guan Da Heng (Taiwan, V125T1)",   0 )
-GAME( 1997,  mgdha,    mgdh,    mgdha,    mgdh ,    mgdha,    ROT0, "IGS",              "Mahjong Man Guan Da Heng (Taiwan, V123T1)",   0 )
-GAME( 1998,  mgcs,     0,       mgcs,     mgcs,     mgcs,     ROT0, "IGS",              "Mahjong Man Guan Cai Shen (V103CS)",          GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION | GAME_IMPERFECT_SOUND )
+GAME( 1997,  mgdh,     0,       mgdh,     mgdh ,    mgdh,     ROT0, "IGS",              "Mahjong Man Guan Da Heng (Taiwan, V123T1)",   0 )
+GAME( 1998,  mgcs,     0,       mgcs,     mgcs,     mgcs,     ROT0, "IGS",              "Mahjong Man Guan Cai Shen (V103CS)",          GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )
 GAME( 1998,  lhzb2,    0,       sdmg2,    sdmg2,    lhzb2,    ROT0, "IGS",              "Mahjong Long Hu Zheng Ba 2 (set 1)",          GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )
 GAME( 1998,  lhzb2a,   lhzb2,   sdmg2,    sdmg2,    lhzb2a,   ROT0, "IGS",              "Mahjong Long Hu Zheng Ba 2 (set 2)",          GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )
 GAME( 1998,  slqz2,    0,       sdmg2,    sdmg2,    slqz2,    ROT0, "IGS",              "Mahjong Shuang Long Qiang Zhu 2",             GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION )

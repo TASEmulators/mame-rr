@@ -1,31 +1,30 @@
 
 
-class docastle_state : public driver_device
+class docastle_state
 {
 public:
-	docastle_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, docastle_state(machine)); }
+
+	docastle_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	UINT8 *  m_colorram;
-	UINT8 *  m_spriteram;
-	size_t   m_spriteram_size;
+	UINT8 *  videoram;
+	UINT8 *  colorram;
+	UINT8 *  spriteram;
+	size_t   spriteram_size;
 
 	/* video-related */
-	tilemap_t  *m_do_tilemap;
+	tilemap_t  *do_tilemap;
 
 	/* misc */
-	int      m_adpcm_pos;
-	int      m_adpcm_idle;
-	int      m_adpcm_data;
-	int      m_adpcm_status;
-	UINT8    m_buffer0[9];
-	UINT8    m_buffer1[9];
+	int      adpcm_pos, adpcm_idle;
+	int      adpcm_data;
+	int      adpcm_status;
+	UINT8    buffer0[9], buffer1[9];
 
 	/* devices */
-	cpu_device *m_maincpu;
-	cpu_device *m_slave;
+	cpu_device *maincpu;
+	cpu_device *slave;
 };
 
 
@@ -49,5 +48,5 @@ WRITE8_HANDLER( docastle_flipscreen_on_w );
 PALETTE_INIT( docastle );
 VIDEO_START( docastle );
 VIDEO_START( dorunrun );
-SCREEN_UPDATE( docastle );
+VIDEO_UPDATE( docastle );
 

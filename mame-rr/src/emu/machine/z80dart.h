@@ -16,77 +16,11 @@
                    IEO   7 |             | 34  B/_A
                    _M1   8 |             | 33  C/_D
                    Vdd   9 |             | 32  _RD
-               _W/RDYA  10 |   Z80-DART  | 31  GND
+               _W/RDYA  10 |  Z80-DART   | 31  GND
                   _RIA  11 |             | 30  _W/RDYB
                   RxDA  12 |             | 29  _RIB
                  _RxCA  13 |             | 28  RxDB
                  _TxCA  14 |             | 27  _RxTxCB
-                  TxDA  15 |             | 26  TxDB
-                 _DTRA  16 |             | 25  _DTRB
-                 _RTSA  17 |             | 24  _RTSB
-                 _CTSA  18 |             | 23  _CTSB
-                 _DCDA  19 |             | 22  _DCDB
-                   CLK  20 |_____________| 21  _RESET
-
-                            _____   _____
-                    D1   1 |*    \_/     | 40  D0
-                    D3   2 |             | 39  D2
-                    D5   3 |             | 38  D4
-                    D7   4 |             | 37  D6
-                  _INT   5 |             | 36  _IORQ
-                   IEI   6 |             | 35  _CE
-                   IEO   7 |             | 34  B/_A
-                   _M1   8 |             | 33  C/_D
-                   Vdd   9 |             | 32  _RD
-               _W/RDYA  10 |  Z80-SIO/0  | 31  GND
-                _SYNCA  11 |             | 30  _W/RDYB
-                  RxDA  12 |             | 29  _SYNCB
-                 _RxCA  13 |             | 28  RxDB
-                 _TxCA  14 |             | 27  _RxTxCB
-                  TxDA  15 |             | 26  TxDB
-                 _DTRA  16 |             | 25  _DTRB
-                 _RTSA  17 |             | 24  _RTSB
-                 _CTSA  18 |             | 23  _CTSB
-                 _DCDA  19 |             | 22  _DCDB
-                   CLK  20 |_____________| 21  _RESET
-
-                            _____   _____
-                    D1   1 |*    \_/     | 40  D0
-                    D3   2 |             | 39  D2
-                    D5   3 |             | 38  D4
-                    D7   4 |             | 37  D6
-                  _INT   5 |             | 36  _IORQ
-                   IEI   6 |             | 35  _CE
-                   IEO   7 |             | 34  B/_A
-                   _M1   8 |             | 33  C/_D
-                   Vdd   9 |             | 32  _RD
-               _W/RDYA  10 |  Z80-SIO/1  | 31  GND
-                _SYNCA  11 |             | 30  _W/RDYB
-                  RxDA  12 |             | 29  _SYNCB
-                 _RxCA  13 |             | 28  RxDB
-                 _TxCA  14 |             | 27  _RxCB
-                  TxDA  15 |             | 26  _TxCB
-                 _DTRA  16 |             | 25  TxDB
-                 _RTSA  17 |             | 24  _RTSB
-                 _CTSA  18 |             | 23  _CTSB
-                 _DCDA  19 |             | 22  _DCDB
-                   CLK  20 |_____________| 21  _RESET
-
-                            _____   _____
-                    D1   1 |*    \_/     | 40  D0
-                    D3   2 |             | 39  D2
-                    D5   3 |             | 38  D4
-                    D7   4 |             | 37  D6
-                  _INT   5 |             | 36  _IORQ
-                   IEI   6 |             | 35  _CE
-                   IEO   7 |             | 34  B/_A
-                   _M1   8 |             | 33  C/_D
-                   Vdd   9 |             | 32  _RD
-               _W/RDYA  10 |  Z80-SIO/2  | 31  GND
-                _SYNCA  11 |             | 30  _W/RDYB
-                  RxDA  12 |             | 29  _RxDB
-                 _RxCA  13 |             | 28  _RxCB
-                 _TxCA  14 |             | 27  _TxCB
                   TxDA  15 |             | 26  TxDB
                  _DTRA  16 |             | 25  _DTRB
                  _RTSA  17 |             | 24  _RTSB
@@ -104,35 +38,27 @@
 
 
 //**************************************************************************
+//  CONSTANTS
+//**************************************************************************
+
+enum
+{
+	Z80DART_CH_A = 0,
+	Z80DART_CH_B
+};
+
+
+
+//**************************************************************************
 //  DEVICE CONFIGURATION MACROS
 //**************************************************************************
 
-#define MCFG_Z80DART_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, Z80DART, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
+#define MDRV_Z80DART_ADD(_tag, _clock, _config) \
+	MDRV_DEVICE_ADD(_tag, Z80DART, _clock) \
+	MDRV_DEVICE_CONFIG(_config)
 
-#define MCFG_Z80SIO0_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, Z80SIO0, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
-
-#define MCFG_Z80SIO1_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, Z80SIO1, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
-
-#define MCFG_Z80SIO2_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, Z80SIO2, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
-
-#define MCFG_Z80SIO3_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, Z80SIO3, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
-
-#define MCFG_Z80SIO4_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, Z80SIO4, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
-
-#define MCFG_Z80DART_REMOVE(_tag) \
-	MCFG_DEVICE_REMOVE(_tag)
+#define MDRV_Z80DART_REMOVE(_tag) \
+	MDRV_DEVICE_REMOVE(_tag)
 
 #define Z80DART_INTERFACE(_name) \
 	const z80dart_interface (_name) =
@@ -150,24 +76,44 @@ struct z80dart_interface
 {
 	int m_rx_clock_a;			// channel A receive clock
 	int m_tx_clock_a;			// channel A transmit clock
-	int m_rx_clock_b;			// channel B receive clock
-	int m_tx_clock_b;			// channel B transmit clock
+	int m_rx_tx_clock_b;		// channel B receive/transmit clock
 
-	devcb_read_line		m_in_rxda_cb;
-	devcb_write_line	m_out_txda_cb;
-	devcb_write_line	m_out_dtra_cb;
-	devcb_write_line	m_out_rtsa_cb;
-	devcb_write_line	m_out_wrdya_cb;
-	devcb_write_line	m_out_synca_cb;
+	devcb_read_line		m_in_rxda_func;
+	devcb_write_line	m_out_txda_func;
+	devcb_write_line	m_out_dtra_func;
+	devcb_write_line	m_out_rtsa_func;
+	devcb_write_line	m_out_wrdya_func;
 
-	devcb_read_line		m_in_rxdb_cb;
-	devcb_write_line	m_out_txdb_cb;
-	devcb_write_line	m_out_dtrb_cb;
-	devcb_write_line	m_out_rtsb_cb;
-	devcb_write_line	m_out_wrdyb_cb;
-	devcb_write_line	m_out_syncb_cb;
+	devcb_read_line		m_in_rxdb_func;
+	devcb_write_line	m_out_txdb_func;
+	devcb_write_line	m_out_dtrb_func;
+	devcb_write_line	m_out_rtsb_func;
+	devcb_write_line	m_out_wrdyb_func;
 
-	devcb_write_line	m_out_int_cb;
+	devcb_write_line	m_out_int_func;
+};
+
+
+
+// ======================> z80dart_device_config
+
+class z80dart_device_config :	public device_config,
+								public device_config_z80daisy_interface,
+								public z80dart_interface
+{
+	friend class z80dart_device;
+
+	// construction/destruction
+	z80dart_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+
+public:
+	// allocators
+	static device_config *static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+	virtual device_t *alloc_device(running_machine &machine) const;
+
+protected:
+	// device_config overrides
+	virtual void device_config_complete();
 };
 
 
@@ -175,15 +121,15 @@ struct z80dart_interface
 // ======================> z80dart_device
 
 class z80dart_device :	public device_t,
-						public device_z80daisy_interface,
-						public z80dart_interface
+						public device_z80daisy_interface
 {
+	friend class z80dart_device_config;
 	friend class dart_channel;
 
-public:
 	// construction/destruction
-	z80dart_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock);
+	z80dart_device(running_machine &_machine, const z80dart_device_config &_config);
 
+public:
 	// control register access
 	UINT8 control_read(int which) { return m_channel[which].control_read(); }
 	void control_write(int which, UINT8 data) { return m_channel[which].control_write(data); }
@@ -195,20 +141,15 @@ public:
 	// put data on the input lines
 	void receive_data(int which, UINT8 data) { m_channel[which].receive_data(data); }
 
-	// interrupt acknowledge
-	int m1_r();
-
 	// control line access
 	void cts_w(int which, int state) { m_channel[which].cts_w(state); }
 	void dcd_w(int which, int state) { m_channel[which].dcd_w(state); }
 	void ri_w(int which, int state) { m_channel[which].ri_w(state); }
 	void rx_w(int which, int state) { m_channel[which].rx_w(state); }
 	void tx_w(int which, int state) { m_channel[which].tx_w(state); }
-	void sync_w(int which, int state) { m_channel[which].sync_w(state); }
 
 private:
 	// device-level overrides
-	virtual void device_config_complete();
 	virtual void device_start();
 	virtual void device_reset();
 
@@ -229,7 +170,7 @@ private:
 	public:
 		dart_channel();
 
-		void start(z80dart_device *device, int index, const devcb_read_line &in_rxd, const devcb_write_line &out_txd, const devcb_write_line &out_dtr, const devcb_write_line &out_rts, const devcb_write_line &out_wrdy, const devcb_write_line &out_sync);
+		void start(z80dart_device *device, int index, const devcb_read_line &in_rxd, const devcb_write_line &out_txd, const devcb_write_line &out_dtr, const devcb_write_line &out_rts, const devcb_write_line &out_wrdy);
 		void reset();
 
 		UINT8 control_read();
@@ -245,7 +186,6 @@ private:
 		void ri_w(int state);
 		void rx_w(int state);
 		void tx_w(int state);
-		void sync_w(int state);
 
 	private:
 		void take_interrupt(int level);
@@ -261,8 +201,9 @@ private:
 		void receive();
 		void transmit();
 
-		static TIMER_CALLBACK( static_rxc_tick ) { reinterpret_cast<dart_channel *>(ptr)->rx_w(1); }
-		static TIMER_CALLBACK( static_txc_tick ) { reinterpret_cast<dart_channel *>(ptr)->tx_w(1); }
+		static TIMER_CALLBACK( static_rxca_tick ) { reinterpret_cast<dart_channel *>(ptr)->rx_w(1); }
+		static TIMER_CALLBACK( static_txca_tick ) { reinterpret_cast<dart_channel *>(ptr)->tx_w(1); }
+		static TIMER_CALLBACK( static_rxtxcb_tick ) { reinterpret_cast<dart_channel *>(ptr)->rx_w(1); reinterpret_cast<dart_channel *>(ptr)->tx_w(1); }
 
 		z80dart_device *m_device;
 		int	m_index;
@@ -272,7 +213,6 @@ private:
 		devcb_resolved_write_line	m_out_dtr_func;
 		devcb_resolved_write_line	m_out_rts_func;
 		devcb_resolved_write_line	m_out_wrdy_func;
-		devcb_resolved_write_line	m_out_sync_func;
 
 		// register state
 		UINT8 m_rr[3];				// read register
@@ -308,12 +248,10 @@ private:
 
 		int m_dtr;					// data terminal ready
 		int m_rts;					// request to send
-
-		// synchronous state
-		UINT16 m_sync;				// sync character
 	};
 
 	// internal state
+	const z80dart_device_config &	m_config;
 	devcb_resolved_write_line		m_out_int_func;
 	dart_channel					m_channel[2];		// channels
 	int 							m_int_state[8];		// interrupt state
@@ -321,18 +259,17 @@ private:
 	// timers
 	emu_timer *						m_rxca_timer;
 	emu_timer *						m_txca_timer;
-	emu_timer *						m_rxcb_timer;
-	emu_timer *						m_txcb_timer;
+	emu_timer *						m_rxtxcb_timer;
 };
 
 
 // device type definition
 extern const device_type Z80DART;
-extern const device_type Z80SIO0;
-extern const device_type Z80SIO1;
-extern const device_type Z80SIO2;
-extern const device_type Z80SIO3;
-extern const device_type Z80SIO4;
+/*
+#define Z8470   DEVICE_GET_INFO_NAME(z8470)
+#define LH0081  DEVICE_GET_INFO_NAME(lh0088)
+#define MK3881  DEVICE_GET_INFO_NAME(mk3888)
+*/
 
 
 
@@ -358,8 +295,6 @@ READ8_DEVICE_HANDLER( z80dart_d_r );
 // serial clocks
 WRITE_LINE_DEVICE_HANDLER( z80dart_rxca_w );
 WRITE_LINE_DEVICE_HANDLER( z80dart_txca_w );
-WRITE_LINE_DEVICE_HANDLER( z80dart_rxcb_w );
-WRITE_LINE_DEVICE_HANDLER( z80dart_txcb_w );
 WRITE_LINE_DEVICE_HANDLER( z80dart_rxtxcb_w );
 
 // ring indicator
@@ -374,8 +309,5 @@ WRITE_LINE_DEVICE_HANDLER( z80dart_dcdb_w );
 WRITE_LINE_DEVICE_HANDLER( z80dart_ctsa_w );
 WRITE_LINE_DEVICE_HANDLER( z80dart_ctsb_w );
 
-// sync
-WRITE_LINE_DEVICE_HANDLER( z80dart_synca_w );
-WRITE_LINE_DEVICE_HANDLER( z80dart_syncb_w );
 
 #endif

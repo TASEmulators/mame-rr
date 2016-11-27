@@ -43,12 +43,11 @@ struct _s2650_regs {
 	int		icount;
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 };
 
-INLINE s2650_regs *get_safe_token(device_t *device)
+INLINE s2650_regs *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == S2650);
@@ -152,7 +151,7 @@ static const int S2650_relative[0x100] =
  * RDMEM
  * read memory byte from addr
  ***************************************************************/
-#define RDMEM(addr) s2650c->program->read_byte(addr)
+#define RDMEM(addr) memory_read_byte_8le(s2650c->program, addr)
 
 static void s2650_set_sense(s2650_regs *s2650c, int state);
 
@@ -162,7 +161,7 @@ INLINE void set_psu(s2650_regs *s2650c, UINT8 new_val)
 
     s2650c->psu = new_val;
     if ((new_val ^ old) & FO)
-    	s2650c->io->write_byte(S2650_FO_PORT, (new_val & FO) ? 1 : 0);
+    	memory_write_byte_8le(s2650c->io, S2650_FO_PORT, (new_val & FO) ? 1 : 0);
 }
 
 INLINE UINT8 get_sp(s2650_regs *s2650c)
@@ -236,7 +235,7 @@ INLINE int check_irq_line(s2650_regs *s2650c)
  ***************************************************************/
 INLINE UINT8 ROP(s2650_regs *s2650c)
 {
-	UINT8 result = s2650c->direct->read_decrypted_byte(s2650c->page + s2650c->iar);
+	UINT8 result = memory_decrypted_read_byte(s2650c->program, s2650c->page + s2650c->iar);
 	s2650c->iar = (s2650c->iar + 1) & PMSK;
 	return result;
 }
@@ -247,7 +246,7 @@ INLINE UINT8 ROP(s2650_regs *s2650c)
  ***************************************************************/
 INLINE UINT8 ARG(s2650_regs *s2650c)
 {
-	UINT8 result = s2650c->direct->read_raw_byte(s2650c->page + s2650c->iar);
+	UINT8 result = memory_raw_read_byte(s2650c->program, s2650c->page + s2650c->iar);
 	s2650c->iar = (s2650c->iar + 1) & PMSK;
 	return result;
 }
@@ -533,7 +532,7 @@ INLINE UINT8 ARG(s2650_regs *s2650c)
  * Store source register to memory addr (CC unchanged)
  ***************************************************************/
 #define M_STR(address,source)									\
-	s2650c->program->write_byte(address, source)
+	memory_write_byte_8le(s2650c->program, address, source)
 
 /***************************************************************
  * M_AND
@@ -678,7 +677,7 @@ INLINE UINT8 ARG(s2650_regs *s2650c)
  ***************************************************************/
 #define M_SPSU()												\
 {																\
-	R0 = ((s2650c->psu & ~PSU34) | (s2650c->io->read_byte(S2650_SENSE_PORT) ? SI : 0)); \
+	R0 = ((s2650c->psu & ~PSU34) | (memory_read_byte_8le(s2650c->io, S2650_SENSE_PORT) ? SI : 0)); \
 	SET_CC(R0); 												\
 }
 
@@ -747,7 +746,7 @@ INLINE UINT8 ARG(s2650_regs *s2650c)
 #define M_TPSU()												\
 {																\
 	UINT8 tpsu = ARG(s2650c);										\
-    UINT8 rpsu = (s2650c->psu | (s2650c->io->read_byte(S2650_SENSE_PORT) ? SI : 0)); \
+    UINT8 rpsu = (s2650c->psu | (memory_read_byte_8le(s2650c->io, S2650_SENSE_PORT) ? SI : 0)); \
 	s2650c->psl &= ~CC;												\
 	if( (rpsu & tpsu) != tpsu )									\
 		s2650c->psl |= 0x80;											\
@@ -797,21 +796,20 @@ static CPU_INIT( s2650 )
 	s2650c->irq_callback = irqcallback;
 	s2650c->device = device;
 	s2650c->program = device->space(AS_PROGRAM);
-	s2650c->direct = &s2650c->program->direct();
 	s2650c->io = device->space(AS_IO);
 
-	device->save_item(NAME(s2650c->ppc));
-	device->save_item(NAME(s2650c->page));
-	device->save_item(NAME(s2650c->iar));
-	device->save_item(NAME(s2650c->ea));
-	device->save_item(NAME(s2650c->psl));
-	device->save_item(NAME(s2650c->psu));
-	device->save_item(NAME(s2650c->r));
-	device->save_item(NAME(s2650c->reg));
-	device->save_item(NAME(s2650c->halt));
-	device->save_item(NAME(s2650c->ir));
-	device->save_item(NAME(s2650c->ras));
-	device->save_item(NAME(s2650c->irq_state));
+	state_save_register_device_item(device, 0, s2650c->ppc);
+	state_save_register_device_item(device, 0, s2650c->page);
+	state_save_register_device_item(device, 0, s2650c->iar);
+	state_save_register_device_item(device, 0, s2650c->ea);
+	state_save_register_device_item(device, 0, s2650c->psl);
+	state_save_register_device_item(device, 0, s2650c->psu);
+	state_save_register_device_item(device, 0, s2650c->r);
+	state_save_register_device_item_array(device, 0, s2650c->reg);
+	state_save_register_device_item(device, 0, s2650c->halt);
+	state_save_register_device_item(device, 0, s2650c->ir);
+	state_save_register_device_item_array(device, 0, s2650c->ras);
+	state_save_register_device_item(device, 0, s2650c->irq_state);
 }
 
 static CPU_RESET( s2650 )
@@ -830,7 +828,6 @@ static CPU_RESET( s2650 )
 
 	s2650c->device = device;
 	s2650c->program = device->space(AS_PROGRAM);
-	s2650c->direct = &s2650c->program->direct();
 	s2650c->io = device->space(AS_IO);
 	s2650c->psl = COM | WC;
 	/* force write */
@@ -882,7 +879,7 @@ static int s2650_get_sense(s2650_regs *s2650c)
 {
 	/* OR'd with Input to allow for external connections */
 
-    return (((s2650c->psu & SI) ? 1 : 0) | ((s2650c->io->read_byte(S2650_SENSE_PORT) & SI) ? 1 : 0));
+    return (((s2650c->psu & SI) ? 1 : 0) | ((memory_read_byte_8le(s2650c->io, S2650_SENSE_PORT) & SI) ? 1 : 0));
 }
 
 static CPU_EXECUTE( s2650 )
@@ -1021,7 +1018,7 @@ static CPU_EXECUTE( s2650 )
 			case 0x32:		/* REDC,2 */
 			case 0x33:		/* REDC,3 */
 				s2650c->icount -= 6;
-				s2650c->reg[s2650c->r] = s2650c->io->read_byte(S2650_CTRL_PORT);
+				s2650c->reg[s2650c->r] = memory_read_byte_8le(s2650c->io, S2650_CTRL_PORT);
 				SET_CC( s2650c->reg[s2650c->r] );
 				break;
 
@@ -1111,7 +1108,7 @@ static CPU_EXECUTE( s2650 )
 			case 0x56:		/* REDE,2 v */
 			case 0x57:		/* REDE,3 v */
 				s2650c->icount -= 9;
-				s2650c->reg[s2650c->r] = s2650c->io->read_byte( ARG(s2650c) );
+				s2650c->reg[s2650c->r] = memory_read_byte_8le( s2650c->io, ARG(s2650c) );
 				SET_CC(s2650c->reg[s2650c->r]);
 				break;
 
@@ -1170,7 +1167,7 @@ static CPU_EXECUTE( s2650 )
 			case 0x72:		/* REDD,2 */
 			case 0x73:		/* REDD,3 */
 				s2650c->icount -= 6;
-				s2650c->reg[s2650c->r] = s2650c->io->read_byte(S2650_DATA_PORT);
+				s2650c->reg[s2650c->r] = memory_read_byte_8le(s2650c->io, S2650_DATA_PORT);
 				SET_CC(s2650c->reg[s2650c->r]);
 				break;
 
@@ -1326,7 +1323,7 @@ static CPU_EXECUTE( s2650 )
 			case 0xb2:		/* WRTC,2 */
 			case 0xb3:		/* WRTC,3 */
 				s2650c->icount -= 6;
-				s2650c->io->write_byte(S2650_CTRL_PORT,s2650c->reg[s2650c->r]);
+				memory_write_byte_8le(s2650c->io, S2650_CTRL_PORT,s2650c->reg[s2650c->r]);
 				break;
 
 			case 0xb4:		/* TPSU */
@@ -1412,7 +1409,7 @@ static CPU_EXECUTE( s2650 )
 			case 0xd6:		/* WRTE,2 v */
 			case 0xd7:		/* WRTE,3 v */
 				s2650c->icount -= 9;
-				s2650c->io->write_byte( ARG(s2650c), s2650c->reg[s2650c->r] );
+				memory_write_byte_8le( s2650c->io, ARG(s2650c), s2650c->reg[s2650c->r] );
 				break;
 
 			case 0xd8:		/* BIRR,0 (*)a */
@@ -1470,7 +1467,7 @@ static CPU_EXECUTE( s2650 )
 			case 0xf2:		/* WRTD,2 */
 			case 0xf3:		/* WRTD,3 */
 				s2650c->icount -= 6;
-				s2650c->io->write_byte(S2650_DATA_PORT, s2650c->reg[s2650c->r]);
+				memory_write_byte_8le(s2650c->io, S2650_DATA_PORT, s2650c->reg[s2650c->r]);
 				break;
 
 			case 0xf4:		/* TMI,0  v */
@@ -1559,17 +1556,17 @@ CPU_GET_INFO( s2650 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 5;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 13;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:	info->i = 15;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 15;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM:	info->i = 0;					break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 9;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 9;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + 0:				info->i = s2650c->irq_state;					break;
 		case CPUINFO_INT_INPUT_STATE + 1:				info->i = s2650_get_sense(s2650c) ? ASSERT_LINE : CLEAR_LINE; break;

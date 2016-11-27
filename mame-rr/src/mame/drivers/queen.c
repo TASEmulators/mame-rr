@@ -22,27 +22,17 @@ processor speed is 533MHz <- likely to be a Celeron or a Pentium III class CPU -
 #include "emu.h"
 #include "cpu/i386/i386.h"
 
-
-class queen_state : public driver_device
-{
-public:
-	queen_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
 static VIDEO_START(queen)
 {
 
 }
 
-static SCREEN_UPDATE(queen)
+static VIDEO_UPDATE(queen)
 {
 	return 0;
 }
 
-static ADDRESS_MAP_START( queen_map, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( queen_map, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x00000000, 0x0009ffff) AM_RAM
 	AM_RANGE(0x000a0000, 0x000bffff) AM_RAM
 	AM_RANGE(0x000c0000, 0x000fffff) AM_ROM AM_REGION("bios", 0) AM_WRITENOP
@@ -55,12 +45,12 @@ static ADDRESS_MAP_START( queen_map, AS_PROGRAM, 32 )
 	AM_RANGE(0xfffc0000, 0xffffffff) AM_ROM AM_REGION("bios", 0)	/* System BIOS */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START(queen_io, AS_IO, 32)
+static ADDRESS_MAP_START(queen_io, ADDRESS_SPACE_IO, 32)
 	AM_RANGE(0x0000, 0x001f) AM_RAM//AM_DEVREADWRITE8("dma8237_1", dma8237_r, dma8237_w, 0xffffffff)
 	AM_RANGE(0x0020, 0x003f) AM_RAM//AM_DEVREADWRITE8("pic8259_1", pic8259_r, pic8259_w, 0xffffffff)
 	AM_RANGE(0x0040, 0x005f) AM_RAM//AM_DEVREADWRITE8("pit8254", pit8253_r, pit8253_w, 0xffffffff)
 	AM_RANGE(0x0060, 0x006f) AM_RAM//AM_READWRITE(kbdc8042_32le_r,          kbdc8042_32le_w)
-	AM_RANGE(0x0070, 0x007f) AM_RAM//AM_DEVREADWRITE8_MODERN("rtc", mc146818_device, read, write, 0xffffffff)
+	AM_RANGE(0x0070, 0x007f) AM_RAM//AM_READWRITE(mc146818_port32le_r,      mc146818_port32le_w)
 	AM_RANGE(0x0080, 0x009f) AM_RAM//AM_READWRITE(at_page32_r,              at_page32_w)
 	AM_RANGE(0x00a0, 0x00bf) AM_RAM//AM_DEVREADWRITE8("pic8259_2", pic8259_r, pic8259_w, 0xffffffff)
 	AM_RANGE(0x00c0, 0x00df) AM_RAM//AM_DEVREADWRITE("dma8237_2", at32_dma8237_2_r, at32_dma8237_2_w)
@@ -81,23 +71,23 @@ static INPUT_PORTS_START( queen )
 INPUT_PORTS_END
 
 
-static MACHINE_CONFIG_START( queen, queen_state )
-	MCFG_CPU_ADD("maincpu", PENTIUM, 533000000) // Celeron or Pentium 3, 533 Mhz
-	MCFG_CPU_PROGRAM_MAP(queen_map)
-	MCFG_CPU_IO_MAP(queen_io)
+static MACHINE_DRIVER_START( queen )
+	MDRV_CPU_ADD("maincpu", PENTIUM, 533000000) // Celeron or Pentium 3, 533 Mhz
+	MDRV_CPU_PROGRAM_MAP(queen_map)
+	MDRV_CPU_IO_MAP(queen_io)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(queen)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 32*8-1)
 
-	MCFG_PALETTE_LENGTH(0x200)
+	MDRV_PALETTE_LENGTH(0x200)
 
-	MCFG_VIDEO_START(queen)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(queen)
+	MDRV_VIDEO_UPDATE(queen)
+MACHINE_DRIVER_END
 
 
 

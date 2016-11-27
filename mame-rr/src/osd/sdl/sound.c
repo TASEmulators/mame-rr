@@ -37,7 +37,7 @@ static int stream_in_initialized = 0;
 static int stream_loop = 0;
 
 // maximum audio latency
-#define MAX_AUDIO_LATENCY		5
+#define MAX_AUDIO_LATENCY		10
 
 //============================================================
 //  LOCAL VARIABLES
@@ -69,8 +69,8 @@ static int snd_enabled;
 //  PROTOTYPES
 //============================================================
 
-static int			sdl_init(running_machine &machine);
-static void			sdl_kill(running_machine &machine);
+static int			sdl_init(running_machine *machine);
+static void			sdl_kill(running_machine *machine);
 static int			sdl_create_buffers(void);
 static void			sdl_destroy_buffers(void);
 static void			sdl_cleanup_audio(running_machine &machine);
@@ -81,21 +81,21 @@ static void			sdl_callback(void *userdata, Uint8 *stream, int len);
 //============================================================
 //  osd_start_audio_stream
 //============================================================
-void sdlaudio_init(running_machine &machine)
+void sdlaudio_init(running_machine *machine)
 {
 	if (LOG_SOUND)
 		sound_log = fopen(SDLMAME_SOUND_LOG, "w");
 
 	// skip if sound disabled
-	if (machine.sample_rate() != 0)
+	if (machine->sample_rate != 0)
 	{
 		// attempt to initialize SDL
 		if (sdl_init(machine))
 			return;
 
-		machine.add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(FUNC(sdl_cleanup_audio), &machine));
+		machine->add_notifier(MACHINE_NOTIFY_EXIT, sdl_cleanup_audio);
 		// set the startup volume
-		machine.osd().set_mastervolume(attenuation);
+		osd_set_mastervolume(attenuation);
 	}
 	return;
 }
@@ -109,11 +109,11 @@ void sdlaudio_init(running_machine &machine)
 static void sdl_cleanup_audio(running_machine &machine)
 {
 	// if nothing to do, don't do it
-	if (machine.sample_rate() == 0)
+	if (machine.sample_rate == 0)
 		return;
 
 	// kill the buffers and dsound
-	sdl_kill(machine);
+	sdl_kill(&machine);
 	sdl_destroy_buffers();
 
 	// print out over/underflow stats
@@ -130,13 +130,13 @@ static void sdl_cleanup_audio(running_machine &machine)
 //============================================================
 //  lock_buffer
 //============================================================
-static int lock_buffer(running_machine &machine, long offset, long size, void **buffer1, long *length1, void **buffer2, long *length2)
+static int lock_buffer(long offset, long size, void **buffer1, long *length1, void **buffer2, long *length2)
 {
 	volatile long pstart, pend, lstart, lend;
 
 	if (!buf_locked)
 	{
-		if (machine.video().throttled())
+		if (video_get_throttle())
 		{
 			pstart = stream_playpos;
 			pend = (pstart + sdl_xfer_samples);
@@ -197,7 +197,7 @@ static void unlock_buffer(void)
 //  Apply attenuation
 //============================================================
 
-static void att_memcpy(void *dest, const INT16 *data, int bytes_to_copy)
+static void att_memcpy(void *dest, INT16 *data, int bytes_to_copy)
 {
 	int level= (int) (pow(10.0, (float) attenuation / 20.0) * 128.0);
 	INT16 *d = (INT16 *) dest;
@@ -213,14 +213,14 @@ static void att_memcpy(void *dest, const INT16 *data, int bytes_to_copy)
 //  copy_sample_data
 //============================================================
 
-static void copy_sample_data(running_machine &machine, const INT16 *data, int bytes_to_copy)
+static void copy_sample_data(INT16 *data, int bytes_to_copy)
 {
 	void *buffer1, *buffer2 = (void *)NULL;
 	long length1, length2;
 	int cur_bytes;
 
 	// attempt to lock the stream buffer
-	if (lock_buffer(machine, stream_buffer_in, bytes_to_copy, &buffer1, &length1, &buffer2, &length2) < 0)
+	if (lock_buffer(stream_buffer_in, bytes_to_copy, &buffer1, &length1, &buffer2, &length2) < 0)
 	{
 		buffer_underflows++;
 		return;
@@ -258,13 +258,13 @@ static void copy_sample_data(running_machine &machine, const INT16 *data, int by
 
 
 //============================================================
-//  update_audio_stream
+//  osd_update_audio_stream
 //============================================================
 
-void sdl_osd_interface::update_audio_stream(const INT16 *buffer, int samples_this_frame)
+void osd_update_audio_stream(running_machine *machine, INT16 *buffer, int samples_this_frame)
 {
 	// if nothing to do, don't do it
-	if (machine().sample_rate() != 0 && stream_buffer)
+	if (machine->sample_rate != 0 && stream_buffer)
 	{
 		int bytes_this_frame = samples_this_frame * sizeof(INT16) * 2;
 		int play_position, write_position, stream_in;
@@ -272,7 +272,7 @@ void sdl_osd_interface::update_audio_stream(const INT16 *buffer, int samples_thi
 
 		play_position = stream_playpos;
 
-		write_position = stream_playpos + ((machine().sample_rate() / 50) * sizeof(INT16) * 2);
+		write_position = stream_playpos + ((machine->sample_rate / 50) * sizeof(INT16) * 2);
 		orig_write = write_position;
 
 		if (!stream_in_initialized)
@@ -333,17 +333,17 @@ void sdl_osd_interface::update_audio_stream(const INT16 *buffer, int samples_thi
 
 		// now we know where to copy; let's do it
 		stream_buffer_in = stream_in;
-		copy_sample_data(machine(), buffer, bytes_this_frame);
+		copy_sample_data(buffer, bytes_this_frame);
 	}
 }
 
 
 
 //============================================================
-//  set_mastervolume
+//  osd_set_mastervolume
 //============================================================
 
-void sdl_osd_interface::set_mastervolume(int _attenuation)
+void osd_set_mastervolume(int _attenuation)
 {
 	// clamp the attenuation to 0-32 range
 	if (_attenuation > 0)
@@ -419,7 +419,7 @@ static void sdl_callback(void *userdata, Uint8 *stream, int len)
 //============================================================
 //  sdl_init
 //============================================================
-static int sdl_init(running_machine &machine)
+static int sdl_init(running_machine *machine)
 {
 	int			n_channels = 2;
 	int			audio_latency;
@@ -428,7 +428,7 @@ static int sdl_init(running_machine &machine)
 
 	if (initialized_audio)
 	{
-		sdl_cleanup_audio(machine);
+		sdl_cleanup_audio(*machine);
 	}
 
 	mame_printf_verbose("Audio: Start initialization\n");
@@ -446,7 +446,7 @@ static int sdl_init(running_machine &machine)
 	stream_loop = 0;
 
 	// set up the audio specs
-	aspec.freq = machine.sample_rate();
+	aspec.freq = machine->sample_rate;
 	aspec.format = AUDIO_S16SYS;	// keep endian independent
 	aspec.channels = n_channels;
 	aspec.samples = sdl_xfer_samples;
@@ -464,7 +464,7 @@ static int sdl_init(running_machine &machine)
 
 	sdl_xfer_samples = obtained.samples;
 
-	audio_latency = downcast<sdl_options &>(machine.options()).audio_latency();
+	audio_latency = options_get_int(machine->options(), SDLOPTION_AUDIO_LATENCY);
 
 	// pin audio latency
 	if (audio_latency > MAX_AUDIO_LATENCY)
@@ -477,7 +477,7 @@ static int sdl_init(running_machine &machine)
 	}
 
 	// compute the buffer sizes
-	stream_buffer_size = machine.sample_rate() * 2 * sizeof(INT16) * audio_latency / MAX_AUDIO_LATENCY;
+	stream_buffer_size = machine->sample_rate * 2 * sizeof(INT16) * audio_latency / MAX_AUDIO_LATENCY;
 	stream_buffer_size = (stream_buffer_size / 1024) * 1024;
 	if (stream_buffer_size < 1024)
 		stream_buffer_size = 1024;
@@ -503,7 +503,7 @@ cant_start_audio:
 //  sdl_kill
 //============================================================
 
-static void sdl_kill(running_machine &machine)
+static void sdl_kill(running_machine *machine)
 {
 	if (initialized_audio)
 	{

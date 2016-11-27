@@ -67,15 +67,15 @@ static READ8_HANDLER( io_0x03_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mrjong_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mrjong_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0xa000, 0xa7ff) AM_RAM
-	AM_RANGE(0xe000, 0xe3ff) AM_RAM_WRITE(mrjong_videoram_w) AM_BASE_MEMBER(mrjong_state, m_videoram)
-	AM_RANGE(0xe400, 0xe7ff) AM_RAM_WRITE(mrjong_colorram_w) AM_BASE_MEMBER(mrjong_state, m_colorram)
+	AM_RANGE(0xe000, 0xe3ff) AM_RAM_WRITE(mrjong_videoram_w) AM_BASE_MEMBER(mrjong_state, videoram)
+	AM_RANGE(0xe400, 0xe7ff) AM_RAM_WRITE(mrjong_colorram_w) AM_BASE_MEMBER(mrjong_state, colorram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mrjong_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mrjong_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("P2") AM_WRITE(mrjong_flipscreen_w)
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("P1") AM_DEVWRITE("sn1", sn76496_w)
@@ -178,38 +178,41 @@ GFXDECODE_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( mrjong, mrjong_state )
+static MACHINE_DRIVER_START( mrjong )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mrjong_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,15468000/6)	/* 2.578 MHz?? */
-	MCFG_CPU_PROGRAM_MAP(mrjong_map)
-	MCFG_CPU_IO_MAP(mrjong_io_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80,15468000/6)	/* 2.578 MHz?? */
+	MDRV_CPU_PROGRAM_MAP(mrjong_map)
+	MDRV_CPU_IO_MAP(mrjong_io_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 30*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(mrjong)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 30*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(mrjong)
-	MCFG_PALETTE_LENGTH(4*32)
+	MDRV_GFXDECODE(mrjong)
+	MDRV_PALETTE_LENGTH(4*32)
 
-	MCFG_PALETTE_INIT(mrjong)
-	MCFG_VIDEO_START(mrjong)
+	MDRV_PALETTE_INIT(mrjong)
+	MDRV_VIDEO_START(mrjong)
+	MDRV_VIDEO_UPDATE(mrjong)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76489, 15468000/6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("sn1", SN76489, 15468000/6)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("sn2", SN76489, 15468000/6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("sn2", SN76489, 15468000/6)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************************

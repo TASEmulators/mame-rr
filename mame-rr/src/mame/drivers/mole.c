@@ -53,18 +53,19 @@
 #include "sound/ay8910.h"
 
 
-class mole_state : public driver_device
+class mole_state
 {
 public:
-	mole_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mole_state(machine)); }
+
+	mole_state(running_machine &machine) { }
+
+	/* memory pointers */
+	UINT16 *     tileram;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	int          m_tile_bank;
-
-	/* memory */
-	UINT16       m_tileram[0x400];
+	tilemap_t    *bg_tilemap;
+	int          tile_bank;
 };
 
 
@@ -84,47 +85,47 @@ static PALETTE_INIT( mole )
 
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	mole_state *state = machine.driver_data<mole_state>();
-	UINT16 code = state->m_tileram[tile_index];
+	mole_state *state = (mole_state *)machine->driver_data;
+	UINT16 code = state->tileram[tile_index];
 
 	SET_TILE_INFO((code & 0x200) ? 1 : 0, code & 0x1ff, 0, 0);
 }
 
 static VIDEO_START( mole )
 {
-	mole_state *state = machine.driver_data<mole_state>();
-	memset(state->m_tileram, 0, sizeof(state->m_tileram));
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 40, 25);
+	mole_state *state = (mole_state *)machine->driver_data;
+	state->tileram = auto_alloc_array_clear(machine, UINT16, 0x400);
+	state->bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 40, 25);
 
-	state->save_item(NAME(state->m_tileram));
+	state_save_register_global_pointer(machine, state->tileram, 0x400);
 }
 
 static WRITE8_HANDLER( mole_videoram_w )
 {
-	mole_state *state = space->machine().driver_data<mole_state>();
+	mole_state *state = (mole_state *)space->machine->driver_data;
 
-	state->m_tileram[offset] = data | (state->m_tile_bank << 8);
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	state->tileram[offset] = data | (state->tile_bank << 8);
+	tilemap_mark_tile_dirty(state->bg_tilemap, offset);
 }
 
 static WRITE8_HANDLER( mole_tilebank_w )
 {
-	mole_state *state = space->machine().driver_data<mole_state>();
+	mole_state *state = (mole_state *)space->machine->driver_data;
 
-	state->m_tile_bank = data;
-	tilemap_mark_all_tiles_dirty(state->m_bg_tilemap);
+	state->tile_bank = data;
+	tilemap_mark_all_tiles_dirty(state->bg_tilemap);
 }
 
 static WRITE8_HANDLER( mole_flipscreen_w )
 {
-	flip_screen_set(space->machine(), data & 0x01);
+	flip_screen_set(space->machine, data & 0x01);
 }
 
-static SCREEN_UPDATE( mole )
+static VIDEO_UPDATE( mole )
 {
-	mole_state *state = screen->machine().driver_data<mole_state>();
+	mole_state *state = (mole_state *)screen->machine->driver_data;
 
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, state->bg_tilemap, 0, 0);
 	return 0;
 }
 
@@ -164,7 +165,7 @@ static READ8_HANDLER( mole_protection_r )
 	{
 	case 0x08: return 0xb0; /* random mole placement */
 	case 0x26:
-		if (cpu_get_pc(&space->device()) == 0x53d7)
+		if (cpu_get_pc(space->cpu) == 0x53d7)
 		{
 			return 0x06; /* bonus round */
 		}
@@ -192,13 +193,13 @@ static READ8_HANDLER( mole_protection_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mole_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mole_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x03ff) AM_RAM
 	AM_RANGE(0x0800, 0x08ff) AM_READ(mole_protection_r)
 	AM_RANGE(0x0800, 0x0800) AM_WRITENOP // ???
 	AM_RANGE(0x0820, 0x0820) AM_WRITENOP // ???
 	AM_RANGE(0x5000, 0x7fff) AM_MIRROR(0x8000) AM_ROM
-	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(mole_videoram_w)
+	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(mole_videoram_w) AM_BASE_GENERIC(videoram)
 	AM_RANGE(0x8400, 0x8400) AM_WRITE(mole_tilebank_w)
 	AM_RANGE(0x8c00, 0x8c01) AM_DEVWRITE("aysnd", ay8910_data_address_w)
 	AM_RANGE(0x8c40, 0x8c40) AM_WRITENOP // ???
@@ -302,49 +303,52 @@ GFXDECODE_END
 
 static MACHINE_START( mole )
 {
-	mole_state *state = machine.driver_data<mole_state>();
+	mole_state *state = (mole_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_tile_bank));
+	state_save_register_global(machine, state->tile_bank);
 }
 
 static MACHINE_RESET( mole )
 {
-	mole_state *state = machine.driver_data<mole_state>();
+	mole_state *state = (mole_state *)machine->driver_data;
 
-	state->m_tile_bank = 0;
+	state->tile_bank = 0;
 }
 
-static MACHINE_CONFIG_START( mole, mole_state )
+static MACHINE_DRIVER_START( mole )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mole_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6502, 4000000) // ???
-	MCFG_CPU_PROGRAM_MAP(mole_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", M6502, 4000000) // ???
+	MDRV_CPU_PROGRAM_MAP(mole_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_START(mole)
-	MCFG_MACHINE_RESET(mole)
+	MDRV_MACHINE_START(mole)
+	MDRV_MACHINE_RESET(mole)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 25*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 0*8, 25*8-1)
-	MCFG_SCREEN_UPDATE(mole)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 25*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 0*8, 25*8-1)
 
-	MCFG_GFXDECODE(mole)
-	MCFG_PALETTE_LENGTH(8)
+	MDRV_GFXDECODE(mole)
+	MDRV_PALETTE_LENGTH(8)
 
-	MCFG_PALETTE_INIT(mole)
-	MCFG_VIDEO_START(mole)
+	MDRV_PALETTE_INIT(mole)
+	MDRV_VIDEO_START(mole)
+	MDRV_VIDEO_UPDATE(mole)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************************

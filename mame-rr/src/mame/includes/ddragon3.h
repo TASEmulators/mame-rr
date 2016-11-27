@@ -5,34 +5,34 @@
 *************************************************************************/
 
 
-class ddragon3_state : public driver_device
+class ddragon3_state
 {
 public:
-	ddragon3_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ddragon3_state(machine)); }
+
+	ddragon3_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *        m_bg_videoram;
-	UINT16 *        m_fg_videoram;
-	UINT16 *        m_spriteram;
-//  UINT16 *        m_paletteram; // currently this uses generic palette handling
+	UINT16 *        bg_videoram;
+	UINT16 *        fg_videoram;
+	UINT16 *        spriteram;
+//  UINT16 *        paletteram; // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t         *m_fg_tilemap;
-	tilemap_t         *m_bg_tilemap;
-	UINT16          m_vreg;
-	UINT16          m_bg_scrollx;
-	UINT16          m_bg_scrolly;
-	UINT16          m_fg_scrollx;
-	UINT16          m_fg_scrolly;
-	UINT16          m_bg_tilebase;
+	tilemap_t         *fg_tilemap, *bg_tilemap;
+	UINT16          vreg;
+	UINT16          bg_scrollx;
+	UINT16          bg_scrolly;
+	UINT16          fg_scrollx;
+	UINT16          fg_scrolly;
+	UINT16          bg_tilebase;
 
 	/* misc */
-	UINT16          m_io_reg[8];
+	UINT16          io_reg[8];
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 
@@ -44,5 +44,5 @@ extern WRITE16_HANDLER( ddragon3_scroll_w );
 extern READ16_HANDLER( ddragon3_scroll_r );
 
 extern VIDEO_START( ddragon3 );
-extern SCREEN_UPDATE( ddragon3 );
-extern SCREEN_UPDATE( ctribe );
+extern VIDEO_UPDATE( ddragon3 );
+extern VIDEO_UPDATE( ctribe );

@@ -97,7 +97,6 @@ void tagmap_reset(tagmap *map)
 			next = entry->next;
 			free(entry);
 		}
-		map->table[hashindex] = NULL;
 	}
 }
 

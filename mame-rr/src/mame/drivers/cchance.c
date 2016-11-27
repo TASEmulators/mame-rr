@@ -36,54 +36,42 @@ cha3    $10d8
 #include "cpu/z80/z80.h"
 #include "includes/tnzs.h"
 #include "sound/ay8910.h"
-#include "video/seta001.h"
-
-class cchance_state : public tnzs_state
-{
-public:
-	cchance_state(const machine_config &mconfig, device_type type, const char *tag)
-		: tnzs_state(mconfig, type, tag) { }
-
-	UINT8 m_hop_io;
-	UINT8 m_bell_io;
-};
-
 
 static WRITE8_HANDLER( output_0_w )
 {
 
 	//---- --x- divider?
-	coin_lockout_w(space->machine(), 0, ~data & 1);
+	coin_lockout_w(space->machine, 0, ~data & 1);
 
-//  coin_counter_w(space->machine(), 0, ~data & 1);
+//  coin_counter_w(space->machine, 0, ~data & 1);
 }
 
 
 static READ8_HANDLER( input_1_r )
 {
-	cchance_state *state = space->machine().driver_data<cchance_state>();
-	return (state->m_hop_io) | (state->m_bell_io) | (input_port_read(space->machine(), "SP") & 0xff);
+	tnzs_state *state = (tnzs_state *)space->machine->driver_data;
+	return (state->hop_io) | (state->bell_io) | (input_port_read(space->machine, "SP") & 0xff);
 }
 
 static WRITE8_HANDLER( output_1_w )
 {
-	cchance_state *state = space->machine().driver_data<cchance_state>();
+	tnzs_state *state = (tnzs_state *)space->machine->driver_data;
 
-	state->m_hop_io = (data & 0x40)>>4;
-	state->m_bell_io = (data & 0x80)>>4;
+	state->hop_io = (data & 0x40)>>4;
+	state->bell_io = (data & 0x80)>>4;
 }
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 
-	AM_RANGE(0xa000, 0xafff) AM_RAM AM_DEVREADWRITE("spritegen", spritecodelow_r8, spritecodelow_w8)
-	AM_RANGE(0xb000, 0xbfff) AM_RAM AM_DEVREADWRITE("spritegen", spritecodehigh_r8, spritecodehigh_w8)
+	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_BASE_MEMBER(tnzs_state, objram)
 
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
 
-	AM_RANGE(0xe000, 0xe2ff) AM_RAM AM_DEVREADWRITE("spritegen", spriteylow_r8, spriteylow_w8)
-	AM_RANGE(0xe300, 0xe303) AM_RAM AM_MIRROR(0xfc) AM_DEVWRITE("spritegen", spritectrl_w8)  /* control registers (0x80 mirror used by Arkanoid 2) */
-	AM_RANGE(0xe800, 0xe800) AM_DEVWRITE("spritegen", spritebgflag_w8)	/* enable / disable background transparency */
+	AM_RANGE(0xe000, 0xe1ff) AM_RAM AM_BASE_MEMBER(tnzs_state, vdcram)
+	AM_RANGE(0xe200, 0xe2ff) AM_RAM AM_BASE_MEMBER(tnzs_state, scrollram) /* scrolling info */
+	AM_RANGE(0xe300, 0xe303) AM_RAM AM_MIRROR(0xfc) AM_BASE_MEMBER(tnzs_state, objctrl) /* control registers (0x80 mirror used by Arkanoid 2) */
+	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE_MEMBER(tnzs_state, bg_flag)	/* enable / disable background transparency */
 
 	AM_RANGE(0xf000, 0xf000) AM_READNOP AM_WRITENOP //???
 	AM_RANGE(0xf001, 0xf001) AM_READ(input_1_r) AM_WRITE(output_0_w)
@@ -195,57 +183,59 @@ static const ay8910_interface ay8910_config =
 
 static MACHINE_START( cchance )
 {
-	cchance_state *state = machine.driver_data<cchance_state>();
-	state->m_mcu = NULL;
+	tnzs_state *state = (tnzs_state *)machine->driver_data;
+	state->mcu = NULL;
 
-	state->save_item(NAME(state->m_screenflip));
-	state->save_item(NAME(state->m_hop_io));
-	state->save_item(NAME(state->m_bell_io));
+	state_save_register_global(machine, state->screenflip);
+	state_save_register_global(machine, state->hop_io);
+	state_save_register_global(machine, state->bell_io);
 }
 
 static MACHINE_RESET( cchance )
 {
-	cchance_state *state = machine.driver_data<cchance_state>();
+	tnzs_state *state = (tnzs_state *)machine->driver_data;
 
-	state->m_screenflip = 0;
-	state->m_mcu_type = -1;
-	state->m_hop_io = 0;
-	state->m_bell_io = 0;
+	state->screenflip = 0;
+	state->mcu_type = -1;
+	state->hop_io = 0;
+	state->bell_io = 0;
 
 }
 
-static MACHINE_CONFIG_START( cchance, cchance_state )
+static MACHINE_DRIVER_START( cchance )
 
-	MCFG_CPU_ADD("maincpu", Z80,4000000)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	/* driver data */
+	MDRV_DRIVER_DATA(tnzs_state)
 
-	MCFG_MACHINE_START(cchance)
-	MCFG_MACHINE_RESET(cchance)
+	MDRV_CPU_ADD("maincpu", Z80,4000000)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_GFXDECODE(cchance)
+	MDRV_MACHINE_START(cchance)
+	MDRV_MACHINE_RESET(cchance)
 
-	MCFG_DEVICE_ADD("spritegen", SETA001_SPRITE, 0)
+	MDRV_GFXDECODE(cchance)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57.5)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(tnzs)
-	MCFG_SCREEN_EOF(tnzs)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57.5)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_PALETTE_LENGTH(512)
-	MCFG_PALETTE_INIT(arknoid2)
+	MDRV_PALETTE_LENGTH(512)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_PALETTE_INIT(arknoid2)
+	MDRV_VIDEO_UPDATE(tnzs)
+	MDRV_VIDEO_EOF(tnzs)
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 1500000/2)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+
+	MDRV_SOUND_ADD("aysnd", AY8910, 1500000/2)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
 ROM_START( cchance )
 	ROM_REGION( 0x10000, "maincpu", 0 )

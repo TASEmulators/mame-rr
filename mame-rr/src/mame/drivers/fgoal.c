@@ -70,51 +70,51 @@ static PALETTE_INIT( fgoal )
 
 static TIMER_CALLBACK( interrupt_callback )
 {
-	fgoal_state *state = machine.driver_data<fgoal_state>();
+	fgoal_state *state = (fgoal_state *)machine->driver_data;
 	int scanline;
 	int coin = (input_port_read(machine, "IN1") & 2);
 
-	device_set_input_line(state->m_maincpu, 0, ASSERT_LINE);
+	cpu_set_input_line(state->maincpu, 0, ASSERT_LINE);
 
-	if (!coin && state->m_prev_coin)
-		device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, ASSERT_LINE);
+	if (!coin && state->prev_coin)
+		cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, ASSERT_LINE);
 
-	state->m_prev_coin = coin;
+	state->prev_coin = coin;
 
-	scanline = machine.primary_screen->vpos() + 128;
+	scanline = machine->primary_screen->vpos() + 128;
 
 	if (scanline > 256)
 		scanline = 0;
 
-	machine.scheduler().timer_set(machine.primary_screen->time_until_pos(scanline), FUNC(interrupt_callback));
+	timer_set(machine, machine->primary_screen->time_until_pos(scanline), NULL, 0, interrupt_callback);
 }
 
 
-static unsigned video_ram_address( running_machine &machine )
+static unsigned video_ram_address( running_machine *machine )
 {
-	fgoal_state *state = machine.driver_data<fgoal_state>();
-	return 0x4000 | (state->m_row << 5) | (state->m_col >> 3);
+	fgoal_state *state = (fgoal_state *)machine->driver_data;
+	return 0x4000 | (state->row << 5) | (state->col >> 3);
 }
 
 
 static READ8_HANDLER( fgoal_analog_r )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	return input_port_read(space->machine(), state->m_fgoal_player ? "PADDLE1" : "PADDLE0"); /* PCB can be jumpered to use a single dial */
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	return input_port_read(space->machine, state->fgoal_player ? "PADDLE1" : "PADDLE0"); /* PCB can be jumpered to use a single dial */
 }
 
 
 static CUSTOM_INPUT( fgoal_80_r )
 {
-	UINT8 ret = (field.machine().primary_screen->vpos() & 0x80) ? 1 : 0;
+	UINT8 ret = (field->port->machine->primary_screen->vpos() & 0x80) ? 1 : 0;
 
 	return ret;
 }
 
 static READ8_HANDLER( fgoal_nmi_reset_r )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, CLEAR_LINE);
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, CLEAR_LINE);
 
 	return 0;
 }
@@ -122,8 +122,8 @@ static READ8_HANDLER( fgoal_nmi_reset_r )
 
 static READ8_HANDLER( fgoal_irq_reset_r )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	device_set_input_line(state->m_maincpu, 0, CLEAR_LINE);
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	cpu_set_input_line(state->maincpu, 0, CLEAR_LINE);
 
 	return 0;
 }
@@ -131,49 +131,49 @@ static READ8_HANDLER( fgoal_irq_reset_r )
 
 static READ8_HANDLER( fgoal_row_r )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	return state->m_row;
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	return state->row;
 }
 
 
 static WRITE8_HANDLER( fgoal_row_w )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
 
-	state->m_row = data;
-	mb14241_shift_data_w(state->m_mb14241, 0, 0);
+	state->row = data;
+	mb14241_shift_data_w(state->mb14241, 0, 0);
 }
 
 static WRITE8_HANDLER( fgoal_col_w )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
 
-	state->m_col = data;
-	mb14241_shift_count_w(state->m_mb14241, 0, data);
+	state->col = data;
+	mb14241_shift_count_w(state->mb14241, 0, data);
 }
 
 static READ8_HANDLER( fgoal_address_hi_r )
 {
-	return video_ram_address(space->machine()) >> 8;
+	return video_ram_address(space->machine) >> 8;
 }
 
 static READ8_HANDLER( fgoal_address_lo_r )
 {
-	return video_ram_address(space->machine()) & 0xff;
+	return video_ram_address(space->machine) & 0xff;
 }
 
 static READ8_HANDLER( fgoal_shifter_r )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	UINT8 v = mb14241_shift_result_r(state->m_mb14241, 0);
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	UINT8 v = mb14241_shift_result_r(state->mb14241, 0);
 
 	return BITSWAP8(v, 7, 6, 5, 4, 3, 2, 1, 0);
 }
 
 static READ8_HANDLER( fgoal_shifter_reverse_r )
 {
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	UINT8 v = mb14241_shift_result_r(state->m_mb14241, 0);
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	UINT8 v = mb14241_shift_result_r(state->mb14241, 0);
 
 	return BITSWAP8(v, 0, 1, 2, 3, 4, 5, 6, 7);
 }
@@ -200,12 +200,12 @@ static WRITE8_HANDLER( fgoal_sound2_w )
 	/* BIT3 => SX5 */
 	/* BIT4 => SX4 */
 	/* BIT5 => SX3 */
-	fgoal_state *state = space->machine().driver_data<fgoal_state>();
-	state->m_fgoal_player = data & 1;
+	fgoal_state *state = (fgoal_state *)space->machine->driver_data;
+	state->fgoal_player = data & 1;
 }
 
 
-static ADDRESS_MAP_START( cpu_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cpu_map, ADDRESS_SPACE_PROGRAM, 8 )
 
 	AM_RANGE(0x0000, 0x00ef) AM_RAM
 
@@ -229,7 +229,7 @@ static ADDRESS_MAP_START( cpu_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x00fc, 0x00ff) AM_WRITE(fgoal_sound2_w)
 
 	AM_RANGE(0x0100, 0x03ff) AM_RAM
-	AM_RANGE(0x4000, 0x7fff) AM_RAM AM_BASE_MEMBER(fgoal_state, m_video_ram)
+	AM_RANGE(0x4000, 0x7fff) AM_RAM AM_BASE_MEMBER(fgoal_state, video_ram)
 
 	AM_RANGE(0x8000, 0x8000) AM_WRITE(fgoal_ypos_w)
 	AM_RANGE(0x8001, 0x8001) AM_WRITE(fgoal_xpos_w)
@@ -338,63 +338,66 @@ GFXDECODE_END
 
 static MACHINE_START( fgoal )
 {
-	fgoal_state *state = machine.driver_data<fgoal_state>();
+	fgoal_state *state = (fgoal_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_mb14241 = machine.device("mb14241");
+	state->maincpu = machine->device("maincpu");
+	state->mb14241 = machine->device("mb14241");
 
-	state->save_item(NAME(state->m_xpos));
-	state->save_item(NAME(state->m_ypos));
-	state->save_item(NAME(state->m_current_color));
-	state->save_item(NAME(state->m_fgoal_player));
-	state->save_item(NAME(state->m_row));
-	state->save_item(NAME(state->m_col));
-	state->save_item(NAME(state->m_prev_coin));
+	state_save_register_global(machine, state->xpos);
+	state_save_register_global(machine, state->ypos);
+	state_save_register_global(machine, state->current_color);
+	state_save_register_global(machine, state->fgoal_player);
+	state_save_register_global(machine, state->row);
+	state_save_register_global(machine, state->col);
+	state_save_register_global(machine, state->prev_coin);
 }
 
 static MACHINE_RESET( fgoal )
 {
-	fgoal_state *state = machine.driver_data<fgoal_state>();
+	fgoal_state *state = (fgoal_state *)machine->driver_data;
 
-	machine.scheduler().timer_set(machine.primary_screen->time_until_pos(0), FUNC(interrupt_callback));
+	timer_set(machine, machine->primary_screen->time_until_pos(0), NULL, 0, interrupt_callback);
 
-	state->m_xpos = 0;
-	state->m_ypos = 0;
-	state->m_current_color = 0;
-	state->m_fgoal_player = 0;
-	state->m_row = 0;
-	state->m_col = 0;
-	state->m_prev_coin = 0;
+	state->xpos = 0;
+	state->ypos = 0;
+	state->current_color = 0;
+	state->fgoal_player = 0;
+	state->row = 0;
+	state->col = 0;
+	state->prev_coin = 0;
 }
 
-static MACHINE_CONFIG_START( fgoal, fgoal_state )
+static MACHINE_DRIVER_START( fgoal )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(fgoal_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6800, 10065000 / 10) /* ? */
-	MCFG_CPU_PROGRAM_MAP(cpu_map)
+	MDRV_CPU_ADD("maincpu", M6800, 10065000 / 10) /* ? */
+	MDRV_CPU_PROGRAM_MAP(cpu_map)
 
-	MCFG_MACHINE_START(fgoal)
-	MCFG_MACHINE_RESET(fgoal)
+	MDRV_MACHINE_START(fgoal)
+	MDRV_MACHINE_RESET(fgoal)
 
 	/* add shifter */
-	MCFG_MB14241_ADD("mb14241")
+	MDRV_MB14241_ADD("mb14241")
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 263)
-	MCFG_SCREEN_VISIBLE_AREA(0, 255, 16, 255)
-	MCFG_SCREEN_UPDATE(fgoal)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 263)
+	MDRV_SCREEN_VISIBLE_AREA(0, 255, 16, 255)
 
-	MCFG_GFXDECODE(fgoal)
-	MCFG_PALETTE_LENGTH(128 + 16 + 1)
+	MDRV_GFXDECODE(fgoal)
+	MDRV_PALETTE_LENGTH(128 + 16 + 1)
 
-	MCFG_PALETTE_INIT(fgoal)
-	MCFG_VIDEO_START(fgoal)
+	MDRV_PALETTE_INIT(fgoal)
+	MDRV_VIDEO_START(fgoal)
+	MDRV_VIDEO_UPDATE(fgoal)
 
 	/* sound hardware */
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
 ROM_START( fgoal )

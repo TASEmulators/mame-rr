@@ -7,44 +7,16 @@
 #include "machine/6532riot.h"
 
 
-class starwars_state : public driver_device
-{
-public:
-	starwars_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+/*----------- defined in drivers/starwars.c -----------*/
 
-	UINT8 m_sound_data;
-	UINT8 m_main_data;
-	device_t *m_riot;
-	UINT8 *m_slapstic_source;
-	UINT8 *m_slapstic_base;
-	UINT8 m_slapstic_current_bank;
-	offs_t m_slapstic_last_pc;
-	offs_t m_slapstic_last_address;
-	UINT8 m_is_esb;
-	UINT8 *m_mathram;
-	UINT8 m_control_num;
-	int m_MPA;
-	int m_BIC;
-	UINT16 m_dvd_shift;
-	UINT16 m_quotient_shift;
-	UINT16 m_divisor;
-	UINT16 m_dividend;
-	UINT8 *m_PROM_STR;
-	UINT8 *m_PROM_MAS;
-	UINT8 *m_PROM_AM;
-	int m_math_run;
-	emu_timer *m_math_timer;
-	INT16 m_A;
-	INT16 m_B;
-	INT16 m_C;
-	INT32 m_ACC;
-};
+extern UINT8 starwars_is_esb;
 
 
 /*----------- defined in machine/starwars.c -----------*/
 
-WRITE8_HANDLER( starwars_nstore_w );
+extern UINT8 *starwars_mathram;
+
+WRITE8_DEVICE_HANDLER( starwars_nstore_w );
 
 WRITE8_HANDLER( starwars_out_w );
 CUSTOM_INPUT( matrix_flag_r );
@@ -52,8 +24,8 @@ CUSTOM_INPUT( matrix_flag_r );
 READ8_HANDLER( starwars_adc_r );
 WRITE8_HANDLER( starwars_adc_select_w );
 
-void starwars_mproc_init(running_machine &machine);
-void starwars_mproc_reset(running_machine &machine);
+void starwars_mproc_init(running_machine *machine);
+void starwars_mproc_reset(void);
 
 READ8_HANDLER( starwars_prng_r );
 READ8_HANDLER( starwars_div_reh_r );

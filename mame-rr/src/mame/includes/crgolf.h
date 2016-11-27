@@ -7,31 +7,31 @@
 #define MASTER_CLOCK		18432000
 
 
-class crgolf_state : public driver_device
+class crgolf_state
 {
 public:
-	crgolf_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, crgolf_state(machine)); }
+
+	crgolf_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram_a;
-	UINT8 *  m_videoram_b;
-	UINT8 *  m_color_select;
-	UINT8 *  m_screen_flip;
-	UINT8 *  m_screen_select;
-	UINT8 *  m_screena_enable;
-	UINT8 *  m_screenb_enable;
+	UINT8 *  videoram_a;
+	UINT8 *  videoram_b;
+	UINT8 *  color_select;
+	UINT8 *  screen_flip;
+	UINT8 *  screen_select;
+	UINT8 *  screena_enable;
+	UINT8 *  screenb_enable;
 
 	/* misc */
-	UINT8    m_port_select;
-	UINT8    m_main_to_sound_data;
-	UINT8    m_sound_to_main_data;
-	UINT16   m_sample_offset;
-	UINT8    m_sample_count;
+	UINT8    port_select;
+	UINT8    main_to_sound_data, sound_to_main_data;
+	UINT16   sample_offset;
+	UINT8    sample_count;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 /*----------- defined in video/crgolf.c -----------*/
@@ -39,4 +39,4 @@ public:
 WRITE8_HANDLER( crgolf_videoram_w );
 READ8_HANDLER( crgolf_videoram_r );
 
-MACHINE_CONFIG_EXTERN( crgolf_video );
+MACHINE_DRIVER_EXTERN( crgolf_video );

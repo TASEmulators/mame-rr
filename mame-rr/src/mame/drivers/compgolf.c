@@ -24,32 +24,32 @@
 
 static WRITE8_DEVICE_HANDLER( compgolf_scrollx_lo_w )
 {
-	compgolf_state *state = device->machine().driver_data<compgolf_state>();
-	state->m_scrollx_lo = data;
+	compgolf_state *state = (compgolf_state *)device->machine->driver_data;
+	state->scrollx_lo = data;
 }
 
 static WRITE8_DEVICE_HANDLER( compgolf_scrolly_lo_w )
 {
-	compgolf_state *state = device->machine().driver_data<compgolf_state>();
-	state->m_scrolly_lo = data;
+	compgolf_state *state = (compgolf_state *)device->machine->driver_data;
+	state->scrolly_lo = data;
 }
 
 static WRITE8_HANDLER( compgolf_ctrl_w )
 {
-	compgolf_state *state = space->machine().driver_data<compgolf_state>();
+	compgolf_state *state = (compgolf_state *)space->machine->driver_data;
 
 	/* bit 4 and 6 are always set */
 
 	int new_bank = (data & 4) >> 2;
 
-	if (state->m_bank != new_bank)
+	if (state->bank != new_bank)
 	{
-		state->m_bank = new_bank;
-		memory_set_bank(space->machine(), "bank1", state->m_bank);
+		state->bank = new_bank;
+		memory_set_bank(space->machine, "bank1", state->bank);
 	}
 
-	state->m_scrollx_hi = (data & 1) << 8;
-	state->m_scrolly_hi = (data & 2) << 7;
+	state->scrollx_hi = (data & 1) << 8;
+	state->scrolly_hi = (data & 2) << 7;
 }
 
 
@@ -59,11 +59,11 @@ static WRITE8_HANDLER( compgolf_ctrl_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( compgolf_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( compgolf_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
-	AM_RANGE(0x1000, 0x17ff) AM_RAM_WRITE(compgolf_video_w) AM_BASE_MEMBER(compgolf_state, m_videoram)
-	AM_RANGE(0x1800, 0x1fff) AM_RAM_WRITE(compgolf_back_w) AM_BASE_MEMBER(compgolf_state, m_bg_ram)
-	AM_RANGE(0x2000, 0x2060) AM_RAM AM_BASE_MEMBER(compgolf_state, m_spriteram)
+	AM_RANGE(0x1000, 0x17ff) AM_RAM_WRITE(compgolf_video_w) AM_BASE_MEMBER(compgolf_state, videoram)
+	AM_RANGE(0x1800, 0x1fff) AM_RAM_WRITE(compgolf_back_w) AM_BASE_MEMBER(compgolf_state, bg_ram)
+	AM_RANGE(0x2000, 0x2060) AM_RAM AM_BASE_MEMBER(compgolf_state, spriteram)
 	AM_RANGE(0x2061, 0x2061) AM_WRITENOP
 	AM_RANGE(0x3000, 0x3000) AM_READ_PORT("P1")
 	AM_RANGE(0x3001, 0x3001) AM_READ_PORT("P2") AM_WRITE(compgolf_ctrl_w)
@@ -201,9 +201,9 @@ GFXDECODE_END
  *
  *************************************/
 
-static void sound_irq(device_t *device, int linestate)
+static void sound_irq(running_device *device, int linestate)
 {
-	cputag_set_input_line(device->machine(), "maincpu", 0, linestate);
+	cputag_set_input_line(device->machine, "maincpu", 0, linestate);
 }
 
 static const ym2203_interface ym2203_config =
@@ -228,57 +228,60 @@ static const ym2203_interface ym2203_config =
 
 static MACHINE_START( compgolf )
 {
-	compgolf_state *state = machine.driver_data<compgolf_state>();
+	compgolf_state *state = (compgolf_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_bank));
-	state->save_item(NAME(state->m_scrollx_lo));
-	state->save_item(NAME(state->m_scrollx_hi));
-	state->save_item(NAME(state->m_scrolly_lo));
-	state->save_item(NAME(state->m_scrolly_hi));
+	state_save_register_global(machine, state->bank);
+	state_save_register_global(machine, state->scrollx_lo);
+	state_save_register_global(machine, state->scrollx_hi);
+	state_save_register_global(machine, state->scrolly_lo);
+	state_save_register_global(machine, state->scrolly_hi);
 }
 
 static MACHINE_RESET( compgolf )
 {
-	compgolf_state *state = machine.driver_data<compgolf_state>();
+	compgolf_state *state = (compgolf_state *)machine->driver_data;
 
-	state->m_bank = -1;
-	state->m_scrollx_lo = 0;
-	state->m_scrollx_hi = 0;
-	state->m_scrolly_lo = 0;
-	state->m_scrolly_hi = 0;
+	state->bank = -1;
+	state->scrollx_lo = 0;
+	state->scrollx_hi = 0;
+	state->scrolly_lo = 0;
+	state->scrolly_hi = 0;
 }
 
-static MACHINE_CONFIG_START( compgolf, compgolf_state )
+static MACHINE_DRIVER_START( compgolf )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(compgolf_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, 2000000)
-	MCFG_CPU_PROGRAM_MAP(compgolf_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", M6809, 2000000)
+	MDRV_CPU_PROGRAM_MAP(compgolf_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_MACHINE_START(compgolf)
-	MCFG_MACHINE_RESET(compgolf)
+	MDRV_MACHINE_START(compgolf)
+	MDRV_MACHINE_RESET(compgolf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(compgolf)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_PALETTE_LENGTH(0x100)
-	MCFG_PALETTE_INIT(compgolf)
-	MCFG_GFXDECODE(compgolf)
+	MDRV_PALETTE_LENGTH(0x100)
+	MDRV_PALETTE_INIT(compgolf)
+	MDRV_GFXDECODE(compgolf)
 
-	MCFG_VIDEO_START(compgolf)
+	MDRV_VIDEO_START(compgolf)
+	MDRV_VIDEO_UPDATE(compgolf)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 1500000)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2203, 1500000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************************
@@ -346,10 +349,10 @@ ROM_END
  *
  *************************************/
 
-static void compgolf_expand_bg(running_machine &machine)
+static void compgolf_expand_bg(running_machine *machine)
 {
-	UINT8 *GFXDST = machine.region("gfx2")->base();
-	UINT8 *GFXSRC = machine.region("gfx4")->base();
+	UINT8 *GFXDST = memory_region(machine, "gfx2");
+	UINT8 *GFXSRC = memory_region(machine, "gfx4");
 
 	int x;
 
@@ -362,7 +365,7 @@ static void compgolf_expand_bg(running_machine &machine)
 
 static DRIVER_INIT( compgolf )
 {
-	memory_configure_bank(machine, "bank1", 0, 2, machine.region("user1")->base(), 0x4000);
+	memory_configure_bank(machine, "bank1", 0, 2, memory_region(machine, "user1"), 0x4000);
 	compgolf_expand_bg(machine);
 }
 

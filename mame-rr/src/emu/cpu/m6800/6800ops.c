@@ -230,13 +230,15 @@ OP_HANDLER( bra )
 	UINT8 t;
 	IMMBYTE(t);
 	PC+=SIGNED(t);
+	/* speed up busy loops */
+	if (t==0xfe) EAT_CYCLES;
 }
 
 /* $21 BRN relative ----- */
-static UINT8 m6800_brn_t; // hack around GCC 4.6 error because we need the side effects of IMMBYTE
 OP_HANDLER( brn )
 {
-	IMMBYTE(m6800_brn_t);
+	UINT8 t;
+	IMMBYTE(t);
 }
 
 /* $22 BHI relative ----- */

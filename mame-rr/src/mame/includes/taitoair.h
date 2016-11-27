@@ -17,56 +17,33 @@ struct taitoair_poly {
 };
 
 
-class taitoair_state : public driver_device
+class taitoair_state
 {
 public:
-	taitoair_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, taitoair_state(machine)); }
+
+	taitoair_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *      m_m68000_mainram;
-	UINT16 *      m_line_ram;
-	UINT16 *      m_dsp_ram;	/* Shared 68000/TMS32025 RAM */
-	UINT16 *      m_paletteram;
+	UINT16 *      m68000_mainram;
+	UINT16 *      line_ram;
+	UINT16 *      dsp_ram;	/* Shared 68000/TMS32025 RAM */
+	UINT16 *      paletteram;
 
 	/* video-related */
-	taitoair_poly  m_q;
+	taitoair_poly  q;
 
 	/* misc */
-	int           m_dsp_hold_signal;
-	INT32         m_banknum;
+	int           dsp_hold_signal;
+	INT32         banknum;
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_dsp;
-	device_t *m_tc0080vco;
-
-	UINT16 *      m_gradram;
-	UINT16 *      m_backregs;
-
-	bitmap_t *m_framebuffer[2];
-
-    /* 3d info */
-    INT16 m_frustumLeft;
-    INT16 m_frustumBottom;
-    INT16 m_eyecoordBuffer[4];  /* homogeneous */
-
-    //bitmap_t *m_buffer3d;
+	running_device *audiocpu;
+	running_device *dsp;
+	running_device *tc0080vco;
 };
 
 
 /*----------- defined in video/taitoair.c -----------*/
 
-SCREEN_UPDATE( taitoair );
-VIDEO_START( taitoair );
-
-WRITE16_HANDLER( dsp_flags_w );
-WRITE16_HANDLER( dsp_x_eyecoord_w );
-WRITE16_HANDLER( dsp_y_eyecoord_w );
-WRITE16_HANDLER( dsp_z_eyecoord_w );
-WRITE16_HANDLER( dsp_rasterize_w );
-WRITE16_HANDLER( dsp_frustum_left_w );
-WRITE16_HANDLER( dsp_frustum_bottom_w );
-READ16_HANDLER( dsp_x_return_r );
-READ16_HANDLER( dsp_y_return_r );
-
+VIDEO_UPDATE( taitoair );

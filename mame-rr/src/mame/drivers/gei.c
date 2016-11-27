@@ -69,53 +69,40 @@ U.S.A. Trivia              New Sports                 General Facts
 #include "cpu/z80/z80.h"
 #include "machine/8255ppi.h"
 #include "machine/ticket.h"
-#include "machine/nvram.h"
 #include "sound/dac.h"
 
-
-class gei_state : public driver_device
-{
-public:
-	gei_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 m_drawctrl[3];
-	UINT8 m_color[8];
-	int m_prevoffset;
-	int m_yadd;
-	int m_signature_answer;
-	int m_signature_pos;
-};
-
+static UINT8 drawctrl[3];
+static UINT8 color[8];
 
 static WRITE8_HANDLER( gei_drawctrl_w )
 {
-	gei_state *state = space->machine().driver_data<gei_state>();
-	state->m_drawctrl[offset] = data;
+	drawctrl[offset] = data;
 	if (offset == 2)
 	{
 		int i;
 		for (i = 0; i < 8; i++)
-			if (BIT(state->m_drawctrl[1],i)) state->m_color[i] = state->m_drawctrl[0] & 7;
+			if (BIT(drawctrl[1],i)) color[i] = drawctrl[0] & 7;
 	}
 }
 
 static WRITE8_HANDLER( gei_bitmap_w )
 {
-	gei_state *state = space->machine().driver_data<gei_state>();
 	int sx,sy;
+	static int prevoffset, yadd;
 	int i;
 
-	state->m_yadd = (offset==state->m_prevoffset) ? (state->m_yadd+1):0;
-	state->m_prevoffset = offset;
+	space->machine->generic.videoram.u8[offset] = data;
+
+	yadd = (offset==prevoffset) ? (yadd+1):0;
+	prevoffset = offset;
 
 	sx = 8 * (offset % 64);
 	sy = offset / 64;
-	sy = (sy + state->m_yadd) & 0xff;
+	sy = (sy + yadd) & 0xff;
 
 
 	for (i = 0; i < 8; i++)
-		*BITMAP_ADDR16(space->machine().generic.tmpbitmap, sy, sx+i) = state->m_color[8-i-1];
+		*BITMAP_ADDR16(space->machine->generic.tmpbitmap, sy, sx+i) = color[8-i-1];
 }
 
 static PALETTE_INIT(gei)
@@ -141,66 +128,66 @@ static PALETTE_INIT(quizvid)
 static WRITE8_DEVICE_HANDLER( lamps_w )
 {
 	/* 5 button lamps */
-	set_led_status(device->machine(), 0,data & 0x01);
-	set_led_status(device->machine(), 1,data & 0x02);
-	set_led_status(device->machine(), 2,data & 0x04);
-	set_led_status(device->machine(), 3,data & 0x08);
-	set_led_status(device->machine(), 4,data & 0x10);
+	set_led_status(device->machine, 0,data & 0x01);
+	set_led_status(device->machine, 1,data & 0x02);
+	set_led_status(device->machine, 2,data & 0x04);
+	set_led_status(device->machine, 3,data & 0x08);
+	set_led_status(device->machine, 4,data & 0x10);
 
 	/* 3 button lamps for deal, cancel, stand in poker games;
     lamp order verified in poker and selection self tests */
-	set_led_status(device->machine(), 7,data & 0x20);
-	set_led_status(device->machine(), 5,data & 0x40);
-	set_led_status(device->machine(), 6,data & 0x80);
+	set_led_status(device->machine, 7,data & 0x20);
+	set_led_status(device->machine, 5,data & 0x40);
+	set_led_status(device->machine, 6,data & 0x80);
 }
 
 static WRITE8_DEVICE_HANDLER( sound_w )
 {
-	address_space *space = device->machine().device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(device->machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
 	/* bit 3 - coin lockout, lamp10 in poker / lamp6 in trivia test modes */
-	coin_lockout_global_w(device->machine(), ~data & 0x08);
-	set_led_status(device->machine(), 9,data & 0x08);
+	coin_lockout_global_w(device->machine, ~data & 0x08);
+	set_led_status(device->machine, 9,data & 0x08);
 
 	/* bit 5 - ticket out in trivia games */
-	ticket_dispenser_w(device->machine().device("ticket"), 0, (data & 0x20)<< 2);
+	ticket_dispenser_w(device->machine->device("ticket"), 0, (data & 0x20)<< 2);
 
 	/* bit 6 enables NMI */
 	interrupt_enable_w(space, 0, data & 0x40);
 
 	/* bit 7 goes directly to the sound amplifier */
-	dac_data_w(device->machine().device("dac"), ((data & 0x80) >> 7) * 255);
+	dac_data_w(device->machine->device("dac"), ((data & 0x80) >> 7) * 255);
 }
 
 static WRITE8_DEVICE_HANDLER( sound2_w )
 {
 	/* bit 3,6 - coin lockout, lamp10+11 in selection test mode */
-	coin_lockout_w(device->machine(), 0, ~data & 0x08);
-	coin_lockout_w(device->machine(), 1, ~data & 0x40);
-	set_led_status(device->machine(), 9,data & 0x08);
-	set_led_status(device->machine(), 10,data & 0x40);
+	coin_lockout_w(device->machine, 0, ~data & 0x08);
+	coin_lockout_w(device->machine, 1, ~data & 0x40);
+	set_led_status(device->machine, 9,data & 0x08);
+	set_led_status(device->machine, 10,data & 0x40);
 
 	/* bit 4,5 - lamps 12, 13 in selection test mode;
     12 lights up if dsw maximum bet = 30 an bet > 15 or if dsw maximum bet = 10 an bet = 10 */
-	set_led_status(device->machine(), 11,data & 0x10);
-	set_led_status(device->machine(), 12,data & 0x20);
+	set_led_status(device->machine, 11,data & 0x10);
+	set_led_status(device->machine, 12,data & 0x20);
 
 	/* bit 7 goes directly to the sound amplifier */
-	dac_data_w(device->machine().device("dac"), ((data & 0x80) >> 7) * 255);
+	dac_data_w(device->machine->device("dac"), ((data & 0x80) >> 7) * 255);
 }
 
 static WRITE8_DEVICE_HANDLER( lamps2_w )
 {
 	/* bit 4 - play/raise button lamp, lamp 9 in poker test mode  */
-	set_led_status(device->machine(), 8,data & 0x10);
+	set_led_status(device->machine, 8,data & 0x10);
 }
 
 static WRITE8_DEVICE_HANDLER( nmi_w )
 {
-	address_space *space = device->machine().device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(device->machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
 	/* bit 4 - play/raise button lamp, lamp 9 in selection test mode  */
-	set_led_status(device->machine(), 8,data & 0x10);
+	set_led_status(device->machine, 8,data & 0x10);
 
 	/* bit 6 enables NMI */
 	interrupt_enable_w(space, 0, data & 0x40);
@@ -208,7 +195,7 @@ static WRITE8_DEVICE_HANDLER( nmi_w )
 
 static READ8_HANDLER( catchall )
 {
-	int pc = cpu_get_pc(&space->device());
+	int pc = cpu_get_pc(space->cpu);
 
 	if (pc != 0x3c74 && pc != 0x0364 && pc != 0x036d)	/* weed out spurious blit reads */
 		logerror("%04x: unmapped memory read from %04x\n",pc,offset);
@@ -223,68 +210,68 @@ static READ8_DEVICE_HANDLER( portC_r )
 
 static WRITE8_HANDLER( banksel_main_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x8000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x8000);
 }
 static WRITE8_HANDLER( banksel_1_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x10000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x10000);
 }
 static WRITE8_HANDLER( banksel_2_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x18000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x18000);
 }
 static WRITE8_HANDLER( banksel_3_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x20000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x20000);
 }
 static WRITE8_HANDLER( banksel_4_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x28000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x28000);
 }
 static WRITE8_HANDLER( banksel_5_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x30000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x30000);
 }
 
 static WRITE8_HANDLER( banksel_1_1_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x10000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x10000);
 }
 static WRITE8_HANDLER( banksel_2_1_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x14000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x14000);
 }
 static WRITE8_HANDLER( banksel_3_1_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x18000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x18000);
 }
 static WRITE8_HANDLER( banksel_4_1_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x1c000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x1c000);
 }
 static WRITE8_HANDLER( banksel_5_1_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x20000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x20000);
 }
 static WRITE8_HANDLER( banksel_1_2_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x12000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x12000);
 }
 static WRITE8_HANDLER( banksel_2_2_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x16000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x16000);
 }
 static WRITE8_HANDLER( banksel_3_2_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x1a000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x1a000);
 }
 static WRITE8_HANDLER( banksel_4_2_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x1e000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x1e000);
 }
 static WRITE8_HANDLER( banksel_5_2_w )
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x22000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x22000);
 }
 
 static WRITE8_HANDLER(geimulti_bank_w)
@@ -312,79 +299,77 @@ static WRITE8_HANDLER(geimulti_bank_w)
 	}
 
 	if (bank != -1)
-		memory_set_bankptr(space->machine(), "bank1", space->machine().region("bank")->base() + bank*0x8000);
+		memory_set_bankptr(space->machine, "bank1", memory_region(space->machine, "bank") + bank*0x8000);
 }
 
 static READ8_HANDLER(banksel_1_r)
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x10000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x10000);
 	return 0x03;
 };
 
 static READ8_HANDLER(banksel_2_r)
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x18000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x18000);
 	return 0x03;
 }
 
 static READ8_HANDLER(banksel_3_r)
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x20000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x20000);
 	return 0x03;
 }
 
 static READ8_HANDLER(banksel_4_r)
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x28000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x28000);
 	return 0x03;
 }
 
 static READ8_HANDLER(banksel_5_r)
 {
-	memory_set_bankptr(space->machine(), "bank1",space->machine().region("maincpu")->base() + 0x30000);
+	memory_set_bankptr(space->machine, "bank1",memory_region(space->machine, "maincpu") + 0x30000);
 	return 0x03;
 }
 
 /* This signature is used to validate the ROMs in sportauth. Simple protection check? */
+static int signature_answer,signature_pos;
 
 static READ8_HANDLER( signature_r )
 {
-	gei_state *state = space->machine().driver_data<gei_state>();
-	return state->m_signature_answer;
+	return signature_answer;
 }
 
 static WRITE8_HANDLER( signature_w )
 {
-	gei_state *state = space->machine().driver_data<gei_state>();
-	if (data == 0) state->m_signature_pos = 0;
+	if (data == 0) signature_pos = 0;
 	else
 	{
 		static const UINT8 signature[8] = { 0xff, 0x01, 0xfd, 0x05, 0xf5, 0x15, 0xd5, 0x55 };
 
-		state->m_signature_answer = signature[state->m_signature_pos++];
+		signature_answer = signature[signature_pos++];
 
-		state->m_signature_pos &= 7;	/* safety; shouldn't happen */
+		signature_pos &= 7;	/* safety; shouldn't happen */
 	}
 }
 
 static WRITE8_HANDLER( signature2_w )
 {
-	gei_state *state = space->machine().driver_data<gei_state>();
-	if (data == 0) state->m_signature_pos = 0;
+	if (data == 0) signature_pos = 0;
 	else
 	{
 		static const UINT8 signature[8] = { 0xff, 0x01, 0xf7, 0x11, 0xd7, 0x51, 0x57, 0x51 };
 
-		state->m_signature_answer = signature[state->m_signature_pos++];
+		signature_answer = signature[signature_pos++];
 
-		state->m_signature_pos &= 7;	/* safety; shouldn't happen */
+		signature_pos &= 7;	/* safety; shouldn't happen */
 	}
 }
 
-static ADDRESS_MAP_START( getrivia_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( getrivia_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x600f, 0x600f) AM_WRITE(banksel_5_1_w)
@@ -400,13 +385,13 @@ static ADDRESS_MAP_START( getrivia_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
 	AM_RANGE(0x8000, 0x9fff) AM_ROM /* space for diagnostic ROM? */
 	AM_RANGE(0xa000, 0xbfff) AM_ROM
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( gselect_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( gselect_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x4000, 0x40ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x40ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4400, 0x4400) AM_WRITE(banksel_1_1_w)
 	AM_RANGE(0x4401, 0x4401) AM_WRITE(banksel_1_2_w)
 	AM_RANGE(0x4402, 0x4402) AM_WRITE(banksel_2_1_w)
@@ -414,14 +399,14 @@ static ADDRESS_MAP_START( gselect_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
 // TODO: where are mapped the lower 0x2000 bytes of the banks?
-static ADDRESS_MAP_START( amuse_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( amuse_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x606f, 0x606f) AM_WRITE(banksel_5_1_w)
@@ -431,13 +416,13 @@ static ADDRESS_MAP_START( amuse_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x607e, 0x607e) AM_WRITE(banksel_1_1_w)
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
 	AM_RANGE(0x8000, 0xbfff) AM_ROM
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( gepoker_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( gepoker_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x60ef, 0x60ef) AM_WRITE(banksel_3_1_w)
@@ -448,13 +433,13 @@ static ADDRESS_MAP_START( gepoker_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
 	AM_RANGE(0x8000, 0xbfff) AM_ROM /* space for diagnostic ROM? */
 	AM_RANGE(0xe000, 0xffff) AM_ROM
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( amuse1_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( amuse1_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x4000, 0x43ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x43ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4400, 0x4400) AM_WRITE(banksel_1_1_w)
 	AM_RANGE(0x4401, 0x4401) AM_WRITE(banksel_2_1_w)
 	AM_RANGE(0x4402, 0x4402) AM_WRITE(banksel_3_1_w)
@@ -465,12 +450,12 @@ static ADDRESS_MAP_START( amuse1_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
 	AM_RANGE(0x8000, 0xbfff) AM_ROM /* space for diagnostic ROM? */
 	AM_RANGE(0xe000, 0xffff) AM_ROM
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( findout_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( findout_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r,ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r,ppi8255_w)
 	/* banked ROMs are enabled by low 6 bits of the address */
@@ -485,13 +470,13 @@ static ADDRESS_MAP_START( findout_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x7800, 0x7fff) AM_ROM /*space for diagnostic ROM?*/
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
-	AM_RANGE(0xc000, 0xffff) AM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_WRITE(gei_bitmap_w)  AM_BASE_GENERIC(videoram)
 	AM_RANGE(0x0000, 0xffff) AM_READ(catchall)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( quizvid_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( quizvid_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r,ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r,ppi8255_w)
 	/* banked ROMs are enabled by low 6 bits of the address */
@@ -503,25 +488,26 @@ static ADDRESS_MAP_START( quizvid_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x7800, 0x7fff) AM_ROM /*space for diagnostic ROM?*/
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
-	AM_RANGE(0xc000, 0xffff) AM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_WRITE(gei_bitmap_w)  AM_BASE_GENERIC(videoram)
 	AM_RANGE(0x0000, 0xffff) AM_READ(catchall)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( suprpokr_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( suprpokr_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x6200, 0x6200) AM_WRITE(signature2_w)
 	AM_RANGE(0x6400, 0x6400) AM_READ(signature_r)
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
-	AM_RANGE(0xc000, 0xffff) AM_WRITE(gei_bitmap_w)
-	AM_RANGE(0x8000, 0xffff) AM_ROM
+	AM_RANGE(0x8000, 0xbfff) AM_ROM /* space for diagnostic ROM? */
+	AM_RANGE(0xe000, 0xffff) AM_ROM
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( geimulti_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( geimulti_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5800, 0x5fff) AM_ROM
@@ -529,12 +515,12 @@ static ADDRESS_MAP_START( geimulti_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x6000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank1")
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sprtauth_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sprtauth_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x4800, 0x4803) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5000, 0x5003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x5600, 0x5600) AM_READ(signature_r)
@@ -543,7 +529,7 @@ static ADDRESS_MAP_START( sprtauth_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x6000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8002) AM_WRITE(gei_drawctrl_w)
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank1")
-	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w)
+	AM_RANGE(0xc000, 0xffff) AM_RAM_WRITE(gei_bitmap_w) AM_BASE_GENERIC(videoram)
 ADDRESS_MAP_END
 
 static INPUT_PORTS_START(reelfun_standard)
@@ -1063,119 +1049,133 @@ static const ppi8255_interface findout_ppi8255_intf[2] =
 	}
 };
 
-static MACHINE_CONFIG_START( getrivia, gei_state )
-	MCFG_CPU_ADD("maincpu",Z80,4000000) /* 4 MHz */
-	MCFG_CPU_PROGRAM_MAP(getrivia_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+static MACHINE_DRIVER_START( getrivia )
+	MDRV_CPU_ADD("maincpu",Z80,4000000) /* 4 MHz */
+	MDRV_CPU_PROGRAM_MAP(getrivia_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(48, 511-48, 16, 255-16)
-	MCFG_SCREEN_UPDATE(generic_bitmapped)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(48, 511-48, 16, 255-16)
 
-	MCFG_PALETTE_LENGTH(8)
-	MCFG_PALETTE_INIT(gei)
+	MDRV_PALETTE_LENGTH(8)
+	MDRV_PALETTE_INIT(gei)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-	MCFG_VIDEO_START(generic_bitmapped)
+	MDRV_VIDEO_START(generic_bitmapped)
+	MDRV_VIDEO_UPDATE(generic_bitmapped)
 
-	MCFG_PPI8255_ADD( "ppi8255_0", getrivia_ppi8255_intf[0] )
-	MCFG_PPI8255_ADD( "ppi8255_1", getrivia_ppi8255_intf[1] )
-	MCFG_TICKET_DISPENSER_ADD("ticket", 100, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH)
+	MDRV_PPI8255_ADD( "ppi8255_0", getrivia_ppi8255_intf[0] )
+	MDRV_PPI8255_ADD( "ppi8255_1", getrivia_ppi8255_intf[1] )
+	MDRV_TICKET_DISPENSER_ADD("ticket", 100, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( findout, getrivia )
+static MACHINE_DRIVER_START( findout )
+	MDRV_IMPORT_FROM(getrivia)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(findout_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(findout_map)
 
-	MCFG_PPI8255_RECONFIG( "ppi8255_0", findout_ppi8255_intf[0] )
-	MCFG_PPI8255_RECONFIG( "ppi8255_1", findout_ppi8255_intf[1] )
-MACHINE_CONFIG_END
+	MDRV_PPI8255_RECONFIG( "ppi8255_0", findout_ppi8255_intf[0] )
+	MDRV_PPI8255_RECONFIG( "ppi8255_1", findout_ppi8255_intf[1] )
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( quizvid, findout )
+static MACHINE_DRIVER_START( quizvid )
+	MDRV_IMPORT_FROM(findout)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(quizvid_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(quizvid_map)
 
-	MCFG_PALETTE_INIT(quizvid)
-MACHINE_CONFIG_END
+	MDRV_PALETTE_INIT(quizvid)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( gselect, getrivia )
-
-	/* basic machine hardware */
-
-	MCFG_DEVICE_REMOVE("ticket")
-
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(gselect_map)
-
-	MCFG_PPI8255_RECONFIG( "ppi8255_0", gselect_ppi8255_intf[0] )
-	MCFG_PPI8255_RECONFIG( "ppi8255_1", gselect_ppi8255_intf[1] )
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( jokpokera, getrivia )
+static MACHINE_DRIVER_START( gselect )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(getrivia)
 
-	MCFG_DEVICE_REMOVE("ticket")
+	MDRV_DEVICE_REMOVE("ticket")
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(gselect_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(gselect_map)
 
-	MCFG_PPI8255_RECONFIG( "ppi8255_0", gselect_ppi8255_intf[0] )
-MACHINE_CONFIG_END
+	MDRV_PPI8255_RECONFIG( "ppi8255_0", gselect_ppi8255_intf[0] )
+	MDRV_PPI8255_RECONFIG( "ppi8255_1", gselect_ppi8255_intf[1] )
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( amuse, getrivia )
-
-	/* basic machine hardware */
-
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(amuse_map)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( gepoker, getrivia )
+static MACHINE_DRIVER_START( jokpokera )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(getrivia)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(gepoker_map)
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("ticket")
 
-static MACHINE_CONFIG_DERIVED( amuse1, getrivia )
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(gselect_map)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(amuse1_map)
-MACHINE_CONFIG_END
+	MDRV_PPI8255_RECONFIG( "ppi8255_0", gselect_ppi8255_intf[0] )
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( suprpokr, getrivia )
+static MACHINE_DRIVER_START( amuse )
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(suprpokr_map)
-MACHINE_CONFIG_END
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(getrivia)
 
-static MACHINE_CONFIG_DERIVED( geimulti, getrivia )
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(amuse_map)
+MACHINE_DRIVER_END
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(geimulti_map)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( gepoker )
 
-static MACHINE_CONFIG_DERIVED( sprtauth, getrivia )
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(getrivia)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(sprtauth_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(gepoker_map)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( amuse1 )
+
+	MDRV_IMPORT_FROM(getrivia)
+
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(amuse1_map)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( suprpokr )
+
+	MDRV_IMPORT_FROM(getrivia)
+
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(suprpokr_map)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( geimulti )
+
+	MDRV_IMPORT_FROM(getrivia)
+
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(geimulti_map)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( sprtauth )
+
+	MDRV_IMPORT_FROM(getrivia)
+
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(sprtauth_map)
+MACHINE_DRIVER_END
 
 /***************************************************
 Rom board is UVM-1A
@@ -1263,7 +1263,7 @@ Sets will be listed by "series" - the program code version
  is not as important as maintaining the correct questions
  sets as per known series
 Missing sets will be filled as dumped, as question roms
- are interchangeable, operators did thier own swaps
+ are interchangable, operators did thier own swaps
 
 Note: Question roms that contain "#1" (or 2 ect)
       are corrected roms (spelling and / or answers)
@@ -1534,15 +1534,7 @@ ROM_END
 ROM_START( suprpokr )
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "10-19s-1.e1",  0x00000, 0x4000, CRC(50662b4d) SHA1(967161a755db43d2cfd5ce92e14c5284f1f1f8ad) )
-	ROM_LOAD( "10-19s-1.e2",  0x08000, 0x4000, CRC(22b45aeb) SHA1(006c3072cc44c6fde9b4d15163dc70707bbd5a9c) )
-	ROM_RELOAD( 0xc000, 0x4000 )
-ROM_END
-
-ROM_START( suprpkr1 )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
-	ROM_LOAD( "e1.bin",  0x00000, 0x4000, CRC(5cc7c1e0) SHA1(1cdca32c4df7227dab77574abe344b291741139e) )
-	ROM_LOAD( "e2.bin",  0x08000, 0x4000, CRC(e47d6e2a) SHA1(9cabc42275dad8be6cd5b167e381ddb5bf08276d) )
-	ROM_RELOAD( 0xc000, 0x4000 )
+	ROM_LOAD( "10-19s-1.e2",  0x08000, 0x4000, BAD_DUMP CRC(22b45aeb) SHA1(006c3072cc44c6fde9b4d15163dc70707bbd5a9c) ) /* Self test reports this ROM bad */
 ROM_END
 
 ROM_START( reelfun ) /* v7.03 */
@@ -1669,7 +1661,7 @@ ROM_START( gt103a3 )
 	ROM_REGION( 0x38000, "maincpu", 0 )
 	ROM_LOAD( "t_3a-8_1.bin",    0x00000, 0x4000, CRC(02aef306) SHA1(1ffc10c79a55d41ea36bcaab13cb3f02cb3f9712) )
 	ROM_LOAD( "rock-n-roll_alt", 0x10000, 0x8000, CRC(8eb83052) SHA1(93e3c1ae6c2048fb44ecafe1013b6a96da38fa84) ) /* Questions from an unknown set, will be corrected when verified */
-	ROM_LOAD( "history-geog",    0x18000, 0x8000, CRC(c9a70fc3) SHA1(4021e5d702844416e8c798ed0a57c9ecd20b1d4b) ) /* These questions are likely mix-n-match do to opperator swaps   */
+	ROM_LOAD( "history-geog.",   0x18000, 0x8000, CRC(c9a70fc3) SHA1(4021e5d702844416e8c798ed0a57c9ecd20b1d4b) ) /* These questions are likely mix-n-match do to opperator swaps   */
 	ROM_LOAD( "the_sixties",     0x20000, 0x8000, CRC(8cfa854e) SHA1(81428c12f99841db1c61b471ac8d00f0c411883b) ) /* Currently unverified are Series 12, 13 & 14 */
 	ROM_LOAD( "tv_comedies",     0x28000, 0x8000, CRC(992ae38e) SHA1(312780d651a85a1c433f587ff2ede579456d3fd9) )
 ROM_END
@@ -1824,12 +1816,12 @@ ROM_END
 
 static DRIVER_INIT( setbank )
 {
-	memory_set_bankptr(machine, "bank1",machine.region("maincpu")->base() + 0x2000);
+	memory_set_bankptr(machine, "bank1",memory_region(machine, "maincpu") + 0x2000);
 }
 
 static DRIVER_INIT( geimulti )
 {
-	memory_set_bankptr(machine, "bank1",machine.region("bank")->base() + 0x0000);
+	memory_set_bankptr(machine, "bank1",memory_region(machine, "bank") + 0x0000);
 }
 
 GAME( 1982, jokpoker, 0,        gselect,  gselect,  setbank, ROT0, "Greyhound Electronics", "Joker Poker (Version 16.03B)",            GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
@@ -1869,21 +1861,20 @@ GAME( 1984, gt103asx, gtsers8,  findout,  gt103a,   0,       ROT0, "Greyhound El
 GAME( 1985, sextriv1, 0,        getrivia, sextriv1, 0,       ROT0, "Kinky Kit and Game Co.", "Sexual Trivia (Version 1.02SB, set 1)",  GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1985, sextriv2, sextriv1, getrivia, sextriv1, 0,       ROT0, "Kinky Kit and Game Co.", "Sexual Trivia (Version 1.02SB, set 2)",  GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
-GAME( 1986, gt507uk,  0,        findout,  gt507uk,  0,       ROT0, "Grayhound Electronics", "Trivia (UK Version 5.07)",                GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
-GAME( 1986, gt5,      0,        findout,  gt103,    0,       ROT0, "Grayhound Electronics", "Trivia (Version 5.06)",                   GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1986, gt507uk,  0,        findout,  gt507uk,  0,       ROT0, "Greyhound Electronics", "Trivia (UK Version 5.07)",                GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1986, gt5,      0,        findout,  gt103,    0,       ROT0, "Greyhound Electronics", "Trivia (Version 5.06)",                   GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
 GAME( 1986, quiz,     0,        findout,  quiz,     0,       ROT0, "bootleg",               "Quiz (Revision 2)",                       GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
 GAME( 1986, quizvid,  0,        quizvid,  quiz,     0,       ROT0, "bootleg",               "Video Quiz",                              GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
-GAME( 1986, reelfun,  0,        findout,  reelfun,  0,       ROT0, "Grayhound Electronics", "Reel Fun (Version 7.03)",                 GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
-GAME( 1986, reelfun1, reelfun,  findout,  reelfun,  0,       ROT0, "Grayhound Electronics", "Reel Fun (Version 7.01)",                 GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1986, reelfun,  0,        findout,  reelfun,  0,       ROT0, "Greyhound Electronics", "Reel Fun (Version 7.03)",                 GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1986, reelfun1, reelfun,  findout,  reelfun,  0,       ROT0, "Greyhound Electronics", "Reel Fun (Version 7.01)",                 GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1987, findout,  0,        findout,  findout,  0,       ROT0, "Elettronolo",           "Find Out (Version 4.04)",                 GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
-GAME( 1986, suprpokr, 0,        suprpokr, suprpokr, 0,       ROT0, "Grayhound Electronics", "Super Poker (Version 10.19S)",            GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
-GAME( 1986, suprpkr1, suprpokr, suprpokr, suprpokr, 0,       ROT0, "Grayhound Electronics", "Super Poker (Version 10.15S)",            GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1987, suprpokr, 0,        suprpokr, suprpokr, 0,       ROT0, "Greyhound Electronics", "Super Poker",                             GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
 GAME( 1991, quiz211,  0,        findout,  quiz,     0,       ROT0, "Elettronolo",           "Quiz (Revision 2.11)",                    GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
-GAME( 1992, geimulti, 0,        geimulti, geimulti, geimulti,ROT0, "Grayhound Electronics", "GEI Multi Game",                          GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
-GAME( 1992, sprtauth, 0,        sprtauth, sprtauth, geimulti,ROT0, "Classic Games",         "Sports Authority",                        GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1992, geimulti, 0,        geimulti, geimulti, geimulti,ROT0, "Greyhound Electronics",  "GEI Multi Game",                         GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1992, sprtauth, 0,        sprtauth, sprtauth, geimulti,ROT0, "Classic Games",          "Sports Authority",                       GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )

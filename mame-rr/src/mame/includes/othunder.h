@@ -4,8 +4,6 @@
 
 *************************************************************************/
 
-#include "machine/eeprom.h"
-
 struct othunder_tempsprite
 {
 	int gfx;
@@ -17,43 +15,43 @@ struct othunder_tempsprite
 };
 
 
-class othunder_state : public driver_device
+class othunder_state
 {
 public:
-	othunder_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, othunder_state(machine)); }
+
+	othunder_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *   m_spriteram;
-	size_t     m_spriteram_size;
+	UINT16 *   spriteram;
+	size_t     spriteram_size;
 
 	/* video-related */
-	struct othunder_tempsprite *m_spritelist;
+	struct othunder_tempsprite *spritelist;
 
 	/* misc */
-	int        m_vblank_irq;
-	int        m_ad_irq;
-	INT32      m_banknum;
-	int        m_pan[4];
+	int        vblank_irq, ad_irq;
+	INT32      banknum;
+	int        pan[4];
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	eeprom_device *m_eeprom;
-	device_t *m_tc0220ioc;
-	device_t *m_tc0100scn;
-	device_t *m_tc0110pcr;
-	device_t *m_tc0140syt;
-	device_t *m_2610_0l;
-	device_t *m_2610_0r;
-	device_t *m_2610_1l;
-	device_t *m_2610_1r;
-	device_t *m_2610_2l;
-	device_t *m_2610_2r;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *eeprom;
+	running_device *tc0220ioc;
+	running_device *tc0100scn;
+	running_device *tc0110pcr;
+	running_device *tc0140syt;
+	running_device *_2610_0l;
+	running_device *_2610_0r;
+	running_device *_2610_1l;
+	running_device *_2610_1r;
+	running_device *_2610_2l;
+	running_device *_2610_2r;
 };
 
 
 /*----------- defined in video/othunder.c -----------*/
 
 VIDEO_START( othunder );
-SCREEN_UPDATE( othunder );
+VIDEO_UPDATE( othunder );

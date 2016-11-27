@@ -95,7 +95,7 @@ Stephh's notes (based on the game M68000 code and some tests) :
   - Game name : "RASTAN"
   - No notice screen
   - In "demo mode", you get a scrolling screen with what the various items do
-  - No beginning screen when you start a new game
+  - No begining screen when you start a new game
   - Same "YOU ARE A BRAVE FIGHTER ..." message between levels
   - No message after beating level 6 boss
   - No copyright message on scrolling credits screen
@@ -135,7 +135,7 @@ Stephh's notes (based on the game M68000 code and some tests) :
   - Game name : "RASTAN SAGA"
   - Notice screen
   - In "demo mode", you get no scrolling screen with what the various items do
-  - Beginning screen when you start a new game
+  - Begining screen when you start a new game
   - Different messages between levels
   - Message after beating level 6 boss
   - Copyright message on scrolling credits screen
@@ -168,30 +168,30 @@ Stephh's notes (based on the game M68000 code and some tests) :
 
 static WRITE8_DEVICE_HANDLER( rastan_bankswitch_w )
 {
-	memory_set_bank(device->machine(),  "bank1", data & 3);
+	memory_set_bank(device->machine,  "bank1", data & 3);
 }
 
 
-static void rastan_msm5205_vck( device_t *device )
+static void rastan_msm5205_vck( running_device *device )
 {
-	rastan_state *state = device->machine().driver_data<rastan_state>();
-	if (state->m_adpcm_data != -1)
+	rastan_state *state = (rastan_state *)device->machine->driver_data;
+	if (state->adpcm_data != -1)
 	{
-		msm5205_data_w(device, state->m_adpcm_data & 0x0f);
-		state->m_adpcm_data = -1;
+		msm5205_data_w(device, state->adpcm_data & 0x0f);
+		state->adpcm_data = -1;
 	}
 	else
 	{
-		state->m_adpcm_data = device->machine().region("adpcm")->base()[state->m_adpcm_pos];
-		state->m_adpcm_pos = (state->m_adpcm_pos + 1) & 0xffff;
-		msm5205_data_w(device, state->m_adpcm_data >> 4);
+		state->adpcm_data = memory_region(device->machine, "adpcm")[state->adpcm_pos];
+		state->adpcm_pos = (state->adpcm_pos + 1) & 0xffff;
+		msm5205_data_w(device, state->adpcm_data >> 4);
 	}
 }
 
 static WRITE8_HANDLER( rastan_msm5205_address_w )
 {
-	rastan_state *state = space->machine().driver_data<rastan_state>();
-	state->m_adpcm_pos = (state->m_adpcm_pos & 0x00ff) | (data << 8);
+	rastan_state *state = (rastan_state *)space->machine->driver_data;
+	state->adpcm_pos = (state->adpcm_pos & 0x00ff) | (data << 8);
 }
 
 static WRITE8_DEVICE_HANDLER( rastan_msm5205_start_w )
@@ -201,14 +201,14 @@ static WRITE8_DEVICE_HANDLER( rastan_msm5205_start_w )
 
 static WRITE8_DEVICE_HANDLER( rastan_msm5205_stop_w )
 {
-	rastan_state *state = device->machine().driver_data<rastan_state>();
+	rastan_state *state = (rastan_state *)device->machine->driver_data;
 	msm5205_reset_w(device, 1);
-	state->m_adpcm_pos &= 0xff00;
+	state->adpcm_pos &= 0xff00;
 }
 
 
 
-static ADDRESS_MAP_START( rastan_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( rastan_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x05ffff) AM_ROM
 	AM_RANGE(0x10c000, 0x10ffff) AM_RAM
 	AM_RANGE(0x200000, 0x200fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
@@ -231,7 +231,7 @@ static ADDRESS_MAP_START( rastan_map, AS_PROGRAM, 16 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( rastan_s_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rastan_s_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
@@ -344,10 +344,10 @@ GFXDECODE_END
 
 
 /* handler called by the YM2151 emulator when the internal timers cause an IRQ */
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	rastan_state *state = device->machine().driver_data<rastan_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	rastan_state *state = (rastan_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2151_interface ym2151_config =
@@ -364,32 +364,32 @@ static const msm5205_interface msm5205_config =
 
 static MACHINE_START( rastan )
 {
-	rastan_state *state = machine.driver_data<rastan_state>();
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	rastan_state *state = (rastan_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 
 	memory_configure_bank(machine, "bank1", 0, 1, &ROM[0x00000], 0x4000);
 	memory_configure_bank(machine, "bank1", 1, 3, &ROM[0x10000], 0x4000);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_pc080sn = machine.device("pc080sn");
-	state->m_pc090oj = machine.device("pc090oj");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->pc080sn = machine->device("pc080sn");
+	state->pc090oj = machine->device("pc090oj");
 
-	state->save_item(NAME(state->m_sprite_ctrl));
-	state->save_item(NAME(state->m_sprites_flipscreen));
+	state_save_register_global(machine, state->sprite_ctrl);
+	state_save_register_global(machine, state->sprites_flipscreen);
 
-	state->save_item(NAME(state->m_adpcm_pos));
-	state->save_item(NAME(state->m_adpcm_data));
+	state_save_register_global(machine, state->adpcm_pos);
+	state_save_register_global(machine, state->adpcm_data);
 }
 
 static MACHINE_RESET( rastan )
 {
-	rastan_state *state = machine.driver_data<rastan_state>();
+	rastan_state *state = (rastan_state *)machine->driver_data;
 
-	state->m_sprite_ctrl = 0;
-	state->m_sprites_flipscreen = 0;
-	state->m_adpcm_pos = 0;
-	state->m_adpcm_data = -1;
+	state->sprite_ctrl = 0;
+	state->sprites_flipscreen = 0;
+	state->adpcm_pos = 0;
+	state->adpcm_data = -1;
 }
 
 
@@ -409,50 +409,54 @@ static const tc0140syt_interface rastan_tc0140syt_intf =
 	"maincpu", "audiocpu"
 };
 
-static MACHINE_CONFIG_START( rastan, rastan_state )
+static MACHINE_DRIVER_START( rastan )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(rastan_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_16MHz/2)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(rastan_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_16MHz/2)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(rastan_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(rastan_s_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(rastan_s_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
+	MDRV_QUANTUM_TIME(HZ(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
 
-	MCFG_MACHINE_START(rastan)
-	MCFG_MACHINE_RESET(rastan)
+	MDRV_MACHINE_START(rastan)
+	MDRV_MACHINE_RESET(rastan)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(rastan)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(rastan)
-	MCFG_PALETTE_LENGTH(8192)
+	MDRV_GFXDECODE(rastan)
+	MDRV_PALETTE_LENGTH(8192)
 
-	MCFG_PC080SN_ADD("pc080sn", rastan_pc080sn_intf)
-	MCFG_PC090OJ_ADD("pc090oj", rastan_pc090oj_intf)
+	MDRV_VIDEO_UPDATE(rastan)
+
+	MDRV_PC080SN_ADD("pc080sn", rastan_pc080sn_intf)
+	MDRV_PC090OJ_ADD("pc090oj", rastan_pc090oj_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, XTAL_16MHz/4)	/* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, XTAL_16MHz/4)	/* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_SOUND_ADD("msm", MSM5205, XTAL_384kHz)	/* verified on pcb */
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+	MDRV_SOUND_ADD("msm", MSM5205, XTAL_384kHz)	/* verified on pcb */
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", rastan_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", rastan_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
 

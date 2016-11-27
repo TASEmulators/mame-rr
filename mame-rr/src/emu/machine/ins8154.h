@@ -28,92 +28,32 @@
 
 ***************************************************************************/
 
-#pragma once
-
 #ifndef __INS8154_H__
 #define __INS8154_H__
 
-#include "emu.h"
-
-
-
-/***************************************************************************
-    DEVICE CONFIGURATION MACROS
-***************************************************************************/
-
-#define MCFG_INS8154_ADD(_tag, _intrf) \
-	MCFG_DEVICE_ADD(_tag, INS8154, 0) \
-	MCFG_DEVICE_CONFIG(_intrf)
+#include "devlegcy.h"
+#include "devcb.h"
 
 
 /***************************************************************************
     TYPE DEFINITIONS
 ***************************************************************************/
 
-
-// ======================> ins8154_interface
-
-struct ins8154_interface
+typedef struct _ins8154_interface ins8154_interface;
+struct _ins8154_interface
 {
-	devcb_read8			m_in_a_cb;
-	devcb_write8		m_out_a_cb;
-	devcb_read8			m_in_b_cb;
-	devcb_write8		m_out_b_cb;
-	devcb_write_line	m_out_irq_cb;
+	devcb_read8			in_a_func;
+	devcb_write8		out_a_func;
+	devcb_read8			in_b_func;
+	devcb_write8		out_b_func;
+	devcb_write_line	out_irq_func;
 };
 
-
-
-// ======================> ins8154_device
-
-class ins8154_device :  public device_t,
-                        public ins8154_interface
-{
-public:
-    // construction/destruction
-    ins8154_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock);
-
-	UINT8 ins8154_r(UINT32 offset);
-	void ins8154_w(UINT32 offset, UINT8 data);
-
-	void ins8154_porta_w(UINT32 offset, UINT8 data);
-	void ins8154_portb_w(UINT32 offset, UINT8 data);
-
-protected:
-    // device-level overrides
-    virtual void device_config_complete();
-    virtual void device_start();
-    virtual void device_reset();
-    virtual void device_post_load() { }
-    virtual void device_clock_changed() { }
-
-private:
-
-	/* i/o lines */
-	devcb_resolved_read8 m_in_a_func;
-	devcb_resolved_write8 m_out_a_func;
-	devcb_resolved_read8 m_in_b_func;
-	devcb_resolved_write8 m_out_b_func;
-	devcb_resolved_write_line m_out_irq_func;
-
-	/* registers */
-	UINT8 m_in_a;  /* Input Latch Port A */
-	UINT8 m_in_b;  /* Input Latch Port B */
-	UINT8 m_out_a; /* Output Latch Port A */
-	UINT8 m_out_b; /* Output Latch Port B */
-	UINT8 m_mdr;   /* Mode Definition Register */
-	UINT8 m_odra;  /* Output Definition Register Port A */
-	UINT8 m_odrb;  /* Output Definition Register Port B */
-};
-
-
-// device type definition
-extern const device_type INS8154;
-
+DECLARE_LEGACY_DEVICE(INS8154, ins8154);
 
 
 /***************************************************************************
-    PROTOTYPES
+    FUNCTION PROTOTYPES
 ***************************************************************************/
 
 READ8_DEVICE_HANDLER( ins8154_r );
@@ -121,6 +61,15 @@ WRITE8_DEVICE_HANDLER( ins8154_w );
 
 WRITE8_DEVICE_HANDLER( ins8154_porta_w );
 WRITE8_DEVICE_HANDLER( ins8154_portb_w );
+
+
+/***************************************************************************
+    DEVICE CONFIGURATION MACROS
+***************************************************************************/
+
+#define MDRV_INS8154_ADD(_tag, _intrf) \
+	MDRV_DEVICE_ADD(_tag, INS8154, 0) \
+	MDRV_DEVICE_CONFIG(_intrf)
 
 
 #endif /* __INS8154_H__ */

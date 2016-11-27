@@ -1,34 +1,29 @@
 
-class oneshot_state : public driver_device
+class oneshot_state
 {
 public:
-	oneshot_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, oneshot_state(machine)); }
+
+	oneshot_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *        m_sprites;
-	UINT16 *        m_bg_videoram;
-	UINT16 *        m_mid_videoram;
-	UINT16 *        m_fg_videoram;
-	UINT16 *        m_scroll;
+	UINT16 *        sprites;
+	UINT16 *        bg_videoram;
+	UINT16 *        mid_videoram;
+	UINT16 *        fg_videoram;
+	UINT16 *        scroll;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
-	tilemap_t  *m_mid_tilemap;
-	tilemap_t  *m_fg_tilemap;
+	tilemap_t  *bg_tilemap, *mid_tilemap, *fg_tilemap;
 
 	/* misc */
-	int m_gun_x_p1;
-	int m_gun_y_p1;
-	int m_gun_x_p2;
-	int m_gun_y_p2;
-	int m_gun_x_shift;
-	int m_p1_wobble;
-	int m_p2_wobble;
+	int gun_x_p1, gun_y_p1, gun_x_p2, gun_y_p2;
+	int gun_x_shift;
+	int p1_wobble, p2_wobble;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 /*----------- defined in video/oneshot.c -----------*/
@@ -38,5 +33,5 @@ WRITE16_HANDLER( oneshot_mid_videoram_w );
 WRITE16_HANDLER( oneshot_fg_videoram_w );
 
 VIDEO_START( oneshot );
-SCREEN_UPDATE( oneshot );
-SCREEN_UPDATE( maddonna );
+VIDEO_UPDATE( oneshot );
+VIDEO_UPDATE( maddonna );

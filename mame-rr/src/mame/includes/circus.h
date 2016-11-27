@@ -1,27 +1,35 @@
 #include "sound/discrete.h"
 
-class circus_state : public driver_device
+#define GAME_IS_CIRCUS		(state->game_id == 1)
+#define GAME_IS_ROBOTBWL	(state->game_id == 2)
+#define GAME_IS_CRASH		(state->game_id == 3)
+#define GAME_IS_RIPCORD		(state->game_id == 4)
+
+
+class circus_state
 {
 public:
-	circus_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, circus_state(machine)); }
+
+	circus_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_videoram;
+	UINT8 *  videoram;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
-	int m_clown_x;
-	int m_clown_y;
-	int m_clown_z;
+	tilemap_t  *bg_tilemap;
+	int      clown_x, clown_y, clown_z;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_samples;
-	device_t *m_discrete;
+	running_device *maincpu;
+	running_device *samples;
+	running_device *discrete;
 
 	/* game id */
-	int m_game_id;
+	int      game_id;
+#if 0
+	int      interrupt;	// dead code for ripcord. shall we remove it?
+#endif
 };
 
 
@@ -46,7 +54,7 @@ extern WRITE8_HANDLER( circus_clown_y_w );
 extern WRITE8_HANDLER( circus_videoram_w );
 
 extern VIDEO_START( circus );
-extern SCREEN_UPDATE( crash );
-extern SCREEN_UPDATE( circus );
-extern SCREEN_UPDATE( robotbwl );
-extern SCREEN_UPDATE( ripcord );
+extern VIDEO_UPDATE( crash );
+extern VIDEO_UPDATE( circus );
+extern VIDEO_UPDATE( robotbwl );
+extern VIDEO_UPDATE( ripcord ); //AT

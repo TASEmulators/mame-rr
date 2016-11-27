@@ -70,25 +70,41 @@ C004      76489 #4 trigger
 #include "sound/sn76496.h"
 #include "sound/flt_rc.h"
 #include "includes/konamipt.h"
-#include "includes/tp84.h"
 
+extern UINT8 *tp84_bg_videoram;
+extern UINT8 *tp84_bg_colorram;
+extern UINT8 *tp84_fg_videoram;
+extern UINT8 *tp84_fg_colorram;
+extern UINT8 *tp84_spriteram;
+extern UINT8 *tp84_scroll_x;
+extern UINT8 *tp84_scroll_y;
+extern UINT8 *tp84_palette_bank;
+extern UINT8 *tp84_flipscreen_x;
+extern UINT8 *tp84_flipscreen_y;
+
+WRITE8_HANDLER( tp84_spriteram_w );
+READ8_HANDLER( tp84_scanline_r );
+
+PALETTE_INIT( tp84 );
+VIDEO_START( tp84 );
+VIDEO_UPDATE( tp84 );
+
+static cpu_device *audiocpu;
 
 
 static MACHINE_START( tp84 )
 {
-	tp84_state *state = machine.driver_data<tp84_state>();
-	state->m_audiocpu = machine.device<cpu_device>("audiocpu");
+	audiocpu = machine->device<cpu_device>("audiocpu");
 }
 
 
 static READ8_HANDLER( tp84_sh_timer_r )
 {
-	tp84_state *state = space->machine().driver_data<tp84_state>();
 	/* main xtal 14.318MHz, divided by 4 to get the CPU clock, further */
 	/* divided by 2048 to get this timer */
 	/* (divide by (2048/2), and not 1024, because the CPU cycle counter is */
 	/* incremented every other state change of the clock) */
-	return (state->m_audiocpu->total_cycles() / (2048/2)) & 0x0f;
+	return (audiocpu->total_cycles() / (2048/2)) & 0x0f;
 }
 
 
@@ -100,87 +116,87 @@ static WRITE8_HANDLER( tp84_filter_w )
 	C = 0;
 	if (offset & 0x008) C +=  47000;	/*  47000pF = 0.047uF */
 	if (offset & 0x010) C += 470000;	/* 470000pF = 0.47uF */
-	filter_rc_set_RC(space->machine().device("filter1"),FLT_RC_LOWPASS,1000,2200,1000,CAP_P(C));
+	filter_rc_set_RC(space->machine->device("filter1"),FLT_RC_LOWPASS,1000,2200,1000,CAP_P(C));
 
 	/* 76489 #1 (optional) */
 	C = 0;
 	if (offset & 0x020) C +=  47000;	/*  47000pF = 0.047uF */
 	if (offset & 0x040) C += 470000;	/* 470000pF = 0.47uF */
-//  filter_rc_set_RC(space->machine().device("filter2"),1000,2200,1000,C);
+//  filter_rc_set_RC(space->machine->device("filter2"),1000,2200,1000,C);
 
 	/* 76489 #2 */
 	C = 0;
 	if (offset & 0x080) C += 470000;	/* 470000pF = 0.47uF */
-	filter_rc_set_RC(space->machine().device("filter2"),FLT_RC_LOWPASS,1000,2200,1000,CAP_P(C));
+	filter_rc_set_RC(space->machine->device("filter2"),FLT_RC_LOWPASS,1000,2200,1000,CAP_P(C));
 
 	/* 76489 #3 */
 	C = 0;
 	if (offset & 0x100) C += 470000;	/* 470000pF = 0.47uF */
-	filter_rc_set_RC(space->machine().device("filter3"),FLT_RC_LOWPASS,1000,2200,1000,CAP_P(C));
+	filter_rc_set_RC(space->machine->device("filter3"),FLT_RC_LOWPASS,1000,2200,1000,CAP_P(C));
 }
 
 static WRITE8_HANDLER( tp84_sh_irqtrigger_w )
 {
-	cputag_set_input_line_and_vector(space->machine(), "audiocpu",0,HOLD_LINE,0xff);
+	cputag_set_input_line_and_vector(space->machine, "audiocpu",0,HOLD_LINE,0xff);
 }
 
 
 
-static ADDRESS_MAP_START( tp84_cpu1_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tp84_cpu1_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x2000, 0x2000) AM_WRITE(watchdog_reset_w)
-	AM_RANGE(0x2800, 0x2800) AM_READ_PORT("SYSTEM") AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_palette_bank)
+	AM_RANGE(0x2800, 0x2800) AM_READ_PORT("SYSTEM") AM_WRITEONLY AM_BASE(&tp84_palette_bank)
 	AM_RANGE(0x2820, 0x2820) AM_READ_PORT("P1")
 	AM_RANGE(0x2840, 0x2840) AM_READ_PORT("P2")
 	AM_RANGE(0x2860, 0x2860) AM_READ_PORT("DSW1")
 	AM_RANGE(0x3000, 0x3000) AM_READ_PORT("DSW2") AM_WRITEONLY
-	AM_RANGE(0x3004, 0x3004) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_flipscreen_x)
-	AM_RANGE(0x3005, 0x3005) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_flipscreen_y)
+	AM_RANGE(0x3004, 0x3004) AM_WRITEONLY AM_BASE(&tp84_flipscreen_x)
+	AM_RANGE(0x3005, 0x3005) AM_WRITEONLY AM_BASE(&tp84_flipscreen_y)
 	AM_RANGE(0x3800, 0x3800) AM_WRITE(tp84_sh_irqtrigger_w)
 	AM_RANGE(0x3a00, 0x3a00) AM_WRITE(soundlatch_w)
-	AM_RANGE(0x3c00, 0x3c00) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_scroll_x)
-	AM_RANGE(0x3e00, 0x3e00) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_scroll_y)
-	AM_RANGE(0x4000, 0x43ff) AM_RAM AM_BASE_MEMBER(tp84_state, m_bg_videoram)
-	AM_RANGE(0x4400, 0x47ff) AM_RAM AM_BASE_MEMBER(tp84_state, m_fg_videoram)
-	AM_RANGE(0x4800, 0x4bff) AM_RAM AM_BASE_MEMBER(tp84_state, m_bg_colorram)
-	AM_RANGE(0x4c00, 0x4fff) AM_RAM AM_BASE_MEMBER(tp84_state, m_fg_colorram)
+	AM_RANGE(0x3c00, 0x3c00) AM_WRITEONLY AM_BASE(&tp84_scroll_x)
+	AM_RANGE(0x3e00, 0x3e00) AM_WRITEONLY AM_BASE(&tp84_scroll_y)
+	AM_RANGE(0x4000, 0x43ff) AM_RAM AM_BASE(&tp84_bg_videoram)
+	AM_RANGE(0x4400, 0x47ff) AM_RAM AM_BASE(&tp84_fg_videoram)
+	AM_RANGE(0x4800, 0x4bff) AM_RAM AM_BASE(&tp84_bg_colorram)
+	AM_RANGE(0x4c00, 0x4fff) AM_RAM AM_BASE(&tp84_fg_colorram)
 	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tp84b_cpu1_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x03ff) AM_RAM AM_BASE_MEMBER(tp84_state, m_bg_videoram)
-	AM_RANGE(0x0400, 0x07ff) AM_RAM AM_BASE_MEMBER(tp84_state, m_fg_videoram)
-	AM_RANGE(0x0800, 0x0bff) AM_RAM AM_BASE_MEMBER(tp84_state, m_bg_colorram)
-	AM_RANGE(0x0c00, 0x0fff) AM_RAM AM_BASE_MEMBER(tp84_state, m_fg_colorram)
+static ADDRESS_MAP_START( tp84b_cpu1_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x03ff) AM_RAM AM_BASE(&tp84_bg_videoram)
+	AM_RANGE(0x0400, 0x07ff) AM_RAM AM_BASE(&tp84_fg_videoram)
+	AM_RANGE(0x0800, 0x0bff) AM_RAM AM_BASE(&tp84_bg_colorram)
+	AM_RANGE(0x0c00, 0x0fff) AM_RAM AM_BASE(&tp84_fg_colorram)
 	AM_RANGE(0x1000, 0x17ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0x1800, 0x1800) AM_WRITE(watchdog_reset_w)
-	AM_RANGE(0x1a00, 0x1a00) AM_READ_PORT("SYSTEM") AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_palette_bank)
+	AM_RANGE(0x1a00, 0x1a00) AM_READ_PORT("SYSTEM") AM_WRITEONLY AM_BASE(&tp84_palette_bank)
 	AM_RANGE(0x1a20, 0x1a20) AM_READ_PORT("P1")
 	AM_RANGE(0x1a40, 0x1a40) AM_READ_PORT("P2")
 	AM_RANGE(0x1a60, 0x1a60) AM_READ_PORT("DSW1")
 	AM_RANGE(0x1c00, 0x1c00) AM_READ_PORT("DSW2") AM_WRITENOP
-	AM_RANGE(0x1c04, 0x1c04) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_flipscreen_x)
-	AM_RANGE(0x1c05, 0x1c05) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_flipscreen_y)
+	AM_RANGE(0x1c04, 0x1c04) AM_WRITEONLY AM_BASE(&tp84_flipscreen_x)
+	AM_RANGE(0x1c05, 0x1c05) AM_WRITEONLY AM_BASE(&tp84_flipscreen_y)
 	AM_RANGE(0x1e00, 0x1e00) AM_WRITE(tp84_sh_irqtrigger_w)
 	AM_RANGE(0x1e80, 0x1e80) AM_WRITE(soundlatch_w)
-	AM_RANGE(0x1f00, 0x1f00) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_scroll_x)
-	AM_RANGE(0x1f80, 0x1f80) AM_WRITEONLY AM_BASE_MEMBER(tp84_state, m_scroll_y)
+	AM_RANGE(0x1f00, 0x1f00) AM_WRITEONLY AM_BASE(&tp84_scroll_x)
+	AM_RANGE(0x1f80, 0x1f80) AM_WRITEONLY AM_BASE(&tp84_scroll_y)
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( cpu2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cpu2_map, ADDRESS_SPACE_PROGRAM, 8 )
 //  AM_RANGE(0x0000, 0x0000) AM_RAM /* Watch dog ?*/
 	AM_RANGE(0x2000, 0x2000) AM_READ(tp84_scanline_r) /* beam position */
 	AM_RANGE(0x4000, 0x4000) AM_WRITE(interrupt_enable_w)
 	AM_RANGE(0x6000, 0x679f) AM_RAM
-	AM_RANGE(0x67a0, 0x67ff) AM_RAM_WRITE(tp84_spriteram_w) AM_BASE_MEMBER(tp84_state, m_spriteram)
+	AM_RANGE(0x67a0, 0x67ff) AM_RAM_WRITE(tp84_spriteram_w) AM_BASE(&tp84_spriteram)
 	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xe000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( audio_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( audio_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_READ(soundlatch_r)
@@ -275,64 +291,65 @@ GFXDECODE_END
 
 
 
-static MACHINE_CONFIG_START( tp84, tp84_state )
+static MACHINE_DRIVER_START( tp84 )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("cpu1",M6809, XTAL_18_432MHz/12) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(tp84_cpu1_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("cpu1",M6809, XTAL_18_432MHz/12) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(tp84_cpu1_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("sub", M6809, XTAL_18_432MHz/12)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(cpu2_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("sub", M6809, XTAL_18_432MHz/12)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(cpu2_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,XTAL_14_31818MHz/4) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(audio_map)
+	MDRV_CPU_ADD("audiocpu", Z80,XTAL_14_31818MHz/4) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(audio_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
+	MDRV_QUANTUM_TIME(HZ(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
 							/* synchronization of the CPUs */
 
-	MCFG_MACHINE_START(tp84)
+	MDRV_MACHINE_START(tp84)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(tp84)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(tp84)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_GFXDECODE(tp84)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_PALETTE_INIT(tp84)
-	MCFG_VIDEO_START(tp84)
+	MDRV_PALETTE_INIT(tp84)
+	MDRV_VIDEO_START(tp84)
+	MDRV_VIDEO_UPDATE(tp84)
 
 	/* audio hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76489A, XTAL_14_31818MHz/8) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "filter1", 0.75)
+	MDRV_SOUND_ADD("sn1", SN76489A, XTAL_14_31818MHz/8) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "filter1", 0.75)
 
-	MCFG_SOUND_ADD("sn2", SN76489A, XTAL_14_31818MHz/8) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "filter2", 0.75)
+	MDRV_SOUND_ADD("sn2", SN76489A, XTAL_14_31818MHz/8) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "filter2", 0.75)
 
-	MCFG_SOUND_ADD("sn3", SN76489A, XTAL_14_31818MHz/8) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "filter3", 0.75)
+	MDRV_SOUND_ADD("sn3", SN76489A, XTAL_14_31818MHz/8) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "filter3", 0.75)
 
-	MCFG_SOUND_ADD("filter1", FILTER_RC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-	MCFG_SOUND_ADD("filter2", FILTER_RC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-	MCFG_SOUND_ADD("filter3", FILTER_RC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("filter1", FILTER_RC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("filter2", FILTER_RC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("filter3", FILTER_RC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( tp84b, tp84 )
-	MCFG_CPU_MODIFY("cpu1")
-	MCFG_CPU_PROGRAM_MAP(tp84b_cpu1_map)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( tp84b )
+	MDRV_IMPORT_FROM(tp84)
+	MDRV_CPU_MODIFY("cpu1")
+	MDRV_CPU_PROGRAM_MAP(tp84b_cpu1_map)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 

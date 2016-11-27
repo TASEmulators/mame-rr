@@ -4,40 +4,41 @@
 
 *************************************************************************/
 
-class rainbow_state : public driver_device
+class rainbow_state
 {
 public:
-	rainbow_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, rainbow_state(machine)); }
+
+	rainbow_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_spriteram;
+	UINT16 *    spriteram;
 //  UINT16 *    paletteram;    // currently this uses generic palette handling
-	size_t      m_spriteram_size;
+	size_t      spriteram_size;
 
 	/* video-related */
-	UINT16      m_sprite_ctrl;
-	UINT16      m_sprites_flipscreen;
+	UINT16      sprite_ctrl;
+	UINT16      sprites_flipscreen;
 
 	/* misc */
-	UINT8       m_jumping_latch;
+	UINT8       jumping_latch;
 
 	/* c-chip */
-	UINT8       *m_CRAM[8];
-	int         m_extra_version;
-	UINT8       m_current_bank;
+	UINT8       *CRAM[8];
+	int         extra_version;
+	UINT8       current_bank;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_pc080sn;
-	device_t *m_pc090oj;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *pc080sn;
+	running_device *pc090oj;
 };
 
 
 /*----------- defined in machine/rainbow.c -----------*/
 
-void rainbow_cchip_init(running_machine &machine, int version);
+void rainbow_cchip_init(running_machine *machine, int version);
 READ16_HANDLER( rainbow_cchip_ctrl_r );
 READ16_HANDLER( rainbow_cchip_ram_r );
 WRITE16_HANDLER( rainbow_cchip_ctrl_w );
@@ -45,11 +46,12 @@ WRITE16_HANDLER( rainbow_cchip_bank_w );
 WRITE16_HANDLER( rainbow_cchip_ram_w );
 
 
-/*----------- defined in video/rainbow.c -----------*/
+/*----------- defined in video/rastan.c -----------*/
 
-SCREEN_UPDATE( rainbow );
 VIDEO_START( jumping );
-SCREEN_UPDATE( jumping );
+
+VIDEO_UPDATE( rainbow );
+VIDEO_UPDATE( jumping );
 
 WRITE16_HANDLER( jumping_spritectrl_w );
 WRITE16_HANDLER( rainbow_spritectrl_w );

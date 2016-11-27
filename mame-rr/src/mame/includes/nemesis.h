@@ -1,48 +1,48 @@
-class nemesis_state : public driver_device
+class nemesis_state
 {
 public:
-	nemesis_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, nemesis_state(machine)); }
+
+	nemesis_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_videoram1;
-	UINT16 *  m_videoram2;
-	UINT16 *  m_colorram1;
-	UINT16 *  m_colorram2;
-	UINT16 *  m_charram;
-	UINT16 *  m_spriteram;
-	UINT16 *  m_paletteram;
-	UINT16 *  m_xscroll1;
-	UINT16 *  m_xscroll2;
-	UINT16 *  m_yscroll1;
-	UINT16 *  m_yscroll2;
-	UINT8 *   m_gx400_shared_ram;
+	UINT16 *  videoram1;
+	UINT16 *  videoram2;
+	UINT16 *  colorram1;
+	UINT16 *  colorram2;
+	UINT16 *  charram;
+	UINT16 *  spriteram;
+	UINT16 *  paletteram;
+	UINT16 *  xscroll1;
+	UINT16 *  xscroll2;
+	UINT16 *  yscroll1;
+	UINT16 *  yscroll2;
+	UINT8 *   gx400_shared_ram;
 
-	size_t    m_charram_size;
-	size_t    m_spriteram_size;
+	size_t    charram_size;
+	size_t    spriteram_size;
 
 	/* video-related */
-	tilemap_t *m_background;
-	tilemap_t *m_foreground;
-	int       m_spriteram_words;
-	int       m_tilemap_flip;
-	int       m_flipscreen;
-	UINT8     m_irq_port_last;
-	UINT8     m_blank_tile[8*8];
+	tilemap_t *background, *foreground;
+	int       spriteram_words;
+	int       tilemap_flip;
+	int       flipscreen;
+	UINT8     irq_port_last;
+	UINT8     blank_tile[8*8];
 
 	/* misc */
-	int       m_irq_on;
-	int       m_irq1_on;
-	int       m_irq2_on;
-	int       m_irq4_on;
-	UINT16    m_selected_ip; /* Copied from WEC Le Mans 24 driver, explicity needed for Hyper Crash */
-	int       m_gx400_irq1_cnt;
-	UINT8     m_frame_counter;
+	int       irq_on;
+	int       irq1_on;
+	int       irq2_on;
+	int       irq4_on;
+	UINT16    selected_ip; /* Copied from WEC Le Mans 24 driver, explicity needed for Hyper Crash */
+	int       gx400_irq1_cnt;
+	UINT8     frame_counter;
 
 	/* devices */
-	cpu_device *m_maincpu;
-	cpu_device *m_audiocpu;
-	device_t *m_vlm;
+	cpu_device *maincpu;
+	cpu_device *audiocpu;
+	running_device *vlm;
 };
 
 
@@ -61,4 +61,4 @@ WRITE16_HANDLER( nemesis_colorram2_word_w );
 WRITE16_HANDLER( nemesis_charram_word_w );
 
 VIDEO_START( nemesis );
-SCREEN_UPDATE( nemesis );
+VIDEO_UPDATE( nemesis );

@@ -91,7 +91,7 @@ A                                                   12.000MHz
 
 static WRITE8_HANDLER( himesiki_rombank_w )
 {
-	memory_set_bank(space->machine(), "bank1", ((data & 0x08) >> 3));
+	memory_set_bank(space->machine, "bank1", ((data & 0x08) >> 3));
 
 	if (data & 0xf7)
 		logerror("p06_w %02x\n", data);
@@ -99,23 +99,23 @@ static WRITE8_HANDLER( himesiki_rombank_w )
 
 static WRITE8_HANDLER( himesiki_sound_w )
 {
-	himesiki_state *state = space->machine().driver_data<himesiki_state>();
+	himesiki_state *state = (himesiki_state *)space->machine->driver_data;
 	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_subcpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->subcpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 /****************************************************************************/
 
-static ADDRESS_MAP_START( himesiki_prm0, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( himesiki_prm0, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x9fff) AM_RAM
-	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(himesiki_state, m_spriteram)
+	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(himesiki_state, spriteram)
 	AM_RANGE(0xa800, 0xafff) AM_RAM_WRITE(paletteram_xRRRRRGGGGGBBBBB_le_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0xb000, 0xbfff) AM_RAM_WRITE(himesiki_bg_ram_w) AM_BASE_MEMBER(himesiki_state, m_bg_ram)
+	AM_RANGE(0xb000, 0xbfff) AM_RAM_WRITE(himesiki_bg_ram_w) AM_BASE_MEMBER(himesiki_state, bg_ram)
 	AM_RANGE(0xc000, 0xffff) AM_ROMBANK("bank1")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( himesiki_iom0, AS_IO, 8 )
+static ADDRESS_MAP_START( himesiki_iom0, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("1P")
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("2P")
@@ -130,12 +130,12 @@ static ADDRESS_MAP_START( himesiki_iom0, AS_IO, 8 )
 	AM_RANGE(0x0b, 0x0b) AM_WRITE(himesiki_sound_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( himesiki_prm1, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( himesiki_prm1, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xf800, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( himesiki_iom1, AS_IO, 8 )
+static ADDRESS_MAP_START( himesiki_iom1, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVREADWRITE("ym2203", ym2203_r, ym2203_w)
 	AM_RANGE(0x04, 0x04) AM_READ(soundlatch_r)
@@ -269,64 +269,66 @@ GFXDECODE_END
 
 static MACHINE_START( himesiki )
 {
-	himesiki_state *state = machine.driver_data<himesiki_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	himesiki_state *state = (himesiki_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 2, &ROM[0x10000], 0x4000);
 
-	state->m_subcpu = machine.device("sub");
+	state->subcpu = machine->device("sub");
 
-	state->save_item(NAME(state->m_scrollx));
-	state->save_item(NAME(state->m_flipscreen));
+	state_save_register_global_array(machine, state->scrollx);
+	state_save_register_global(machine, state->flipscreen);
 }
 
 static MACHINE_RESET( himesiki )
 {
-	himesiki_state *state = machine.driver_data<himesiki_state>();
+	himesiki_state *state = (himesiki_state *)machine->driver_data;
 
-	state->m_scrollx[0] = 0;
-	state->m_scrollx[1] = 0;
-	state->m_flipscreen = 0;
+	state->scrollx[0] = 0;
+	state->scrollx[1] = 0;
+	state->flipscreen = 0;
 }
 
-static MACHINE_CONFIG_START( himesiki, himesiki_state )
+static MACHINE_DRIVER_START( himesiki )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(himesiki_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MCLK/2) /* 6.000 MHz */
-	MCFG_CPU_PROGRAM_MAP(himesiki_prm0)
-	MCFG_CPU_IO_MAP(himesiki_iom0)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, MCLK/2) /* 6.000 MHz */
+	MDRV_CPU_PROGRAM_MAP(himesiki_prm0)
+	MDRV_CPU_IO_MAP(himesiki_iom0)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("sub", Z80, MCLK/3) /* 4.000 MHz */
-	MCFG_CPU_PROGRAM_MAP(himesiki_prm1)
-	MCFG_CPU_IO_MAP(himesiki_iom1)
+	MDRV_CPU_ADD("sub", Z80, MCLK/3) /* 4.000 MHz */
+	MDRV_CPU_PROGRAM_MAP(himesiki_prm1)
+	MDRV_CPU_IO_MAP(himesiki_iom1)
 
-	MCFG_MACHINE_START(himesiki)
-	MCFG_MACHINE_RESET(himesiki)
+	MDRV_MACHINE_START(himesiki)
+	MDRV_MACHINE_RESET(himesiki)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 24*8-1)
-	MCFG_SCREEN_UPDATE(himesiki)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 24*8-1)
+	MDRV_GFXDECODE(himesiki)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_GFXDECODE(himesiki)
-	MCFG_PALETTE_LENGTH(1024)
-
-	MCFG_VIDEO_START(himesiki)
+	MDRV_VIDEO_START(himesiki)
+	MDRV_VIDEO_UPDATE(himesiki)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("ym2203", YM2203, MCLK/4)
-	MCFG_SOUND_ROUTE(0, "mono", 0.10)
-	MCFG_SOUND_ROUTE(1, "mono", 0.10)
-	MCFG_SOUND_ROUTE(2, "mono", 0.10)
-	MCFG_SOUND_ROUTE(3, "mono", 0.50)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("ym2203", YM2203, MCLK/4)
+	MDRV_SOUND_ROUTE(0, "mono", 0.10)
+	MDRV_SOUND_ROUTE(1, "mono", 0.10)
+	MDRV_SOUND_ROUTE(2, "mono", 0.10)
+	MDRV_SOUND_ROUTE(3, "mono", 0.50)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 /****************************************************************************/
 

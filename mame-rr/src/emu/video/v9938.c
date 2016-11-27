@@ -34,7 +34,7 @@ typedef struct {
 	int vram_size;
     /* interrupt */
     UINT8 INT;
-    void (*INTCallback)(running_machine &, int);
+    void (*INTCallback)(running_machine *, int);
 	int scanline;
     /* blinking */
     int blink, blink_count;
@@ -94,13 +94,13 @@ static const char *const v9938_modes[] = {
 	"UNKNOWN"
 };
 
-static void v9938_register_write (running_machine &machine, int reg, int data);
+static void v9938_register_write (running_machine *machine, int reg, int data);
 static void v9938_update_command (void);
 static void v9938_cpu_to_vdp (UINT8 V);
 static UINT8 v9938_command_unit_w (UINT8 Op);
 static UINT8 v9938_vdp_to_cpu (void);
 static void v9938_set_mode (void);
-static void v9938_refresh_line (running_machine &machine, bitmap_t *bmp, int line);
+static void v9938_refresh_line (running_machine *machine, bitmap_t *bmp, int line);
 
 /***************************************************************************
 
@@ -435,7 +435,7 @@ READ8_HANDLER (v9938_1_vram_r)
 	return v9938_vram_r();
 }
 
-static void v9938_command_w(running_machine &machine, UINT8 data)
+static void v9938_command_w(running_machine *machine, UINT8 data)
 	{
 	if (vdp->cmd_write_first)
 		{
@@ -463,13 +463,13 @@ static void v9938_command_w(running_machine &machine, UINT8 data)
 WRITE8_HANDLER (v9938_0_command_w)
 {
 	vdp = &vdps[0];
-	v9938_command_w(space->machine(), data);
+	v9938_command_w(space->machine, data);
 }
 
 WRITE8_HANDLER (v9938_1_command_w)
 {
 	vdp = &vdps[1];
-	v9938_command_w(space->machine(), data);
+	v9938_command_w(space->machine, data);
 }
 
 /***************************************************************************
@@ -478,7 +478,7 @@ WRITE8_HANDLER (v9938_1_command_w)
 
 ***************************************************************************/
 
-void v9938_init (running_machine &machine, int which, screen_device &screen, bitmap_t *bitmap, int model, int vram_size, void (*callback)(running_machine &, int) )
+void v9938_init (running_machine *machine, int which, screen_device &screen, bitmap_t *bitmap, int model, int vram_size, void (*callback)(running_machine *, int) )
 {
 	vdp = &vdps[which];
 
@@ -576,21 +576,9 @@ void v9938_reset (int which)
 	vdp->INT = 0;
 	vdp->read_ahead = 0; vdp->address_latch = 0; /* ??? */
 	vdp->scanline = 0;
-	// MZ: The status registers 4 and 6 hold the high bits of the sprite
-	// collision location. The unused bits are set to 1.
-	// SR3: x x x x x x x x
-	// SR4: 1 1 1 1 1 1 1 x
-	// SR5: y y y y y y y y
-	// SR6: 1 1 1 1 1 1 y y
-	// Note that status register 4 is used in detection algorithms to tell
-	// apart the tms9929 from the v99x8.
-
-	// TODO: SR3-S6 do not yet store the information about the sprite collision
-	vdp->statReg[4] = 0xfe;
-	vdp->statReg[6] = 0xfc;
 }
 
-static void v9938_check_int (running_machine &machine)
+static void v9938_check_int (running_machine *machine)
 	{
 	UINT8 n;
 
@@ -644,7 +632,7 @@ void v9938_set_resolution (int which, int i)
 
 ***************************************************************************/
 
-static void v9938_register_w(running_machine &machine, UINT8 data)
+static void v9938_register_w(running_machine *machine, UINT8 data)
 {
 	int reg;
 
@@ -659,16 +647,16 @@ static void v9938_register_w(running_machine &machine, UINT8 data)
 WRITE8_HANDLER (v9938_0_register_w)
 {
 	vdp = &vdps[0];
-	v9938_register_w(space->machine(), data);
+	v9938_register_w(space->machine, data);
 }
 
 WRITE8_HANDLER (v9938_1_register_w)
 {
 	vdp = &vdps[1];
-	v9938_register_w(space->machine(), data);
+	v9938_register_w(space->machine, data);
 }
 
-static void v9938_register_write (running_machine &machine, int reg, int data)
+static void v9938_register_write (running_machine *machine, int reg, int data)
 {
 	static UINT8 const reg_mask[] =
 	{
@@ -756,7 +744,7 @@ static void v9938_register_write (running_machine &machine, int reg, int data)
 	vdp->contReg[reg] = data;
 }
 
-static UINT8 v9938_status_r(running_machine &machine)
+static UINT8 v9938_status_r(running_machine *machine)
 	{
 	int reg;
 	UINT8 ret;
@@ -790,7 +778,7 @@ static UINT8 v9938_status_r(running_machine &machine)
             if ( (n < 28) || (n > 199) ) vdp.statReg[2] |= 0x20;
             else vdp.statReg[2] &= ~0x20;
 */
-			if (machine.rand() & 1) vdp->statReg[2] |= 0x20;
+			if (mame_rand(machine) & 1) vdp->statReg[2] |= 0x20;
 			else vdp->statReg[2] &= ~0x20;
 			ret = vdp->statReg[2];
 			break;
@@ -830,13 +818,13 @@ static UINT8 v9938_status_r(running_machine &machine)
 READ8_HANDLER( v9938_0_status_r )
 {
 	vdp = &vdps[0];
-	return v9938_status_r(space->machine());
+	return v9938_status_r(space->machine);
 }
 
 READ8_HANDLER( v9938_1_status_r )
 {
 	vdp = &vdps[1];
-	return v9938_status_r(space->machine());
+	return v9938_status_r(space->machine);
 }
 
 /***************************************************************************
@@ -1222,9 +1210,9 @@ static void v9938_set_mode (void)
 	vdp->mode = i;
 	}
 
-static void v9938_refresh_16 (running_machine &machine, bitmap_t *bmp, int line)
+static void v9938_refresh_16 (running_machine *machine, bitmap_t *bmp, int line)
 	{
-	const pen_t *pens = machine.pens;
+	const pen_t *pens = machine->pens;
 	int i, double_lines;
 	UINT8 col[256];
 	UINT16 *ln, *ln2 = NULL;
@@ -1282,7 +1270,7 @@ static void v9938_refresh_16 (running_machine &machine, bitmap_t *bmp, int line)
 		memcpy (ln2, ln, (512 + 32) * 2);
 	}
 
-static void v9938_refresh_line (running_machine &machine, bitmap_t *bmp, int line)
+static void v9938_refresh_line (running_machine *machine, bitmap_t *bmp, int line)
 	{
 	int ind16, ind256;
 
@@ -1409,10 +1397,10 @@ I do not know the behaviour of FV when IE0=0. That is the part that I still
 have to test.
 */
 
-static void v9938_interrupt_start_vblank (running_machine &machine)
+static void v9938_interrupt_start_vblank (running_machine *machine)
 	{
 #if 0
-	if (machine.input().code_pressed (KEYCODE_D) )
+	if (input_code_pressed (machine, KEYCODE_D) )
 		{
 		FILE *fp;
 		int i;
@@ -1469,7 +1457,7 @@ static void v9938_interrupt_start_vblank (running_machine &machine)
 	vdp->size_now = -1;
 	}
 
-int v9938_interrupt (running_machine &machine, int which)
+int v9938_interrupt (running_machine *machine, int which)
 {
 	int scanline, max, pal, scanline_start;
 

@@ -65,7 +65,7 @@ pc 8bit
 
 
 
-typedef UINT8 (*lh5801_in_func)(device_t *device);
+typedef UINT8 (*lh5801_in_func)(running_device *device);
 
 typedef struct _lh5801_cpu_core lh5801_cpu_core;
 struct _lh5801_cpu_core
@@ -73,11 +73,8 @@ struct _lh5801_cpu_core
 	lh5801_in_func	in;
 };
 
-// input lines
-enum
-{
-	LH5801_LINE_MI,		//maskable interrupt
-};
+#define LH5801_INT_NONE 0
+#define LH5801_IRQ 1
 
 DECLARE_LEGACY_CPU_DEVICE(LH5801, lh5801);
 extern CPU_DISASSEMBLE( lh5801 );

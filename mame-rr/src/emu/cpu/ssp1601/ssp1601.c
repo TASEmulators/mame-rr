@@ -53,12 +53,11 @@ struct _ssp1601_state_t
 	int g_cycles;
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 };
 
-INLINE ssp1601_state_t *get_safe_token(device_t *device)
+INLINE ssp1601_state_t *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == SSP1601);
@@ -84,8 +83,8 @@ INLINE ssp1601_state_t *get_safe_token(device_t *device)
 
 #define PPC    ssp1601_state->ppc.w.h
 
-#define FETCH() ssp1601_state->direct->read_decrypted_word(rPC++ << 1)
-#define PROGRAM_WORD(a) ssp1601_state->program->read_word((a) << 1)
+#define FETCH() memory_decrypted_read_word(ssp1601_state->program, rPC++ << 1)
+#define PROGRAM_WORD(a) memory_read_word(ssp1601_state->program, (a) << 1)
 #define GET_PPC_OFFS() PPC
 
 #define REG_READ(ssp1601_state,r) (((r) <= 4) ? ssp1601_state->gr[r].w.h : reg_read_handlers[r](ssp1601_state, r))
@@ -256,13 +255,13 @@ static void write_unknown(ssp1601_state_t *ssp1601_state, int reg, UINT32 d)
 static UINT32 read_ext(ssp1601_state_t *ssp1601_state, int reg)
 {
 	reg &= 7;
-	return ssp1601_state->io->read_word((reg << 1));
+	return memory_read_word_16be(ssp1601_state->io, (reg << 1));
 }
 
 static void write_ext(ssp1601_state_t *ssp1601_state, int reg, UINT32 d)
 {
 	reg &= 7;
-	ssp1601_state->io->write_word((reg << 1), d);
+	memory_write_word_16be(ssp1601_state->io, (reg << 1), d);
 }
 
 // 4
@@ -513,24 +512,23 @@ static CPU_INIT( ssp1601 )
 {
 	ssp1601_state_t *ssp1601_state = get_safe_token(device);
 
-	device->save_item(NAME(rX));
-	device->save_item(NAME(rY));
-	device->save_item(NAME(rA32));
-	device->save_item(NAME(rST));
-	device->save_item(NAME(rSTACK));
-	device->save_item(NAME(rPC));
-	device->save_item(NAME(rP.d));
-	device->save_item(NAME(PPC));
-	device->save_item(NAME(ssp1601_state->stack));
-	device->save_item(NAME(ssp1601_state->r));
-	device->save_item(NAME(ssp1601_state->RAM));
+	state_save_register_device_item(device, 0, rX);
+	state_save_register_device_item(device, 0, rY);
+	state_save_register_device_item(device, 0, rA32);
+	state_save_register_device_item(device, 0, rST);
+	state_save_register_device_item(device, 0, rSTACK);
+	state_save_register_device_item(device, 0, rPC);
+	state_save_register_device_item(device, 0, rP.d);
+	state_save_register_device_item(device, 0, PPC);
+	state_save_register_device_item_array(device, 0, ssp1601_state->stack);
+	state_save_register_device_item_array(device, 0, ssp1601_state->r);
+	state_save_register_device_item_array(device, 0, ssp1601_state->RAM);
 
 	/* clear the state */
 	memset(ssp1601_state, 0, sizeof(ssp1601_state_t));
 	ssp1601_state->gr[0].w.h = 0xffff; // constant reg
 	ssp1601_state->device = device;
 	ssp1601_state->program = device->space(AS_PROGRAM);
-	ssp1601_state->direct = &ssp1601_state->program->direct();
 	ssp1601_state->io = device->space(AS_IO);
 
 }
@@ -822,15 +820,15 @@ CPU_GET_INFO( ssp1601 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 4;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -1;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 4;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 4;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + 0:					/* not implemented */				break;
 
@@ -870,8 +868,8 @@ CPU_GET_INFO( ssp1601 )
 		case CPUINFO_FCT_DISASSEMBLE:					info->disassemble = CPU_DISASSEMBLE_NAME(ssp1601);	break;
 		case CPUINFO_PTR_INSTRUCTION_COUNTER:			info->icount = &ssp1601_state->g_cycles;			break;
 
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_DATA:    info->internal_map16 = NULL;	break;
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_IO:      info->internal_map16 = NULL;	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_DATA:    info->internal_map16 = NULL;	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_IO:      info->internal_map16 = NULL;	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:						strcpy(info->s, CHIP_NAME);									break;

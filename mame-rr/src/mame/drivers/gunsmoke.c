@@ -68,6 +68,7 @@ Stephh's notes (based on the games Z80 code and some tests) :
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "deprecat.h"
 #include "sound/2203intf.h"
 #include "includes/gunsmoke.h"
 
@@ -97,7 +98,7 @@ static READ8_HANDLER( gunsmoke_protection_r )
 
 /* Memory Maps */
 
-static ADDRESS_MAP_START( gunsmoke_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( gunsmoke_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xc000) AM_READ_PORT("SYSTEM")
@@ -109,16 +110,16 @@ static ADDRESS_MAP_START( gunsmoke_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xc800, 0xc800) AM_WRITE(soundlatch_w)
 	AM_RANGE(0xc804, 0xc804) AM_WRITE(gunsmoke_c804_w)	// ROM bank switch, screen flip
 	AM_RANGE(0xc806, 0xc806) AM_WRITE(watchdog_reset_w)
-	AM_RANGE(0xd000, 0xd3ff) AM_RAM_WRITE(gunsmoke_videoram_w) AM_BASE_MEMBER(gunsmoke_state, m_videoram)
-	AM_RANGE(0xd400, 0xd7ff) AM_RAM_WRITE(gunsmoke_colorram_w) AM_BASE_MEMBER(gunsmoke_state, m_colorram)
-	AM_RANGE(0xd800, 0xd801) AM_RAM AM_BASE_MEMBER(gunsmoke_state, m_scrollx)
-	AM_RANGE(0xd802, 0xd802) AM_RAM AM_BASE_MEMBER(gunsmoke_state, m_scrolly)
+	AM_RANGE(0xd000, 0xd3ff) AM_RAM_WRITE(gunsmoke_videoram_w) AM_BASE_MEMBER(gunsmoke_state, videoram)
+	AM_RANGE(0xd400, 0xd7ff) AM_RAM_WRITE(gunsmoke_colorram_w) AM_BASE_MEMBER(gunsmoke_state, colorram)
+	AM_RANGE(0xd800, 0xd801) AM_RAM AM_BASE_MEMBER(gunsmoke_state, scrollx)
+	AM_RANGE(0xd802, 0xd802) AM_RAM AM_BASE_MEMBER(gunsmoke_state, scrolly)
 	AM_RANGE(0xd806, 0xd806) AM_WRITE(gunsmoke_d806_w)	// sprites and bg enable
 	AM_RANGE(0xe000, 0xefff) AM_RAM
-	AM_RANGE(0xf000, 0xffff) AM_RAM AM_BASE_SIZE_MEMBER(gunsmoke_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xf000, 0xffff) AM_RAM AM_BASE_SIZE_MEMBER(gunsmoke_state, spriteram, spriteram_size)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xc800) AM_READ(soundlatch_r)
@@ -273,71 +274,74 @@ GFXDECODE_END
 
 static MACHINE_START( gunsmoke )
 {
-	gunsmoke_state *state = machine.driver_data<gunsmoke_state>();
-	UINT8 *rombase = machine.region("maincpu")->base();
+	gunsmoke_state *state = (gunsmoke_state *)machine->driver_data;
+	UINT8 *rombase = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &rombase[0x10000], 0x4000);
 
-	state->save_item(NAME(state->m_chon));
-	state->save_item(NAME(state->m_objon));
-	state->save_item(NAME(state->m_bgon));
-	state->save_item(NAME(state->m_sprite3bank));
+	state_save_register_global(machine, state->chon);
+	state_save_register_global(machine, state->objon);
+	state_save_register_global(machine, state->bgon);
+	state_save_register_global(machine, state->sprite3bank);
 }
 
 static MACHINE_RESET( gunsmoke )
 {
-	gunsmoke_state *state = machine.driver_data<gunsmoke_state>();
+	gunsmoke_state *state = (gunsmoke_state *)machine->driver_data;
 
-	state->m_chon = 0;
-	state->m_objon = 0;
-	state->m_bgon = 0;
-	state->m_sprite3bank = 0;
+	state->chon = 0;
+	state->objon = 0;
+	state->bgon = 0;
+	state->sprite3bank = 0;
 }
 
-static MACHINE_CONFIG_START( gunsmoke, gunsmoke_state )
+static MACHINE_DRIVER_START( gunsmoke )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(gunsmoke_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 4000000)	// 4 MHz
-	MCFG_CPU_PROGRAM_MAP(gunsmoke_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 4000000)	// 4 MHz
+	MDRV_CPU_PROGRAM_MAP(gunsmoke_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3000000)	// 3 MHz
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold, 4*60)
+	MDRV_CPU_ADD("audiocpu", Z80, 3000000)	// 3 MHz
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold, 4)
 
-	MCFG_MACHINE_START(gunsmoke)
-	MCFG_MACHINE_RESET(gunsmoke)
+	MDRV_MACHINE_START(gunsmoke)
+	MDRV_MACHINE_RESET(gunsmoke)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(gunsmoke)
-	MCFG_PALETTE_LENGTH(32*4+16*16+16*16)
+	MDRV_GFXDECODE(gunsmoke)
+	MDRV_PALETTE_LENGTH(32*4+16*16+16*16)
 
-	MCFG_PALETTE_INIT(gunsmoke)
-	MCFG_VIDEO_START(gunsmoke)
-	MCFG_SCREEN_UPDATE(gunsmoke)
+	MDRV_PALETTE_INIT(gunsmoke)
+	MDRV_VIDEO_START(gunsmoke)
+	MDRV_VIDEO_UPDATE(gunsmoke)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 1500000)
-	MCFG_SOUND_ROUTE(0, "mono", 0.22)
-	MCFG_SOUND_ROUTE(1, "mono", 0.22)
-	MCFG_SOUND_ROUTE(2, "mono", 0.22)
-	MCFG_SOUND_ROUTE(3, "mono", 0.14)
+	MDRV_SOUND_ADD("ym1", YM2203, 1500000)
+	MDRV_SOUND_ROUTE(0, "mono", 0.22)
+	MDRV_SOUND_ROUTE(1, "mono", 0.22)
+	MDRV_SOUND_ROUTE(2, "mono", 0.22)
+	MDRV_SOUND_ROUTE(3, "mono", 0.14)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 1500000)
-	MCFG_SOUND_ROUTE(0, "mono", 0.22)
-	MCFG_SOUND_ROUTE(1, "mono", 0.22)
-	MCFG_SOUND_ROUTE(2, "mono", 0.22)
-	MCFG_SOUND_ROUTE(3, "mono", 0.14)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, 1500000)
+	MDRV_SOUND_ROUTE(0, "mono", 0.22)
+	MDRV_SOUND_ROUTE(1, "mono", 0.22)
+	MDRV_SOUND_ROUTE(2, "mono", 0.22)
+	MDRV_SOUND_ROUTE(3, "mono", 0.14)
+MACHINE_DRIVER_END
 
 /* ROMs */
 

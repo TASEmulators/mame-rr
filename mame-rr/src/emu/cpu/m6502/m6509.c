@@ -79,8 +79,7 @@ struct _m6509_Regs {
 	UINT8	so_state;
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *space;
-	direct_read_data *direct;
+	const address_space *space;
 
 	int 	icount;
 
@@ -88,7 +87,7 @@ struct _m6509_Regs {
 	write8_space_func wrmem_id;					/* writemem callback for indexed instructions */
 };
 
-INLINE m6509_Regs *get_safe_token(device_t *device)
+INLINE m6509_Regs *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == M6509);
@@ -103,21 +102,21 @@ INLINE m6509_Regs *get_safe_token(device_t *device)
 
 static READ8_HANDLER( m6509_read_00000 )
 {
-	m6509_Regs *cpustate = get_safe_token(&space->device());
+	m6509_Regs *cpustate = get_safe_token(space->cpu);
 
 	return cpustate->pc_bank.b.h2;
 }
 
 static READ8_HANDLER( m6509_read_00001 )
 {
-	m6509_Regs *cpustate = get_safe_token(&space->device());
+	m6509_Regs *cpustate = get_safe_token(space->cpu);
 
 	return cpustate->ind_bank.b.h2;
 }
 
 static WRITE8_HANDLER( m6509_write_00000 )
 {
-	m6509_Regs *cpustate = get_safe_token(&space->device());
+	m6509_Regs *cpustate = get_safe_token(space->cpu);
 
 	cpustate->pc_bank.b.h2=data&0xf;
 	cpustate->pc.w.h=cpustate->pc_bank.w.h;
@@ -125,30 +124,29 @@ static WRITE8_HANDLER( m6509_write_00000 )
 
 static WRITE8_HANDLER( m6509_write_00001 )
 {
-	m6509_Regs *cpustate = get_safe_token(&space->device());
+	m6509_Regs *cpustate = get_safe_token(space->cpu);
 
 	cpustate->ind_bank.b.h2=data&0xf;
 }
 
-static ADDRESS_MAP_START(m6509_mem, AS_PROGRAM, 8)
+static ADDRESS_MAP_START(m6509_mem, ADDRESS_SPACE_PROGRAM, 8)
 	AM_RANGE(0x00000, 0x00000) AM_MIRROR(0xF0000) AM_READWRITE(m6509_read_00000, m6509_write_00000)
 	AM_RANGE(0x00001, 0x00001) AM_MIRROR(0xF0000) AM_READWRITE(m6509_read_00001, m6509_write_00001)
 ADDRESS_MAP_END
 
-static UINT8 default_rdmem_id(address_space *space, offs_t address) { return space->read_byte(address); }
-static void default_wdmem_id(address_space *space, offs_t address, UINT8 data) { space->write_byte(address, data); }
+static UINT8 default_rdmem_id(const address_space *space, offs_t address) { return memory_read_byte_8le(space, address); }
+static void default_wdmem_id(const address_space *space, offs_t address, UINT8 data) { memory_write_byte_8le(space, address, data); }
 
 static CPU_INIT( m6509 )
 {
 	m6509_Regs *cpustate = get_safe_token(device);
-	const m6502_interface *intf = (const m6502_interface *)device->static_config();
+	const m6502_interface *intf = (const m6502_interface *)device->baseconfig().static_config();
 
 	cpustate->rdmem_id = default_rdmem_id;
 	cpustate->wrmem_id = default_wdmem_id;
 	cpustate->irq_callback = irqcallback;
 	cpustate->device = device;
 	cpustate->space = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->space->direct();
 
 	if ( intf )
 	{
@@ -343,15 +341,15 @@ CPU_GET_INFO( m6509 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 10;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 20;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 20;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + M6509_IRQ_LINE:	info->i = cpustate->irq_state;				break;
 		case CPUINFO_INT_INPUT_STATE + M6509_SET_OVERFLOW:info->i = cpustate->so_state;				break;
@@ -381,7 +379,7 @@ CPU_GET_INFO( m6509 )
 		case CPUINFO_FCT_BURN:							info->burn = NULL;						break;
 		case CPUINFO_FCT_DISASSEMBLE:					info->disassemble = CPU_DISASSEMBLE_NAME(m6502);			break;
 		case CPUINFO_PTR_INSTRUCTION_COUNTER:			info->icount = &cpustate->icount;			break;
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(m6509_mem); break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(m6509_mem); break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "M6509");				break;

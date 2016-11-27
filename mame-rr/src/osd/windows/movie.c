@@ -14,7 +14,7 @@
 #define W_OK 4
 #endif
 
-static running_machine * machine;
+static running_machine *machine;
 bool bReplayReadOnly = false;
 WCHAR szChoice[_MAX_PATH] = L"";
 OPENFILENAME ofn;
@@ -338,14 +338,14 @@ static BOOL CALLBACK ReplayDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM
 	return FALSE;
 }
 
-void start_playback_dialog(running_machine &machine_ptr)
+void start_playback_dialog(running_machine *machine_ptr)
 {
-	machine = &machine_ptr;
+	machine = machine_ptr;
 	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(win_window_list->hwnd,L"You can't replay a movie before loading a game.",L"Replay input",MB_OK | MB_ICONSTOP);
 		return;
 	}
-	if (get_record_file(*machine) || get_playback_file(*machine)) {
+	if (get_record_file(machine) || get_playback_file(machine)) {
 		MessageBox(win_window_list->hwnd,L"There's already a movie running.",L"Replay input",MB_OK | MB_ICONSTOP);
 		return;
 	}
@@ -448,14 +448,14 @@ static BOOL CALLBACK RecordDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM
 	return FALSE;
 }
 
-void start_record_dialog(running_machine &machine_ptr)
+void start_record_dialog(running_machine *machine_ptr)
 {
-	machine = &machine_ptr;
+	machine = machine_ptr;
 	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(win_window_list->hwnd,L"You can't record a movie before loading a game.",L"Record input",MB_OK | MB_ICONSTOP);
 		return;
 	}
-	if (get_record_file(*machine) || get_playback_file(*machine)) {
+	if (get_record_file(machine) || get_playback_file(machine)) {
 		MessageBox(win_window_list->hwnd,L"There's already a movie running.",L"Record input",MB_OK | MB_ICONSTOP);
 		return;
 	}

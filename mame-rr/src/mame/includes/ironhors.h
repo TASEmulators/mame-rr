@@ -4,29 +4,28 @@
 
 *************************************************************************/
 
-class ironhors_state : public driver_device
+class ironhors_state
 {
 public:
-	ironhors_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ironhors_state(machine)); }
+
+	ironhors_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
-	UINT8 *    m_spriteram;
-	UINT8 *    m_spriteram2;
-	UINT8 *    m_scroll;
-	UINT8 *    m_interrupt_enable;
-	size_t     m_spriteram_size;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
+	UINT8 *    spriteram;
+	UINT8 *    spriteram2;
+	UINT8 *    scroll;
+	UINT8 *    interrupt_enable;
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	int        m_palettebank;
-	int        m_charbank;
-	int        m_spriterambank;
+	tilemap_t    *bg_tilemap;
+	int        palettebank, charbank, spriterambank;
 
 	/* devices */
-	device_t *m_soundcpu;
+	running_device *soundcpu;
 };
 
 
@@ -40,6 +39,6 @@ WRITE8_HANDLER( ironhors_flipscreen_w );
 
 PALETTE_INIT( ironhors );
 VIDEO_START( ironhors );
-SCREEN_UPDATE( ironhors );
+VIDEO_UPDATE( ironhors );
 VIDEO_START( farwest );
-SCREEN_UPDATE( farwest );
+VIDEO_UPDATE( farwest );

@@ -1,5 +1,6 @@
 #include "emu.h"
 #include "emuopts.h"
+#include "streams.h"
 #include "samples.h"
 
 
@@ -22,17 +23,17 @@ struct _sample_channel
 typedef struct _samples_info samples_info;
 struct _samples_info
 {
-	device_t *device;
+	running_device *device;
 	int			numchannels;	/* how many channels */
 	sample_channel *channel;/* array of channels */
 	loaded_samples *samples;/* array of samples */
 };
 
 
-INLINE samples_info *get_safe_token(device_t *device)
+INLINE samples_info *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == SAMPLES);
+	assert(device->type() == SOUND_SAMPLES);
 	return (samples_info *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -48,7 +49,7 @@ INLINE samples_info *get_safe_token(device_t *device)
     read_wav_sample - read a WAV file as a sample
 -------------------------------------------------*/
 
-static int read_wav_sample(running_machine &machine, emu_file &file, loaded_sample *sample)
+static int read_wav_sample(running_machine *machine, mame_file *f, loaded_sample *sample)
 {
 	unsigned long offset = 0;
 	UINT32 length, rate, filesize;
@@ -57,20 +58,20 @@ static int read_wav_sample(running_machine &machine, emu_file &file, loaded_samp
 	UINT32 sindex;
 
 	/* read the core header and make sure it's a WAVE file */
-	offset += file.read(buf, 4);
+	offset += mame_fread(f, buf, 4);
 	if (offset < 4)
 		return 0;
 	if (memcmp(&buf[0], "RIFF", 4) != 0)
 		return 0;
 
 	/* get the total size */
-	offset += file.read(&filesize, 4);
+	offset += mame_fread(f, &filesize, 4);
 	if (offset < 8)
 		return 0;
 	filesize = LITTLE_ENDIANIZE_INT32(filesize);
 
 	/* read the RIFF file type and make sure it's a WAVE file */
-	offset += file.read(buf, 4);
+	offset += mame_fread(f, buf, 4);
 	if (offset < 12)
 		return 0;
 	if (memcmp(&buf[0], "WAVE", 4) != 0)
@@ -79,59 +80,59 @@ static int read_wav_sample(running_machine &machine, emu_file &file, loaded_samp
 	/* seek until we find a format tag */
 	while (1)
 	{
-		offset += file.read(buf, 4);
-		offset += file.read(&length, 4);
+		offset += mame_fread(f, buf, 4);
+		offset += mame_fread(f, &length, 4);
 		length = LITTLE_ENDIANIZE_INT32(length);
 		if (memcmp(&buf[0], "fmt ", 4) == 0)
 			break;
 
 		/* seek to the next block */
-		file.seek(length, SEEK_CUR);
+		mame_fseek(f, length, SEEK_CUR);
 		offset += length;
 		if (offset >= filesize)
 			return 0;
 	}
 
 	/* read the format -- make sure it is PCM */
-	offset += file.read(&temp16, 2);
+	offset += mame_fread(f, &temp16, 2);
 	temp16 = LITTLE_ENDIANIZE_INT16(temp16);
 	if (temp16 != 1)
 		return 0;
 
 	/* number of channels -- only mono is supported */
-	offset += file.read(&temp16, 2);
+	offset += mame_fread(f, &temp16, 2);
 	temp16 = LITTLE_ENDIANIZE_INT16(temp16);
 	if (temp16 != 1)
 		return 0;
 
 	/* sample rate */
-	offset += file.read(&rate, 4);
+	offset += mame_fread(f, &rate, 4);
 	rate = LITTLE_ENDIANIZE_INT32(rate);
 
 	/* bytes/second and block alignment are ignored */
-	offset += file.read(buf, 6);
+	offset += mame_fread(f, buf, 6);
 
 	/* bits/sample */
-	offset += file.read(&bits, 2);
+	offset += mame_fread(f, &bits, 2);
 	bits = LITTLE_ENDIANIZE_INT16(bits);
 	if (bits != 8 && bits != 16)
 		return 0;
 
 	/* seek past any extra data */
-	file.seek(length - 16, SEEK_CUR);
+	mame_fseek(f, length - 16, SEEK_CUR);
 	offset += length - 16;
 
 	/* seek until we find a data tag */
 	while (1)
 	{
-		offset += file.read(buf, 4);
-		offset += file.read(&length, 4);
+		offset += mame_fread(f, buf, 4);
+		offset += mame_fread(f, &length, 4);
 		length = LITTLE_ENDIANIZE_INT32(length);
 		if (memcmp(&buf[0], "data", 4) == 0)
 			break;
 
 		/* seek to the next block */
-		file.seek(length, SEEK_CUR);
+		mame_fseek(f, length, SEEK_CUR);
 		offset += length;
 		if (offset >= filesize)
 			return 0;
@@ -152,7 +153,7 @@ static int read_wav_sample(running_machine &machine, emu_file &file, loaded_samp
 		int sindex;
 
 		sample->data = auto_alloc_array(machine, INT16, length);
-		file.read(sample->data, length);
+		mame_fread(f, sample->data, length);
 
 		/* convert 8-bit data to signed samples */
 		tempptr = (unsigned char *)sample->data;
@@ -163,7 +164,7 @@ static int read_wav_sample(running_machine &machine, emu_file &file, loaded_samp
 	{
 		/* 16-bit data is fine as-is */
 		sample->data = auto_alloc_array(machine, INT16, length/2);
-		file.read(sample->data, length);
+		mame_fread(f, sample->data, length);
 		sample->length /= 2;
 		if (ENDIANNESS_NATIVE != ENDIANNESS_LITTLE)
 			for (sindex = 0; sindex < sample->length; sindex++)
@@ -177,14 +178,14 @@ static int read_wav_sample(running_machine &machine, emu_file &file, loaded_samp
     readsamples - load all samples
 -------------------------------------------------*/
 
-loaded_samples *readsamples(running_machine &machine, const char *const *samplenames, const char *basename)
+loaded_samples *readsamples(running_machine *machine, const char *const *samplenames, const char *basename)
 {
 	loaded_samples *samples;
 	int skipfirst = 0;
 	int i;
 
 	/* if the user doesn't want to use samples, bail */
-	if (!machine.options().samples())
+	if (!options_get_bool(machine->options(), OPTION_SAMPLES))
 		return NULL;
 	if (samplenames == 0 || samplenames[0] == 0)
 		return NULL;
@@ -206,14 +207,22 @@ loaded_samples *readsamples(running_machine &machine, const char *const *samplen
 	for (i = 0; i < samples->total; i++)
 		if (samplenames[i+skipfirst][0])
 		{
-			emu_file file(machine.options().sample_path(), OPEN_FLAG_READ);
+			file_error filerr;
+			mame_file *f;
 
-			file_error filerr = file.open(basename, PATH_SEPARATOR, samplenames[i+skipfirst]);
+			astring fname(basename, PATH_SEPARATOR, samplenames[i+skipfirst]);
+			filerr = mame_fopen(SEARCHPATH_SAMPLE, fname, OPEN_FLAG_READ, &f);
+
 			if (filerr != FILERR_NONE && skipfirst)
-				filerr = file.open(samplenames[0] + 1, PATH_SEPARATOR, samplenames[i+skipfirst]);
-
+			{
+				astring fname(samplenames[0] + 1, PATH_SEPARATOR, samplenames[i+skipfirst]);
+				filerr = mame_fopen(SEARCHPATH_SAMPLE, fname, OPEN_FLAG_READ, &f);
+			}
 			if (filerr == FILERR_NONE)
-				read_wav_sample(machine, file, &samples->sample[i]);
+			{
+				read_wav_sample(machine, f, &samples->sample[i]);
+				mame_fclose(f);
+			}
 		}
 
 	return samples;
@@ -225,7 +234,7 @@ loaded_samples *readsamples(running_machine &machine, const char *const *samplen
 /* Start one of the samples loaded from disk. Note: channel must be in the range */
 /* 0 .. Samplesinterface->channels-1. It is NOT the discrete channel to pass to */
 /* mixer_play_sample() */
-void sample_start(device_t *device,int channel,int samplenum,int loop)
+void sample_start(running_device *device,int channel,int samplenum,int loop)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -241,7 +250,7 @@ void sample_start(device_t *device,int channel,int samplenum,int loop)
     chan = &info->channel[channel];
 
 	/* force an update before we start */
-	chan->stream->update();
+	stream_update(chan->stream);
 
 	/* update the parameters */
 	sample = &info->samples->sample[samplenum];
@@ -251,12 +260,12 @@ void sample_start(device_t *device,int channel,int samplenum,int loop)
 	chan->pos = 0;
 	chan->frac = 0;
 	chan->basefreq = sample->frequency;
-	chan->step = ((INT64)chan->basefreq << FRAC_BITS) / info->device->machine().sample_rate();
+	chan->step = ((INT64)chan->basefreq << FRAC_BITS) / info->device->machine->sample_rate;
 	chan->loop = loop;
 }
 
 
-void sample_start_raw(device_t *device,int channel,const INT16 *sampledata,int samples,int frequency,int loop)
+void sample_start_raw(running_device *device,int channel,const INT16 *sampledata,int samples,int frequency,int loop)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -266,7 +275,7 @@ void sample_start_raw(device_t *device,int channel,const INT16 *sampledata,int s
     chan = &info->channel[channel];
 
 	/* force an update before we start */
-	chan->stream->update();
+	stream_update(chan->stream);
 
 	/* update the parameters */
 	chan->source = sampledata;
@@ -275,12 +284,12 @@ void sample_start_raw(device_t *device,int channel,const INT16 *sampledata,int s
 	chan->pos = 0;
 	chan->frac = 0;
 	chan->basefreq = frequency;
-	chan->step = ((INT64)chan->basefreq << FRAC_BITS) / info->device->machine().sample_rate();
+	chan->step = ((INT64)chan->basefreq << FRAC_BITS) / info->device->machine->sample_rate;
 	chan->loop = loop;
 }
 
 
-void sample_set_freq(device_t *device,int channel,int freq)
+void sample_set_freq(running_device *device,int channel,int freq)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -290,13 +299,13 @@ void sample_set_freq(device_t *device,int channel,int freq)
     chan = &info->channel[channel];
 
 	/* force an update before we start */
-	chan->stream->update();
+	stream_update(chan->stream);
 
-	chan->step = ((INT64)freq << FRAC_BITS) / info->device->machine().sample_rate();
+	chan->step = ((INT64)freq << FRAC_BITS) / info->device->machine->sample_rate;
 }
 
 
-void sample_set_volume(device_t *device,int channel,float volume)
+void sample_set_volume(running_device *device,int channel,float volume)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -305,11 +314,11 @@ void sample_set_volume(device_t *device,int channel,float volume)
 
     chan = &info->channel[channel];
 
-	chan->stream->set_output_gain(0, volume);
+	stream_set_output_gain(chan->stream, 0, volume);
 }
 
 
-void sample_set_pause(device_t *device,int channel,int pause)
+void sample_set_pause(running_device *device,int channel,int pause)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -319,13 +328,13 @@ void sample_set_pause(device_t *device,int channel,int pause)
     chan = &info->channel[channel];
 
 	/* force an update before we start */
-	chan->stream->update();
+	stream_update(chan->stream);
 
 	chan->paused = pause;
 }
 
 
-void sample_stop(device_t *device,int channel)
+void sample_stop(running_device *device,int channel)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -335,13 +344,13 @@ void sample_stop(device_t *device,int channel)
     chan = &info->channel[channel];
 
     /* force an update before we start */
-    chan->stream->update();
+    stream_update(chan->stream);
     chan->source = NULL;
     chan->source_num = -1;
 }
 
 
-int sample_get_base_freq(device_t *device,int channel)
+int sample_get_base_freq(running_device *device,int channel)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -351,12 +360,12 @@ int sample_get_base_freq(device_t *device,int channel)
     chan = &info->channel[channel];
 
 	/* force an update before we start */
-	chan->stream->update();
+	stream_update(chan->stream);
 	return chan->basefreq;
 }
 
 
-int sample_playing(device_t *device,int channel)
+int sample_playing(running_device *device,int channel)
 {
     samples_info *info = get_safe_token(device);
     sample_channel *chan;
@@ -366,7 +375,7 @@ int sample_playing(device_t *device,int channel)
     chan = &info->channel[channel];
 
 	/* force an update before we start */
-	chan->stream->update();
+	stream_update(chan->stream);
 	return (chan->source != NULL);
 }
 
@@ -423,8 +432,9 @@ static STREAM_UPDATE( sample_update_sound )
 }
 
 
-static void samples_postload(samples_info *info)
+static STATE_POSTLOAD( samples_postload )
 {
+	samples_info *info = (samples_info *)param;
 	int i;
 
 	/* loop over channels */
@@ -460,22 +470,22 @@ static void samples_postload(samples_info *info)
 static DEVICE_START( samples )
 {
 	int i;
-	const samples_interface *intf = (const samples_interface *)device->static_config();
+	const samples_interface *intf = (const samples_interface *)device->baseconfig().static_config();
 	samples_info *info = get_safe_token(device);
 
 	info->device = device;
 
 	/* read audio samples */
 	if (intf->samplenames)
-		info->samples = readsamples(device->machine(), intf->samplenames,device->machine().system().name);
+		info->samples = readsamples(device->machine, intf->samplenames,device->machine->gamedrv->name);
 
 	/* allocate channels */
 	info->numchannels = intf->channels;
 	assert(info->numchannels < MAX_CHANNELS);
-	info->channel = auto_alloc_array(device->machine(), sample_channel, info->numchannels);
+	info->channel = auto_alloc_array(device->machine, sample_channel, info->numchannels);
 	for (i = 0; i < info->numchannels; i++)
 	{
-	    info->channel[i].stream = device->machine().sound().stream_alloc(*device, 0, 1, device->machine().sample_rate(), &info->channel[i], sample_update_sound);
+	    info->channel[i].stream = stream_create(device, 0, 1, device->machine->sample_rate, &info->channel[i], sample_update_sound);
 
 		info->channel[i].source = NULL;
 		info->channel[i].source_num = -1;
@@ -484,15 +494,15 @@ static DEVICE_START( samples )
 		info->channel[i].paused = 0;
 
 		/* register with the save state system */
-        device->save_item(NAME(info->channel[i].source_length), i);
-        device->save_item(NAME(info->channel[i].source_num), i);
-        device->save_item(NAME(info->channel[i].pos), i);
-        device->save_item(NAME(info->channel[i].frac), i);
-        device->save_item(NAME(info->channel[i].step), i);
-        device->save_item(NAME(info->channel[i].loop), i);
-        device->save_item(NAME(info->channel[i].paused), i);
+        state_save_register_device_item(device, i, info->channel[i].source_length);
+        state_save_register_device_item(device, i, info->channel[i].source_num);
+        state_save_register_device_item(device, i, info->channel[i].pos);
+        state_save_register_device_item(device, i, info->channel[i].frac);
+        state_save_register_device_item(device, i, info->channel[i].step);
+        state_save_register_device_item(device, i, info->channel[i].loop);
+        state_save_register_device_item(device, i, info->channel[i].paused);
 	}
-	device->machine().save().register_postload(save_prepost_delegate(FUNC(samples_postload), info));
+	state_save_register_postload(device->machine, samples_postload, info);
 
 	/* initialize any custom handlers */
 	if (intf->start)

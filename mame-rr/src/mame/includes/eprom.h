@@ -6,25 +6,26 @@
 
 #include "machine/atarigen.h"
 
-class eprom_state : public atarigen_state
+class eprom_state
 {
 public:
-	eprom_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, eprom_state(machine)); }
 
-	int 			m_screen_intensity;
-	int 			m_video_disable;
-	UINT16 *		m_sync_data;
-	int			m_last_offset;
+	eprom_state(running_machine &machine) { }
+
+	atarigen_state	atarigen;
+	int 			screen_intensity;
+	int 			video_disable;
+	UINT16 *		sync_data;
 };
 
 
 /*----------- defined in video/eprom.c -----------*/
 
 VIDEO_START( eprom );
-SCREEN_UPDATE( eprom );
+VIDEO_UPDATE( eprom );
 
 VIDEO_START( guts );
-SCREEN_UPDATE( guts );
+VIDEO_UPDATE( guts );
 
 void eprom_scanline_update(screen_device &screen, int scanline);

@@ -19,35 +19,35 @@ Notes:
 
 static WRITE16_HANDLER( ohmygod_ctrl_w )
 {
-	ohmygod_state *state = space->machine().driver_data<ohmygod_state>();
+	ohmygod_state *state = (ohmygod_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_0_7)
 	{
-		UINT8 *rom = space->machine().region("oki")->base();
+		UINT8 *rom = memory_region(space->machine, "oki");
 
 		/* ADPCM bank switch */
-		if (state->m_sndbank != ((data >> state->m_adpcm_bank_shift) & 0x0f))
+		if (state->sndbank != ((data >> state->adpcm_bank_shift) & 0x0f))
 		{
-			state->m_sndbank = (data >> state->m_adpcm_bank_shift) & 0x0f;
-			memcpy(rom + 0x20000, rom + 0x40000 + 0x20000 * state->m_sndbank, 0x20000);
+			state->sndbank = (data >> state->adpcm_bank_shift) & 0x0f;
+			memcpy(rom + 0x20000, rom + 0x40000 + 0x20000 * state->sndbank, 0x20000);
 		}
 	}
 	if (ACCESSING_BITS_8_15)
 	{
-		coin_counter_w(space->machine(), 0, data & 0x1000);
-		coin_counter_w(space->machine(), 1, data & 0x2000);
+		coin_counter_w(space->machine, 0, data & 0x1000);
+		coin_counter_w(space->machine, 1, data & 0x2000);
 	}
 }
 
-static ADDRESS_MAP_START( ohmygod_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( ohmygod_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x300000, 0x303fff) AM_RAM
-	AM_RANGE(0x304000, 0x307fff) AM_RAM_WRITE(ohmygod_videoram_w) AM_BASE_MEMBER(ohmygod_state, m_videoram)
+	AM_RANGE(0x304000, 0x307fff) AM_RAM_WRITE(ohmygod_videoram_w) AM_BASE_MEMBER(ohmygod_state, videoram)
 	AM_RANGE(0x308000, 0x30ffff) AM_RAM
 	AM_RANGE(0x400000, 0x400001) AM_WRITE(ohmygod_scrollx_w)
 	AM_RANGE(0x400002, 0x400003) AM_WRITE(ohmygod_scrolly_w)
 	AM_RANGE(0x600000, 0x6007ff) AM_RAM_WRITE(paletteram16_xGGGGGRRRRRBBBBB_word_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x700000, 0x703fff) AM_RAM AM_BASE_SIZE_MEMBER(ohmygod_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x700000, 0x703fff) AM_RAM AM_BASE_SIZE_MEMBER(ohmygod_state, spriteram, spriteram_size)
 	AM_RANGE(0x704000, 0x707fff) AM_RAM
 	AM_RANGE(0x708000, 0x70ffff) AM_RAM 	/* Work RAM */
 	AM_RANGE(0x800000, 0x800001) AM_READ_PORT("P1")
@@ -55,7 +55,7 @@ static ADDRESS_MAP_START( ohmygod_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x900000, 0x900001) AM_WRITE(ohmygod_ctrl_w)
 	AM_RANGE(0xa00000, 0xa00001) AM_READ_PORT("DSW1")
 	AM_RANGE(0xa00002, 0xa00003) AM_READ_PORT("DSW2")
-	AM_RANGE(0xb00000, 0xb00001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)
+	AM_RANGE(0xb00000, 0xb00001) AM_DEVREADWRITE8("oki", okim6295_r,okim6295_w, 0x00ff)
 	AM_RANGE(0xc00000, 0xc00001) AM_READ(watchdog_reset16_r)
 	AM_RANGE(0xd00000, 0xd00001) AM_WRITE(ohmygod_spritebank_w)
 ADDRESS_MAP_END
@@ -296,59 +296,62 @@ GFXDECODE_END
 
 static MACHINE_START( ohmygod )
 {
-	ohmygod_state *state = machine.driver_data<ohmygod_state>();
+	ohmygod_state *state = (ohmygod_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_spritebank));
-	state->save_item(NAME(state->m_scrollx));
-	state->save_item(NAME(state->m_scrolly));
-	state->save_item(NAME(state->m_sndbank));
+	state_save_register_global(machine, state->spritebank);
+	state_save_register_global(machine, state->scrollx);
+	state_save_register_global(machine, state->scrolly);
+	state_save_register_global(machine, state->sndbank);
 }
 
 static MACHINE_RESET( ohmygod )
 {
-	ohmygod_state *state = machine.driver_data<ohmygod_state>();
-	UINT8 *rom = machine.region("oki")->base();
+	ohmygod_state *state = (ohmygod_state *)machine->driver_data;
+	UINT8 *rom = memory_region(machine, "oki");
 
-	state->m_sndbank = 0;
-	memcpy(rom + 0x20000, rom + 0x40000 + 0x20000 * state->m_sndbank, 0x20000);
+	state->sndbank = 0;
+	memcpy(rom + 0x20000, rom + 0x40000 + 0x20000 * state->sndbank, 0x20000);
 
-	state->m_spritebank = 0;
-	state->m_scrollx = 0;
-	state->m_scrolly = 0;
+	state->spritebank = 0;
+	state->scrollx = 0;
+	state->scrolly = 0;
 }
 
-static MACHINE_CONFIG_START( ohmygod, ohmygod_state )
+static MACHINE_DRIVER_START( ohmygod )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(ohmygod_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(ohmygod_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 12000000)
+	MDRV_CPU_PROGRAM_MAP(ohmygod_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_WATCHDOG_TIME_INIT(attotime::from_seconds(3))	/* a guess, and certainly wrong */
+	MDRV_WATCHDOG_TIME_INIT(SEC(3))	/* a guess, and certainly wrong */
 
-	MCFG_MACHINE_START(ohmygod)
-	MCFG_MACHINE_RESET(ohmygod)
+	MDRV_MACHINE_START(ohmygod)
+	MDRV_MACHINE_RESET(ohmygod)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(12*8, (64-12)*8-1, 0*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(ohmygod)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(12*8, (64-12)*8-1, 0*8, 30*8-1 )
 
-	MCFG_GFXDECODE(ohmygod)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(ohmygod)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(ohmygod)
+	MDRV_VIDEO_START(ohmygod)
+	MDRV_VIDEO_UPDATE(ohmygod)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 14000000/8, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 14000000/8, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -393,14 +396,14 @@ ROM_END
 
 static DRIVER_INIT( ohmygod )
 {
-	ohmygod_state *state = machine.driver_data<ohmygod_state>();
-	state->m_adpcm_bank_shift = 4;
+	ohmygod_state *state = (ohmygod_state *)machine->driver_data;
+	state->adpcm_bank_shift = 4;
 }
 
 static DRIVER_INIT( naname )
 {
-	ohmygod_state *state = machine.driver_data<ohmygod_state>();
-	state->m_adpcm_bank_shift = 0;
+	ohmygod_state *state = (ohmygod_state *)machine->driver_data;
+	state->adpcm_bank_shift = 0;
 }
 
 

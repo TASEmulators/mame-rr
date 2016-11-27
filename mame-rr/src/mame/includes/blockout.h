@@ -4,24 +4,24 @@
 
 ***************************************************************************/
 
-class blockout_state : public driver_device
+class blockout_state
 {
 public:
-	blockout_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, blockout_state(machine)); }
+
+	blockout_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 * m_videoram;
-	UINT16 * m_frontvideoram;
-	UINT16 * m_paletteram;
+	UINT16 * videoram;
+	UINT16 * frontvideoram;
+	UINT16 * paletteram;
 
 	/* video-related */
-	bitmap_t *m_tmpbitmap;
-	UINT16   m_color;
+	bitmap_t *tmpbitmap;
+	UINT16   color;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -32,4 +32,4 @@ WRITE16_HANDLER( blockout_paletteram_w );
 WRITE16_HANDLER( blockout_frontcolor_w );
 
 VIDEO_START( blockout );
-SCREEN_UPDATE( blockout );
+VIDEO_UPDATE( blockout );

@@ -6,17 +6,18 @@
 
 #include "machine/atarigen.h"
 
-class shuuz_state : public atarigen_state
+class shuuz_state
 {
 public:
-	shuuz_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, shuuz_state(machine)); }
 
-	int m_cur[2];
+	shuuz_state(running_machine &machine) { }
+
+	atarigen_state	atarigen;
 };
 
 
 /*----------- defined in video/shuuz.c -----------*/
 
 VIDEO_START( shuuz );
-SCREEN_UPDATE( shuuz );
+VIDEO_UPDATE( shuuz );

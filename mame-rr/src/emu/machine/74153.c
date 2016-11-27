@@ -41,7 +41,7 @@ typedef struct _ttl74153_state ttl74153_state;
 struct _ttl74153_state
 {
 	/* callback */
-	void (*output_cb)(device_t *device);
+	void (*output_cb)(running_device *device);
 
 	/* inputs */
 	int a;					/* pin 14 */
@@ -56,7 +56,7 @@ struct _ttl74153_state
 	int last_output[2];
 };
 
-INLINE ttl74153_state *get_safe_token(device_t *device)
+INLINE ttl74153_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TTL74153);
@@ -66,7 +66,7 @@ INLINE ttl74153_state *get_safe_token(device_t *device)
 
 
 
-void ttl74153_update(device_t *device)
+void ttl74153_update(running_device *device)
 {
 	ttl74153_state *state = get_safe_token(device);
 	int sel;
@@ -99,35 +99,35 @@ void ttl74153_update(device_t *device)
 }
 
 
-void ttl74153_a_w(device_t *device, int data)
+void ttl74153_a_w(running_device *device, int data)
 {
 	ttl74153_state *state = get_safe_token(device);
 	state->a = data ? 1 : 0;
 }
 
 
-void ttl74153_b_w(device_t *device, int data)
+void ttl74153_b_w(running_device *device, int data)
 {
 	ttl74153_state *state = get_safe_token(device);
 	state->b = data ? 1 : 0;
 }
 
 
-void ttl74153_input_line_w(device_t *device, int section, int input_line, int data)
+void ttl74153_input_line_w(running_device *device, int section, int input_line, int data)
 {
 	ttl74153_state *state = get_safe_token(device);
 	state->input_lines[section][input_line] = data ? 1 : 0;
 }
 
 
-void ttl74153_enable_w(device_t *device, int section, int data)
+void ttl74153_enable_w(running_device *device, int section, int data)
 {
 	ttl74153_state *state = get_safe_token(device);
 	state->enable[section] = data ? 1 : 0;
 }
 
 
-int ttl74153_output_r(device_t *device, int section)
+int ttl74153_output_r(running_device *device, int section)
 {
 	ttl74153_state *state = get_safe_token(device);
 	return state->output[section];
@@ -136,22 +136,22 @@ int ttl74153_output_r(device_t *device, int section)
 
 static DEVICE_START( ttl74153 )
 {
-	ttl74153_config *config = (ttl74153_config *)downcast<const legacy_device_base *>(device)->inline_config();
+	ttl74153_config *config = (ttl74153_config *)downcast<const legacy_device_config_base &>(device->baseconfig()).inline_config();
 	ttl74153_state *state = get_safe_token(device);
     state->output_cb = config->output_cb;
 
-    device->save_item(NAME(state->enable));
-    device->save_item(NAME(state->last_output));
-    device->save_item(NAME(state->input_lines[0][0]));
-    device->save_item(NAME(state->input_lines[0][1]));
-    device->save_item(NAME(state->input_lines[0][2]));
-    device->save_item(NAME(state->input_lines[0][3]));
-    device->save_item(NAME(state->input_lines[1][0]));
-    device->save_item(NAME(state->input_lines[1][1]));
-    device->save_item(NAME(state->input_lines[1][2]));
-    device->save_item(NAME(state->input_lines[1][3]));
-    device->save_item(NAME(state->a));
-    device->save_item(NAME(state->b));
+    state_save_register_device_item_array(device, 0, state->enable);
+    state_save_register_device_item_array(device, 0, state->last_output);
+    state_save_register_device_item(device, 0, state->input_lines[0][0]);
+    state_save_register_device_item(device, 0, state->input_lines[0][1]);
+    state_save_register_device_item(device, 0, state->input_lines[0][2]);
+    state_save_register_device_item(device, 0, state->input_lines[0][3]);
+    state_save_register_device_item(device, 0, state->input_lines[1][0]);
+    state_save_register_device_item(device, 0, state->input_lines[1][1]);
+    state_save_register_device_item(device, 0, state->input_lines[1][2]);
+    state_save_register_device_item(device, 0, state->input_lines[1][3]);
+    state_save_register_device_item(device, 0, state->a);
+    state_save_register_device_item(device, 0, state->b);
 }
 
 

@@ -56,12 +56,12 @@ GFXDECODEINFO(0x0400000, 128)
                             MANIAC SQUARE (FINAL)
   ============================================================================*/
 
-static ADDRESS_MAP_START( maniacsq_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( maniacsq_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM																				/* ROM */
-	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w)		/* Sound Registers */
+	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w) AM_BASE(&gaelco_sndregs)		/* Sound Registers */
 	AM_RANGE(0x200000, 0x20ffff) AM_RAM_WRITE(gaelco2_vram_w) AM_BASE_SIZE_GENERIC(spriteram)		/* Video RAM */
 	AM_RANGE(0x210000, 0x211fff) AM_RAM_WRITE(gaelco2_palette_w) AM_BASE_GENERIC(paletteram)								/* Palette */
-	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE_MEMBER(gaelco2_state, m_vregs)														/* Video Registers */
+	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE(&gaelco2_vregs)														/* Video Registers */
 	AM_RANGE(0x300000, 0x300001) AM_READ_PORT("IN0")																/* DSW #1 + Input 1P */
 	AM_RANGE(0x300002, 0x300003) AM_READ_PORT("IN1")																/* DSW #2 + Input 2P */
 	AM_RANGE(0x30004a, 0x30004b) AM_WRITENOP																		/* Sound muting? */
@@ -155,37 +155,37 @@ static const gaelcosnd_interface maniacsq_snd_interface =
 	{ 0*0x0080000, 1*0x0080000, 0, 0 },		/* start of each ROM bank */
 };
 
-static MACHINE_CONFIG_START( maniacsq, gaelco2_state )
+static MACHINE_DRIVER_START( maniacsq )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 26000000/2)		/* 13 MHz? */
-	MCFG_CPU_PROGRAM_MAP(maniacsq_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 26000000/2)		/* 13 MHz? */
+	MDRV_CPU_PROGRAM_MAP(maniacsq_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2)
-	MCFG_SCREEN_EOF(gaelco2)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
 
-	MCFG_GFXDECODE(0x0080000)
-	MCFG_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
+	MDRV_GFXDECODE(0x0080000)
+	MDRV_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
 
-	MCFG_VIDEO_START(gaelco2)
+	MDRV_VIDEO_START(gaelco2)
+	MDRV_VIDEO_EOF(gaelco2)
+	MDRV_VIDEO_UPDATE(gaelco2)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
-	MCFG_SOUND_CONFIG(maniacsq_snd_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
+	MDRV_SOUND_CONFIG(maniacsq_snd_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 ROM_START( maniacsq )
@@ -209,18 +209,18 @@ ROM_END
                                 BANG
   ============================================================================*/
 
-static READ16_HANDLER(p1_gun_x) {return (input_port_read(space->machine(), "LIGHT0_X") * 320 / 0x100) + 1;}
-static READ16_HANDLER(p1_gun_y) {return (input_port_read(space->machine(), "LIGHT0_Y") * 240 / 0x100) - 4;}
-static READ16_HANDLER(p2_gun_x) {return (input_port_read(space->machine(), "LIGHT1_X") * 320 / 0x100) + 1;}
-static READ16_HANDLER(p2_gun_y) {return (input_port_read(space->machine(), "LIGHT1_Y") * 240 / 0x100) - 4;}
+static READ16_HANDLER(p1_gun_x) {return (input_port_read(space->machine, "LIGHT0_X") * 320 / 0x100) + 1;}
+static READ16_HANDLER(p1_gun_y) {return (input_port_read(space->machine, "LIGHT0_Y") * 240 / 0x100) - 4;}
+static READ16_HANDLER(p2_gun_x) {return (input_port_read(space->machine, "LIGHT1_X") * 320 / 0x100) + 1;}
+static READ16_HANDLER(p2_gun_y) {return (input_port_read(space->machine, "LIGHT1_Y") * 240 / 0x100) - 4;}
 
-static ADDRESS_MAP_START( bang_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( bang_map, ADDRESS_SPACE_PROGRAM, 16 )
     AM_RANGE(0x000000, 0x0fffff) AM_ROM																			/* ROM */
-    AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w)	/* Sound Registers */
+    AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w) AM_BASE(&gaelco_sndregs)	/* Sound Registers */
     AM_RANGE(0x200000, 0x20ffff) AM_RAM_WRITE(gaelco2_vram_w) AM_BASE_SIZE_GENERIC(spriteram)	/* Video RAM */
     AM_RANGE(0x210000, 0x211fff) AM_RAM_WRITE(gaelco2_palette_w) AM_BASE_GENERIC(paletteram)							/* Palette */
     AM_RANGE(0x218004, 0x218009) AM_READONLY																/* Video Registers */
-	AM_RANGE(0x218004, 0x218007) AM_WRITEONLY AM_BASE_MEMBER(gaelco2_state, m_vregs)										/* Video Registers */
+	AM_RANGE(0x218004, 0x218007) AM_WRITEONLY AM_BASE(&gaelco2_vregs)										/* Video Registers */
 	AM_RANGE(0x218008, 0x218009) AM_WRITENOP																	/* CLR INT Video */
     AM_RANGE(0x300000, 0x300001) AM_READ_PORT("P1")
     AM_RANGE(0x300002, 0x300003) AM_READNOP 																	/* Random number generator? */
@@ -252,7 +252,7 @@ static INPUT_PORTS_START( bang )
 	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)	/* bit 6 is EEPROM data (DOUT) */
+	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)	/* bit 6 is EEPROM data (DOUT) */
 	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_SPECIAL )	/* bit 7 is EEPROM ready */
 
 	PORT_START("LIGHT0_X")
@@ -287,39 +287,39 @@ static const eeprom_interface gaelco2_eeprom_interface =
 //  "*10010xxxxxx", /* erase all */
 };
 
-static MACHINE_CONFIG_START( bang, gaelco2_state )
+static MACHINE_DRIVER_START( bang )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 30000000/2)			/* 15 MHz */
-	MCFG_CPU_PROGRAM_MAP(bang_map)
-	MCFG_CPU_VBLANK_INT_HACK(bang_interrupt, 6)
+	MDRV_CPU_ADD("maincpu", M68000, 30000000/2)			/* 15 MHz */
+	MDRV_CPU_PROGRAM_MAP(bang_map)
+	MDRV_CPU_VBLANK_INT_HACK(bang_interrupt, 6)
 
-	MCFG_EEPROM_ADD("eeprom", gaelco2_eeprom_interface)
+	MDRV_EEPROM_ADD("eeprom", gaelco2_eeprom_interface)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2)
-	MCFG_SCREEN_EOF(gaelco2)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
 
-	MCFG_GFXDECODE(0x0200000)
-	MCFG_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
+	MDRV_GFXDECODE(0x0200000)
+	MDRV_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
 
-	MCFG_VIDEO_START(gaelco2)
+	MDRV_VIDEO_START(gaelco2)
+	MDRV_VIDEO_EOF(gaelco2)
+	MDRV_VIDEO_UPDATE(gaelco2)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("gaelco", GAELCO_CG1V, 0)
-	MCFG_SOUND_CONFIG(bang_snd_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("gaelco", GAELCO_CG1V, 0)
+	MDRV_SOUND_CONFIG(bang_snd_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 /*
@@ -433,12 +433,12 @@ ROM_END
   ============================================================================*/
 
 
-static ADDRESS_MAP_START( alighunt_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( alighunt_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM																				/* ROM */
-	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w)		/* Sound Registers */
+	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w) AM_BASE(&gaelco_sndregs)		/* Sound Registers */
 	AM_RANGE(0x200000, 0x20ffff) AM_RAM_WRITE(gaelco2_vram_w) AM_BASE_SIZE_GENERIC(spriteram)		/* Video RAM */
 	AM_RANGE(0x210000, 0x211fff) AM_RAM_WRITE(gaelco2_palette_w) AM_BASE_GENERIC(paletteram)								/* Palette */
-	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE_MEMBER(gaelco2_state, m_vregs)														/* Video Registers */
+	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE(&gaelco2_vregs)														/* Video Registers */
 	AM_RANGE(0x300000, 0x300001) AM_READ_PORT("IN0")																/* DSW #1 + Input 1P */
 	AM_RANGE(0x300002, 0x300003) AM_READ_PORT("IN1")																/* DSW #2 + Input 2P */
 	AM_RANGE(0x320000, 0x320001) AM_READ_PORT("COIN")																/* COINSW + SERVICESW */
@@ -531,37 +531,37 @@ static const gaelcosnd_interface alighunt_snd_interface =
 	{ 0*0x0400000, 1*0x0400000, 2*0x0400000, 3*0x0400000 }	/* start of each ROM bank */
 };
 
-static MACHINE_CONFIG_START( alighunt, gaelco2_state )
+static MACHINE_DRIVER_START( alighunt )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 24000000/2)			/* 12 MHz */
-	MCFG_CPU_PROGRAM_MAP(alighunt_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 24000000/2)			/* 12 MHz */
+	MDRV_CPU_PROGRAM_MAP(alighunt_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2)
-	MCFG_SCREEN_EOF(gaelco2)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-1)
 
-	MCFG_GFXDECODE(0x0400000)
-	MCFG_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
+	MDRV_GFXDECODE(0x0400000)
+	MDRV_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
 
-	MCFG_VIDEO_START(gaelco2)
+	MDRV_VIDEO_START(gaelco2)
+	MDRV_VIDEO_EOF(gaelco2)
+	MDRV_VIDEO_UPDATE(gaelco2)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
-	MCFG_SOUND_CONFIG(alighunt_snd_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
+	MDRV_SOUND_CONFIG(alighunt_snd_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 /*
@@ -645,12 +645,12 @@ static READ16_HANDLER ( dallas_kludge_r )
 	return 0x0200;
 }
 
-static ADDRESS_MAP_START( touchgo_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( touchgo_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM																					/* ROM */
-	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w)			/* Sound Registers */
+	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w) AM_BASE(&gaelco_sndregs)			/* Sound Registers */
 	AM_RANGE(0x200000, 0x20ffff) AM_RAM_WRITE(gaelco2_vram_w) AM_BASE_SIZE_GENERIC(spriteram)			/* Video RAM */
 	AM_RANGE(0x210000, 0x211fff) AM_RAM_WRITE(gaelco2_palette_w) AM_BASE_GENERIC(paletteram)									/* Palette */
-	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE_MEMBER(gaelco2_state, m_vregs)															/* Video Registers */
+	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE(&gaelco2_vregs)															/* Video Registers */
 	AM_RANGE(0x300000, 0x300001) AM_READ_PORT("IN0")																	/* DSW #1 + Input 1P */
 	AM_RANGE(0x300002, 0x300003) AM_READ_PORT("IN1")																	/* DSW #2 + Input 2P */
 	AM_RANGE(0x300004, 0x300005) AM_READ_PORT("IN2")																	/* COINSW + Input 3P */
@@ -774,46 +774,45 @@ static const gaelcosnd_interface touchgo_snd_interface =
 	{ 0*0x0400000, 1*0x0400000, 0, 0 }		/* start of each ROM bank */
 };
 
-static MACHINE_CONFIG_START( touchgo, gaelco2_state )
+static MACHINE_DRIVER_START( touchgo )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 32000000/2)			/* 16 MHz */
-	MCFG_CPU_PROGRAM_MAP(touchgo_map)
-	MCFG_CPU_VBLANK_INT("lscreen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 32000000/2)			/* 16 MHz */
+	MDRV_CPU_PROGRAM_MAP(touchgo_map)
+	MDRV_CPU_VBLANK_INT("lscreen", irq6_line_hold)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
-	MCFG_GFXDECODE(0x0400000)
-	MCFG_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
-	MCFG_DEFAULT_LAYOUT(layout_dualhsxs)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_GFXDECODE(0x0400000)
+	MDRV_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
+	MDRV_DEFAULT_LAYOUT(layout_dualhsxs)
 
-	MCFG_SCREEN_ADD("lscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 480-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2_dual)
+	MDRV_SCREEN_ADD("lscreen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 480-1, 16, 256-1)
 
-	MCFG_SCREEN_ADD("rscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 480-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2_dual)
-	MCFG_SCREEN_EOF(gaelco2)
+	MDRV_SCREEN_ADD("rscreen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 480-1, 16, 256-1)
 
-	MCFG_VIDEO_START(gaelco2_dual)
+	MDRV_VIDEO_START(gaelco2_dual)
+	MDRV_VIDEO_EOF(gaelco2)
+	MDRV_VIDEO_UPDATE(gaelco2_dual)
 
 	/* sound hardware */
 	/* the chip is stereo, but the game sound is mono because the right channel
        output is for cabinet 1 and the left channel output is for cabinet 2 */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-	MCFG_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
-	MCFG_SOUND_CONFIG(touchgo_snd_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
+	MDRV_SOUND_CONFIG(touchgo_snd_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 /*
 PCB Layout:
@@ -911,13 +910,13 @@ ROM_END
                             SNOW BOARD
   ============================================================================*/
 
-static ADDRESS_MAP_START( snowboar_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( snowboar_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM																						/* ROM */
-	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w)				/* Sound Registers */
+	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w) AM_BASE(&gaelco_sndregs)				/* Sound Registers */
 	AM_RANGE(0x200000, 0x20ffff) AM_RAM_WRITE(gaelco2_vram_w) AM_BASE_SIZE_GENERIC(spriteram)				/* Video RAM */
 	AM_RANGE(0x210000, 0x211fff) AM_RAM_WRITE(gaelco2_palette_w) AM_BASE_GENERIC(paletteram)										/* Palette */
 	AM_RANGE(0x212000, 0x213fff) AM_RAM																						/* Extra RAM */
-	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE_MEMBER(gaelco2_state, m_vregs)																/* Video Registers */
+	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE(&gaelco2_vregs)																/* Video Registers */
 	AM_RANGE(0x300000, 0x300001) AM_READ_PORT("P1")
 	AM_RANGE(0x300000, 0x300003) AM_WRITE(gaelco2_coin2_w)																	/* Coin Counters */
 	AM_RANGE(0x300008, 0x300009) AM_DEVWRITE("eeprom", gaelco2_eeprom_data_w)															/* EEPROM data */
@@ -925,7 +924,7 @@ static ADDRESS_MAP_START( snowboar_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x30000c, 0x30000d) AM_DEVWRITE("eeprom", gaelco2_eeprom_cs_w)																/* EEPROM chip select */
 	AM_RANGE(0x300010, 0x300011) AM_READ_PORT("P2")
 	AM_RANGE(0x300020, 0x300021) AM_READ_PORT("COIN")
-	AM_RANGE(0x310000, 0x31ffff) AM_READWRITE(snowboar_protection_r,snowboar_protection_w) AM_BASE_MEMBER(gaelco2_state, m_snowboar_protection)	/* Protection */
+	AM_RANGE(0x310000, 0x31ffff) AM_READWRITE(snowboar_protection_r,snowboar_protection_w) AM_BASE(&snowboar_protection)	/* Protection */
 	AM_RANGE(0xfe0000, 0xfeffff) AM_RAM																						/* Work RAM */
 ADDRESS_MAP_END
 
@@ -958,7 +957,7 @@ static INPUT_PORTS_START( snowboar )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)	/* bit 6 is EEPROM data (DOUT) */
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)	/* bit 6 is EEPROM data (DOUT) */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_SPECIAL )	/* bit 7 is EEPROM ready */
 INPUT_PORTS_END
 
@@ -968,39 +967,39 @@ static const gaelcosnd_interface snowboar_snd_interface =
 	{ 0*0x0400000, 1*0x0400000, 0, 0 }		/* start of each ROM bank */
 };
 
-static MACHINE_CONFIG_START( snowboar, gaelco2_state )
+static MACHINE_DRIVER_START( snowboar )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 30000000/2)			/* 15 MHz */
-	MCFG_CPU_PROGRAM_MAP(snowboar_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 30000000/2)			/* 15 MHz */
+	MDRV_CPU_PROGRAM_MAP(snowboar_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
-	MCFG_EEPROM_ADD("eeprom", gaelco2_eeprom_interface)
+	MDRV_EEPROM_ADD("eeprom", gaelco2_eeprom_interface)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 384-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2)
-	MCFG_SCREEN_EOF(gaelco2)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 384-1, 16, 256-1)
 
-	MCFG_GFXDECODE(0x0400000)
-	MCFG_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
+	MDRV_GFXDECODE(0x0400000)
+	MDRV_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
 
-	MCFG_VIDEO_START(gaelco2)
+	MDRV_VIDEO_START(gaelco2)
+	MDRV_VIDEO_EOF(gaelco2)
+	MDRV_VIDEO_UPDATE(gaelco2)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("gaelco", GAELCO_CG1V, 0)
-	MCFG_SOUND_CONFIG(snowboar_snd_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("gaelco", GAELCO_CG1V, 0)
+	MDRV_SOUND_CONFIG(snowboar_snd_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 /*
@@ -1097,13 +1096,13 @@ ROM_END
                             WORLD RALLY 2
   ============================================================================*/
 
-static ADDRESS_MAP_START( wrally2_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( wrally2_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM																			/* ROM */
-	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w)	/* Sound Registers */
+	AM_RANGE(0x202890, 0x2028ff) AM_DEVREADWRITE("gaelco", gaelcosnd_r, gaelcosnd_w) AM_BASE(&gaelco_sndregs)	/* Sound Registers */
 	AM_RANGE(0x200000, 0x20ffff) AM_RAM_WRITE(gaelco2_vram_w) AM_BASE_SIZE_GENERIC(spriteram)	/* Video RAM */
 	AM_RANGE(0x210000, 0x211fff) AM_RAM_WRITE(gaelco2_palette_w) AM_BASE_GENERIC(paletteram)							/* Palette */
 	AM_RANGE(0x212000, 0x213fff) AM_RAM																			/* Extra RAM */
-	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE_MEMBER(gaelco2_state, m_vregs)													/* Video Registers */
+	AM_RANGE(0x218004, 0x218009) AM_RAM AM_BASE(&gaelco2_vregs)													/* Video Registers */
 	AM_RANGE(0x300000, 0x300001) AM_READ_PORT("IN0")															/* DIPSW #2 + Inputs 1P */
 	AM_RANGE(0x300002, 0x300003) AM_READ_PORT("IN1")															/* DIPSW #1 */
 	AM_RANGE(0x300004, 0x300005) AM_READ_PORT("IN2")															/* Inputs 2P + COINSW */
@@ -1210,49 +1209,48 @@ static const gaelcosnd_interface wrally2_snd_interface =
 	{ 0*0x0200000, 1*0x0200000, 0, 0 }	/* start of each ROM bank */
 };
 
-static MACHINE_CONFIG_START( wrally2, gaelco2_state )
+static MACHINE_DRIVER_START( wrally2 )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 26000000/2)			/* 13 MHz */
-	MCFG_CPU_PROGRAM_MAP(wrally2_map)
-	MCFG_CPU_VBLANK_INT("lscreen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 26000000/2)			/* 13 MHz */
+	MDRV_CPU_PROGRAM_MAP(wrally2_map)
+	MDRV_CPU_VBLANK_INT("lscreen", irq6_line_hold)
 
-	MCFG_EEPROM_ADD("eeprom", gaelco2_eeprom_interface)
+	MDRV_EEPROM_ADD("eeprom", gaelco2_eeprom_interface)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
-	MCFG_GFXDECODE(0x0200000)
-	MCFG_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
-	MCFG_DEFAULT_LAYOUT(layout_dualhsxs)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_GFXDECODE(0x0200000)
+	MDRV_PALETTE_LENGTH(4096*16 - 16)	/* game's palette is 4096 but we allocate 15 more for shadows & highlights */
+	MDRV_DEFAULT_LAYOUT(layout_dualhsxs)
 
-	MCFG_SCREEN_ADD("lscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(384, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 384-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2_dual)
+	MDRV_SCREEN_ADD("lscreen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_SIZE(384, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 384-1, 16, 256-1)
 
-	MCFG_SCREEN_ADD("rscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(59.1)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(384, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 384-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(gaelco2_dual)
-	MCFG_SCREEN_EOF(gaelco2)
+	MDRV_SCREEN_ADD("rscreen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(59.1)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_SIZE(384, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 384-1, 16, 256-1)
 
 
-	MCFG_VIDEO_START(gaelco2_dual)
+	MDRV_VIDEO_START(gaelco2_dual)
+	MDRV_VIDEO_EOF(gaelco2)
+	MDRV_VIDEO_UPDATE(gaelco2_dual)
 
 	/* sound hardware */
 	/* the chip is stereo, but the game sound is mono because the right channel
        output is for cabinet 1 and the left channel output is for cabinet 2 */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-	MCFG_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
-	MCFG_SOUND_CONFIG(wrally2_snd_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SOUND_ADD("gaelco", GAELCO_GAE1, 0)
+	MDRV_SOUND_CONFIG(wrally2_snd_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 /*
 PCB Layout:
@@ -1431,22 +1429,6 @@ ROM_START( grtesoro )
 	ROM_LOAD( "palce16v8h.u29",  0x0000, 0x0117, BAD_DUMP CRC(4a0a6f39) SHA1(57351e471649391c9abf110828fe2f128fe84eee) )
 ROM_END
 
-ROM_START( grtesoro4 ) /* there are version 4.0 and version 1.0 strings in this, go with the higher one */
-	ROM_REGION( 0x100000, "maincpu", 0 )	/* 68000 code */
-	ROM_LOAD16_BYTE( "2.u39_v4",	0x000000, 0x020000, CRC(fff16141) SHA1(8493c3e58a231c03b152b336f43422a9a2d2618c) )
-	ROM_LOAD16_BYTE( "1.u40_v4",	0x000001, 0x020000, CRC(39f9d58e) SHA1(1cbdae2adc570f2a2e10a707075312ef717e2643) )
-
-	ROM_REGION( 0x0300000, "gfx1", 0 ) /* GFX + Sound */
-	ROM_LOAD( "3.u54", 0x0000000, 0x0080000, CRC(085008ed) SHA1(06eb4f972d79eab13b1b3b6829ef280e079abdb6) )
-	ROM_LOAD( "4.u53", 0x0080000, 0x0080000, CRC(94dc37a7) SHA1(28f9832b61541b292682a6e2d2264abccd138a2e) )
-	ROM_LOAD( "5.u52", 0x0100000, 0x0080000, CRC(19b939f4) SHA1(7281709aa3ab1decb84bf7ab10492fb6ec197c80) )
-	ROM_LOAD( "6.u51", 0x0180000, 0x0100000, CRC(6dafc11c) SHA1(2aa3d6318418578433b3060bda6e27adf794dea4) )
-	ROM_LOAD( "7.u50", 0x0280000, 0x0080000, CRC(e80c6d39) SHA1(b3ae5d66c48c2ba6665a181e311b0c834384258a) )
-
-	ROM_REGION( 0x0600, "plds", 0 )
-	ROM_LOAD( "palce16v8h.u29",  0x0000, 0x0117, BAD_DUMP CRC(4a0a6f39) SHA1(57351e471649391c9abf110828fe2f128fe84eee) )
-ROM_END
-
 GAME( 1994, aligator,  0,       alighunt, alighunt, alighunt, ROT0, "Gaelco", "Alligator Hunt", GAME_UNEMULATED_PROTECTION | GAME_NOT_WORKING )
 GAME( 1994, aligatorun,aligator,alighunt, alighunt, alighunt, ROT0, "Gaelco", "Alligator Hunt (unprotected)", 0 )
 GAME( 1995, touchgo,  0,        touchgo,  touchgo,  touchgo,  ROT0, "Gaelco", "Touch & Go (World)", GAME_UNEMULATED_PROTECTION | GAME_NOT_WORKING )
@@ -1458,5 +1440,4 @@ GAME( 1996, snowboar, 0,        snowboar, snowboar, 0,        ROT0, "Gaelco", "S
 GAME( 1996, snowboara,snowboar, snowboar, snowboar, snowboar, ROT0, "Gaelco", "Snow Board Championship (Version 2.0)", GAME_UNEMULATED_PROTECTION | GAME_NOT_WORKING )
 GAME( 1998, bang,     0,        bang,     bang,     bang,     ROT0, "Gaelco", "Bang!", 0 )
 GAME( 1998, bangj,    bang,     bang,     bang,     bang,     ROT0, "Gaelco", "Gun Gabacho (Japan)", 0 )
-GAME( 1999, grtesoro,  0,       maniacsq, maniacsq, 0,        ROT0, "Nova Desitec", "Gran Tesoro? / Play 2000 (v5.01) (Italy)", GAME_UNEMULATED_PROTECTION | GAME_NOT_WORKING )
-GAME( 1999, grtesoro4, grtesoro,maniacsq, maniacsq, 0,        ROT0, "Nova Desitec", "Gran Tesoro? / Play 2000 (v4.0) (Italy)", GAME_UNEMULATED_PROTECTION | GAME_NOT_WORKING )
+GAME( 1999, grtesoro, 0,        maniacsq, maniacsq, 0,        ROT0, "Nova Desitec", "Gran Tesoro? / Play 2000 (v5.01) (Italy)", GAME_UNEMULATED_PROTECTION | GAME_NOT_WORKING )

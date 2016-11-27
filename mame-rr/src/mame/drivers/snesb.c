@@ -10,7 +10,6 @@
     - Sonic Blast Man 2
     - Iron (bootleg of Iron Commando)
     - Ghost Chaser Densei
-    - Gundam Wing: Endless Duel
 
     Not dumped:
     - Final Fight 3
@@ -143,71 +142,57 @@ Iron PCB (same as Final Fight 2?)
 #include "includes/snes.h"
 #include "audio/snes_snd.h"
 
-
-class snesb_state : public snes_state
-{
-public:
-	snesb_state(const machine_config &mconfig, device_type type, const char *tag)
-		: snes_state(mconfig, type, tag) { }
-
-	INT8 *m_shared_ram;
-	UINT8 m_ffight2b_coins;
-	INT32 m_oldinput;
-	INT32 m_oldcoin;
-	UINT8 m_cnt;
-};
-
-
+static INT8 *shared_ram;
+static UINT8 ffight2b_coins;
 
 static READ8_HANDLER(sharedram_r)
 {
-	snesb_state *state = space->machine().driver_data<snesb_state>();
+	static INT32 oldinput=0;
 	INT32 coincnt;
-	INT32 input = input_port_read(space->machine(), "COIN");
+	INT32 input = input_port_read(space->machine, "COIN");
 
 	if(input&3)
 	{
-		if( ((input&1)==1)&&((state->m_oldinput&1)==0))	{state->m_shared_ram[0]++;}
+		if( ((input&1)==1)&&((oldinput&1)==0))	{shared_ram[0]++;}
 
-		coincnt=state->m_shared_ram[0];
+		coincnt=shared_ram[0];
 
 		if(coincnt>99){coincnt=99;}
 
-		state->m_shared_ram[0xb]=(coincnt/10)+'0';
-		state->m_shared_ram[0xa]=(coincnt%10)+'0';
+		shared_ram[0xb]=(coincnt/10)+'0';
+		shared_ram[0xa]=(coincnt%10)+'0';
 	}
-	state->m_oldinput=input;
-	return state->m_shared_ram[offset];
+	oldinput=input;
+	return shared_ram[offset];
 }
 
 static WRITE8_HANDLER(sharedram_w)
 {
-	snesb_state *state = space->machine().driver_data<snesb_state>();
-	state->m_shared_ram[offset]=data;
+	shared_ram[offset]=data;
 }
 
 static READ8_HANDLER(ffight2b_coin_r)
 {
-	snesb_state *state = space->machine().driver_data<snesb_state>();
-	INT32 input = input_port_read(space->machine(), "COIN");
+	static INT32 oldinput=0;
+	INT32 input = input_port_read(space->machine, "COIN");
 
-	if( ((input&1)==1)&&((state->m_oldcoin&1)==0))
+	if( ((input&1)==1)&&((oldinput&1)==0))
 	{
-		INT32 coin_cnt=(state->m_ffight2b_coins&0xf)+10*(state->m_ffight2b_coins>>4);
+		INT32 coin_cnt=(ffight2b_coins&0xf)+10*(ffight2b_coins>>4);
 		if(++coin_cnt>99) coin_cnt=99;
-		state->m_ffight2b_coins=(coin_cnt%10)|((coin_cnt/10)<<4);
+		ffight2b_coins=(coin_cnt%10)|((coin_cnt/10)<<4);
 	}
-	state->m_oldcoin=input;
-	return state->m_ffight2b_coins;
+	oldinput=input;
+	return ffight2b_coins;
 }
 
 /* Sonic blast man 2 turbo */
 
 static READ8_HANDLER(sb2b_75bd37_r)
 {
-	snesb_state *state = space->machine().driver_data<snesb_state>();
 	/* protection check */
-	return ++state->m_cnt;
+	static UINT8 cnt=0;
+	return ++cnt;
 }
 
 static READ8_HANDLER(sb2b_6a6xxx_r)
@@ -223,19 +208,19 @@ static READ8_HANDLER(sb2b_6a6xxx_r)
 		case 0xfb7:	return 0x47;
 	}
 
-	logerror("Unknown protection read read %x @ %x\n",offset, cpu_get_pc(&space->device()));
+	logerror("Unknown protection read read %x @ %x\n",offset, cpu_get_pc(space->cpu));
 
 	return 0;
 }
 
 static READ8_HANDLER(sb2b_770071_r)
 {
-	return input_port_read(space->machine(), "DSW");
+	return input_port_read(space->machine, "DSW");
 }
 
 static READ8_HANDLER(sb2b_770079_r)
 {
-	return input_port_read(space->machine(), "COIN");
+	return input_port_read(space->machine, "COIN");
 }
 
 static READ8_HANDLER(sb2b_7xxx_r)
@@ -247,17 +232,17 @@ static READ8_HANDLER(sb2b_7xxx_r)
 
 static READ8_HANDLER(iron_770071_r)
 {
-	return input_port_read(space->machine(), "DSW1");
+	return input_port_read(space->machine, "DSW1");
 }
 
 static READ8_HANDLER(iron_770073_r)
 {
-	return input_port_read(space->machine(), "DSW2");
+	return input_port_read(space->machine, "DSW2");
 }
 
 static READ8_HANDLER(iron_770079_r)
 {
-	return input_port_read(space->machine(), "COIN");
+	return input_port_read(space->machine, "COIN");
 }
 
 
@@ -265,17 +250,17 @@ static READ8_HANDLER(iron_770079_r)
 
 static READ8_HANDLER(denseib_770071_r)
 {
-	return input_port_read(space->machine(), "DSW1");
+	return input_port_read(space->machine, "DSW1");
 }
 
 static READ8_HANDLER(denseib_770079_r)
 {
-	return input_port_read(space->machine(), "COIN");
+	return input_port_read(space->machine, "COIN");
 }
 
 
 
-static ADDRESS_MAP_START( snesb_map, AS_PROGRAM, 8)
+static ADDRESS_MAP_START( snesb_map, ADDRESS_SPACE_PROGRAM, 8)
 	AM_RANGE(0x000000, 0x2fffff) AM_READWRITE(snes_r_bank1, snes_w_bank1)	/* I/O and ROM (repeats for each bank) */
 	AM_RANGE(0x300000, 0x3fffff) AM_READWRITE(snes_r_bank2, snes_w_bank2)	/* I/O and ROM (repeats for each bank) */
 	AM_RANGE(0x400000, 0x5fffff) AM_READ(snes_r_bank3)						/* ROM (and reserved in Mode 20) */
@@ -297,7 +282,7 @@ static WRITE8_DEVICE_HANDLER( spc_ram_100_w )
 	spc_ram_w(device, offset + 0x100, data);
 }
 
-static ADDRESS_MAP_START( spc_mem, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spc_mem, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x00ef) AM_DEVREADWRITE("spc700", spc_ram_r, spc_ram_w)	/* lower 32k ram */
 	AM_RANGE(0x00f0, 0x00ff) AM_DEVREADWRITE("spc700", spc_io_r, spc_io_w)  	/* spc io */
 	AM_RANGE(0x0100, 0xffff) AM_DEVWRITE("spc700", spc_ram_100_w)
@@ -346,7 +331,7 @@ static INPUT_PORTS_START( snes_common )
 	PORT_START("SERIAL2_DATA2_H")
 	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_UNUSED )
 
-#if SNES_LAYER_DEBUG
+#ifdef SNES_LAYER_DEBUG
 	PORT_START("DEBUG1")
 	PORT_CONFNAME( 0x03, 0x00, "Select BG1 priority" )
 	PORT_CONFSETTING(    0x00, "All" )
@@ -512,58 +497,59 @@ static INPUT_PORTS_START( denseib )
 INPUT_PORTS_END
 
 
-static MACHINE_CONFIG_START( kinstb, snesb_state )
+static MACHINE_DRIVER_START( kinstb )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(snes_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", _5A22, 3580000*6)	/* 2.68Mhz, also 3.58Mhz */
-	MCFG_CPU_PROGRAM_MAP(snesb_map)
+	MDRV_CPU_ADD("maincpu", _5A22, 3580000*6)	/* 2.68Mhz, also 3.58Mhz */
+	MDRV_CPU_PROGRAM_MAP(snesb_map)
 
 	/* audio CPU */
-	MCFG_CPU_ADD("soundcpu", SPC700, 2048000/2)	/* 2.048 Mhz, but internal divider */
-	MCFG_CPU_PROGRAM_MAP(spc_mem)
+	MDRV_CPU_ADD("soundcpu", SPC700, 2048000/2)	/* 2.048 Mhz, but internal divider */
+	MDRV_CPU_PROGRAM_MAP(spc_mem)
 
-	MCFG_QUANTUM_PERFECT_CPU("maincpu")
+	MDRV_QUANTUM_PERFECT_CPU("maincpu")
 
-	MCFG_MACHINE_START( snes )
-	MCFG_MACHINE_RESET( snes )
+	MDRV_MACHINE_START( snes )
+	MDRV_MACHINE_RESET( snes )
 
 	/* video hardware */
-	MCFG_VIDEO_START( snes )
+	MDRV_VIDEO_START( snes )
+	MDRV_VIDEO_UPDATE( snes )
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_RAW_PARAMS(DOTCLK_NTSC, SNES_HTOTAL, 0, SNES_SCR_WIDTH, SNES_VTOTAL_NTSC, 0, SNES_SCR_HEIGHT_NTSC)
-	MCFG_SCREEN_UPDATE( snes )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_RAW_PARAMS(DOTCLK_NTSC, SNES_HTOTAL, 0, SNES_SCR_WIDTH, SNES_VTOTAL_NTSC, 0, SNES_SCR_HEIGHT_NTSC)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-	MCFG_SOUND_ADD("spc700", SNES, 0)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.00)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.00)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SOUND_ADD("spc700", SNES, 0)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.00)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.00)
+MACHINE_DRIVER_END
 
 static DRIVER_INIT(kinstb)
 {
-	snesb_state *state = machine.driver_data<snesb_state>();
 	INT32 i;
-	UINT8 *rom = machine.region("user3")->base();
+	UINT8 *rom = memory_region(machine, "user3");
 
 	for (i = 0; i < 0x400000; i++)
 	{
 		rom[i] = BITSWAP8(rom[i], 5, 0, 6, 1, 7, 4, 3, 2);
 	}
 
-	state->m_shared_ram = auto_alloc_array(machine, INT8, 0x100);
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x781000, 0x7810ff, FUNC(sharedram_r), FUNC(sharedram_w));
+	shared_ram = auto_alloc_array(machine, INT8, 0x100);
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x781000, 0x7810ff, 0, 0, sharedram_r, sharedram_w);
 
 	DRIVER_INIT_CALL(snes_hirom);
 }
 
 static DRIVER_INIT( ffight2b )
 {
-	snesb_state *state = machine.driver_data<snesb_state>();
 	INT32 i;
-	UINT8 *rom = machine.region("user3")->base();
+	UINT8 *rom = memory_region(machine, "user3");
 
 	for(i = 0; i < 0x200000; i++)
 	{
@@ -595,8 +581,8 @@ static DRIVER_INIT( ffight2b )
 	rom[0x7ffd] = 0x89;
 	rom[0x7ffc] = 0x54;
 
-	state->m_ffight2b_coins = 0;
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x7eadce, 0x7eadce, FUNC(ffight2b_coin_r));
+	ffight2b_coins = 0;
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x7eadce, 0x7eadce, 0, 0, ffight2b_coin_r);
 
 	DRIVER_INIT_CALL(snes);
 }
@@ -622,8 +608,8 @@ static const UINT8  address_substitution_high[] =
 static DRIVER_INIT( sblast2b )
 {
 	int i, cipherText, plainText, newAddress;
-	UINT8 *src = machine.region("user7")->base();
-	UINT8 *dst = machine.region("user3")->base();
+	UINT8 *src = memory_region(machine, "user7");
+	UINT8 *dst = memory_region(machine, "user3");
 
 	for (i =0; i < 0x80000 * 3; i++)
 	{
@@ -655,15 +641,15 @@ static DRIVER_INIT( sblast2b )
 	dst[0xfffd] = 0x7a;
 
 	/*  protection checks */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x75bd37, 0x75bd37, FUNC(sb2b_75bd37_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x6a6000, 0x6a6fff, FUNC(sb2b_6a6xxx_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x75bd37, 0x75bd37, 0, 0, sb2b_75bd37_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x6a6000, 0x6a6fff, 0, 0, sb2b_6a6xxx_r);
 
 	/* extra inputs */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770071, 0x770071, FUNC(sb2b_770071_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770079, 0x770079, FUNC(sb2b_770079_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770071, 0x770071, 0, 0, sb2b_770071_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770079, 0x770079, 0, 0, sb2b_770079_r);
 
 	/* handler to read boot code */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x007000, 0x007fff, FUNC(sb2b_7xxx_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x007000, 0x007fff, 0, 0, sb2b_7xxx_r);
 
 	DRIVER_INIT_CALL(snes_hirom);
 }
@@ -671,7 +657,7 @@ static DRIVER_INIT( sblast2b )
 static DRIVER_INIT( iron )
 {
 	INT32 i;
-	UINT8 *rom = machine.region("user3")->base();
+	UINT8 *rom = memory_region(machine, "user3");
 
 	for (i = 0; i < 0x140000; i++)
 	{
@@ -686,9 +672,9 @@ static DRIVER_INIT( iron )
 	}
 
 	/* extra inputs */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770071, 0x770071, FUNC(iron_770071_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770073, 0x770073, FUNC(iron_770073_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770079, 0x770079, FUNC(iron_770079_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770071, 0x770071, 0, 0, iron_770071_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770073, 0x770073, 0, 0, iron_770073_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770079, 0x770079, 0, 0, iron_770079_r);
 
 	DRIVER_INIT_CALL(snes);
 }
@@ -696,7 +682,7 @@ static DRIVER_INIT( iron )
 static DRIVER_INIT( endless )
 {
 	INT32 i;
-	UINT8 *rom = machine.region("user3")->base();
+	UINT8 *rom = memory_region(machine, "user3");
 
 	/* there is more to this, 0x800 based block swaps? */
 	for (i = 0; i < 0x200000; i++)
@@ -709,7 +695,7 @@ static DRIVER_INIT( endless )
 
 static DRIVER_INIT( denseib )
 {
-	UINT8 *rom = machine.region("user3")->base();
+	UINT8 *rom = memory_region(machine, "user3");
 	INT32 i;
 
 	for (i = 0; i < 0x200000; i++)
@@ -731,8 +717,8 @@ static DRIVER_INIT( denseib )
 	rom[0xfffd] = 0xf7;
 
 	/* extra inputs */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770071, 0x770071, FUNC(denseib_770071_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x770079, 0x770079, FUNC(denseib_770079_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770071, 0x770071, 0, 0, denseib_770071_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x770079, 0x770079, 0, 0, denseib_770079_r);
 
 	DRIVER_INIT_CALL(snes_hirom);
 }

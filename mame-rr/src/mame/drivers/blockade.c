@@ -34,8 +34,6 @@
 #include "sound/samples.h"
 #include "sound/discrete.h"
 
-#include "blockade.lh"
-
 #define BLOCKADE_LOG 0
 #define MASTER_CLOCK XTAL_20_079MHz
 
@@ -60,13 +58,13 @@
 
 static INTERRUPT_GEN( blockade_interrupt )
 {
-	blockade_state *state = device->machine().driver_data<blockade_state>();
-	device_resume(device, SUSPEND_ANY_REASON);
+	blockade_state *state = (blockade_state *)device->machine->driver_data;
+	cpu_resume(device, SUSPEND_ANY_REASON);
 
-	if ((input_port_read(device->machine(), "IN0") & 0x80) == 0)
+	if ((input_port_read(device->machine, "IN0") & 0x80) == 0)
 	{
-		state->m_just_been_reset = 1;
-		device_set_input_line(device, INPUT_LINE_RESET, PULSE_LINE);
+		state->just_been_reset = 1;
+		cpu_set_input_line(device, INPUT_LINE_RESET, PULSE_LINE);
 	}
 }
 
@@ -78,27 +76,27 @@ static INTERRUPT_GEN( blockade_interrupt )
 
 static READ8_HANDLER( blockade_input_port_0_r )
 {
-	blockade_state *state = space->machine().driver_data<blockade_state>();
+	blockade_state *state = (blockade_state *)space->machine->driver_data;
 	/* coin latch is bit 7 */
-	UINT8 temp = (input_port_read(space->machine(), "IN0") & 0x7f);
+	UINT8 temp = (input_port_read(space->machine, "IN0") & 0x7f);
 
-	return (state->m_coin_latch << 7) | temp;
+	return (state->coin_latch << 7) | temp;
 }
 
 static WRITE8_HANDLER( blockade_coin_latch_w )
 {
-	blockade_state *state = space->machine().driver_data<blockade_state>();
+	blockade_state *state = (blockade_state *)space->machine->driver_data;
 
 	if (data & 0x80)
 	{
 		if (BLOCKADE_LOG) mame_printf_debug("Reset Coin Latch\n");
-		if (state->m_just_been_reset)
+		if (state->just_been_reset)
 		{
-			state->m_just_been_reset = 0;
-			state->m_coin_latch = 0;
+			state->just_been_reset = 0;
+			state->coin_latch = 0;
 		}
 		else
-			state->m_coin_latch = 1;
+			state->coin_latch = 1;
 	}
 
 	if (data & 0x20)
@@ -120,13 +118,13 @@ static WRITE8_HANDLER( blockade_coin_latch_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
     AM_RANGE(0x0000, 0x07ff) AM_ROM AM_MIRROR(0x6000)
-    AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(blockade_videoram_w) AM_BASE_MEMBER(blockade_state, m_videoram) AM_MIRROR(0x6c00)
+    AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(blockade_videoram_w) AM_BASE_MEMBER(blockade_state, videoram) AM_MIRROR(0x6c00)
     AM_RANGE(0x9000, 0x90ff) AM_RAM AM_MIRROR(0x6f00)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( main_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( main_io_map, ADDRESS_SPACE_IO, 8 )
     AM_RANGE(0x01, 0x01) AM_READWRITE(blockade_input_port_0_r, blockade_coin_latch_w)
     AM_RANGE(0x02, 0x02) AM_READ_PORT("IN1")
     AM_RANGE(0x02, 0x02) AM_DEVWRITE("discrete", blockade_sound_freq_w)
@@ -242,7 +240,7 @@ static INPUT_PORTS_START( blasto )
 	PORT_CONFSETTING(    0x00, DEF_STR( Off ) )
 	PORT_CONFSETTING(    0x04, DEF_STR( On ) )
 	PORT_CONFNAME( 0x08, 0x08, DEF_STR( Game_Time ) )
-	PORT_CONFSETTING(    0x00, "70 Secs" ) // though service manual says 60
+	PORT_CONFSETTING(    0x00, "70 Secs" )
 	PORT_CONFSETTING(    0x08, "90 Secs" )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -441,10 +439,22 @@ static GFXDECODE_START( blasto )
 	GFXDECODE_ENTRY( "gfx1", 0x0000, blasto_layout,   0, 1 )
 GFXDECODE_END
 
-static PALETTE_INIT( blockade )
+
+static PALETTE_INIT( green )
 {
 	palette_set_color(machine,0,MAKE_RGB(0x00,0x00,0x00)); /* BLACK */
-	palette_set_color(machine,1,MAKE_RGB(0xff,0xff,0xff)); /* WHITE */
+	palette_set_color(machine,1,MAKE_RGB(0x00,0xff,0x00)); /* GREEN */     /* overlay (Blockade) */
+}
+
+static PALETTE_INIT( yellow )
+{
+	palette_set_color(machine,0,MAKE_RGB(0x00,0x00,0x00)); /* BLACK */
+	palette_set_color(machine,1,MAKE_RGB(0xff,0xff,0x20)); /* YELLOW */     /* overlay (Hustle) */
+}
+static PALETTE_INIT( bw )
+{
+	palette_set_color(machine,0,MAKE_RGB(0x00,0x00,0x00)); /* BLACK */
+	palette_set_color(machine,1,MAKE_RGB(0xff,0xff,0xff)); /* WHITE */     /* Comotion/Blasto */
 }
 
 
@@ -456,61 +466,77 @@ static PALETTE_INIT( blockade )
 
 static MACHINE_START( blockade )
 {
-	blockade_state *state = machine.driver_data<blockade_state>();
+	blockade_state *state = (blockade_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_coin_latch));
-	state->save_item(NAME(state->m_just_been_reset));
+	state_save_register_global(machine, state->coin_latch);
+	state_save_register_global(machine, state->just_been_reset);
 }
 
 static MACHINE_RESET( blockade )
 {
-	blockade_state *state = machine.driver_data<blockade_state>();
+	blockade_state *state = (blockade_state *)machine->driver_data;
 
-	state->m_coin_latch = 1;
-	state->m_just_been_reset = 0;
+	state->coin_latch = 1;
+	state->just_been_reset = 0;
 }
 
-static MACHINE_CONFIG_START( blockade, blockade_state )
+static MACHINE_DRIVER_START( blockade )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(blockade_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", I8080, MASTER_CLOCK/10)
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_IO_MAP(main_io_map)
-	MCFG_CPU_VBLANK_INT("screen", blockade_interrupt)
+	MDRV_CPU_ADD("maincpu", I8080, MASTER_CLOCK/10)
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_IO_MAP(main_io_map)
+	MDRV_CPU_VBLANK_INT("screen", blockade_interrupt)
 
-	MCFG_MACHINE_START(blockade)
-	MCFG_MACHINE_RESET(blockade)
+	MDRV_MACHINE_START(blockade)
+	MDRV_MACHINE_RESET(blockade)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 28*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(blockade)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 28*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(blockade)
-	MCFG_PALETTE_LENGTH(2)
+	MDRV_GFXDECODE(blockade)
+	MDRV_PALETTE_LENGTH(2)
 
-	MCFG_PALETTE_INIT(blockade)
-	MCFG_VIDEO_START(blockade)
+	MDRV_PALETTE_INIT(green)
+	MDRV_VIDEO_START(blockade)
+	MDRV_VIDEO_UPDATE(blockade)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("samples", SAMPLES, 0)
-	MCFG_SOUND_CONFIG(blockade_samples_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("samples", SAMPLES, 0)
+	MDRV_SOUND_CONFIG(blockade_samples_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(blockade)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(blockade)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( blasto, blockade )
-	MCFG_GFXDECODE(blasto)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( comotion )
+	MDRV_IMPORT_FROM(blockade)
+	MDRV_PALETTE_INIT(bw)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( blasto )
+	MDRV_IMPORT_FROM(blockade)
+	MDRV_GFXDECODE(blasto)
+	MDRV_PALETTE_INIT(bw)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( hustle )
+	MDRV_IMPORT_FROM(blockade)
+	MDRV_GFXDECODE(blasto)
+	MDRV_PALETTE_INIT(yellow)
+MACHINE_DRIVER_END
 
 /*************************************
  *
@@ -590,9 +616,9 @@ ROM_END
  *
  *************************************/
 
-GAMEL(1976, blockade,  0,        blockade, blockade, 0, ROT0, "Gremlin", "Blockade", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_blockade )
-GAMEL(1976, comotion,  0,        blockade, comotion, 0, ROT0, "Gremlin", "Comotion", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_blockade )
-GAME( 1978, blasto,    0,        blasto,   blasto,   0, ROT0, "Gremlin", "Blasto", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE ) // b/w, no overlay
-GAMEL(1977, hustle,    0,        blasto,   hustle,   0, ROT0, "Gremlin", "Hustle", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_blockade )
+GAME( 1976, blockade,  0,        blockade, blockade, 0, ROT0, "Gremlin", "Blockade", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
+GAME( 1976, comotion,  0,        comotion, comotion, 0, ROT0, "Gremlin", "Comotion", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
+GAME( 1978, blasto,    0,        blasto,   blasto,   0, ROT0, "Gremlin", "Blasto", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
+GAME( 1977, hustle,    0,        hustle,   hustle,   0, ROT0, "Gremlin", "Hustle", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
 GAME( 1977, mineswpr,  0,        blasto,   mineswpr, 0, ROT0, "Amutech", "Minesweeper", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
 GAME( 1977, mineswpr4, mineswpr, blasto,   mineswpr4,0, ROT0, "Amutech", "Minesweeper (4-Player)", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )

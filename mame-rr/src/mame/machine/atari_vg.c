@@ -13,7 +13,7 @@
 typedef struct _atari_vg_earom_state atari_vg_earom_state;
 struct _atari_vg_earom_state
 {
-	device_t *device;
+	running_device *device;
 
 	int offset;
 	int data;
@@ -31,7 +31,7 @@ struct _atari_vg_earom_state
     into a atari_vg_earom_state
 -------------------------------------------------*/
 
-INLINE atari_vg_earom_state *get_safe_token(device_t *device)
+INLINE atari_vg_earom_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == ATARIVGEAROM);
@@ -75,15 +75,11 @@ WRITE8_DEVICE_HANDLER( atari_vg_earom_ctrl_w )
         0x08 = set addr latch?
     */
 	if (data & 0x01)
-	{
 		earom->data = earom->rom[earom->offset];
-//printf("Read %02X = %02X\n", earom->offset, earom->data);
-	}
 	if ((data & 0x0c) == 0x0c)
 	{
 		earom->rom[earom->offset]=earom->data;
 		logerror("    written %02x:%02x\n", earom->offset, earom->data);
-//printf("Write %02X = %02X\n", earom->offset, earom->data);
 	}
 }
 
@@ -93,9 +89,9 @@ static DEVICE_NVRAM( atari_vg_earom )
 	atari_vg_earom_state *earom = get_safe_token(device);
 
 	if (read_or_write)
-		file->write(earom->rom,EAROM_SIZE);
+		mame_fwrite(file,earom->rom,EAROM_SIZE);
 	else if (file)
-		file->read(earom->rom,EAROM_SIZE);
+		mame_fread(file,earom->rom,EAROM_SIZE);
 	else
 		memset(earom,0,EAROM_SIZE);
 }
@@ -116,8 +112,8 @@ static DEVICE_START( atari_vg_earom )
 	earom->device = device;
 
 	/* register for save states */
-	device->save_item(NAME(earom->offset));
-	device->save_item(NAME(earom->data));
+	state_save_register_device_item(device, 0, earom->offset);
+	state_save_register_device_item(device, 0, earom->data);
 }
 
 

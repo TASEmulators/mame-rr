@@ -1,4 +1,5 @@
 #include "emu.h"
+#include "streams.h"
 
 #include "msm5232.h"
 
@@ -32,7 +33,7 @@ typedef struct {
 	double	dr_rate;
 	double	rr_rate;
 
-	int		pitch;			/* current pitch data */
+	int	pitch;			/* current pitch data */
 
 	int GF;
 } VOICE;
@@ -59,8 +60,8 @@ typedef struct {
 	double	ar_tbl[8];
 	double	dr_tbl[16];
 
-	UINT8	control1;
-	UINT8	control2;
+	UINT8   control1;
+	UINT8   control2;
 
 	int		gate;		/* current state of the GATE output */
 
@@ -68,17 +69,17 @@ typedef struct {
 	int		rate;		/* sample rate in Hz */
 
 	double	external_capacity[8]; /* in Farads, eg 0.39e-6 = 0.36 uF (microFarads) */
-	device_t *device;
-	void (*gate_handler)(device_t *device, int state);	/* callback called when the GATE output pin changes state */
+	running_device *device;
+	void (*gate_handler)(running_device *device, int state);	/* callback called when the GATE output pin changes state */
 
-} msm5232_state;
+} MSM5232;
 
 
-INLINE msm5232_state *get_safe_token(device_t *device)
+INLINE MSM5232 *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == MSM5232);
-	return (msm5232_state *)downcast<legacy_device_base *>(device)->token();
+	assert(device->type() == SOUND_MSM5232);
+	return (MSM5232 *)downcast<legacy_device_base *>(device)->token();
 }
 
 
@@ -171,7 +172,7 @@ static FILE *sample[9];
 
 
 
-static void msm5232_init_tables( msm5232_state *chip )
+static void msm5232_init_tables( MSM5232 *chip )
 {
 	int i;
 	double scale;
@@ -244,7 +245,7 @@ static void msm5232_init_tables( msm5232_state *chip )
 }
 
 
-static void msm5232_init_voice(msm5232_state *chip, int i)
+static void msm5232_init_voice(MSM5232 *chip, int i)
 {
 	chip->voi[i].ar_rate= chip->ar_tbl[0] * chip->external_capacity[i];
 	chip->voi[i].dr_rate= chip->dr_tbl[0] * chip->external_capacity[i];
@@ -256,7 +257,7 @@ static void msm5232_init_voice(msm5232_state *chip, int i)
 }
 
 
-static void msm5232_gate_update(msm5232_state *chip)
+static void msm5232_gate_update(MSM5232 *chip)
 {
 	int new_state = (chip->control2 & 0x20) ? chip->voi[7].GF : 0;
 
@@ -270,7 +271,7 @@ static void msm5232_gate_update(msm5232_state *chip)
 
 static DEVICE_RESET( msm5232 )
 {
-	msm5232_state *chip = get_safe_token(device);
+	MSM5232 *chip = get_safe_token(device);
 	int i;
 
 	for (i=0; i<8; i++)
@@ -297,7 +298,7 @@ static DEVICE_RESET( msm5232 )
 	msm5232_gate_update(chip);
 }
 
-static void msm5232_init(msm5232_state *chip, const msm5232_interface *intf, int clock, int rate)
+static void msm5232_init(MSM5232 *chip, const msm5232_interface *intf, int clock, int rate)
 {
 	int j;
 
@@ -339,12 +340,12 @@ static DEVICE_STOP( msm5232 )
 
 WRITE8_DEVICE_HANDLER( msm5232_w )
 {
-	msm5232_state *chip = get_safe_token(device);
+	MSM5232 *chip = get_safe_token(device);
 
 	if (offset > 0x0d)
 		return;
 
-	chip->stream->update ();
+	stream_update (chip->stream);
 
 	if (offset < 0x08) /* pitch */
 	{
@@ -476,7 +477,7 @@ WRITE8_DEVICE_HANDLER( msm5232_w )
 #define VMAX	32768
 
 
-INLINE void EG_voices_advance(msm5232_state *chip)
+INLINE void EG_voices_advance(MSM5232 *chip)
 {
 	VOICE *voi = &chip->voi[0];
 	int samplerate = chip->rate;
@@ -578,7 +579,7 @@ INLINE void EG_voices_advance(msm5232_state *chip)
 
 static int o2,o4,o8,o16,solo8,solo16;
 
-INLINE void TG_group_advance(msm5232_state *chip, int groupidx)
+INLINE void TG_group_advance(MSM5232 *chip, int groupidx)
 {
 	VOICE *voi = &chip->voi[groupidx*4];
 	int i;
@@ -707,7 +708,7 @@ INLINE void TG_group_advance(msm5232_state *chip, int groupidx)
 
 static STREAM_UPDATE( MSM5232_update_one )
 {
-	msm5232_state * chip = (msm5232_state *)param;
+	MSM5232 * chip = (MSM5232 *)param;
 	stream_sample_t *buf1 = outputs[0];
 	stream_sample_t *buf2 = outputs[1];
 	stream_sample_t *buf3 = outputs[2];
@@ -779,74 +780,31 @@ static STREAM_UPDATE( MSM5232_update_one )
 
 
 /* MAME Interface */
-static void msm5232_postload(msm5232_state *chip)
-{
-	msm5232_init_tables(chip);
-}
 
 static DEVICE_START( msm5232 )
 {
-	const msm5232_interface *intf = (const msm5232_interface *)device->static_config();
+	const msm5232_interface *intf = (const msm5232_interface *)device->baseconfig().static_config();
 	int rate = device->clock()/CLOCK_RATE_DIVIDER;
-	msm5232_state *chip = get_safe_token(device);
-	int voicenum;
+	MSM5232 *chip = get_safe_token(device);
 
 	chip->device = device;
 
 	msm5232_init(chip, intf, device->clock(), rate);
 
-	chip->stream = device->machine().sound().stream_alloc(*device, 0, 11, rate, chip, MSM5232_update_one);
-
-	/* register with the save state system */
-	device->machine().save().register_postload(save_prepost_delegate(FUNC(msm5232_postload), chip));
-	device->save_item(NAME(chip->EN_out16));
-	device->save_item(NAME(chip->EN_out8));
-	device->save_item(NAME(chip->EN_out4));
-	device->save_item(NAME(chip->EN_out2));
-	device->save_item(NAME(chip->noise_cnt));
-	device->save_item(NAME(chip->noise_rng));
-	device->save_item(NAME(chip->noise_clocks));
-	device->save_item(NAME(chip->control1));
-	device->save_item(NAME(chip->control2));
-	device->save_item(NAME(chip->gate));
-	device->save_item(NAME(chip->clock));
-	device->save_item(NAME(chip->rate));
-
-	/* register voice-specific data for save states */
-	for (voicenum = 0; voicenum < 8; voicenum++)
-	{
-		VOICE *voice = &chip->voi[voicenum];
-
-		device->save_item(NAME(voice->mode), voicenum);
-		device->save_item(NAME(voice->TG_count_period), voicenum);
-		device->save_item(NAME(voice->TG_cnt), voicenum);
-		device->save_item(NAME(voice->TG_out16), voicenum);
-		device->save_item(NAME(voice->TG_out8), voicenum);
-		device->save_item(NAME(voice->TG_out4), voicenum);
-		device->save_item(NAME(voice->TG_out2), voicenum);
-		device->save_item(NAME(voice->egvol), voicenum);
-		device->save_item(NAME(voice->eg_sect), voicenum);
-		device->save_item(NAME(voice->counter), voicenum);
-		device->save_item(NAME(voice->eg), voicenum);
-		device->save_item(NAME(voice->eg_arm), voicenum);
-		device->save_item(NAME(voice->ar_rate), voicenum);
-		device->save_item(NAME(voice->dr_rate), voicenum);
-		device->save_item(NAME(voice->pitch), voicenum);
-		device->save_item(NAME(voice->GF), voicenum);
-	}
+	chip->stream = stream_create(device,0,11,rate,chip,MSM5232_update_one);
 }
 
-void msm5232_set_clock(device_t *device, int clock)
+void msm5232_set_clock(running_device *device, int clock)
 {
-	msm5232_state *chip = get_safe_token(device);
+	MSM5232 *chip = get_safe_token(device);
 
 	if (chip->clock != clock)
 	{
-		chip->stream->update ();
+		stream_update (chip->stream);
 		chip->clock = clock;
 		chip->rate = clock/CLOCK_RATE_DIVIDER;
 		msm5232_init_tables( chip );
-		chip->stream->set_sample_rate(chip->rate);
+		stream_set_sample_rate(chip->stream, chip->rate);
 	}
 }
 
@@ -861,7 +819,7 @@ DEVICE_GET_INFO( msm5232 )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as 64-bit signed integers --- */
-		case DEVINFO_INT_TOKEN_BYTES:					info->i = sizeof(msm5232_state);						break;
+		case DEVINFO_INT_TOKEN_BYTES:					info->i = sizeof(MSM5232);						break;
 
 		/* --- the following bits of info are returned as pointers to data or functions --- */
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( msm5232 );		break;

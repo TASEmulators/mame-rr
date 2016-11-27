@@ -4,28 +4,29 @@
 
 *************************************************************************/
 
-class mikie_state : public driver_device
+class mikie_state
 {
 public:
-	mikie_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mikie_state(machine)); }
+
+	mikie_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
-	UINT8 *    m_spriteram;
-	size_t     m_spriteram_size;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
+	UINT8 *    spriteram;
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
-	int        m_palettebank;
+	tilemap_t  *bg_tilemap;
+	int        palettebank;
 
 	/* misc */
-	int        m_last_irq;
+	int        last_irq;
 
 	/* devices */
-	cpu_device *m_maincpu;
-	cpu_device *m_audiocpu;
+	cpu_device *maincpu;
+	cpu_device *audiocpu;
 };
 
 
@@ -38,4 +39,4 @@ WRITE8_HANDLER( mikie_flipscreen_w );
 
 PALETTE_INIT( mikie );
 VIDEO_START( mikie );
-SCREEN_UPDATE( mikie );
+VIDEO_UPDATE( mikie );

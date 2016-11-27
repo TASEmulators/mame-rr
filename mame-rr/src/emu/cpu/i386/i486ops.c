@@ -6,7 +6,7 @@ static void I486OP(cpuid)(i386_state *cpustate)				// Opcode 0x0F A2
 	{
 		// this 486 doesn't support the CPUID instruction
 		logerror("CPUID not supported at %08x!\n", cpustate->eip);
-		i386_trap(cpustate, 6, 0, 0);
+		i386_trap(cpustate, 6, 0);
 	}
 	else
 	{
@@ -269,7 +269,7 @@ static void I486OP(group0F01_16)(i386_state *cpustate)		// Opcode 0x0f 01
 					STORE_RM16(modrm, cpustate->cr[0]);
 					CYCLES(cpustate,CYCLES_SMSW_REG);
 				} else {
-					ea = GetEA(cpustate,modrm);
+					UINT32 ea = GetEA(cpustate,modrm);
 					WRITE16(cpustate,ea, cpustate->cr[0]);
 					CYCLES(cpustate,CYCLES_SMSW_MEM);
 				}

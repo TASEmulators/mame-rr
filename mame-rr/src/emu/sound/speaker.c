@@ -21,7 +21,7 @@
  * For faithful reproduction of the sound, this must be carefully handled
  * with anti-alias filtering when converting a high-rate low-resolution signal
  * to a moderate-rate high-resolution signal suitable for the DAC in the emulator's sound card.
- * (Originally, removal of any redundant high frequency content occurred on the analog side
+ * (Originally, removal of any redundant high frequency content occured on the analog side
  *  with no aliasing effects.)
  *
  * The most straightforward, naive way to handle this is to use two streams;
@@ -32,7 +32,7 @@
  * The stream system has features to handle rate conversion from stream 1 to 2.
  *
  * I tried it out of curiosity; it works fine conceptually, but
- *  - it puts an unnecessary burden on system resources
+ *  - it puts an unneccessary burden on system resources
  *  - sound quality is still not satisfactory, though better than without anti-alias
  *  - "stream 1" properties are machine specific and so should be configured
  *    individually in each machine driver using this approach.
@@ -71,6 +71,7 @@
  */
 
 #include "emu.h"
+#include "streams.h"
 #include "speaker.h"
 
 static const INT16 default_levels[2] = {0, 32767};
@@ -125,10 +126,10 @@ static double make_fraction(attotime a, attotime b, double timediv);
 static double get_filtered_volume(speaker_state *sp);
 
 
-INLINE speaker_state *get_safe_token(device_t *device)
+INLINE speaker_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == SPEAKER_SOUND);
+	assert(device->type() == SOUND_SPEAKER);
 	return (speaker_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -136,11 +137,11 @@ INLINE speaker_state *get_safe_token(device_t *device)
 static DEVICE_START( speaker )
 {
 	speaker_state *sp = get_safe_token(device);
-	const speaker_interface *intf = (const speaker_interface *) device->static_config();
+	const speaker_interface *intf = (const speaker_interface *) device->baseconfig().static_config();
 	int i;
 	double x;
 
-	sp->channel = device->machine().sound().stream_alloc(*device, 0, 1, device->machine().sample_rate(), sp, speaker_sound_update);
+	sp->channel = stream_create(device, 0, 1, device->machine->sample_rate, sp, speaker_sound_update);
 
 	if (intf != NULL)
 	{
@@ -159,14 +160,14 @@ static DEVICE_START( speaker )
 	for (i = 0; i < FILTER_LENGTH; i++)
 		sp->composed_volume[i] = 0;
 	sp->composed_sample_index = 0;
-	sp->last_update_time = device->machine().time();
-	sp->channel_sample_period = HZ_TO_ATTOSECONDS(device->machine().sample_rate());
+	sp->last_update_time = timer_get_time(device->machine);
+	sp->channel_sample_period = HZ_TO_ATTOSECONDS(device->machine->sample_rate);
 	sp->channel_sample_period_secfrac = ATTOSECONDS_TO_DOUBLE(sp->channel_sample_period);
 	sp->interm_sample_period = sp->channel_sample_period / RATE_MULTIPLIER;
 	sp->interm_sample_period_secfrac = ATTOSECONDS_TO_DOUBLE(sp->interm_sample_period);
-	sp->channel_last_sample_time = sp->channel->sample_time();
-	sp->channel_next_sample_time = sp->channel_last_sample_time + attotime(0, sp->channel_sample_period);
-	sp->next_interm_sample_time = sp->channel_last_sample_time + attotime(0, sp->interm_sample_period);
+	sp->channel_last_sample_time = stream_get_time(sp->channel);
+	sp->channel_next_sample_time = attotime_add_attoseconds(sp->channel_last_sample_time, sp->channel_sample_period);
+	sp->next_interm_sample_time = attotime_add_attoseconds(sp->channel_last_sample_time, sp->interm_sample_period);
 	sp->interm_sample_index = 0;
 	/* Note: To avoid time drift due to floating point inaccuracies,
      * it is good if the speaker time synchronizes itself with the stream timing regularly.
@@ -210,7 +211,7 @@ static DEVICE_START( speaker )
 }
 
 
-/* Called via stream->update().
+/* Called via stream_update(stream).
  * This can be triggered by the core (based on emulated time) or via speaker_level_w().
  */
 static STREAM_UPDATE( speaker_sound_update )
@@ -219,17 +220,17 @@ static STREAM_UPDATE( speaker_sound_update )
 	stream_sample_t *buffer = outputs[0];
 	int volume = sp->levels[sp->level];
 	double filtered_volume;
-	attotime sampled_time = attotime::zero;
+	attotime sampled_time = attotime_zero;
 
 	if (samples > 0)
 	{
 		/* Prepare to update time state */
-		sampled_time = attotime(0, sp->channel_sample_period);
+		sampled_time = attotime_make(0, sp->channel_sample_period);
 		if (samples > 1)
-			sampled_time *= samples;
+			sampled_time = attotime_mul(sampled_time, samples);
 
 		/* Note: since the stream is in the process of being updated,
-         * stream->sample_time() will return the time before the update! (MAME 0.130)
+         * stream_get_time() will return the time before the update! (MAME 0.130)
          * Avoid using it here in order to avoid a subtle dependence on the stream implementation.
          */
 	}
@@ -250,16 +251,16 @@ static STREAM_UPDATE( speaker_sound_update )
 		}
 
 		/* Update the time state */
-		sp->channel_last_sample_time += sampled_time;
-		sp->channel_next_sample_time = sp->channel_last_sample_time + attotime(0, sp->channel_sample_period);
-		sp->next_interm_sample_time = sp->channel_last_sample_time + attotime(0, sp->interm_sample_period);
+		sp->channel_last_sample_time = attotime_add(sp->channel_last_sample_time, sampled_time);
+		sp->channel_next_sample_time = attotime_add_attoseconds(sp->channel_last_sample_time, sp->channel_sample_period);
+		sp->next_interm_sample_time = attotime_add_attoseconds(sp->channel_last_sample_time, sp->interm_sample_period);
 		sp->last_update_time = sp->channel_last_sample_time;
 	}
 
 } /* speaker_sound_update */
 
 
-void speaker_level_w(device_t *device, int new_level)
+void speaker_level_w(running_device *device, int new_level)
 {
 	speaker_state *sp = get_safe_token(device);
 	int volume;
@@ -275,9 +276,9 @@ void speaker_level_w(device_t *device, int new_level)
 		new_level = sp->num_levels - 1;
 
 	volume = sp->levels[sp->level];
-	time = device->machine().time();
+	time = timer_get_time(device->machine);
 
-	if (time < sp->channel_next_sample_time)
+	if (attotime_compare(time, sp->channel_next_sample_time) < 0)
 	{
 		/* Stream sample is yet unfinished, but we may have one or more interm. samples */
 		update_interm_samples(sp, time, volume);
@@ -292,14 +293,14 @@ void speaker_level_w(device_t *device, int new_level)
      */
 
 	/* Force streams.c to update sound until this point in time now */
-	sp->channel->update();
+	stream_update(sp->channel);
 
 	/* This is redundant because time update has to be done within speaker_sound_update() anyway,
      * however this ensures synchronization between the speaker and stream timing:
      */
-	sp->channel_last_sample_time = sp->channel->sample_time();
-	sp->channel_next_sample_time = sp->channel_last_sample_time + attotime(0, sp->channel_sample_period);
-	sp->next_interm_sample_time = sp->channel_last_sample_time + attotime(0, sp->interm_sample_period);
+	sp->channel_last_sample_time = stream_get_time(sp->channel);
+	sp->channel_next_sample_time = attotime_add_attoseconds(sp->channel_last_sample_time, sp->channel_sample_period);
+	sp->next_interm_sample_time = attotime_add_attoseconds(sp->channel_last_sample_time, sp->interm_sample_period);
 	sp->last_update_time = sp->channel_last_sample_time;
 
 	/* Assertion: time - last_update_time < channel_sample_period, i.e. time < channel_next_sample_time */
@@ -318,7 +319,7 @@ static void update_interm_samples(speaker_state *sp, attotime time, int volume)
 	double fraction;
 
 	/* We may have completed zero, one or more interm. samples: */
-	while (time >= sp->next_interm_sample_time)
+	while (attotime_compare(time, sp->next_interm_sample_time) >= 0)
 	{
 		/* First interm. sample may be composed, subsequent samples will be homogeneous. */
 		/* Treat all the same general way. */
@@ -373,7 +374,8 @@ static void finalize_interm_sample(speaker_state *sp, int volume)
 	sp->composed_volume[sp->composed_sample_index] += volume * fraction;
 	/* Update time state */
 	sp->last_update_time = sp->next_interm_sample_time;
-	sp->next_interm_sample_time += attotime(0, sp->interm_sample_period);
+	sp->next_interm_sample_time = attotime_add_attoseconds(sp->next_interm_sample_time,
+	                                                       sp->interm_sample_period);
 
 	/* For compatibility with filtering, do not incr. index and initialise next sample yet. */
 }
@@ -395,7 +397,7 @@ static void init_next_interm_sample(speaker_state *sp)
 static double make_fraction(attotime a, attotime b, double timediv)
 {
 	/* fraction = (a - b) / timediv */
-	return (a - b).as_double() / timediv;
+	return attotime_to_double(attotime_sub(a, b)) / timediv;
 }
 
 
@@ -422,7 +424,7 @@ static double get_filtered_volume(speaker_state *sp)
  * Generic get_info
  **************************************************************************/
 
-DEVICE_GET_INFO( speaker_sound )
+DEVICE_GET_INFO( speaker )
 {
 	switch (state)
 	{
@@ -444,4 +446,4 @@ DEVICE_GET_INFO( speaker_sound )
 }
 
 
-DEFINE_LEGACY_SOUND_DEVICE(SPEAKER_SOUND, speaker_sound);
+DEFINE_LEGACY_SOUND_DEVICE(SPEAKER, speaker);

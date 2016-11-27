@@ -19,8 +19,6 @@
     CONSTANTS
 ***************************************************************************/
 
-#define MIPS3_USE_DRC
-
 /* core parameters */
 #define MIPS3_MIN_PAGE_SHIFT		12
 #define MIPS3_MIN_PAGE_SIZE			(1 << MIPS3_MIN_PAGE_SHIFT)
@@ -198,8 +196,7 @@ struct _mips3_state
 	mips3_flavor	flavor;
 	device_irq_callback irq_callback;
 	legacy_cpu_device *	device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	UINT32			system_clock;
 	UINT32			cpu_clock;
 	UINT64			count_zero_time;
@@ -240,7 +237,7 @@ offs_t mips3com_dasm(mips3_state *mips, char *buffer, offs_t pc, const UINT8 *op
 void mips3com_update_cycle_counting(mips3_state *mips);
 
 void mips3com_asid_changed(mips3_state *mips);
-int mips3com_translate_address(mips3_state *mips, address_spacenum space, int intention, offs_t *address);
+int mips3com_translate_address(mips3_state *mips, int space, int intention, offs_t *address);
 void mips3com_tlbr(mips3_state *mips);
 void mips3com_tlbwi(mips3_state *mips);
 void mips3com_tlbwr(mips3_state *mips);

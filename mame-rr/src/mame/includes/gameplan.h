@@ -21,35 +21,33 @@ driver by Chris Moore
 #define LEPRECHAUN_MAIN_CPU_CLOCK        (LEPRECHAUN_MAIN_MASTER_CLOCK / 4)
 
 
-class gameplan_state : public driver_device
+class gameplan_state
 {
 public:
-	gameplan_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_via_0(*this, "via6522_0"),
-		  m_via_1(*this, "via6522_1"),
-		  m_via_2(*this, "via6522_2") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, gameplan_state(machine)); }
+
+	gameplan_state(running_machine &machine) { }
 
 	/* machine state */
-	UINT8   m_current_port;
-	UINT8   *m_trvquest_question;
+	UINT8   current_port;
+	UINT8   *trvquest_question;
 
 	/* video state */
-	UINT8   *m_videoram;
-	size_t   m_videoram_size;
-	UINT8    m_video_x;
-	UINT8    m_video_y;
-	UINT8    m_video_command;
-	UINT8    m_video_data;
-	emu_timer *m_via_0_ca1_timer;
+	UINT8   *videoram;
+	size_t   videoram_size;
+	UINT8    video_x;
+	UINT8    video_y;
+	UINT8    video_command;
+	UINT8    video_data;
+	emu_timer *via_0_ca1_timer;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_riot;
-	required_device<via6522_device> m_via_0;
-	required_device<via6522_device> m_via_1;
-	required_device<via6522_device> m_via_2;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *riot;
+	running_device *via_0;
+	running_device *via_1;
+	running_device *via_2;
 };
 
 
@@ -59,6 +57,6 @@ extern const via6522_interface gameplan_via_0_interface;
 extern const via6522_interface leprechn_via_0_interface;
 extern const via6522_interface trvquest_via_0_interface;
 
-MACHINE_CONFIG_EXTERN( gameplan_video );
-MACHINE_CONFIG_EXTERN( leprechn_video );
-MACHINE_CONFIG_EXTERN( trvquest_video );
+MACHINE_DRIVER_EXTERN( gameplan_video );
+MACHINE_DRIVER_EXTERN( leprechn_video );
+MACHINE_DRIVER_EXTERN( trvquest_video );

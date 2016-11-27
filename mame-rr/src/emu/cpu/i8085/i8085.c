@@ -184,9 +184,8 @@ struct _i8085_state
 
 	device_irq_callback	irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 	int					icount;
 };
 
@@ -273,11 +272,10 @@ static void execute_one(i8085_state *cpustate, int opcode);
     INLINE FUNCTIONS
 ***************************************************************************/
 
-INLINE i8085_state *get_safe_token(device_t *device)
+INLINE i8085_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == I8080 ||
-		   device->type() == I8080A||
 		   device->type() == I8085A);
 	return (i8085_state *)downcast<legacy_cpu_device *>(device)->token();
 }
@@ -287,12 +285,12 @@ INLINE void set_sod(i8085_state *cpustate, int state)
 	if (state != 0 && cpustate->sod_state == 0)
 	{
 		cpustate->sod_state = 1;
-		cpustate->out_sod_func(cpustate->sod_state);
+		devcb_call_write_line(&cpustate->out_sod_func, cpustate->sod_state);
 	}
 	else if (state == 0 && cpustate->sod_state != 0)
 	{
 		cpustate->sod_state = 0;
-		cpustate->out_sod_func(cpustate->sod_state);
+		devcb_call_write_line(&cpustate->out_sod_func, cpustate->sod_state);
 	}
 }
 
@@ -302,12 +300,12 @@ INLINE void set_inte(i8085_state *cpustate, int state)
 	if (state != 0 && (cpustate->IM & IM_IE) == 0)
 	{
 		cpustate->IM |= IM_IE;
-		cpustate->out_inte_func(1);
+		devcb_call_write_line(&cpustate->out_inte_func, 1);
 	}
 	else if (state == 0 && (cpustate->IM & IM_IE) != 0)
 	{
 		cpustate->IM &= ~IM_IE;
-		cpustate->out_inte_func(0);
+		devcb_call_write_line(&cpustate->out_inte_func, 0);
 	}
 }
 
@@ -315,7 +313,7 @@ INLINE void set_inte(i8085_state *cpustate, int state)
 INLINE void set_status(i8085_state *cpustate, UINT8 status)
 {
 	if (status != cpustate->STATUS)
-		cpustate->out_status_func(0, status);
+		devcb_call_write8(&cpustate->out_status_func, 0, status);
 
 	cpustate->STATUS = status;
 }
@@ -324,7 +322,7 @@ INLINE void set_status(i8085_state *cpustate, UINT8 status)
 INLINE UINT8 get_rim_value(i8085_state *cpustate)
 {
 	UINT8 result = cpustate->IM;
-	int sid = cpustate->in_sid_func();
+	int sid = devcb_call_read_line(&cpustate->in_sid_func);
 
 	/* copy live RST5.5 and RST6.5 states */
 	result &= ~(IM_I65 | IM_I55);
@@ -355,20 +353,20 @@ INLINE void break_halt_for_interrupt(i8085_state *cpustate)
 INLINE UINT8 ROP(i8085_state *cpustate)
 {
 	set_status(cpustate, 0xa2); // instruction fetch
-	return cpustate->direct->read_decrypted_byte(cpustate->PC.w.l++);
+	return memory_decrypted_read_byte(cpustate->program, cpustate->PC.w.l++);
 }
 
 INLINE UINT8 ARG(i8085_state *cpustate)
 {
-	return cpustate->direct->read_raw_byte(cpustate->PC.w.l++);
+	return memory_raw_read_byte(cpustate->program, cpustate->PC.w.l++);
 }
 
 INLINE UINT16 ARG16(i8085_state *cpustate)
 {
 	UINT16 w;
-	w  = cpustate->direct->read_raw_byte(cpustate->PC.d);
+	w  = memory_raw_read_byte(cpustate->program, cpustate->PC.d);
 	cpustate->PC.w.l++;
-	w += cpustate->direct->read_raw_byte(cpustate->PC.d) << 8;
+	w += memory_raw_read_byte(cpustate->program, cpustate->PC.d) << 8;
 	cpustate->PC.w.l++;
 	return w;
 }
@@ -376,13 +374,13 @@ INLINE UINT16 ARG16(i8085_state *cpustate)
 INLINE UINT8 RM(i8085_state *cpustate, UINT32 a)
 {
 	set_status(cpustate, 0x82); // memory read
-	return cpustate->program->read_byte(a);
+	return memory_read_byte_8le(cpustate->program, a);
 }
 
 INLINE void WM(i8085_state *cpustate, UINT32 a, UINT8 v)
 {
 	set_status(cpustate, 0x00); // memory write
-	cpustate->program->write_byte(a, v);
+	memory_write_byte_8le(cpustate->program, a, v);
 }
 
 
@@ -405,7 +403,7 @@ static void check_for_interrupts(i8085_state *cpustate)
 
 		/* push the PC and jump to $0024 */
 		M_PUSH(PC);
-		set_inte(cpustate, 0);
+		cpustate->IM &= ~IM_IE;
 		cpustate->PC.w.l = ADDR_TRAP;
 		cpustate->icount -= 11;
 	}
@@ -423,7 +421,7 @@ static void check_for_interrupts(i8085_state *cpustate)
 
 		/* push the PC and jump to $003C */
 		M_PUSH(PC);
-		set_inte(cpustate, 0);
+		cpustate->IM &= ~IM_IE;
 		cpustate->PC.w.l = ADDR_RST75;
 		cpustate->icount -= 11;
 	}
@@ -438,7 +436,7 @@ static void check_for_interrupts(i8085_state *cpustate)
 
 		/* push the PC and jump to $0034 */
 		M_PUSH(PC);
-		set_inte(cpustate, 0);
+		cpustate->IM &= ~IM_IE;
 		cpustate->PC.w.l = ADDR_RST65;
 		cpustate->icount -= 11;
 	}
@@ -453,7 +451,7 @@ static void check_for_interrupts(i8085_state *cpustate)
 
 		/* push the PC and jump to $002C */
 		M_PUSH(PC);
-		set_inte(cpustate, 0);
+		cpustate->IM &= ~IM_IE;
 		cpustate->PC.w.l = ADDR_RST55;
 		cpustate->icount -= 11;
 	}
@@ -469,7 +467,7 @@ static void check_for_interrupts(i8085_state *cpustate)
 			vector = (*cpustate->irq_callback)(cpustate->device, I8085_INTR_LINE);
 
 		/* use the resulting vector as an opcode to execute */
-		set_inte(cpustate, 0);
+		cpustate->IM &= ~IM_IE;
 		switch (vector & 0xff0000)
 		{
 			case 0xcd0000:	/* CALL nnnn */
@@ -983,7 +981,7 @@ static void init_808x_common(legacy_cpu_device *device, device_irq_callback irqc
 		state->state_add(I8085_SP,     "SP",     cpustate->SP.w.l);
 		state->state_add(STATE_GENSP,  "GENSP",  cpustate->SP.w.l).noshow();
 		state->state_add(STATE_GENFLAGS, "GENFLAGS", cpustate->AF.b.l).noshow().formatstr("%8s");
-		state->state_add(I8085_A,      "A",      cpustate->AF.b.h).noshow();
+		state->state_add(I8085_A,      "A",      cpustate->AF.b.l).noshow();
 		state->state_add(I8085_B,      "B",      cpustate->BC.b.h).noshow();
 		state->state_add(I8085_C,      "C",      cpustate->BC.b.l).noshow();
 		state->state_add(I8085_D,      "D",      cpustate->DE.b.h).noshow();
@@ -1001,38 +999,37 @@ static void init_808x_common(legacy_cpu_device *device, device_irq_callback irqc
 		state->state_add(I8085_INTE,   "INTE",   cpustate->ietemp).mask(0x1).callimport().callexport();
 	}
 
-	if (device->static_config() != NULL)
-		cpustate->config = *(i8085_config *)device->static_config();
+	if (device->baseconfig().static_config() != NULL)
+		cpustate->config = *(i8085_config *)device->baseconfig().static_config();
 	cpustate->cputype = type;
 	cpustate->irq_callback = irqcallback;
 	cpustate->device = device;
 
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->io = device->space(AS_IO);
 
 	/* resolve callbacks */
-	cpustate->out_status_func.resolve(cpustate->config.out_status_func, *device);
-	cpustate->out_inte_func.resolve(cpustate->config.out_inte_func, *device);
-	cpustate->in_sid_func.resolve(cpustate->config.in_sid_func, *device);
-	cpustate->out_sod_func.resolve(cpustate->config.out_sod_func, *device);
+	devcb_resolve_write8(&cpustate->out_status_func, &cpustate->config.out_status_func, device);
+	devcb_resolve_write_line(&cpustate->out_inte_func, &cpustate->config.out_inte_func, device);
+	devcb_resolve_read_line(&cpustate->in_sid_func, &cpustate->config.in_sid_func, device);
+	devcb_resolve_write_line(&cpustate->out_sod_func, &cpustate->config.out_sod_func, device);
 
 	/* register for state saving */
-	device->save_item(NAME(cpustate->PC.w.l));
-	device->save_item(NAME(cpustate->SP.w.l));
-	device->save_item(NAME(cpustate->AF.w.l));
-	device->save_item(NAME(cpustate->BC.w.l));
-	device->save_item(NAME(cpustate->DE.w.l));
-	device->save_item(NAME(cpustate->HL.w.l));
-	device->save_item(NAME(cpustate->HALT));
-	device->save_item(NAME(cpustate->IM));
-	device->save_item(NAME(cpustate->STATUS));
-	device->save_item(NAME(cpustate->after_ei));
-	device->save_item(NAME(cpustate->nmi_state));
-	device->save_item(NAME(cpustate->irq_state));
-	device->save_item(NAME(cpustate->trap_pending));
-	device->save_item(NAME(cpustate->trap_im_copy));
-	device->save_item(NAME(cpustate->sod_state));
+	state_save_register_device_item(device, 0, cpustate->PC.w.l);
+	state_save_register_device_item(device, 0, cpustate->SP.w.l);
+	state_save_register_device_item(device, 0, cpustate->AF.w.l);
+	state_save_register_device_item(device, 0, cpustate->BC.w.l);
+	state_save_register_device_item(device, 0, cpustate->DE.w.l);
+	state_save_register_device_item(device, 0, cpustate->HL.w.l);
+	state_save_register_device_item(device, 0, cpustate->HALT);
+	state_save_register_device_item(device, 0, cpustate->IM);
+	state_save_register_device_item(device, 0, cpustate->STATUS);
+	state_save_register_device_item(device, 0, cpustate->after_ei);
+	state_save_register_device_item(device, 0, cpustate->nmi_state);
+	state_save_register_device_item_array(device, 0, cpustate->irq_state);
+	state_save_register_device_item(device, 0, cpustate->trap_pending);
+	state_save_register_device_item(device, 0, cpustate->trap_im_copy);
+	state_save_register_device_item(device, 0, cpustate->sod_state);
 }
 
 static CPU_INIT( i8080 )
@@ -1107,7 +1104,7 @@ static CPU_EXPORT_STATE( i808x )
 	{
 		case I8085_SID:
 			{
-			int sid = cpustate->in_sid_func();
+			int sid = devcb_call_read_line(&cpustate->in_sid_func);
 
 			cpustate->ietemp = ((cpustate->IM & IM_SID) != 0);
 			cpustate->ietemp = (sid != 0);
@@ -1215,12 +1212,12 @@ CPU_GET_INFO( i8085 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 4;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 16;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:		info->i = 16;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:		info->i = 0;							break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:				info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:				info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:				info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: 		info->i = 16;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: 		info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:				info->i = 0;							break;
 
 		/* --- the following bits of info are returned as pointers to functions --- */
 		case CPUINFO_FCT_SET_INFO:		info->setinfo = CPU_SET_INFO_NAME(i808x);				break;
@@ -1259,7 +1256,7 @@ CPU_GET_INFO( i8080 )
 		case CPUINFO_INT_INPUT_LINES:					info->i = 1;							break;
 
 		/* --- the following bits of info are returned as pointers to functions --- */
-		case CPUINFO_FCT_INIT:							info->init = CPU_INIT_NAME(i8080);		break;
+		case CPUINFO_FCT_INIT:			info->init = CPU_INIT_NAME(i8080);						break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "8080");				break;
@@ -1283,7 +1280,7 @@ CPU_GET_INFO( i8080a )
 		case CPUINFO_INT_INPUT_LINES:					info->i = 1;							break;
 
 		/* --- the following bits of info are returned as pointers to functions --- */
-		case CPUINFO_FCT_INIT:							info->init = CPU_INIT_NAME(i8080);		break;
+		case CPUINFO_FCT_INIT:			info->init = CPU_INIT_NAME(i8080);						break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "8080A");				break;

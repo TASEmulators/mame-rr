@@ -44,8 +44,8 @@
 #include <windows.h>
 
 // MAME headers
-#include "emu.h"
 #include "osdepend.h"
+#include "emu.h"
 
 // MAMEOS headers
 #include "output.h"
@@ -105,7 +105,7 @@ static int create_window_class(void);
 static LRESULT CALLBACK output_window_proc(HWND wnd, UINT message, WPARAM wparam, LPARAM lparam);
 static LRESULT register_client(HWND hwnd, LPARAM id);
 static LRESULT unregister_client(HWND hwnd, LPARAM id);
-static LRESULT send_id_string(running_machine &machine, HWND hwnd, LPARAM id);
+static LRESULT send_id_string(running_machine *machine, HWND hwnd, LPARAM id);
 static void notifier_callback(const char *outname, INT32 value, void *param);
 
 
@@ -114,12 +114,12 @@ static void notifier_callback(const char *outname, INT32 value, void *param);
 //  winoutput_init
 //============================================================
 
-void winoutput_init(running_machine &machine)
+void winoutput_init(running_machine *machine)
 {
 	int result;
 
 	// ensure we get cleaned up
-	machine.add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(FUNC(winoutput_exit), &machine));
+	machine->add_notifier(MACHINE_NOTIFY_EXIT, winoutput_exit);
 
 	// reset globals
 	clientlist = NULL;
@@ -127,7 +127,6 @@ void winoutput_init(running_machine &machine)
 	// create our window class
 	result = create_window_class();
 	assert(result == 0);
-	result++; // to silence gcc 4.6
 
 	// create a window
 	output_hwnd = CreateWindowEx(
@@ -144,7 +143,7 @@ void winoutput_init(running_machine &machine)
 	assert(output_hwnd != NULL);
 
 	// set a pointer to the running machine
-	SetWindowLongPtr(output_hwnd, GWLP_USERDATA, (LONG_PTR)&machine);
+	SetWindowLongPtr(output_hwnd, GWLP_USERDATA, (LONG_PTR)machine);
 
 	// allocate message ids
 	om_mame_start = RegisterWindowMessage(OM_MAME_START);
@@ -223,7 +222,7 @@ static int create_window_class(void)
 static LRESULT CALLBACK output_window_proc(HWND wnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	LONG_PTR ptr = GetWindowLongPtr(wnd, GWLP_USERDATA);
-	running_machine &machine = *(running_machine *)ptr;
+	running_machine *machine = (running_machine *)ptr;
 
 	// register a new client
 	if (message == om_mame_register_client)
@@ -301,7 +300,7 @@ static LRESULT unregister_client(HWND hwnd, LPARAM id)
 //  send_id_string
 //============================================================
 
-static LRESULT send_id_string(running_machine &machine, HWND hwnd, LPARAM id)
+static LRESULT send_id_string(running_machine *machine, HWND hwnd, LPARAM id)
 {
 	copydata_id_string *temp;
 	COPYDATASTRUCT copydata;
@@ -310,7 +309,7 @@ static LRESULT send_id_string(running_machine &machine, HWND hwnd, LPARAM id)
 
 	// id 0 is the name of the game
 	if (id == 0)
-		name = machine.system().name;
+		name = machine->gamedrv->name;
 	else
 		name = output_id_to_name(id);
 

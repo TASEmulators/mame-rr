@@ -17,24 +17,22 @@
 //  INTERFACE CONFIGURATION MACROS
 //**************************************************************************
 
-#define MCFG_EEPROM_ADD(_tag, _interface) \
-	MCFG_DEVICE_ADD(_tag, EEPROM, 0) \
-	eeprom_device::static_set_interface(*device, _interface); \
+#define MDRV_EEPROM_ADD(_tag, _interface) \
+	MDRV_DEVICE_ADD(_tag, EEPROM, 0) \
+	MDRV_DEVICE_INLINE_DATAPTR(eeprom_device_config::INLINE_INTERFACE, &_interface)
 
-#define MCFG_EEPROM_93C46_ADD(_tag) \
-	MCFG_EEPROM_ADD(_tag, eeprom_interface_93C46)
+#define MDRV_EEPROM_93C46_ADD(_tag) \
+	MDRV_EEPROM_ADD(_tag, eeprom_interface_93C46)
 
-#define MCFG_EEPROM_93C46_8BIT_ADD(_tag) \
-	MCFG_EEPROM_ADD(_tag, eeprom_interface_93C46_8bit)
+#define MDRV_EEPROM_93C66B_ADD(_tag) \
+	MDRV_EEPROM_ADD(_tag, eeprom_interface_93C66B)
 
-#define MCFG_EEPROM_93C66B_ADD(_tag) \
-	MCFG_EEPROM_ADD(_tag, eeprom_interface_93C66B)
+#define MDRV_EEPROM_DATA(_data, _size) \
+	MDRV_DEVICE_INLINE_DATAPTR(eeprom_device_config::INLINE_DATAPTR, &_data) \
+	MDRV_DEVICE_INLINE_DATA16(eeprom_device_config::INLINE_DATASIZE, _size)
 
-#define MCFG_EEPROM_DATA(_data, _size) \
-	eeprom_device::static_set_default_data(*device, _data, _size); \
-
-#define MCFG_EEPROM_DEFAULT_VALUE(_value) \
-	eeprom_device::static_set_default_value(*device, _value); \
+#define MDRV_EEPROM_DEFAULT_VALUE(_value) \
+	MDRV_DEVICE_INLINE_DATA32(eeprom_device_config::INLINE_DEFVALUE, 0x10000 | ((_value) & 0xffff))
 
 
 
@@ -61,42 +59,75 @@ struct eeprom_interface
 
 
 
+// ======================> eeprom_device_config
+
+class eeprom_device_config :	public device_config,
+								public device_config_memory_interface,
+								public device_config_nvram_interface,
+								public eeprom_interface
+{
+	friend class eeprom_device;
+
+	// construction/destruction
+	eeprom_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+
+public:
+	// allocators
+	static device_config *static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+	virtual device_t *alloc_device(running_machine &machine) const;
+
+	// inline configuration indexes
+	enum
+	{
+		INLINE_INTERFACE,
+		INLINE_DATAPTR,
+		INLINE_DATASIZE,
+		INLINE_DEFVALUE
+	};
+
+protected:
+	// device_config overrides
+	virtual void device_config_complete();
+	virtual bool device_validity_check(const game_driver &driver) const;
+
+	// device_config_memory_interface overrides
+	virtual const address_space_config *memory_space_config(int spacenum = 0) const;
+
+	// device-specific configuration
+	const UINT8 *				m_default_data;
+	int 						m_default_data_size;
+	UINT32						m_default_value;
+	address_space_config		m_space_config;
+};
+
+
 // ======================> eeprom_device
 
 class eeprom_device :	public device_t,
 						public device_memory_interface,
-						public device_nvram_interface,
-						public eeprom_interface
+						public device_nvram_interface
 {
-public:
+	friend class eeprom_device_config;
+
 	// construction/destruction
-	eeprom_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock);
+	eeprom_device(running_machine &_machine, const eeprom_device_config &config);
 
-	// inline configuration helpers
-	static void static_set_interface(device_t &device, const eeprom_interface &interface);
-	static void static_set_default_data(device_t &device, const UINT8 *data, UINT32 size);
-	static void static_set_default_data(device_t &device, const UINT16 *data, UINT32 size);
-	static void static_set_default_value(device_t &device, UINT16 value);
-
+public:
 	// I/O operations
-	DECLARE_WRITE_LINE_MEMBER( write_bit );
-	DECLARE_READ_LINE_MEMBER( read_bit );
-	DECLARE_WRITE_LINE_MEMBER( set_cs_line );
-	DECLARE_WRITE_LINE_MEMBER( set_clock_line );
+	void write_bit(int state);
+	int read_bit();
+	void set_cs_line(int state);
+	void set_clock_line(int state);
 
 protected:
 	// device-level overrides
-	virtual bool device_validity_check(emu_options &options, const game_driver &driver) const;
 	virtual void device_start();
 	virtual void device_reset();
 
-	// device_memory_interface overrides
-	virtual const address_space_config *memory_space_config(address_spacenum spacenum = AS_0) const;
-
 	// device_nvram_interface overrides
 	virtual void nvram_default();
-	virtual void nvram_read(emu_file &file);
-	virtual void nvram_write(emu_file &file);
+	virtual void nvram_read(mame_file &file);
+	virtual void nvram_write(mame_file &file);
 
 	// internal helpers
 	void write(int bit);
@@ -104,24 +135,20 @@ protected:
 
 	static const int SERIAL_BUFFER_LENGTH = 40;
 
-	// configuration state
-	address_space_config	m_space_config;
-	generic_ptr				m_default_data;
-	int 					m_default_data_size;
-	UINT32					m_default_value;
+	// internal state
+	const eeprom_device_config &m_config;
 
-	// runtime state
-	int 					m_serial_count;
-	UINT8					m_serial_buffer[SERIAL_BUFFER_LENGTH];
-	int						m_data_buffer;
-	int 					m_read_address;
-	int 					m_clock_count;
-	int 					m_latch;
-	int						m_reset_line;
-	int						m_clock_line;
-	int						m_sending;
-	int 					m_locked;
-	int 					m_reset_counter;
+	int 		m_serial_count;
+	UINT8		m_serial_buffer[SERIAL_BUFFER_LENGTH];
+	int 		m_data_bits;
+	int 		m_read_address;
+	int 		m_clock_count;
+	int 		m_latch;
+	int			m_reset_line;
+	int			m_clock_line;
+	int			m_sending;
+	int 		m_locked;
+	int 		m_reset_delay;
 };
 
 
@@ -130,13 +157,23 @@ extern const device_type EEPROM;
 
 
 
+
 //**************************************************************************
 //  GLOBAL VARIABLES
 //**************************************************************************
 
 extern const eeprom_interface eeprom_interface_93C46;
-extern const eeprom_interface eeprom_interface_93C46_8bit;
 extern const eeprom_interface eeprom_interface_93C66B;
 
+
+
+//**************************************************************************
+//  READ/WRITE HANDLERS
+//**************************************************************************
+
+WRITE_LINE_DEVICE_HANDLER( eeprom_write_bit );
+READ_LINE_DEVICE_HANDLER( eeprom_read_bit );
+WRITE_LINE_DEVICE_HANDLER( eeprom_set_cs_line );
+WRITE_LINE_DEVICE_HANDLER( eeprom_set_clock_line );
 
 #endif

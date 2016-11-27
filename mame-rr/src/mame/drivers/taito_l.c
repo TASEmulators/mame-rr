@@ -40,8 +40,6 @@ TODO:
 - Text Plane colours are only right in Cuby Bop once you've started a game
   & reset
 - Scrolling in Cuby Bop's Game seems incorrect.
-- Repeated SFXs in Evil Stone (with previous hack, it was used to die at level 1 boss)
-- Evil Stone audio NMI source is unknown.
 
 puzznici note
 - this set is a bootleg, it uses a converted board without the MCU and has
@@ -66,7 +64,7 @@ static const char * const bankname[] = { "bank2", "bank3", "bank4", "bank5" };
 
 static const struct
 {
-	void (*notifier)(running_machine &, int);
+	void (*notifier)(running_machine *, int);
 	UINT32 offset;
 } rambank_modify_notifiers[12] =
 {
@@ -87,10 +85,10 @@ static const struct
 };
 
 
-static void palette_notifier(running_machine &machine, int addr)
+static void palette_notifier(running_machine *machine, int addr)
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
-	UINT8 *p = state->m_palette_ram + (addr & ~1);
+	taitol_state *state = (taitol_state *)machine->driver_data;
+	UINT8 *p = state->palette_ram + (addr & ~1);
 	UINT8 byte0 = *p++;
 	UINT8 byte1 = *p;
 
@@ -98,7 +96,7 @@ static void palette_notifier(running_machine &machine, int addr)
 
 	if (addr > 0x200)
 	{
-		logerror("%s:Large palette ? %03x\n", machine.describe_context(), addr);
+		logerror("%s:Large palette ? %03x\n", cpuexec_describe_context(machine), addr);
 	}
 	else
 	{
@@ -109,210 +107,214 @@ static void palette_notifier(running_machine &machine, int addr)
 
 static const UINT8 puzznic_mcu_reply[] = { 0x50, 0x1f, 0xb6, 0xba, 0x06, 0x03, 0x47, 0x05, 0x00 };
 
-static void state_register( running_machine &machine )
+static void state_register( running_machine *machine )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_irq_adr_table));
-	state->save_item(NAME(state->m_irq_enable));
-	state->save_item(NAME(state->m_cur_rambank));
-	state->save_item(NAME(state->m_cur_rombank));
-	state->save_item(NAME(state->m_cur_rombank2));
+	state_save_register_global_array(machine, state->irq_adr_table);
+	state_save_register_global(machine, state->irq_enable);
+	state_save_register_global_array(machine, state->cur_rambank);
+	state_save_register_global(machine, state->cur_rombank);
+	state_save_register_global(machine, state->cur_rombank2);
 
-	state->save_item(NAME(state->m_adpcm_pos));
-	state->save_item(NAME(state->m_adpcm_data));
-	state->save_item(NAME(state->m_trackx));
-	state->save_item(NAME(state->m_tracky));
-	state->save_item(NAME(state->m_mux_ctrl));
-	state->save_item(NAME(state->m_extport));
-	state->save_item(NAME(state->m_last_irq_level));
-	state->save_item(NAME(state->m_high));
-	state->save_item(NAME(state->m_high2));
+	state_save_register_global(machine, state->adpcm_pos);
+	state_save_register_global(machine, state->adpcm_data);
+	state_save_register_global(machine, state->trackx);
+	state_save_register_global(machine, state->tracky);
+	state_save_register_global(machine, state->mux_ctrl);
+	state_save_register_global(machine, state->extport);
+	state_save_register_global(machine, state->last_irq_level);
+	state_save_register_global(machine, state->high);
+	state_save_register_global(machine, state->high2);
 
-	state->save_item(NAME(state->m_mcu_pos));
-	state->save_item(NAME(state->m_mcu_reply_len));
-	state->save_item(NAME(state->m_last_data_adr));
-	state->save_item(NAME(state->m_last_data));
-	state->save_item(NAME(state->m_cur_bank));
+	state_save_register_global(machine, state->mcu_pos);
+	state_save_register_global(machine, state->mcu_reply_len);
+	state_save_register_global(machine, state->last_data_adr);
+	state_save_register_global(machine, state->last_data);
+	state_save_register_global(machine, state->cur_bank);
 
-	state->save_item(NAME(state->m_bankc));
-	state->save_item(NAME(state->m_horshoes_gfxbank));
-	state->save_item(NAME(state->m_cur_ctrl));
-	state->save_item(NAME(state->m_flipscreen));
+	state_save_register_global_array(machine, state->bankc);
+	state_save_register_global(machine, state->horshoes_gfxbank);
+	state_save_register_global(machine, state->cur_ctrl);
+	state_save_register_global(machine, state->flipscreen);
 }
 
 static MACHINE_START( taito_l )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_rambanks));
-	state->save_item(NAME(state->m_palette_ram));
-	state->save_item(NAME(state->m_empty_ram));
+	state->rambanks = auto_alloc_array(machine, UINT8, 0x1000 * 12);
+	state->palette_ram = auto_alloc_array(machine, UINT8, 0x1000);
+	state->empty_ram = auto_alloc_array(machine, UINT8, 0x1000);
+
+	state_save_register_global_pointer(machine, state->rambanks, 0x1000 * 12);
+	state_save_register_global_pointer(machine, state->palette_ram, 0x1000);
+	state_save_register_global_pointer(machine, state->empty_ram, 0x1000);
 
 	state_register(machine);
 }
 
-static void machine_reset(running_machine &machine)
+static void machine_reset(running_machine *machine)
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	int i;
 
 	for (i = 0; i < 3; i++)
-		state->m_irq_adr_table[i] = 0;
+		state->irq_adr_table[i] = 0;
 
-	state->m_irq_enable = 0;
+	state->irq_enable = 0;
 
 	for (i = 0; i < 4; i++)
 	{
-		state->m_cur_rambank[i] = 0x80;
-		state->m_current_notifier[i] = palette_notifier;
-		state->m_current_base[i] = state->m_palette_ram;
-		memory_set_bankptr(machine, bankname[i], state->m_current_base[i]);
+		state->cur_rambank[i] = 0x80;
+		state->current_notifier[i] = palette_notifier;
+		state->current_base[i] = state->palette_ram;
+		memory_set_bankptr(machine, bankname[i], state->current_base[i]);
 	}
 
-	state->m_cur_rombank = state->m_cur_rombank2 = 0;
-	memory_set_bankptr(machine, "bank1", machine.region("maincpu")->base() + 0x10000);
+	state->cur_rombank = state->cur_rombank2 = 0;
+	memory_set_bankptr(machine, "bank1", memory_region(machine, "maincpu") + 0x10000);
 
-	gfx_element_set_source(machine.gfx[2], state->m_rambanks);
+	gfx_element_set_source(machine->gfx[2], state->rambanks);
 
-	state->m_adpcm_pos = 0;
-	state->m_adpcm_data = -1;
-	state->m_trackx = state->m_tracky = 0;
-	state->m_mux_ctrl = 0;
-	state->m_extport = 0;
-	state->m_last_irq_level = 0;
-	state->m_high = 0;
-	state->m_high2 = 0;
+	state->adpcm_pos = 0;
+	state->adpcm_data = -1;
+	state->trackx = state->tracky = 0;
+	state->mux_ctrl = 0;
+	state->extport = 0;
+	state->last_irq_level = 0;
+	state->high = 0;
+	state->high2 = 0;
 
-	state->m_mcu_reply = puzznic_mcu_reply;
+	state->mcu_reply = puzznic_mcu_reply;
 
-	state->m_mcu_pos = state->m_mcu_reply_len = 0;
-	state->m_last_data_adr = state->m_last_data = 0;
-	state->m_cur_bank = 1;
+	state->mcu_pos = state->mcu_reply_len = 0;
+	state->last_data_adr = state->last_data = 0;
+	state->cur_bank = 1;
 
 	/* video related */
-	state->m_bankc[0] = state->m_bankc[1] = state->m_bankc[2] = state->m_bankc[3] = 0;
-	state->m_horshoes_gfxbank = 0;
-	state->m_cur_ctrl = 0;
-	state->m_flipscreen = 0;
+	state->bankc[0] = state->bankc[1] = state->bankc[2] = state->bankc[3] = 0;
+	state->horshoes_gfxbank = 0;
+	state->cur_ctrl = 0;
+	state->flipscreen = 0;
 }
 
 
 static MACHINE_RESET( fhawk )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = NULL;
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = NULL;
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = NULL;
+	state->porte1_tag = NULL;
+	state->portf0_tag = NULL;
+	state->portf1_tag = NULL;
 }
 
 static MACHINE_RESET( raimais )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = NULL;
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = NULL;
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = NULL;
+	state->porte1_tag = NULL;
+	state->portf0_tag = NULL;
+	state->portf1_tag = NULL;
 }
 
 static MACHINE_RESET( champwr )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = NULL;
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = NULL;
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = NULL;
+	state->porte1_tag = NULL;
+	state->portf0_tag = NULL;
+	state->portf1_tag = NULL;
 }
 
 
 static MACHINE_RESET( kurikint )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = NULL;
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = NULL;
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = NULL;
+	state->porte1_tag = NULL;
+	state->portf0_tag = NULL;
+	state->portf1_tag = NULL;
 }
 
 static MACHINE_RESET( evilston )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = NULL;
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = NULL;
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = NULL;
+	state->porte1_tag = NULL;
+	state->portf0_tag = NULL;
+	state->portf1_tag = NULL;
 }
 
 static MACHINE_RESET( puzznic )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = "DSWA";
-	state->m_porte1_tag = "DSWB";
-	state->m_portf0_tag = "IN0";
-	state->m_portf1_tag = "IN1";
+	state->porte0_tag = "DSWA";
+	state->porte1_tag = "DSWB";
+	state->portf0_tag = "IN0";
+	state->portf1_tag = "IN1";
 }
 
 static MACHINE_RESET( plotting )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = "DSWA";
-	state->m_porte1_tag = "DSWB";
-	state->m_portf0_tag = "IN0";
-	state->m_portf1_tag = "IN1";
+	state->porte0_tag = "DSWA";
+	state->porte1_tag = "DSWB";
+	state->portf0_tag = "IN0";
+	state->portf1_tag = "IN1";
 }
 
 static MACHINE_RESET( palamed )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = "DSWA";
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = "DSWB";
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = "DSWA";
+	state->porte1_tag = NULL;
+	state->portf0_tag = "DSWB";
+	state->portf1_tag = NULL;
 }
 
 static MACHINE_RESET( cachat )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = "DSWA";
-	state->m_porte1_tag = NULL;
-	state->m_portf0_tag = "DSWB";
-	state->m_portf1_tag = NULL;
+	state->porte0_tag = "DSWA";
+	state->porte1_tag = NULL;
+	state->portf0_tag = "DSWB";
+	state->portf1_tag = NULL;
 }
 
 static MACHINE_RESET( horshoes )
 {
-	taitol_state *state = machine.driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)machine->driver_data;
 	machine_reset(machine);
-	state->m_porte0_tag = "DSWA";
-	state->m_porte1_tag = "DSWB";
-	state->m_portf0_tag = "IN0";
-	state->m_portf1_tag = "IN1";
+	state->porte0_tag = "DSWA";
+	state->porte1_tag = "DSWB";
+	state->portf0_tag = "IN0";
+	state->portf1_tag = "IN1";
 }
 
 
 static IRQ_CALLBACK( irq_callback )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
-	return state->m_irq_adr_table[state->m_last_irq_level];
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
+	return state->irq_adr_table[state->last_irq_level];
 }
 
 static INTERRUPT_GEN( vbl_interrupt )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
-	device_set_irq_callback(device, irq_callback);
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
+	cpu_set_irq_callback(device, irq_callback);
 
 	/* kludge to make plgirls boot */
 	if (cpu_get_reg(device, Z80_IM) != 2)
@@ -320,149 +322,149 @@ static INTERRUPT_GEN( vbl_interrupt )
 
 	// What is really generating interrupts 0 and 1 is still to be found
 
-	if (cpu_getiloops(device) == 1 && (state->m_irq_enable & 1))
+	if (cpu_getiloops(device) == 1 && (state->irq_enable & 1))
 	{
-		state->m_last_irq_level = 0;
-		device_set_input_line(device, 0, HOLD_LINE);
+		state->last_irq_level = 0;
+		cpu_set_input_line(device, 0, HOLD_LINE);
 	}
-	else if (cpu_getiloops(device) == 2 && (state->m_irq_enable & 2))
+	else if (cpu_getiloops(device) == 2 && (state->irq_enable & 2))
 	{
-		state->m_last_irq_level = 1;
-		device_set_input_line(device, 0, HOLD_LINE);
+		state->last_irq_level = 1;
+		cpu_set_input_line(device, 0, HOLD_LINE);
 	}
-	else if (cpu_getiloops(device) == 0 && (state->m_irq_enable & 4))
+	else if (cpu_getiloops(device) == 0 && (state->irq_enable & 4))
 	{
-		state->m_last_irq_level = 2;
-		device_set_input_line(device, 0, HOLD_LINE);
+		state->last_irq_level = 2;
+		cpu_set_input_line(device, 0, HOLD_LINE);
 	}
 }
 
 static WRITE8_HANDLER( irq_adr_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 	//logerror("irq_adr_table[%d] = %02x\n", offset, data);
-	state->m_irq_adr_table[offset] = data;
+	state->irq_adr_table[offset] = data;
 }
 
 static READ8_HANDLER( irq_adr_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return state->m_irq_adr_table[offset];
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return state->irq_adr_table[offset];
 }
 
 static WRITE8_HANDLER( irq_enable_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 	//logerror("irq_enable = %02x\n",data);
-	state->m_irq_enable = data;
+	state->irq_enable = data;
 
 	// fix Plotting test mode
-	if ((state->m_irq_enable & (1 << state->m_last_irq_level)) == 0)
-		device_set_input_line(state->m_maincpu, 0, CLEAR_LINE);
+	if ((state->irq_enable & (1 << state->last_irq_level)) == 0)
+		cpu_set_input_line(state->maincpu, 0, CLEAR_LINE);
 }
 
 static READ8_HANDLER( irq_enable_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return state->m_irq_enable;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return state->irq_enable;
 }
 
 
 static WRITE8_HANDLER( rombankswitch_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
-	if (state->m_cur_rombank != data)
+	if (state->cur_rombank != data)
 	{
-		if (data > state->m_high)
+		if (data > state->high)
 		{
-			state->m_high = data;
-			logerror("New rom size : %x\n", (state->m_high + 1) * 0x2000);
+			state->high = data;
+			logerror("New rom size : %x\n", (state->high + 1) * 0x2000);
 		}
 
-		//logerror("robs %d, %02x (%04x)\n", offset, data, cpu_get_pc(&space->device()));
-		state->m_cur_rombank = data;
-		memory_set_bankptr(space->machine(), "bank1", space->machine().region("maincpu")->base() + 0x10000 + 0x2000 * state->m_cur_rombank);
+		//logerror("robs %d, %02x (%04x)\n", offset, data, cpu_get_pc(space->cpu));
+		state->cur_rombank = data;
+		memory_set_bankptr(space->machine, "bank1", memory_region(space->machine, "maincpu") + 0x10000 + 0x2000 * state->cur_rombank);
 	}
 }
 
 static WRITE8_HANDLER( rombank2switch_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
 	data &= 0xf;
 
-	if (state->m_cur_rombank2 != data)
+	if (state->cur_rombank2 != data)
 	{
-		if (data > state->m_high2)
+		if (data > state->high2)
 		{
-			state->m_high2 = data;
-			logerror("New rom2 size : %x\n", (state->m_high2 + 1) * 0x4000);
+			state->high2 = data;
+			logerror("New rom2 size : %x\n", (state->high2 + 1) * 0x4000);
 		}
 
-		//logerror("robs2 %02x (%04x)\n", data, cpu_get_pc(&space->device()));
+		//logerror("robs2 %02x (%04x)\n", data, cpu_get_pc(space->cpu));
 
-		state->m_cur_rombank2 = data;
-		memory_set_bankptr(space->machine(), "bank6", space->machine().region("slave")->base() + 0x10000 + 0x4000 * state->m_cur_rombank2);
+		state->cur_rombank2 = data;
+		memory_set_bankptr(space->machine, "bank6", memory_region(space->machine, "slave") + 0x10000 + 0x4000 * state->cur_rombank2);
 	}
 }
 
 static READ8_HANDLER( rombankswitch_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return state->m_cur_rombank;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return state->cur_rombank;
 }
 
 static READ8_HANDLER( rombank2switch_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return state->m_cur_rombank2;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return state->cur_rombank2;
 }
 
 static WRITE8_HANDLER( rambankswitch_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
-	if (state->m_cur_rambank[offset] != data)
+	if (state->cur_rambank[offset] != data)
 	{
-		state->m_cur_rambank[offset] = data;
-//logerror("rabs %d, %02x (%04x)\n", offset, data, cpu_get_pc(&space->device()));
+		state->cur_rambank[offset] = data;
+//logerror("rabs %d, %02x (%04x)\n", offset, data, cpu_get_pc(space->cpu));
 		if (data >= 0x14 && data <= 0x1f)
 		{
 			data -= 0x14;
-			state->m_current_notifier[offset] = rambank_modify_notifiers[data].notifier;
-			state->m_current_base[offset] = state->m_rambanks + rambank_modify_notifiers[data].offset;
+			state->current_notifier[offset] = rambank_modify_notifiers[data].notifier;
+			state->current_base[offset] = state->rambanks + rambank_modify_notifiers[data].offset;
 		}
 		else if (data == 0x80)
 		{
-			state->m_current_notifier[offset] = palette_notifier;
-			state->m_current_base[offset] = state->m_palette_ram;
+			state->current_notifier[offset] = palette_notifier;
+			state->current_base[offset] = state->palette_ram;
 		}
 		else
 		{
-			logerror("unknown rambankswitch %d, %02x (%04x)\n", offset, data, cpu_get_pc(&space->device()));
-			state->m_current_notifier[offset] = 0;
-			state->m_current_base[offset] = state->m_empty_ram;
+			logerror("unknown rambankswitch %d, %02x (%04x)\n", offset, data, cpu_get_pc(space->cpu));
+			state->current_notifier[offset] = 0;
+			state->current_base[offset] = state->empty_ram;
 		}
-		memory_set_bankptr(space->machine(), bankname[offset], state->m_current_base[offset]);
+		memory_set_bankptr(space->machine, bankname[offset], state->current_base[offset]);
 	}
 }
 
 static READ8_HANDLER( rambankswitch_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return state->m_cur_rambank[offset];
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return state->cur_rambank[offset];
 }
 
-static void bank_w(address_space *space, offs_t offset, UINT8 data, int banknum )
+static void bank_w(const address_space *space, offs_t offset, UINT8 data, int banknum )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
-	if (state->m_current_base[banknum][offset] != data)
+	if (state->current_base[banknum][offset] != data)
 	{
-		state->m_current_base[banknum][offset] = data;
-		if (state->m_current_notifier[banknum])
-			state->m_current_notifier[banknum](space->machine(), offset);
+		state->current_base[banknum][offset] = data;
+		if (state->current_notifier[banknum])
+			state->current_notifier[banknum](space->machine, offset);
 	}
 }
 
@@ -488,145 +490,157 @@ static WRITE8_HANDLER( bank3_w )
 
 static WRITE8_HANDLER( control2_w )
 {
-	coin_lockout_w(space->machine(), 0, ~data & 0x01);
-	coin_lockout_w(space->machine(), 1, ~data & 0x02);
-	coin_counter_w(space->machine(), 0, data & 0x04);
-	coin_counter_w(space->machine(), 1, data & 0x08);
+	coin_lockout_w(space->machine, 0, ~data & 0x01);
+	coin_lockout_w(space->machine, 1, ~data & 0x02);
+	coin_counter_w(space->machine, 0, data & 0x04);
+	coin_counter_w(space->machine, 1, data & 0x08);
 }
 
 static READ8_DEVICE_HANDLER( portA_r )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
-	return input_port_read(device->machine(), (state->m_extport == 0) ? state->m_porte0_tag : state->m_porte1_tag);
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
+	return input_port_read(device->machine, (state->extport == 0) ? state->porte0_tag : state->porte1_tag);
 }
 
 static READ8_DEVICE_HANDLER( portB_r )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
-	return input_port_read(device->machine(), (state->m_extport == 0) ? state->m_portf0_tag : state->m_portf1_tag);
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
+	return input_port_read(device->machine, (state->extport == 0) ? state->portf0_tag : state->portf1_tag);
 }
 
 static READ8_DEVICE_HANDLER( extport_select_and_ym2203_r )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
-	state->m_extport = (offset >> 1) & 1;
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
+	state->extport = (offset >> 1) & 1;
 	return ym2203_r(device, offset & 1);
 }
 
 static WRITE8_HANDLER( mcu_data_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	state->m_last_data = data;
-	state->m_last_data_adr = cpu_get_pc(&space->device());
-//  logerror("mcu write %02x (%04x)\n", data, cpu_get_pc(&space->device()));
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	state->last_data = data;
+	state->last_data_adr = cpu_get_pc(space->cpu);
+//  logerror("mcu write %02x (%04x)\n", data, cpu_get_pc(space->cpu));
 	switch (data)
 	{
 	case 0x43:
-		state->m_mcu_pos = 0;
-		state->m_mcu_reply_len = ARRAY_LENGTH(puzznic_mcu_reply);
+		state->mcu_pos = 0;
+		state->mcu_reply_len = ARRAY_LENGTH(puzznic_mcu_reply);
 		break;
 	}
 }
 
 static WRITE8_HANDLER( mcu_control_w )
 {
-//  logerror("mcu control %02x (%04x)\n", data, cpu_get_pc(&space->device()));
+//  logerror("mcu control %02x (%04x)\n", data, cpu_get_pc(space->cpu));
 }
 
 static READ8_HANDLER( mcu_data_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
-//  logerror("mcu read (%04x) [%02x, %04x]\n", cpu_get_pc(&space->device()), last_data, last_data_adr);
-	if (state->m_mcu_pos == state->m_mcu_reply_len)
+//  logerror("mcu read (%04x) [%02x, %04x]\n", cpu_get_pc(space->cpu), last_data, last_data_adr);
+	if (state->mcu_pos == state->mcu_reply_len)
 		return 0;
 
-	return state->m_mcu_reply[state->m_mcu_pos++];
+	return state->mcu_reply[state->mcu_pos++];
 }
 
 static READ8_HANDLER( mcu_control_r )
 {
-//  logerror("mcu control read (%04x)\n", cpu_get_pc(&space->device()));
+//  logerror("mcu control read (%04x)\n", cpu_get_pc(space->cpu));
 	return 0x1;
 }
 
 #if 0
 static WRITE8_HANDLER( sound_w )
 {
-	logerror("Sound_w %02x (%04x)\n", data, cpu_get_pc(&space->device()));
+	logerror("Sound_w %02x (%04x)\n", data, cpu_get_pc(space->cpu));
 }
 #endif
 
+static READ8_HANDLER( shared_r )
+{
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return state->shared_ram[offset];
+}
+
+static WRITE8_HANDLER( shared_w )
+{
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	state->shared_ram[offset] = data;
+}
+
 static READ8_HANDLER( mux_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
-	switch (state->m_mux_ctrl)
+	switch (state->mux_ctrl)
 	{
 	case 0:
-		return input_port_read(space->machine(), "DSWA");
+		return input_port_read(space->machine, "DSWA");
 	case 1:
-		return input_port_read(space->machine(), "DSWB");
+		return input_port_read(space->machine, "DSWB");
 	case 2:
-		return input_port_read(space->machine(), "IN0");
+		return input_port_read(space->machine, "IN0");
 	case 3:
-		return input_port_read(space->machine(), "IN1");
+		return input_port_read(space->machine, "IN1");
 	case 7:
-		return input_port_read(space->machine(), "IN2");
+		return input_port_read(space->machine, "IN2");
 	default:
-		logerror("Mux read from unknown port %d (%04x)\n", state->m_mux_ctrl, cpu_get_pc(&space->device()));
+		logerror("Mux read from unknown port %d (%04x)\n", state->mux_ctrl, cpu_get_pc(space->cpu));
 		return 0xff;
 	}
 }
 
 static WRITE8_HANDLER( mux_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
-	switch (state->m_mux_ctrl)
+	switch (state->mux_ctrl)
 	{
 	case 4:
 		control2_w(space, 0, data);
 		break;
 	default:
-		logerror("Mux write to unknown port %d, %02x (%04x)\n", state->m_mux_ctrl, data, cpu_get_pc(&space->device()));
+		logerror("Mux write to unknown port %d, %02x (%04x)\n", state->mux_ctrl, data, cpu_get_pc(space->cpu));
 	}
 }
 
 static WRITE8_HANDLER( mux_ctrl_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	state->m_mux_ctrl = data;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	state->mux_ctrl = data;
 }
 
 
-static void champwr_msm5205_vck( device_t *device )
+static void champwr_msm5205_vck( running_device *device )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
 
-	if (state->m_adpcm_data != -1)
+	if (state->adpcm_data != -1)
 	{
-		msm5205_data_w(device, state->m_adpcm_data & 0x0f);
-		state->m_adpcm_data = -1;
+		msm5205_data_w(device, state->adpcm_data & 0x0f);
+		state->adpcm_data = -1;
 	}
 	else
 	{
-		state->m_adpcm_data = device->machine().region("adpcm")->base()[state->m_adpcm_pos];
-		state->m_adpcm_pos = (state->m_adpcm_pos + 1) & 0x1ffff;
-		msm5205_data_w(device, state->m_adpcm_data >> 4);
+		state->adpcm_data = memory_region(device->machine, "adpcm")[state->adpcm_pos];
+		state->adpcm_pos = (state->adpcm_pos + 1) & 0x1ffff;
+		msm5205_data_w(device, state->adpcm_data >> 4);
 	}
 }
 
 static WRITE8_HANDLER( champwr_msm5205_lo_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	state->m_adpcm_pos = (state->m_adpcm_pos & 0xff00ff) | (data << 8);
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	state->adpcm_pos = (state->adpcm_pos & 0xff00ff) | (data << 8);
 }
 
 static WRITE8_HANDLER( champwr_msm5205_hi_w )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	state->m_adpcm_pos = ((state->m_adpcm_pos & 0x00ffff) | (data << 16)) & 0x1ffff;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	state->adpcm_pos = ((state->adpcm_pos & 0x00ffff) | (data << 16)) & 0x1ffff;
 }
 
 static WRITE8_DEVICE_HANDLER( champwr_msm5205_start_w )
@@ -636,59 +650,57 @@ static WRITE8_DEVICE_HANDLER( champwr_msm5205_start_w )
 
 static WRITE8_DEVICE_HANDLER( champwr_msm5205_stop_w )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
 
 	msm5205_reset_w(device, 1);
-	state->m_adpcm_pos &= 0x1ff00;
+	state->adpcm_pos &= 0x1ff00;
 }
 
 static WRITE8_DEVICE_HANDLER( champwr_msm5205_volume_w )
 {
-	device_sound_interface *sound;
-	device->interface(sound);
-	sound->set_output_gain(0, data / 255.0);
+	sound_set_output_gain(device, 0, data / 255.0);
 }
 
 static READ8_HANDLER( horshoes_tracky_reset_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
 	/* reset the trackball counter */
-	state->m_tracky = input_port_read(space->machine(), "AN0");
+	state->tracky = input_port_read(space->machine, "AN0");
 	return 0;
 }
 
 static READ8_HANDLER( horshoes_trackx_reset_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
 
 	/* reset the trackball counter */
-	state->m_trackx = input_port_read(space->machine(), "AN1");
+	state->trackx = input_port_read(space->machine, "AN1");
 	return 0;
 }
 
 static READ8_HANDLER( horshoes_tracky_lo_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return (input_port_read(space->machine(), "AN0") - state->m_tracky) & 0xff;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return (input_port_read(space->machine, "AN0") - state->tracky) & 0xff;
 }
 
 static READ8_HANDLER( horshoes_tracky_hi_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return (input_port_read(space->machine(), "AN0") - state->m_tracky) >> 8;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return (input_port_read(space->machine, "AN0") - state->tracky) >> 8;
 }
 
 static READ8_HANDLER( horshoes_trackx_lo_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return (input_port_read(space->machine(), "AN1") - state->m_trackx) & 0xff;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return (input_port_read(space->machine, "AN1") - state->trackx) & 0xff;
 }
 
 static READ8_HANDLER( horshoes_trackx_hi_r )
 {
-	taitol_state *state = space->machine().driver_data<taitol_state>();
-	return (input_port_read(space->machine(), "AN1") - state->m_trackx) >> 8;
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	return (input_port_read(space->machine, "AN1") - state->trackx) >> 8;
 }
 
 
@@ -712,13 +724,13 @@ static READ8_HANDLER( horshoes_trackx_hi_r )
 
 
 
-static ADDRESS_MAP_START( fhawk_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fhawk_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
-	AM_RANGE(0x8000, 0x9fff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0x8000, 0x9fff) AM_RAM AM_BASE_MEMBER(taitol_state, shared_ram)
 	AM_RANGE(0xa000, 0xbfff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( fhawk_2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fhawk_2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank6")
 	AM_RANGE(0xc000, 0xc000) AM_WRITE(rombank2switch_w)
@@ -731,10 +743,10 @@ static ADDRESS_MAP_START( fhawk_2_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xd004, 0xd004) AM_WRITE(control2_w)
 	AM_RANGE(0xd005, 0xd006) AM_WRITENOP	// Always 0
 	AM_RANGE(0xd007, 0xd007) AM_READ_PORT("IN2")
-	AM_RANGE(0xe000, 0xffff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xe000, 0xffff) AM_READWRITE(shared_r, shared_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( fhawk_3_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fhawk_3_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank7")
 	AM_RANGE(0x8000, 0x9fff) AM_RAM
@@ -744,9 +756,9 @@ static ADDRESS_MAP_START( fhawk_3_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( raimais_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( raimais_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
-	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_MEMBER(taitol_state, shared_ram)
 	AM_RANGE(0x8800, 0x8800) AM_READWRITE(mux_r, mux_w)
 	AM_RANGE(0x8801, 0x8801) AM_WRITE(mux_ctrl_w) AM_READNOP	// Watchdog or interrupt ack (value ignored)
 	AM_RANGE(0x8c00, 0x8c00) AM_READNOP AM_DEVWRITE("tc0140syt", tc0140syt_port_w)
@@ -754,22 +766,22 @@ static ADDRESS_MAP_START( raimais_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xa000, 0xbfff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( raimais_2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( raimais_2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xe000, 0xe7ff) AM_READWRITE(shared_r, shared_w)
 ADDRESS_MAP_END
 
 
 static WRITE8_HANDLER( sound_bankswitch_w )
 {
-	UINT8 *RAM = space->machine().region("audiocpu")->base();
+	UINT8 *RAM = memory_region(space->machine, "audiocpu");
 	int banknum = (data - 1) & 3;
 
-	memory_set_bankptr (space->machine(), "bank7", &RAM [0x10000 + (banknum * 0x4000)]);
+	memory_set_bankptr (space->machine, "bank7", &RAM [0x10000 + (banknum * 0x4000)]);
 }
 
-static ADDRESS_MAP_START( raimais_3_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( raimais_3_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank7")
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
@@ -784,16 +796,16 @@ static ADDRESS_MAP_START( raimais_3_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( champwr_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( champwr_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	AM_RANGE(0x8000, 0x9fff) AM_RAM
-	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_BASE_MEMBER(taitol_state, shared_ram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( champwr_2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( champwr_2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank6")
-	AM_RANGE(0xc000, 0xdfff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xc000, 0xdfff) AM_READWRITE(shared_r, shared_w)
 	AM_RANGE(0xe000, 0xe000) AM_READ_PORT("DSWA") AM_WRITENOP	// Watchdog
 	AM_RANGE(0xe001, 0xe001) AM_READ_PORT("DSWB")
 	AM_RANGE(0xe002, 0xe002) AM_READ_PORT("IN0")
@@ -806,7 +818,7 @@ static ADDRESS_MAP_START( champwr_2_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xf000) AM_READWRITE(rombank2switch_r, rombank2switch_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( champwr_3_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( champwr_3_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank7")
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
@@ -821,18 +833,18 @@ ADDRESS_MAP_END
 
 
 
-static ADDRESS_MAP_START( kurikint_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( kurikint_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	AM_RANGE(0x8000, 0x9fff) AM_RAM
-	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(taitol_state, shared_ram)
 	AM_RANGE(0xa800, 0xa800) AM_READWRITE(mux_r, mux_w)
 	AM_RANGE(0xa801, 0xa801) AM_WRITE(mux_ctrl_w) AM_READNOP	// Watchdog or interrupt ack (value ignored)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( kurikint_2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( kurikint_2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xe000, 0xe7ff) AM_READWRITE(shared_r, shared_w)
 	AM_RANGE(0xe800, 0xe801) AM_DEVREADWRITE("ymsnd", ym2203_r, ym2203_w)
 #if 0
 	AM_RANGE(0xc000, 0xc000) AM_WRITE(rombank2switch_w)
@@ -846,7 +858,7 @@ ADDRESS_MAP_END
 
 
 
-static ADDRESS_MAP_START( puzznic_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( puzznic_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	COMMON_SINGLE_MAP
 	AM_RANGE(0xa800, 0xa800) AM_READNOP	// Watchdog
@@ -857,7 +869,7 @@ static ADDRESS_MAP_START( puzznic_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 /* bootleg, doesn't have the MCU */
-static ADDRESS_MAP_START( puzznici_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( puzznici_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	COMMON_SINGLE_MAP
 	AM_RANGE(0xa800, 0xa800) AM_READNOP	// Watchdog
@@ -869,7 +881,7 @@ static ADDRESS_MAP_START( puzznici_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( plotting_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( plotting_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	COMMON_SINGLE_MAP
 	AM_RANGE(0xa800, 0xa800) AM_WRITENOP	// Watchdog or interrupt ack
@@ -877,7 +889,7 @@ static ADDRESS_MAP_START( plotting_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( palamed_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( palamed_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	COMMON_SINGLE_MAP
 	AM_RANGE(0xa800, 0xa800) AM_READ_PORT("IN0")
@@ -889,7 +901,7 @@ static ADDRESS_MAP_START( palamed_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( cachat_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cachat_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	COMMON_SINGLE_MAP
 	AM_RANGE(0xa800, 0xa800) AM_READ_PORT("IN0")
@@ -902,7 +914,7 @@ static ADDRESS_MAP_START( cachat_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( horshoes_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( horshoes_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	COMMON_SINGLE_MAP
 	AM_RANGE(0xa800, 0xa800) AM_READ(horshoes_tracky_lo_r)
@@ -916,10 +928,17 @@ static ADDRESS_MAP_START( horshoes_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xbc00, 0xbc00) AM_WRITENOP
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( evilston_map, AS_PROGRAM, 8 )
+static WRITE8_HANDLER (evilston_snd_w)
+{
+	taitol_state *state = (taitol_state *)space->machine->driver_data;
+	state->shared_ram[0x7fe] = data & 0x7f;
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+}
+
+static ADDRESS_MAP_START( evilston_map, ADDRESS_SPACE_PROGRAM, 8 )
 	COMMON_BANKS_MAP
 	AM_RANGE(0x8000, 0x9fff) AM_RAM
-	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(taitol_state, shared_ram)
 	AM_RANGE(0xa800, 0xa800) AM_READ_PORT("DSWA") AM_WRITENOP	//watchdog ?
 	AM_RANGE(0xa801, 0xa801) AM_READ_PORT("DSWB")
 	AM_RANGE(0xa802, 0xa802) AM_READ_PORT("IN0")
@@ -928,10 +947,10 @@ static ADDRESS_MAP_START( evilston_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xa807, 0xa807) AM_READ_PORT("IN2")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( evilston_2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( evilston_2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_SHARE("share1")
+	AM_RANGE(0xe000, 0xe7ff) AM_READWRITE(shared_r, shared_w)
 	AM_RANGE(0xe800, 0xe801) AM_DEVREADWRITE("ymsnd", ym2203_r, ym2203_w)
 	AM_RANGE(0xf000, 0xf7ff) AM_ROMBANK("bank7")
 ADDRESS_MAP_END
@@ -955,20 +974,28 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( fhawk )
 	PORT_START("DSWA")
-	TAITO_MACHINE_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_MACHINE_COCKTAIL
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )		/* Listed as Unused */
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )		/* Listed as Unused */
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:5,6")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unused ) )  // all in manual
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x30, "3" )
 	PORT_DIPSETTING(    0x20, "4" )
 	PORT_DIPSETTING(    0x10, "5" )
 	PORT_DIPSETTING(    0x00, "6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )		/* Listed as Unused */
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )		/* Listed as Unused */
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	TAITO_JOY_UDLR_2_BUTTONS( 1 )
@@ -983,28 +1010,30 @@ static INPUT_PORTS_START( fhawkj )
 	PORT_INCLUDE( fhawk )
 
 	PORT_MODIFY("DSWA")
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_COINAGE_JAPAN_OLD
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( raimais )
 	PORT_START("DSWA")
-	TAITO_MACHINE_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_MACHINE_COCKTAIL
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW2:3,4")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Bonus_Life ) )
 	PORT_DIPSETTING(    0x08, "80k and 160k" )
 	PORT_DIPSETTING(    0x0c, "80k only" )
 	PORT_DIPSETTING(    0x04, "160k only" )
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x30, "3" )
 	PORT_DIPSETTING(    0x20, "4" )
 	PORT_DIPSETTING(    0x10, "5" )
 	PORT_DIPSETTING(    0x00, "6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
@@ -1022,30 +1051,32 @@ static INPUT_PORTS_START( raimaisj )
 	PORT_INCLUDE( raimais )
 
 	PORT_MODIFY("DSWA")
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_COINAGE_JAPAN_OLD
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( champwr )
 	PORT_START("DSWA")
-	TAITO_MACHINE_NO_COCKTAIL_LOC(SW1)	// all 2 in manual
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_MACHINE_NO_COCKTAIL	// all 2 in manual
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPNAME( 0x0c, 0x0c, "Time" )			PORT_DIPLOCATION("SW2:3,4")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x0c, 0x0c, "Time" )
 	PORT_DIPSETTING(    0x08, "2 minutes" )
 	PORT_DIPSETTING(    0x0c, "3 minutes" )
 	PORT_DIPSETTING(    0x04, "4 minutes" )
 	PORT_DIPSETTING(    0x00, "5 minutes" )
-	PORT_DIPNAME( 0x30, 0x30, "'1 minute' Lasts:" )		PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, "'1 minute' Lasts:" )
 	PORT_DIPSETTING(    0x00, "30 sec" )
 	PORT_DIPSETTING(    0x10, "40 sec" )
 	PORT_DIPSETTING(    0x30, "50 sec" )
 	PORT_DIPSETTING(    0x20, "60 sec" )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )		/* Listed as Unused */
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1)
@@ -1082,31 +1113,39 @@ static INPUT_PORTS_START( champwrj )
 	PORT_INCLUDE( champwr )
 
 	PORT_MODIFY("DSWA")
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_COINAGE_JAPAN_OLD
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( champwru )
 	PORT_INCLUDE( champwr )
 
 	PORT_MODIFY("DSWA")
-	TAITO_COINAGE_US_LOC(SW1)
+	TAITO_COINAGE_US
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( kurikint )
 	PORT_START("DSWA")
-	TAITO_MACHINE_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_MACHINE_COCKTAIL
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )		/* Listed as Unused */
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )		/* Listed as Unused */
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )		/* Listed as Unused */
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )		/* Listed as Unused */
-	PORT_DIPNAME( 0x40, 0x40, "Bosses' messages" )		PORT_DIPLOCATION("SW2:7")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, "Bosses' messages" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x80, "5 Times" )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
@@ -1123,78 +1162,84 @@ static INPUT_PORTS_START( kurikintj )
 	PORT_INCLUDE( kurikint )
 
 	PORT_MODIFY("DSWA")
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_COINAGE_JAPAN_OLD
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( kurikinta )
 	PORT_INCLUDE( kurikint )
 
 	PORT_MODIFY("DSWA")
-	PORT_DIPNAME( 0x01, 0x00, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:1")
+	PORT_DIPNAME( 0x01, 0x00, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:2") /* Oposite of most Taito settings. IE: Off "means" off */
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW1:3")
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW1:4")
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_COINAGE_WORLD
 
 	PORT_MODIFY("DSWB")
-	PORT_DIPNAME( 0x01, 0x01, "Level Select (Cheat)")	PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "Level Select (Cheat)")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x02, "Invulnerability (Cheat)")	PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x02, "Invulnerability (Cheat)")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW2:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Difficulty ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x0c, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
-	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW2:5")
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, "Bosses' messages" )		PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Bosses' messages" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, "Slow Motion (Cheat)")	PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x80, 0x80, "Slow Motion (Cheat)")
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( puzznic )
 	PORT_START("DSWA")
-	TAITO_MACHINE_COCKTAIL_LOC(SW1)
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Coinage ) )	PORT_DIPLOCATION("SW1:5,6")
+	TAITO_MACHINE_COCKTAIL
+	/* There is no Coin B in the Manuals */
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x30, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 2C_3C ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( 1C_2C ) )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW1:7" )	/* There is no Coin B in the Manual */
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW1:8" )	/* There is no Coin B in the Manual */
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)			/* Difficulty controls the Timer Speed (how many seconds are there in a minute) */
-	PORT_DIPNAME( 0x0c, 0x0c, "Retries" )		PORT_DIPLOCATION("SW2:3,4")
+	/* Difficulty controls the Timer Speed (how many seconds are there in a minute) */
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x0c, 0x0c, "Retries" )
 	PORT_DIPSETTING(    0x00, "0" )
 	PORT_DIPSETTING(    0x04, "1" )
 	PORT_DIPSETTING(    0x0c, "2" )
 	PORT_DIPSETTING(    0x08, "3" )
-	PORT_DIPNAME( 0x10, 0x10, "Bombs" )		PORT_DIPLOCATION("SW2:5")
+	PORT_DIPNAME( 0x10, 0x10, "Bombs" )
 	PORT_DIPSETTING(    0x10, "0" )
 	PORT_DIPSETTING(    0x00, "2" )
-	PORT_DIPNAME( 0x20, 0x20, "Girls" )		PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Girls" )
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0xc0, 0xc0, "Terms of Replay" )	PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, "Terms of Replay" )
 	PORT_DIPSETTING(    0x40, "Stage one step back/Timer continuous" )
 	PORT_DIPSETTING(    0xc0, "Stage reset to start/Timer continuous" )
 	PORT_DIPSETTING(    0x80, "Stage reset to start/Timer reset to start" )
@@ -1233,25 +1278,31 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( plotting )
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x01, 0x01, "Play Mode" )			PORT_DIPLOCATION("SW1:1")
+	PORT_DIPNAME( 0x01, 0x01, "Play Mode" )
 	PORT_DIPSETTING(    0x00, "1 Player" )
 	PORT_DIPSETTING(    0x01, "2 Player" )
-	TAITO_DSWA_BITS_1_TO_3_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_DSWA_BITS_1_TO_3
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )		/* Listed as Unused and "Must Remain Off" */
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )		/* Listed as Unused and "Must Remain Off" */
-	PORT_DIPNAME( 0x30, 0x30, "Wild Blocks" )		PORT_DIPLOCATION("SW2:5,6") /* Number of allowed misses */
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x30, 0x30, "Wild Blocks" ) /* Number of allowed misses */
 	PORT_DIPSETTING(    0x20, "1" )
 	PORT_DIPSETTING(    0x30, "2" )
 	PORT_DIPSETTING(    0x10, "3" )
 	PORT_DIPSETTING(    0x00, "4" )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )		/* Listed as Unused and "Must Remain Off" */
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 )
@@ -1276,23 +1327,29 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( palamed )
 	PORT_START("DSWA")
-	TAITO_MACHINE_NO_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_JAPAN_NEW_LOC(SW1)
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	TAITO_DSWA_BITS_1_TO_3
+	TAITO_COINAGE_JAPAN_NEW
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)				/* Difficulty controls how fast the dice lines fall*/
-	PORT_DIPNAME( 0x0c, 0x0c, "Games for VS Victory" )	PORT_DIPLOCATION("SW2:3,4")
+	/* Difficulty controls how fast the dice lines fall*/
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x0c, 0x0c, "Games for VS Victory" )
 	PORT_DIPSETTING(    0x08, "1 Game" )
 	PORT_DIPSETTING(    0x0c, "2 Games" )
 	PORT_DIPSETTING(    0x04, "3 Games" )
 	PORT_DIPSETTING(    0x00, "4 Games" )
-	PORT_DIPNAME( 0x30, 0x30, "Dice Appear at" )		PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, "Dice Appear at" )
 	PORT_DIPSETTING(    0x20, "500 Lines" )
 	PORT_DIPSETTING(    0x30, "1000 Lines" )
 	PORT_DIPSETTING(    0x10, "2000 Lines" )
 	PORT_DIPSETTING(    0x00, "3000 Lines" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )		/* Listed as "Unused" */
-	PORT_DIPNAME( 0x80, 0x80, "Versus Mode" )		PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unused ) ) /* Listed as "Unused" */
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, "Versus Mode" )
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Yes ) )
 
@@ -1329,21 +1386,35 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( cachat )
 	PORT_START("DSWA")
-	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "SW1:1" )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:2") /* Oposite of most Taito settings. IE: Off "means" off */
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
-	TAITO_DSWA_BITS_2_TO_3_LOC(SW1)
-	TAITO_COINAGE_JAPAN_NEW_LOC(SW1)
+	TAITO_DSWA_BITS_2_TO_3
+	TAITO_COINAGE_JAPAN_NEW
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 )
@@ -1378,21 +1449,35 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( tubeit )
 	PORT_START("DSWA")
-	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "SW1:1" )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:2") /* Oposite of most Taito settings. IE: Off "means" off */
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
-	TAITO_DSWA_BITS_2_TO_3_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_DSWA_BITS_2_TO_3
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 )
@@ -1427,30 +1512,30 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( horshoes )
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x01, 0x01, "Beer Frame Message" )	PORT_DIPLOCATION("SW1:1")
+	PORT_DIPNAME( 0x01, 0x01, "Beer Frame Message" )
 	PORT_DIPSETTING(    0x01, "Break Time" )
 	PORT_DIPSETTING(    0x00, "Beer Frame" )
-	TAITO_DSWA_BITS_1_TO_3_LOC(SW1)
-	TAITO_COINAGE_US_LOC(SW1)				/* According to the "United States Version" manual listing */
+	TAITO_DSWA_BITS_1_TO_3
+	TAITO_COINAGE_US	/* According to the "United States Version" manual listing */
 
 	PORT_START("DSWB")
 	/* Not for sure, the CPU seems to play better when set to Hardest */
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPNAME( 0x0c, 0x0c, "Time" )			PORT_DIPLOCATION("SW2:3,4")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x0c, 0x0c, "Time" )
 	PORT_DIPSETTING(    0x08, "20 sec" )
 	PORT_DIPSETTING(    0x0c, "30 sec" )
 	PORT_DIPSETTING(    0x04, "40 sec" )
 	PORT_DIPSETTING(    0x00, "60 sec" )
-	PORT_DIPNAME( 0x10, 0x10, "Innings" )			PORT_DIPLOCATION("SW2:5")
+	PORT_DIPNAME( 0x10, 0x10, "Innings" )
 	PORT_DIPSETTING(    0x10, "3 per Credit" )
 	PORT_DIPSETTING(    0x00, "9 per Credit" )
-	PORT_DIPNAME( 0x20, 0x20, "Bonus Advantage" )		PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Bonus Advantage" )
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x40, "Scoring Speed" )		PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x40, 0x40, "Scoring Speed" )
 	PORT_DIPSETTING(    0x40, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x00, "Fast" )
-	PORT_DIPNAME( 0x80, 0x80, "Grip/Angle Select" )		PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x80, 0x80, "Grip/Angle Select" )
 	PORT_DIPSETTING(    0x80, "2 Buttons" )
 	PORT_DIPSETTING(    0x00, "1 Button" )
 
@@ -1483,14 +1568,14 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( plgirls )
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:1")
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:2")
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_SERVICE_DIPLOC(  0x04, IP_ACTIVE_LOW, "SW1:3" )
-	PORT_DIPNAME( 0x38, 0x38, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW1:4,5,6") /* Manual shows same coinage as Play Girls 2 */
+	PORT_SERVICE( 0x04, IP_ACTIVE_LOW )
+	PORT_DIPNAME( 0x38, 0x38, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( 2C_1C ) )
@@ -1499,17 +1584,32 @@ static INPUT_PORTS_START( plgirls )
 	PORT_DIPSETTING(    0x28, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( 1C_4C ) )
 //  PORT_DIPSETTING(    0x30, DEF_STR( 1C_1C ) )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW1:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW1:8" )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)				/* Difficulty controls the Ball Speed */
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPNAME( 0x80, 0x80, "P1+P2 Start to Clear Round (Cheat)" )	PORT_DIPLOCATION("SW2:8")
+	/* Difficulty controls the Ball Speed */
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, "P1+P2 Start to Clear Round (Cheat)" )
 	PORT_DIPSETTING(	0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(	0x00, DEF_STR( On ) )
 
@@ -1546,15 +1646,17 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( plgirls2 )
 	PORT_START("DSWA")
-	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "SW1:1" )		/* Listed as Not Used */
-	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:2")
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) ) /* Listed as Not Used */
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_SERVICE_DIPLOC(  0x04, IP_ACTIVE_LOW, "SW1:3" )
-	PORT_DIPNAME( 0x08, 0x08, "Coin Mode" )			PORT_DIPLOCATION("SW1:4")
+	PORT_SERVICE( 0x04, IP_ACTIVE_LOW )
+	PORT_DIPNAME( 0x08, 0x08, "Coin Mode" )
 	PORT_DIPSETTING(    0x08, "Mode A" )
 	PORT_DIPSETTING(    0x00, "Mode B" )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Coin_A ) )		PORT_DIPLOCATION("SW1:5,6")
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Coin_A ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 2C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x08)
 	PORT_DIPSETTING(    0x30, DEF_STR( 1C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x08)
 	PORT_DIPSETTING(    0x00, DEF_STR( 2C_3C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x08)
@@ -1563,7 +1665,7 @@ static INPUT_PORTS_START( plgirls2 )
 	PORT_DIPSETTING(    0x10, DEF_STR( 3C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x00)
 	PORT_DIPSETTING(    0x30, DEF_STR( 1C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x00)
 	PORT_DIPSETTING(    0x20, DEF_STR( 1C_4C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x00)
-	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Coin_B ) )		PORT_DIPLOCATION("SW1:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Coin_B ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( 2C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x08)
 	PORT_DIPSETTING(    0xc0, DEF_STR( 1C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x08)
 	PORT_DIPSETTING(    0x00, DEF_STR( 2C_3C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x08)
@@ -1572,22 +1674,46 @@ static INPUT_PORTS_START( plgirls2 )
 	PORT_DIPSETTING(    0x40, DEF_STR( 3C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x00)
 	PORT_DIPSETTING(    0xc0, DEF_STR( 1C_1C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x00)
 	PORT_DIPSETTING(    0x80, DEF_STR( 1C_4C ) ) PORT_CONDITION("DSWA", 0x08, PORTCOND_EQUALS, 0x00)
+/*
+
+Coin 1 is DSW 1, 5&6 - Coin 2 is DSW 1, 7&8
+
+-----------------------------------
+       |        | 1cn/1pl |off|off|
+Mode A |  Coin  | 1cn/2pl |on |off|
+       |        | 2cn/1pl |off|on |
+       |        | 2cn/3pl |on |on |
+-----------------------------------
+       |        | 1cn/1pl |off|off|
+Mode B |  Coin  | 1cn/4pl |on |off|
+       |        | 3cn/1pl |off|on |
+       |        | 4cn/1pl |on |on |
+-----------------------------------
+
+Mode A corresponds to TAITO_COINAGE_JAPAN_OLD in taitoipt.h
+
+*/
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)				/* Difficulty controls the number of hits requiered to destroy enemies */
-	PORT_DIPNAME( 0x04, 0x04, "Time" )			PORT_DIPLOCATION("SW2:3") /* Simply listed as "Time", what exactly does it refer to? */
+	/* Difficulty controls the number of hits requiered to destroy enemies */
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, "Time" ) /* Simply listed as "Time", what exactly does it refer to? */
 	PORT_DIPSETTING(    0x04, "2 Seconds" )
 	PORT_DIPSETTING(    0x00, "3 Seconds" )
-	PORT_DIPNAME( 0x18, 0x18, "Lives for Joe/Lady/Jack" )	PORT_DIPLOCATION("SW2:4,5")
+	PORT_DIPNAME( 0x18, 0x18, "Life" )
 	PORT_DIPSETTING(    0x10, "3/2/3" )
 	PORT_DIPSETTING(    0x18, "4/3/4" )
 	PORT_DIPSETTING(    0x08, "5/4/5" )
 	PORT_DIPSETTING(    0x00, "6/5/6" )
-	PORT_DIPNAME( 0x20, 0x20, "Character Speed" )		PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Character Speed" )
 	PORT_DIPSETTING(    0x20, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x00, "Fast" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )		/* Listed as Not Used */
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )		/* Listed as Not Used */
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) ) /* Listed as Not Used */
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) ) /* Listed as Not Used */
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 )
@@ -1622,22 +1748,38 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( cubybop )
 	PORT_START("DSWA")
-	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "SW1:1" )
-	PORT_DIPUNUSED_DIPLOC( 0x02, 0x02, "SW1:2" )
-	PORT_SERVICE_DIPLOC(  0x04, IP_ACTIVE_LOW, "SW1:3" )
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:4")
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_SERVICE( 0x04, IP_ACTIVE_LOW )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( On ) )
-	TAITO_COINAGE_JAPAN_NEW_LOC(SW1)
+	TAITO_COINAGE_JAPAN_NEW
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 )
@@ -1672,19 +1814,23 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( evilston )
 	PORT_START("DSWA")
-	TAITO_MACHINE_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_MACHINE_COCKTAIL
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:5,6")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unused ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x30, "3" )
 	PORT_DIPSETTING(    0x20, "2" )
 	PORT_DIPSETTING(    0x10, "1" )
 	PORT_DIPSETTING(    0x00, "4" )
-	PORT_DIPNAME( 0xc0, 0x00, DEF_STR( Language ) )		PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0x00, DEF_STR( Language ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( English ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( English ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( English ) )
@@ -1794,25 +1940,25 @@ GFXDECODE_END
 
 
 
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static WRITE8_DEVICE_HANDLER( portA_w )
 {
-	taitol_state *state = device->machine().driver_data<taitol_state>();
+	taitol_state *state = (taitol_state *)device->machine->driver_data;
 
-	if (state->m_cur_bank != (data & 0x03))
+	if (state->cur_bank != (data & 0x03))
 	{
 		int bankaddress;
-		UINT8 *RAM = device->machine().region("audiocpu")->base();
+		UINT8 *RAM = memory_region(device->machine, "audiocpu");
 
-		state->m_cur_bank = data & 0x03;
-		bankaddress = 0x10000 + (state->m_cur_bank - 1) * 0x4000;
-		memory_set_bankptr(device->machine(), "bank7", &RAM[bankaddress]);
-		//logerror ("YM2203 bank change val=%02x  pc=%04x\n", state->m_cur_bank, cpu_get_pc(&space->device()) );
+		state->cur_bank = data & 0x03;
+		bankaddress = 0x10000 + (state->cur_bank - 1) * 0x4000;
+		memory_set_bankptr(device->machine, "bank7", &RAM[bankaddress]);
+		//logerror ("YM2203 bank change val=%02x  pc=%04x\n", state->cur_bank, cpu_get_pc(space->cpu) );
 	}
 }
 
@@ -1874,304 +2020,322 @@ static const tc0140syt_interface taitol_tc0140syt_intf =
 };
 
 
-static MACHINE_CONFIG_START( fhawk, taitol_state )
+static MACHINE_DRIVER_START( fhawk )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitol_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* verified freq on pin122 of TC0090LVC cpu */
-	MCFG_CPU_PROGRAM_MAP(fhawk_map)
-	MCFG_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* verified freq on pin122 of TC0090LVC cpu */
+	MDRV_CPU_PROGRAM_MAP(fhawk_map)
+	MDRV_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_12MHz/3)		/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(fhawk_3_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_12MHz/3)		/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(fhawk_3_map)
 
-	MCFG_CPU_ADD("slave", Z80, XTAL_12MHz/3)		/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(fhawk_2_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,3*60) /* fixes slow down problems */
+	MDRV_CPU_ADD("slave", Z80, XTAL_12MHz/3)		/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(fhawk_2_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,3) /* fixes slow down problems */
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	MDRV_QUANTUM_TIME(HZ(6000))
 
-	MCFG_MACHINE_START(taito_l)
-	MCFG_MACHINE_RESET(fhawk)
+	MDRV_MACHINE_START(taito_l)
+	MDRV_MACHINE_RESET(fhawk)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(taitol)
-	MCFG_SCREEN_EOF(taitol)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(2)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(2)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(taitol)
-
-	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-
-	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)		/* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2203_interface_triple)
-	MCFG_SOUND_ROUTE(0, "mono", 0.20)
-	MCFG_SOUND_ROUTE(1, "mono", 0.20)
-	MCFG_SOUND_ROUTE(2, "mono", 0.20)
-	MCFG_SOUND_ROUTE(3, "mono", 0.80)
-
-	MCFG_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( champwr, fhawk )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(champwr_map)
-
-	MCFG_CPU_MODIFY("audiocpu")
-	MCFG_CPU_PROGRAM_MAP(champwr_3_map)
-
-	MCFG_CPU_MODIFY("slave")
-	MCFG_CPU_PROGRAM_MAP(champwr_2_map)
-
-	MCFG_MACHINE_RESET(champwr)
+	MDRV_VIDEO_START(taitol)
+	MDRV_VIDEO_EOF(taitol)
+	MDRV_VIDEO_UPDATE(taitol)
 
 	/* sound hardware */
-	MCFG_SOUND_MODIFY("ymsnd")
-	MCFG_SOUND_CONFIG(ym2203_interface_champwr)
-	MCFG_SOUND_ROUTE(0, "mono", 0.20)
-	MCFG_SOUND_ROUTE(1, "mono", 0.20)
-	MCFG_SOUND_ROUTE(2, "mono", 0.20)
-	MCFG_SOUND_ROUTE(3, "mono", 0.80)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("msm", MSM5205, XTAL_384kHz)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)		/* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2203_interface_triple)
+	MDRV_SOUND_ROUTE(0, "mono", 0.20)
+	MDRV_SOUND_ROUTE(1, "mono", 0.20)
+	MDRV_SOUND_ROUTE(2, "mono", 0.20)
+	MDRV_SOUND_ROUTE(3, "mono", 0.80)
+
+	MDRV_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
-
-static MACHINE_CONFIG_DERIVED( raimais, fhawk )
+static MACHINE_DRIVER_START( champwr )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(raimais_map)
+	MDRV_IMPORT_FROM(fhawk)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(champwr_map)
 
-	MCFG_CPU_MODIFY("audiocpu")
-	MCFG_CPU_PROGRAM_MAP(raimais_3_map)
+	MDRV_CPU_MODIFY("audiocpu")
+	MDRV_CPU_PROGRAM_MAP(champwr_3_map)
 
-	MCFG_CPU_MODIFY("slave")
-	MCFG_CPU_PROGRAM_MAP(raimais_2_map)
+	MDRV_CPU_MODIFY("slave")
+	MDRV_CPU_PROGRAM_MAP(champwr_2_map)
 
-	MCFG_MACHINE_RESET(raimais)
+	MDRV_MACHINE_RESET(champwr)
 
 	/* sound hardware */
-	MCFG_SOUND_REPLACE("ymsnd", YM2610, XTAL_8MHz)		/* verified on pcb (8Mhz OSC is also for the 2nd z80) */
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 1.0)
-	MCFG_SOUND_ROUTE(2, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_MODIFY("ymsnd")
+	MDRV_SOUND_CONFIG(ym2203_interface_champwr)
+	MDRV_SOUND_ROUTE(0, "mono", 0.20)
+	MDRV_SOUND_ROUTE(1, "mono", 0.20)
+	MDRV_SOUND_ROUTE(2, "mono", 0.20)
+	MDRV_SOUND_ROUTE(3, "mono", 0.80)
+
+	MDRV_SOUND_ADD("msm", MSM5205, XTAL_384kHz)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( kurikint, taitol_state )
+
+static MACHINE_DRIVER_START( raimais )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* verified freq on pin122 of TC0090LVC cpu */
-	MCFG_CPU_PROGRAM_MAP(kurikint_map)
-	MCFG_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
+	MDRV_IMPORT_FROM(fhawk)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(raimais_map)
 
-	MCFG_CPU_ADD("audiocpu",  Z80, XTAL_12MHz/3)		/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(kurikint_2_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_MODIFY("audiocpu")
+	MDRV_CPU_PROGRAM_MAP(raimais_3_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	MDRV_CPU_MODIFY("slave")
+	MDRV_CPU_PROGRAM_MAP(raimais_2_map)
 
-	MCFG_MACHINE_START(taito_l)
-	MCFG_MACHINE_RESET(kurikint)
+	MDRV_MACHINE_RESET(raimais)
+
+	/* sound hardware */
+	MDRV_SOUND_REPLACE("ymsnd", YM2610, XTAL_8MHz)		/* verified on pcb (8Mhz OSC is also for the 2nd z80) */
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 1.0)
+	MDRV_SOUND_ROUTE(2, "mono", 1.0)
+MACHINE_DRIVER_END
+
+
+static MACHINE_DRIVER_START( kurikint )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitol_state)
+
+	/* basic machine hardware */
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* verified freq on pin122 of TC0090LVC cpu */
+	MDRV_CPU_PROGRAM_MAP(kurikint_map)
+	MDRV_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
+
+	MDRV_CPU_ADD("audiocpu",  Z80, XTAL_12MHz/3)		/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(kurikint_2_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+
+	MDRV_QUANTUM_TIME(HZ(6000))
+
+	MDRV_MACHINE_START(taito_l)
+	MDRV_MACHINE_RESET(kurikint)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(taitol)
-	MCFG_SCREEN_EOF(taitol)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(2)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(2)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(taitol)
+	MDRV_VIDEO_START(taitol)
+	MDRV_VIDEO_EOF(taitol)
+	MDRV_VIDEO_UPDATE(taitol)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)		/* verified on pcb */
-	MCFG_SOUND_ROUTE(0, "mono", 0.20)
-	MCFG_SOUND_ROUTE(1, "mono", 0.20)
-	MCFG_SOUND_ROUTE(2, "mono", 0.20)
-	MCFG_SOUND_ROUTE(3, "mono", 0.80)
+	MDRV_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)		/* verified on pcb */
+	MDRV_SOUND_ROUTE(0, "mono", 0.20)
+	MDRV_SOUND_ROUTE(1, "mono", 0.20)
+	MDRV_SOUND_ROUTE(2, "mono", 0.20)
+	MDRV_SOUND_ROUTE(3, "mono", 0.80)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( kurikinta, kurikint )
+static MACHINE_DRIVER_START( kurikinta )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(kurikint)
 
 	/* video hardware */
-	MCFG_GFXDECODE(1)
-MACHINE_CONFIG_END
+	MDRV_GFXDECODE(1)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( plotting, taitol_state )
+static MACHINE_DRIVER_START( plotting )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitol_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* verified freq on pin122 of TC0090LVC cpu */
-	MCFG_CPU_PROGRAM_MAP(plotting_map)
-	MCFG_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* verified freq on pin122 of TC0090LVC cpu */
+	MDRV_CPU_PROGRAM_MAP(plotting_map)
+	MDRV_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
 
-	MCFG_MACHINE_START(taito_l)
-	MCFG_MACHINE_RESET(plotting)
+	MDRV_MACHINE_START(taito_l)
+	MDRV_MACHINE_RESET(plotting)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(taitol)
-	MCFG_SCREEN_EOF(taitol)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(1)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(1)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(taitol)
+	MDRV_VIDEO_START(taitol)
+	MDRV_VIDEO_EOF(taitol)
+	MDRV_VIDEO_UPDATE(taitol)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL_13_33056MHz/4)	/* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2203_interface_single)
-	MCFG_SOUND_ROUTE(0, "mono", 0.20)
-	MCFG_SOUND_ROUTE(1, "mono", 0.20)
-	MCFG_SOUND_ROUTE(2, "mono", 0.20)
-	MCFG_SOUND_ROUTE(3, "mono", 0.80)
+	MDRV_SOUND_ADD("ymsnd", YM2203, XTAL_13_33056MHz/4)	/* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2203_interface_single)
+	MDRV_SOUND_ROUTE(0, "mono", 0.20)
+	MDRV_SOUND_ROUTE(1, "mono", 0.20)
+	MDRV_SOUND_ROUTE(2, "mono", 0.20)
+	MDRV_SOUND_ROUTE(3, "mono", 0.80)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( puzznic, plotting )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(puzznic_map)
-
-	MCFG_MACHINE_RESET(puzznic)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( puzznici, plotting )
+static MACHINE_DRIVER_START( puzznic )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(puzznici_map)
+	MDRV_IMPORT_FROM(plotting)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(puzznic_map)
 
-	MCFG_MACHINE_RESET(puzznic)
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET(puzznic)
+MACHINE_DRIVER_END
 
-
-static MACHINE_CONFIG_DERIVED( horshoes, plotting )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(horshoes_map)
-
-	MCFG_MACHINE_RESET(horshoes)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( palamed, plotting )
+static MACHINE_DRIVER_START( puzznici )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(palamed_map)
+	MDRV_IMPORT_FROM(plotting)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(puzznici_map)
 
-	MCFG_MACHINE_RESET(palamed)
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET(puzznic)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( cachat, plotting )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(cachat_map)
-
-	MCFG_MACHINE_RESET(cachat)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_START( evilston, taitol_state )
+static MACHINE_DRIVER_START( horshoes )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* not verified */
-	MCFG_CPU_PROGRAM_MAP(evilston_map)
-	MCFG_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
+	MDRV_IMPORT_FROM(plotting)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(horshoes_map)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_12MHz/3)		/* not verified */
-	MCFG_CPU_PROGRAM_MAP(evilston_2_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse,60)
+	MDRV_MACHINE_RESET(horshoes)
+MACHINE_DRIVER_END
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
 
-	MCFG_MACHINE_START(taito_l)
-	MCFG_MACHINE_RESET(evilston)
+static MACHINE_DRIVER_START( palamed )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(plotting)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(palamed_map)
+
+	MDRV_MACHINE_RESET(palamed)
+MACHINE_DRIVER_END
+
+
+static MACHINE_DRIVER_START( cachat )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(plotting)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(cachat_map)
+
+	MDRV_MACHINE_RESET(cachat)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( evilston )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitol_state)
+
+	/* basic machine hardware */
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_13_33056MHz/2)	/* not verified */
+	MDRV_CPU_PROGRAM_MAP(evilston_map)
+	MDRV_CPU_VBLANK_INT_HACK(vbl_interrupt,3)
+
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_12MHz/3)		/* not verified */
+	MDRV_CPU_PROGRAM_MAP(evilston_2_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+
+	MDRV_QUANTUM_TIME(HZ(6000))
+
+	MDRV_MACHINE_START(taito_l)
+	MDRV_MACHINE_RESET(evilston)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(taitol)
-	MCFG_SCREEN_EOF(taitol)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(2)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(2)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(taitol)
+	MDRV_VIDEO_START(taitol)
+	MDRV_VIDEO_EOF(taitol)
+	MDRV_VIDEO_UPDATE(taitol)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)		/* not verified */
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 0.25)
-	MCFG_SOUND_ROUTE(2, "mono", 0.25)
-	MCFG_SOUND_ROUTE(3, "mono", 0.80)
+	MDRV_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)		/* not verified */
+	MDRV_SOUND_ROUTE(0, "mono", 0.00)
+	MDRV_SOUND_ROUTE(1, "mono", 0.00)
+	MDRV_SOUND_ROUTE(2, "mono", 0.00)
+	MDRV_SOUND_ROUTE(3, "mono", 0.80)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", taitol_tc0140syt_intf)
+MACHINE_DRIVER_END
 
-#ifdef UNUSED_CODE
-static MACHINE_CONFIG_DERIVED( lagirl, plotting )
+static MACHINE_DRIVER_START( lagirl )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_CLOCK(XTAL_27_2109MHz/4)
-	MCFG_CPU_PROGRAM_MAP(cachat_map)
+	MDRV_IMPORT_FROM(plotting)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_CLOCK(XTAL_27_2109MHz/4)
+	MDRV_CPU_PROGRAM_MAP(cachat_map)
 
 	/* sound hardware */
-	MCFG_SOUND_REPLACE("ymsnd", YM2203, XTAL_27_2109MHz/8)
+	MDRV_SOUND_REPLACE("ymsnd", YM2203, XTAL_27_2109MHz/8)
 
-	MCFG_MACHINE_RESET(cachat)
-MACHINE_CONFIG_END
-#endif
+	MDRV_MACHINE_RESET(cachat)
+MACHINE_DRIVER_END
 
 
 ROM_START( raimais )
@@ -2527,14 +2691,11 @@ ROM_START( puzznic )
 	ROM_RELOAD(              0x10000, 0x20000 )
 
 	ROM_REGION( 0x0800, "mcu", 0 )	/* 2k for the microcontroller */
-	ROM_LOAD( "mc68705p3.ic4", 0x0000, 0x0800, CRC(085F68B4) SHA1(2DBC7E2C015220DC59EE1F1208540744E5B9B7CC) )
+	ROM_LOAD( "mc68705p", 0x0000, 0x0800, NO_DUMP )
 
 	ROM_REGION( 0x20000, "gfx1", 0 )
 	ROM_LOAD( "c20-07.ic10", 0x00000, 0x10000, CRC(be12749a) SHA1(c67d1a434486843a6776d89e905362b7db595d8d) )
 	ROM_LOAD( "c20-06.ic9",  0x10000, 0x10000, CRC(ac85a9c5) SHA1(2d72dae86a191ccdac9648980aca832fb9886544) )
-
-	ROM_REGION( 0x0800, "pals", 0 )
-	ROM_LOAD( "mmipal20l8.ic3", 0x0000, 0x0800, NO_DUMP )
 ROM_END
 
 ROM_START( puzznicj )
@@ -2543,14 +2704,11 @@ ROM_START( puzznicj )
 	ROM_RELOAD(            0x10000, 0x20000 )
 
 	ROM_REGION( 0x0800, "mcu", 0 )	/* 2k for the microcontroller */
-	ROM_LOAD( "mc68705p3.ic4", 0x0000, 0x0800, CRC(085F68B4) SHA1(2DBC7E2C015220DC59EE1F1208540744E5B9B7CC) )
+	ROM_LOAD( "mc68705p", 0x0000, 0x0800, NO_DUMP )
 
 	ROM_REGION( 0x40000, "gfx1", 0 )
 	ROM_LOAD( "u10.ic10",  0x00000, 0x20000, CRC(4264056c) SHA1(d2d8a170ae0f361093a5384935238605a59e5938) )
 	ROM_LOAD( "u09.ic9",   0x20000, 0x20000, CRC(3c115f8b) SHA1(8d518be01b7c4d6d993d5d9b62aab719a5c8baca) )
-
-	ROM_REGION( 0x0800, "pals", 0 )
-	ROM_LOAD( "mmipal20l8.ic3", 0x0000, 0x0800, NO_DUMP )
 ROM_END
 
 ROM_START( puzznici ) /* bootleg */
@@ -2749,7 +2907,7 @@ static DRIVER_INIT( plottinga )
 				v |= 1 << (7 - j);
 		tab[i] = v;
 	}
-	p = machine.region("maincpu")->base();
+	p = memory_region(machine, "maincpu");
 	for (i = 0; i < 0x20000; i++)
 	{
 		*p = tab[*p];
@@ -2757,10 +2915,17 @@ static DRIVER_INIT( plottinga )
 	}
 }
 
+static DRIVER_INIT( evilston )
+{
+	UINT8 *ROM = memory_region(machine, "audiocpu");
+	ROM[0x72] = 0x45;	/* reti -> retn  ('dead' loop @ $1104 )*/
+	memory_install_write8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xa7fe, 0xa7fe, 0, 0, evilston_snd_w);
+}
+
 
 GAME( 1988, raimais,   0,        raimais,  raimais,  0,        ROT0,   "Taito Corporation Japan", "Raimais (World)", 0 )
 GAME( 1988, raimaisj,  raimais,  raimais,  raimaisj, 0,        ROT0,   "Taito Corporation", "Raimais (Japan)", 0 )
-GAME( 1988, raimaisjo, raimais,  raimais,  raimaisj, 0,        ROT0,   "Taito Corporation", "Raimais (Japan, first revision)", 0 )
+GAME( 1988, raimaisjo, raimais,  raimais,  raimaisj, 0,        ROT0,   "Taito Corporation", "Raimais (Japan / First Revision)", 0 )
 GAME( 1988, fhawk,     0,        fhawk,    fhawk,    0,        ROT270, "Taito Corporation Japan", "Fighting Hawk (World)", 0 )
 GAME( 1988, fhawkj,    fhawk,    fhawk,    fhawkj,   0,        ROT270, "Taito Corporation", "Fighting Hawk (Japan)", 0 )
 GAME( 1989, champwr,   0,        champwr,  champwr,  0,        ROT0,   "Taito Corporation Japan", "Champion Wrestler (World)", GAME_IMPERFECT_SOUND )
@@ -2771,8 +2936,8 @@ GAME( 1988, kurikintu, kurikint, kurikint, kurikintj,0,        ROT0,   "Taito Am
 GAME( 1988, kurikintj, kurikint, kurikint, kurikintj,0,        ROT0,   "Taito Corporation", "Kuri Kinton (Japan)", 0 )
 GAME( 1988, kurikinta, kurikint, kurikinta,kurikinta,0,        ROT0,   "Taito Corporation Japan", "Kuri Kinton (World, prototype?)", 0 )
 GAME( 1989, plotting,  0,        plotting, plotting, 0,        ROT0,   "Taito Corporation Japan", "Plotting (World set 1)", 0 )
-GAME( 1989, plottinga, plotting, plotting, plotting, plottinga,ROT0,   "Taito Corporation Japan", "Plotting (World set 2, protected)", 0 )
-GAME( 1989, plottingb, plotting, plotting, plotting, 0,        ROT0,   "Taito Corporation Japan", "Plotting (World set 3, earliest version)", 0 )
+GAME( 1989, plottinga, plotting, plotting, plotting, plottinga,ROT0,   "Taito Corporation Japan", "Plotting (World set 2, Protected)", 0 )
+GAME( 1989, plottingb, plotting, plotting, plotting, 0,        ROT0,   "Taito Corporation Japan", "Plotting (World set 3, Earliest Version)", 0 )
 GAME( 1989, plottingu, plotting, plotting, plotting, 0,        ROT0,   "Taito America Corporation", "Plotting (US)", 0 )
 GAME( 1989, flipull,   plotting, plotting, plotting, 0,        ROT0,   "Taito Corporation", "Flipull (Japan)", 0 )
 GAME( 1989, puzznic,   0,        puzznic,  puzznic,  0,        ROT0,   "Taito Corporation Japan", "Puzznic (World)", 0 )
@@ -2783,9 +2948,9 @@ GAME( 1990, palamed,   0,        palamed,  palamed,  0,        ROT0,   "Taito Co
 GAME( 1993, cachat,    0,        cachat,   cachat,   0,        ROT0,   "Taito Corporation", "Cachat (Japan)", 0 )
 GAME( 1993, tubeit,    cachat,   cachat,   tubeit,   0,        ROT0,   "Taito Corporation", "Tube-It", 0 )  // No (c) message
 
-GAME( 199?, cubybop,   0,        cachat,   cubybop,  0,        ROT0,   "Hot-B",   "Cuby Bop (location test)", 0 ) // No (c) message, but Hot-B company logo in tile gfx
+GAME( 199?, cubybop,   0,        cachat,   cubybop,  0,        ROT0,   "Hot-B",   "Cuby Bop (Location Test)", 0 ) // No (c) message, but Hot-B company logo in tile gfx
 GAME( 1992, plgirls,   0,        cachat,   plgirls,  0,        ROT270, "Hot-B",   "Play Girls", 0 )
 GAME( 1992, lagirl,    plgirls,  cachat,   plgirls,  0,        ROT270, "bootleg", "LA Girl", 0 ) /* bootleg hardware with changed title & backgrounds */
 GAME( 1993, plgirls2,  0,        cachat,   plgirls2, 0,        ROT270, "Hot-B",   "Play Girls 2", 0 )
 
-GAME( 1990, evilston,  0,        evilston, evilston, 0,        ROT270, "Spacy Industrial, Ltd.", "Evil Stone", GAME_IMPERFECT_SOUND )
+GAME( 1990, evilston,  0,        evilston, evilston, evilston, ROT270, "Spacy Industrial, Ltd.", "Evil Stone", 0 )

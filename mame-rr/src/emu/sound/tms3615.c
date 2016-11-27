@@ -1,4 +1,5 @@
 #include "emu.h"
+#include "streams.h"
 #include "tms3615.h"
 
 #define VMIN	0x0000
@@ -20,10 +21,10 @@ struct _tms_state {
 	int enable; 			/* mask which tones to play */
 };
 
-INLINE tms_state *get_safe_token(device_t *device)
+INLINE tms_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == TMS3615);
+	assert(device->type() == SOUND_TMS3615);
 	return (tms_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -79,7 +80,7 @@ static STREAM_UPDATE( tms3615_sound_update )
 	tms->enable = 0;
 }
 
-void tms3615_enable_w(device_t *device, int enable)
+void tms3615_enable_w(running_device *device, int enable)
 {
 	tms_state *tms = get_safe_token(device);
 	tms->enable = enable;
@@ -89,7 +90,7 @@ static DEVICE_START( tms3615 )
 {
 	tms_state *tms = get_safe_token(device);
 
-	tms->channel = device->machine().sound().stream_alloc(*device, 0, 2, device->clock()/8, tms, tms3615_sound_update);
+	tms->channel = stream_create(device, 0, 2, device->clock()/8, tms, tms3615_sound_update);
 	tms->samplerate = device->clock()/8;
 	tms->basefreq = device->clock();
 }

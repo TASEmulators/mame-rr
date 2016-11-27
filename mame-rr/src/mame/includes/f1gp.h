@@ -1,43 +1,40 @@
 
-class f1gp_state : public driver_device
+class f1gp_state
 {
 public:
-	f1gp_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, f1gp_state(machine)); }
+
+	f1gp_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_sharedram;
-	UINT16 *  m_spr1vram;
-	UINT16 *  m_spr2vram;
-	UINT16 *  m_spr1cgram;
-	UINT16 *  m_spr2cgram;
-	UINT16 *  m_fgvideoram;
-	UINT16 *  m_rozvideoram;
-	UINT16 *  m_sprcgram;
-	UINT16 *  m_spritelist;
-	UINT16 *  m_spriteram;
-	UINT16 *  m_fgregs;
-	UINT16 *  m_rozregs;
-	UINT16 *  m_zoomdata;
-//      UINT16 *  m_paletteram;    // currently this uses generic palette handling
-	size_t    m_spr1cgram_size;
-	size_t    m_spr2cgram_size;
-	size_t    m_spriteram_size;
+	UINT16 *  sharedram;
+	UINT16 *  spr1vram;
+	UINT16 *  spr2vram;
+	UINT16 *  spr1cgram;
+	UINT16 *  spr2cgram;
+	UINT16 *  fgvideoram;
+	UINT16 *  rozvideoram;
+	UINT16 *  sprcgram;
+	UINT16 *  spritelist;
+	UINT16 *  spriteram;
+	UINT16 *  fgregs;
+	UINT16 *  rozregs;
+	UINT16 *  zoomdata;
+//      UINT16 *  paletteram;    // currently this uses generic palette handling
+	size_t    spr1cgram_size, spr2cgram_size;
+	size_t    spriteram_size;
 
 	/* video-related */
-	tilemap_t   *m_fg_tilemap;
-	tilemap_t   *m_roz_tilemap;
-	int       m_roz_bank;
-	int       m_flipscreen;
-	int       m_gfxctrl;
-	int       m_scroll[2];
+	tilemap_t   *fg_tilemap, *roz_tilemap;
+	int       roz_bank, flipscreen, gfxctrl;
+	int       scroll[2];
 
 	/* misc */
-	int       m_pending_command;
+	int       pending_command;
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_k053936;
+	running_device *audiocpu;
+	running_device *k053936;
 };
 
 /*----------- defined in video/f1gp.c -----------*/
@@ -54,6 +51,6 @@ WRITE16_HANDLER( f1gp2_gfxctrl_w );
 VIDEO_START( f1gp );
 VIDEO_START( f1gpb );
 VIDEO_START( f1gp2 );
-SCREEN_UPDATE( f1gp );
-SCREEN_UPDATE( f1gpb );
-SCREEN_UPDATE( f1gp2 );
+VIDEO_UPDATE( f1gp );
+VIDEO_UPDATE( f1gpb );
+VIDEO_UPDATE( f1gp2 );

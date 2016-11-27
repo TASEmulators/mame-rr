@@ -114,15 +114,15 @@ static UINT8 char_offset; //helper to jump the decoding of the NULL chars.
 
 static READ32_HANDLER( twcup98_prot_r )
 {
-	UINT32 *ROM = (UINT32 *)space->machine().region("abus")->base();
+	UINT32 *ROM = (UINT32 *)memory_region(space->machine, "user1");
 
 	if(a_bus[0] & 0x00010000)//protection calculation is activated
 	{
 		if(offset == 3)
 		{
-			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(&space->device()),a_bus[3]);
+			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(space->cpu),a_bus[3]);
 			#ifdef MAME_DEBUG
-			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(&space->device()),a_bus[3]);
+			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(space->cpu),a_bus[3]);
 			#endif
 			switch(a_bus[3])
 			{
@@ -141,10 +141,10 @@ static READ32_HANDLER( twcup98_prot_r )
 static WRITE32_HANDLER ( twcup98_prot_w )
 {
 	COMBINE_DATA(&a_bus[offset]);
-	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(&space->device()),offset,data);
+	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(space->cpu),offset,data);
 	if(offset == 3)
 	{
-		logerror("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
+		printf("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
 
 		//MAIN : 12120000  DATA : 0ad20069 Tecmo logo
 		if(a_bus[3] == 0x12120000 && a_bus[2] == 0x0ad20069)
@@ -160,9 +160,9 @@ static WRITE32_HANDLER ( twcup98_prot_w )
 	//popmessage("%04x %04x",data,offset/4);
 }
 
-void install_twcup98_protection(running_machine &machine)
+void install_twcup98_protection(running_machine *machine)
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x4fffff0, 0x4ffffff, FUNC(twcup98_prot_r), FUNC(twcup98_prot_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x4fffff0, 0x4ffffff, 0, 0, twcup98_prot_r, twcup98_prot_w);
 }
 
 /**************************
@@ -173,15 +173,15 @@ void install_twcup98_protection(running_machine &machine)
 
 static READ32_HANDLER( sss_prot_r )
 {
-	UINT32 *ROM = (UINT32 *)space->machine().region("abus")->base();
+	UINT32 *ROM = (UINT32 *)memory_region(space->machine, "user1");
 
 	if(a_bus[0] & 0x00010000)//protection calculation is activated
 	{
 		if(offset == 3)
 		{
-			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(&space->device()),a_bus[3]);
+			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(space->cpu),a_bus[3]);
 			#ifdef MAME_DEBUG
-			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(&space->device()),a_bus[3]);
+			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(space->cpu),a_bus[3]);
 			#endif
 			switch(a_bus[3])
 			{
@@ -208,10 +208,10 @@ static READ32_HANDLER( sss_prot_r )
 static WRITE32_HANDLER ( sss_prot_w )
 {
 	COMBINE_DATA(&a_bus[offset]);
-	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(&space->device()),offset,data);
+	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(space->cpu),offset,data);
 	if(offset == 3)
 	{
-		//logerror("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
+		//printf("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
 		switch(a_bus[3])
 		{
 			case 0x2c5b0000: ctrl_index = (0x145ffac/4)-1; break;
@@ -225,9 +225,9 @@ static WRITE32_HANDLER ( sss_prot_w )
 	}
 }
 
-void install_sss_protection(running_machine &machine)
+void install_sss_protection(running_machine *machine)
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x4fffff0, 0x4ffffff, FUNC(sss_prot_r), FUNC(sss_prot_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x4fffff0, 0x4ffffff, 0, 0, sss_prot_r, sss_prot_w);
 }
 
 /*************************************
@@ -238,15 +238,15 @@ void install_sss_protection(running_machine &machine)
 
 static READ32_HANDLER( rsgun_prot_r )
 {
-	UINT32 *ROM = (UINT32 *)space->machine().region("abus")->base();
+	UINT32 *ROM = (UINT32 *)memory_region(space->machine, "user1");
 
 	if(a_bus[0] & 0x00010000)//protection calculation is activated
 	{
 		if(offset == 3)
 		{
-			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(&space->device()),a_bus[3]);
+			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(space->cpu),a_bus[3]);
 			#ifdef MAME_DEBUG
-			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(&space->device()),a_bus[3]);
+			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(space->cpu),a_bus[3]);
 			#endif
 			switch(a_bus[3])
 			{
@@ -278,10 +278,10 @@ static READ32_HANDLER( rsgun_prot_r )
 static WRITE32_HANDLER ( rsgun_prot_w )
 {
 	COMBINE_DATA(&a_bus[offset]);
-	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(&space->device()),offset,data);
+	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(space->cpu),offset,data);
 	if(offset == 3)
 	{
-		//logerror("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
+		//printf("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
 		switch(a_bus[3])
 		{
 			case 0x77770000: ctrl_index = 0; break;
@@ -290,9 +290,9 @@ static WRITE32_HANDLER ( rsgun_prot_w )
 	//popmessage("%04x %04x",data,offset/4);
 }
 
-void install_rsgun_protection(running_machine &machine)
+void install_rsgun_protection(running_machine *machine)
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x4fffff0, 0x4ffffff, FUNC(rsgun_prot_r), FUNC(rsgun_prot_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x4fffff0, 0x4ffffff, 0, 0, rsgun_prot_r, rsgun_prot_w);
 }
 
 /*************************
@@ -313,15 +313,15 @@ void install_rsgun_protection(running_machine &machine)
 
 static READ32_HANDLER( elandore_prot_r )
 {
-	UINT32 *ROM = (UINT32 *)space->machine().region("abus")->base();
+	UINT32 *ROM = (UINT32 *)memory_region(space->machine, "user1");
 
 	if(a_bus[0] & 0x00010000)//protection calculation is activated
 	{
 		if(offset == 3)
 		{
-			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(&space->device()),a_bus[3]);
+			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(space->cpu),a_bus[3]);
 			#ifdef MAME_DEBUG
-			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(&space->device()),a_bus[3]);
+			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(space->cpu),a_bus[3]);
 			#endif
 			switch(a_bus[3])
 			{
@@ -349,11 +349,11 @@ static READ32_HANDLER( elandore_prot_r )
 static WRITE32_HANDLER ( elandore_prot_w )
 {
 	COMBINE_DATA(&a_bus[offset]);
-	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(&space->device()),offset,data);
+	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(space->cpu),offset,data);
 	if(offset == 3)
 	{
 		/* a bus value 2 seed is used too here. */
-		//logerror("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
+		//printf("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
 		switch(a_bus[3])
 		{
 			case ELANDORE_CTRL_1_HUMAN: // (human polygons)
@@ -385,9 +385,9 @@ static WRITE32_HANDLER ( elandore_prot_w )
 	//popmessage("%04x %04x",data,offset/4);
 }
 
-void install_elandore_protection(running_machine &machine)
+void install_elandore_protection(running_machine *machine)
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x4fffff0, 0x4ffffff, FUNC(elandore_prot_r), FUNC(elandore_prot_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x4fffff0, 0x4ffffff, 0, 0, elandore_prot_r, elandore_prot_w);
 }
 
 /*************************
@@ -420,15 +420,15 @@ static const UINT32 vector_prot[] = { 0x0603B1B2,0x234 };
 
 static READ32_HANDLER( ffreveng_prot_r )
 {
-	UINT32 *ROM = (UINT32 *)space->machine().region("abus")->base();
+	UINT32 *ROM = (UINT32 *)memory_region(space->machine, "user1");
 
 	if(a_bus[0] & 0x00010000)//protection calculation is activated
 	{
 		if(offset == 3)
 		{
-			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(&space->device()),a_bus[3]);
+			logerror("A-Bus control protection read at %06x with data = %08x\n",cpu_get_pc(space->cpu),a_bus[3]);
 			#ifdef MAME_DEBUG
-			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(&space->device()),a_bus[3]);
+			popmessage("Prot read at %06x with data = %08x",cpu_get_pc(space->cpu),a_bus[3]);
 			#endif
 			switch(a_bus[3])
 			{
@@ -455,10 +455,10 @@ static READ32_HANDLER( ffreveng_prot_r )
 static WRITE32_HANDLER ( ffreveng_prot_w )
 {
 	COMBINE_DATA(&a_bus[offset]);
-	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(&space->device()),offset,data);
+	logerror("A-Bus control protection write at %06x: [%02x] <- %08x\n",cpu_get_pc(space->cpu),offset,data);
 	if(offset == 3)
 	{
-		//logerror("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
+		//printf("MAIN : %08x  DATA : %08x\n",a_bus[3],a_bus[2]);
 		switch(a_bus[3])
 		{
 			/*ffreveng*/
@@ -469,9 +469,9 @@ static WRITE32_HANDLER ( ffreveng_prot_w )
 	//popmessage("%04x %04x",data,offset/4);
 }
 
-void install_ffreveng_protection(running_machine &machine)
+void install_ffreveng_protection(running_machine *machine)
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x4fffff0, 0x4ffffff, FUNC(ffreveng_prot_r), FUNC(ffreveng_prot_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x4fffff0, 0x4ffffff, 0, 0, ffreveng_prot_r, ffreveng_prot_w);
 }
 
 /************************
@@ -485,11 +485,11 @@ static READ32_HANDLER(astrass_prot_r)
 	if ( offset == 3 && ctrl_index != -1 )
 	{
 		UINT32 data = 0;
-		UINT32 *prot_data = (UINT32 *)space->machine().region("user2")->base();
+		UINT32 *prot_data = (UINT32 *)memory_region(space->machine, "user2");
 
 		data = prot_data[ctrl_index++];
 
-		if ( ctrl_index >= space->machine().region("user2")->bytes()/4 )
+		if ( ctrl_index >= memory_region_length(space->machine, "user2")/4 )
 		{
 			ctrl_index = -1;
 		}
@@ -508,10 +508,10 @@ static WRITE32_HANDLER(astrass_prot_w)
 	}
 }
 
-void install_astrass_protection(running_machine &machine)
+void install_astrass_protection(running_machine *machine)
 {
 	ctrl_index = -1;
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x4fffff0, 0x4ffffff, FUNC(astrass_prot_r), FUNC(astrass_prot_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x4fffff0, 0x4ffffff, 0, 0, astrass_prot_r, astrass_prot_w);
 }
 
 /**************************
@@ -531,37 +531,26 @@ static UINT16 decathlt_prottable2[128];
 
 static READ32_HANDLER( decathlt_prot_r )
 {
-	// the offsets written to the protection device definitely only refer to 2 of the roms
-	//  it's a fair assumption to say that only those 2 are connected to the protection device
-	UINT8 *ROM = (UINT8 *)space->machine().region("abus")->base()+0x1000000;
+	UINT32 *ROM = (UINT32 *)memory_region(space->machine, "user1");
 
 	if (offset==2)
 	{
-		UINT32 retvalue;
-
-		retvalue = ROM[(decathlt_protregs[0]*2)-2]; decathlt_protregs[0]++;
-		retvalue <<= 8;
-		retvalue |= ROM[(decathlt_protregs[0]*2)+1-2];
-		retvalue <<= 8;
-		retvalue |= ROM[(decathlt_protregs[0]*2)-2]; decathlt_protregs[0]++;
-		retvalue <<= 8;
-		retvalue |= ROM[(decathlt_protregs[0]*2)+1-2];
-
-
+		//UINT32 retval;
+		/* I think the address and data are scrambled.. */
+		UINT32 retvalue = /*rand() | (rand()<<16);*/ ROM[(decathlt_protregs[0])];
+		decathlt_protregs[0]++;
 		decathlt_lastcount++;
-		logerror("blah_r %08x\n", retvalue);
-		return retvalue;
+		return retvalue; // reads this, then the game writes it to vram...
 	}
 	else
 	{
-		logerror("%06x Decathlete prot R offset %04x mask %08x regs %08x, %08x, %08x, %08x\n",cpu_get_pc(&space->device()), offset, mem_mask, decathlt_protregs[0], decathlt_protregs[1], decathlt_protregs[2], decathlt_protregs[3]);
+		mame_printf_info("%06x Decathlete prot R offset %04x mask %08x regs %08x, %08x, %08x, %08x\n",cpu_get_pc(space->cpu), offset, mem_mask, decathlt_protregs[0], decathlt_protregs[1], decathlt_protregs[2], decathlt_protregs[3]);
 	}
 
 	return decathlt_protregs[offset];
 }
 
-
-void write_prot_data(UINT32 data, UINT32 mem_mask, int offset, int which)
+static WRITE32_HANDLER( decathlt_prot_w )
 {
 	decathlt_protregs[offset] = (data&mem_mask)|(decathlt_protregs[offset]&~mem_mask);
 //  decathlt_protregs[0] = 0x0c00000/4;
@@ -570,9 +559,9 @@ void write_prot_data(UINT32 data, UINT32 mem_mask, int offset, int which)
 	{
 		decathlt_part ^=1;
 
-		//if (decathlt_part==0) logerror("%d, last read count was %06x\n",which, decathlt_lastcount*4);
+		if (decathlt_part==0) mame_printf_info("last count was %06x\n",decathlt_lastcount);
 		decathlt_lastcount = 0;
-		if (decathlt_part==1) logerror("%d Decathlete prot W offset %04x data %08x, %08x, >>> regs %08x <<<<, %08x, %08x, %08x\n",which, offset, data, decathlt_protregs[0], decathlt_protregs[0]*4, decathlt_protregs[1], decathlt_protregs[2], decathlt_protregs[3]);
+		mame_printf_info("%06x Decathlete prot W offset %04x data %08x, regs %08x, %08x, %08x, %08x\n",cpu_get_pc(space->cpu), offset, data, decathlt_protregs[0], decathlt_protregs[1], decathlt_protregs[2], decathlt_protregs[3]);
 	}
 
 	if (offset==1) // uploads 2 tables...
@@ -581,24 +570,24 @@ void write_prot_data(UINT32 data, UINT32 mem_mask, int offset, int which)
 		{
 			if (data == 0x80000000)
 			{
-			//  logerror("changed to upload mode 1\n");
+				mame_printf_info("changed to upload mode 1\n");
 				decathlt_prot_uploadmode = 1;
 				decathlt_prot_uploadoffset = 0;
 			}
 			else if (data == 0x80800000)
 			{
-			//  logerror("changed to upload mode 2\n");
+				mame_printf_info("changed to upload mode 2\n");
 				decathlt_prot_uploadmode = 2;
 				decathlt_prot_uploadoffset = 0;
 			}
 			else
 			{
-			//  logerror("unknown upload mode\n");
+				mame_printf_info("unknown upload mode\n");
 				decathlt_prot_uploadmode = 2;
 				decathlt_prot_uploadoffset = 0;
 			}
 
-//          logerror("ARGH! %08x %08x\n",mem_mask,data);
+//          mame_printf_info("ARGH! %08x %08x\n",mem_mask,data);
 		}
 		else if (mem_mask==0x0000ffff)
 		{
@@ -606,11 +595,11 @@ void write_prot_data(UINT32 data, UINT32 mem_mask, int offset, int which)
 			{
 				if (decathlt_prot_uploadoffset>=24)
 				{
-				//  logerror("upload mode 1 error, too big\n");
+					mame_printf_info("upload mode 1 error, too big\n");
 					return;
 				}
 
-				//logerror("uploading table 1 %04x %04x\n",decathlt_prot_uploadoffset, data&0xffff);
+				mame_printf_info("uploading table 1 %04x %04x\n",decathlt_prot_uploadoffset, data&0xffff);
 				decathlt_prottable1[decathlt_prot_uploadoffset]=data&0xffff;
 				decathlt_prot_uploadoffset++;
 
@@ -620,18 +609,12 @@ void write_prot_data(UINT32 data, UINT32 mem_mask, int offset, int which)
 
                        uploaded values appear to be 12-bit, some are repeated
                     */
-
+					FILE* fp;
+					fp = fopen("table1","wb");
 					{
-
-						FILE* fp;
-						if (which==1) fp = fopen("table1x","wb");
-						else fp = fopen("table1","wb");
-
-						{
-							fwrite(&decathlt_prottable1,24,2,fp);
-						}
-						fclose(fp);
+						fwrite(&decathlt_prottable2,24,2,fp);
 					}
+					fclose(fp);
 				}
 
 			}
@@ -639,57 +622,39 @@ void write_prot_data(UINT32 data, UINT32 mem_mask, int offset, int which)
 			{
 				if (decathlt_prot_uploadoffset>=128)
 				{
-					//logerror("upload mode 2 error, too big\n");
+					mame_printf_info("upload mode 2 error, too big\n");
 					return;
 				}
 
-				//logerror("uploading table 2 %04x %04x\n",decathlt_prot_uploadoffset, data&0xffff);
+				mame_printf_info("uploading table 2 %04x %04x\n",decathlt_prot_uploadoffset, data&0xffff);
 				decathlt_prottable2[decathlt_prot_uploadoffset]=data&0xffff;
 				decathlt_prot_uploadoffset++;
 
 				{
 					/* the table uploaded here is a 256 byte table with 256 unique values, remaps something? */
-
+					FILE* fp;
+					fp = fopen("table2","wb");
 					{
-						FILE* fp;
-						if (which==1) fp = fopen("table2x","wb");
-						else fp = fopen("table2","wb");
-
-						{
-							fwrite(&decathlt_prottable2,128,2,fp);
-						}
-						fclose(fp);
+						fwrite(&decathlt_prottable2,128,2,fp);
 					}
+					fclose(fp);
 				}
 			}
 			else
 			{
-			//  logerror("unknown upload mode!\n");
+				mame_printf_info("unknown upload mode!\n");
 			}
 		}
 	}
 
 	if (offset>1)
 	{
-	//  logerror("higher offset write\n");
+		mame_printf_info("higher offset write\n");
 	}
 
 }
 
-static WRITE32_HANDLER( decathlt_prot1_w )
-{
-	write_prot_data(data,mem_mask, offset, 0);
-
-}
-
-static WRITE32_HANDLER( decathlt_prot2_w )
-{
-	write_prot_data(data,mem_mask, offset, 1);
-
-
-}
-
-void install_decathlt_protection(running_machine &machine)
+void install_decathlt_protection(running_machine *machine)
 {
 	/* It uploads 2 tables here, then performs what looks like a number of transfers, setting
        a source address of some kind (scrambled?) and then making many reads from a single address */
@@ -698,12 +663,12 @@ void install_decathlt_protection(running_machine &machine)
 	decathlt_prot_uploadmode = 0;
 	decathlt_prot_uploadoffset = 0;
 	decathlt_part = 1;
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x37FFFF0, 0x37FFFFF, FUNC(decathlt_prot_r), FUNC(decathlt_prot1_w));
-	/* It accesses the device at this address too, with different tables, for the game textures, should it just act like a mirror, or a secondary device? */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x27FFFF0, 0x27FFFFF, FUNC(decathlt_prot_r), FUNC(decathlt_prot2_w));
+	memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x37FFFF0, 0x37FFFFF, 0, 0, decathlt_prot_r, decathlt_prot_w);
+	/* It uploads 2 tables here too, but nothing else, mirror? unused? */
+//  memory_install_readwrite32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x27FFFF0, 0x27FFFFF, 0, 0, decathlt_prot_r, decathlt_prot_w);
 }
 
-void stv_register_protection_savestates(running_machine &machine)
+void stv_register_protection_savestates(running_machine *machine)
 {
 	state_save_register_global_array(machine, a_bus);
 	state_save_register_global(machine, ctrl_index);

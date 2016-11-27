@@ -45,6 +45,6 @@ struct lua_State* MAME_GetLuaState();
 
 void luasav_save(const char *filename);
 void luasav_load(const char *filename);
-void lua_init(running_machine &machine);
+void lua_init(running_machine *machine);
 
 #endif

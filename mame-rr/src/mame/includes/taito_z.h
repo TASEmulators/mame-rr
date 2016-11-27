@@ -5,47 +5,46 @@
 
 *************************************************************************/
 
-#include "machine/eeprom.h"
-
-class taitoz_state : public driver_device
+class taitoz_state
 {
 public:
-	taitoz_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, taitoz_state(machine)); }
+
+	taitoz_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_spriteram;
+	UINT16 *    spriteram;
 //  UINT16 *    paletteram;    // currently this uses generic palette handling
-	offs_t      m_spriteram_size;
+	offs_t      spriteram_size;
 
 	/* video-related */
-	int         m_sci_spriteframe;
-	int         m_road_palbank;
+	int         sci_spriteframe;
+	int         road_palbank;
 
 	/* misc */
-	int         m_chasehq_lamps;
-	INT32       m_banknum;
-	UINT16      m_cpua_ctrl;
-	INT32       m_sci_int6;
-	INT32       m_dblaxle_int6;
-	INT32       m_ioc220_port;
-	UINT16      m_eep_latch;
+	int         chasehq_lamps;
+	INT32       banknum;
+	UINT16      cpua_ctrl;
+	INT32       sci_int6;
+	INT32       dblaxle_int6;
+	INT32       ioc220_port;
+	UINT16      eep_latch;
 
 //  UINT8       pandata[4];
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_subcpu;
-	eeprom_device *m_eeprom;
-	device_t *m_tc0480scp;
-	device_t *m_tc0150rod;
-	device_t *m_tc0100scn;
-	device_t *m_tc0220ioc;
-	device_t *m_tc0140syt;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *subcpu;
+	running_device *eeprom;
+	running_device *tc0480scp;
+	running_device *tc0150rod;
+	running_device *tc0100scn;
+	running_device *tc0220ioc;
+	running_device *tc0140syt;
 
 	/* dblaxle motor flag */
-	int	    m_dblaxle_vibration;
+	int	    dblaxle_vibration;
 };
 
 /*----------- defined in video/taito_z.c -----------*/
@@ -56,10 +55,10 @@ WRITE16_HANDLER( sci_spriteframe_w );
 
 VIDEO_START( taitoz );
 
-SCREEN_UPDATE( contcirc );
-SCREEN_UPDATE( chasehq );
-SCREEN_UPDATE( bshark );
-SCREEN_UPDATE( sci );
-SCREEN_UPDATE( aquajack );
-SCREEN_UPDATE( spacegun );
-SCREEN_UPDATE( dblaxle );
+VIDEO_UPDATE( contcirc );
+VIDEO_UPDATE( chasehq );
+VIDEO_UPDATE( bshark );
+VIDEO_UPDATE( sci );
+VIDEO_UPDATE( aquajack );
+VIDEO_UPDATE( spacegun );
+VIDEO_UPDATE( dblaxle );

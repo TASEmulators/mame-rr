@@ -178,7 +178,7 @@ INLINE int better_mode(int width0, int height0, int width1, int height1, float d
 static void drawdd_exit(void);
 static int drawdd_window_init(win_window_info *window);
 static void drawdd_window_destroy(win_window_info *window);
-static render_primitive_list *drawdd_window_get_primitives(win_window_info *window);
+static const render_primitive_list *drawdd_window_get_primitives(win_window_info *window);
 static int drawdd_window_draw(win_window_info *window, HDC dc, int update);
 
 // surface management
@@ -201,14 +201,14 @@ static void get_adapter_for_monitor(dd_info *dd, win_monitor_info *monitor);
 static void pick_best_mode(win_window_info *window);
 
 // rendering
-static void drawdd_rgb888_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_bgr888_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_rgb565_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_rgb555_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_rgb888_nr_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_bgr888_nr_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_rgb565_nr_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
-static void drawdd_rgb555_nr_draw_primitives(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_rgb888_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_bgr888_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_rgb565_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_rgb555_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_rgb888_nr_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_bgr888_nr_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_rgb565_nr_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
+static void drawdd_rgb555_nr_draw_primitives(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch);
 
 
 
@@ -216,7 +216,7 @@ static void drawdd_rgb555_nr_draw_primitives(const render_primitive_list &primli
 //  drawdd_init
 //============================================================
 
-int drawdd_init(running_machine &machine, win_draw_callbacks *callbacks)
+int drawdd_init(win_draw_callbacks *callbacks)
 {
 	// dynamically grab the create function from ddraw.dll
 	dllhandle = LoadLibrary(TEXT("ddraw.dll"));
@@ -251,8 +251,6 @@ int drawdd_init(running_machine &machine, win_draw_callbacks *callbacks)
 	callbacks->window_init = drawdd_window_init;
 	callbacks->window_get_primitives = drawdd_window_get_primitives;
 	callbacks->window_draw = drawdd_window_draw;
-	callbacks->window_save = NULL;
-	callbacks->window_record = NULL;
 	callbacks->window_destroy = drawdd_window_destroy;
 
 	mame_printf_verbose("DirectDraw: Using DirectDraw 7\n");
@@ -329,15 +327,15 @@ static void drawdd_window_destroy(win_window_info *window)
 //  drawdd_window_get_primitives
 //============================================================
 
-static render_primitive_list *drawdd_window_get_primitives(win_window_info *window)
+static const render_primitive_list *drawdd_window_get_primitives(win_window_info *window)
 {
 	dd_info *dd = (dd_info *)window->drawdata;
 
 	compute_blit_surface_size(window);
-	window->target->set_bounds(dd->blitwidth, dd->blitheight, 0);
-	window->target->set_max_update_rate((dd->refresh == 0) ? dd->origmode.dwRefreshRate : dd->refresh);
+	render_target_set_bounds(window->target, dd->blitwidth, dd->blitheight, 0);
+	render_target_set_max_update_rate(window->target, (dd->refresh == 0) ? dd->origmode.dwRefreshRate : dd->refresh);
 
-	return &window->target->get_primitives();
+	return render_target_get_primitives(window->target);
 }
 
 
@@ -349,7 +347,7 @@ static render_primitive_list *drawdd_window_get_primitives(win_window_info *wind
 static int drawdd_window_draw(win_window_info *window, HDC dc, int update)
 {
 	dd_info *dd = (dd_info *)window->drawdata;
-	render_primitive *prim;
+	const render_primitive *prim;
 	int usemembuffer = FALSE;
 	HRESULT result;
 
@@ -388,10 +386,10 @@ static int drawdd_window_draw(win_window_info *window, HDC dc, int update)
 	}
 
 	// render to it
-	window->primlist->acquire_lock();
+	osd_lock_acquire(window->primlist->lock);
 
 	// scan the list of primitives for tricky stuff
-	for (prim = window->primlist->first(); prim != NULL; prim = prim->next())
+	for (prim = window->primlist->head; prim != NULL; prim = prim->next)
 		if (PRIMFLAG_GET_BLENDMODE(prim->flags) != BLENDMODE_NONE ||
 			(prim->texture.base != NULL && PRIMFLAG_GET_TEXFORMAT(prim->flags) == TEXFORMAT_ARGB32))
 		{
@@ -407,10 +405,10 @@ static int drawdd_window_draw(win_window_info *window, HDC dc, int update)
 		// based on the target format, use one of our standard renderers
 		switch (dd->blitdesc.ddpfPixelFormat.dwRBitMask)
 		{
-			case 0x00ff0000:	drawdd_rgb888_draw_primitives(*window->primlist, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
-			case 0x000000ff:	drawdd_bgr888_draw_primitives(*window->primlist, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
-			case 0xf800:		drawdd_rgb565_draw_primitives(*window->primlist, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
-			case 0x7c00:		drawdd_rgb555_draw_primitives(*window->primlist, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
+			case 0x00ff0000:	drawdd_rgb888_draw_primitives(window->primlist->head, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
+			case 0x000000ff:	drawdd_bgr888_draw_primitives(window->primlist->head, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
+			case 0xf800:		drawdd_rgb565_draw_primitives(window->primlist->head, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
+			case 0x7c00:		drawdd_rgb555_draw_primitives(window->primlist->head, dd->membuffer, dd->blitwidth, dd->blitheight, dd->blitwidth);	break;
 			default:
 				mame_printf_verbose("DirectDraw: Unknown target mode: R=%08X G=%08X B=%08X\n", (int)dd->blitdesc.ddpfPixelFormat.dwRBitMask, (int)dd->blitdesc.ddpfPixelFormat.dwGBitMask, (int)dd->blitdesc.ddpfPixelFormat.dwBBitMask);
 				break;
@@ -443,23 +441,23 @@ static int drawdd_window_draw(win_window_info *window, HDC dc, int update)
 		// based on the target format, use one of our standard renderers
 		switch (dd->blitdesc.ddpfPixelFormat.dwRBitMask)
 		{
-			case 0x00ff0000:	drawdd_rgb888_nr_draw_primitives(*window->primlist, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 4);	break;
-			case 0x000000ff:	drawdd_bgr888_nr_draw_primitives(*window->primlist, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 4);	break;
-			case 0xf800:		drawdd_rgb565_nr_draw_primitives(*window->primlist, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 2);	break;
-			case 0x7c00:		drawdd_rgb555_nr_draw_primitives(*window->primlist, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 2);	break;
+			case 0x00ff0000:	drawdd_rgb888_nr_draw_primitives(window->primlist->head, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 4);	break;
+			case 0x000000ff:	drawdd_bgr888_nr_draw_primitives(window->primlist->head, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 4);	break;
+			case 0xf800:		drawdd_rgb565_nr_draw_primitives(window->primlist->head, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 2);	break;
+			case 0x7c00:		drawdd_rgb555_nr_draw_primitives(window->primlist->head, dd->blitdesc.lpSurface, dd->blitwidth, dd->blitheight, dd->blitdesc.lPitch / 2);	break;
 			default:
 				mame_printf_verbose("DirectDraw: Unknown target mode: R=%08X G=%08X B=%08X\n", (int)dd->blitdesc.ddpfPixelFormat.dwRBitMask, (int)dd->blitdesc.ddpfPixelFormat.dwGBitMask, (int)dd->blitdesc.ddpfPixelFormat.dwBBitMask);
 				break;
 		}
 	}
-	window->primlist->release_lock();
+	osd_lock_release(window->primlist->lock);
 
 	// unlock and blit
 	result = IDirectDrawSurface7_Unlock(dd->blit, NULL);
 	if (result != DD_OK) mame_printf_verbose("DirectDraw: Error %08X unlocking blit surface\n", (int)result);
 
 	// sync to VBLANK
-	if ((video_config.waitvsync || video_config.syncrefresh) && window->machine().video().throttled() && (!window->fullscreen || dd->back == NULL))
+	if ((video_config.waitvsync || video_config.syncrefresh) && video_get_throttle() && (!window->fullscreen || dd->back == NULL))
 	{
 		result = IDirectDraw7_WaitForVerticalBlank(dd->ddraw, DDWAITVB_BLOCKBEGIN, NULL);
 		if (result != DD_OK) mame_printf_verbose("DirectDraw: Error %08X waiting for VBLANK\n", (int)result);
@@ -607,18 +605,23 @@ static int ddraw_create_surfaces(win_window_info *window)
 	if (dd->membuffer == NULL)
 		goto error;
 
+#ifdef MESS
+	// create a clipper for all modes, since MESS has dialogs
+	if (create_clipper(window))
+		goto error;
+#else
 	// create a clipper for windowed mode
 	if (!window->fullscreen && create_clipper(window))
 		goto error;
+#endif
 
 	// full screen mode: set the gamma
 	if (window->fullscreen)
 	{
 		// only set the gamma if it's not 1.0f
-		windows_options &options = downcast<windows_options &>(window->machine().options());
-		float brightness = options.full_screen_brightness();
-		float contrast = options.full_screen_contrast();
-		float gamma = options.full_screen_gamma();
+		float brightness = options_get_float(mame_options(), WINOPTION_FULLSCREENBRIGHTNESS);
+		float contrast = options_get_float(mame_options(), WINOPTION_FULLLSCREENCONTRAST);
+		float gamma = options_get_float(mame_options(), WINOPTION_FULLSCREENGAMMA);
 		if (brightness != 1.0f || contrast != 1.0f || gamma != 1.0f)
 		{
 			// see if we can get a GammaControl object
@@ -876,7 +879,7 @@ static void compute_blit_surface_size(win_window_info *window)
 	RECT client;
 
 	// start with the minimum size
-	window->target->compute_minimum_size(newwidth, newheight);
+	render_target_get_minimum_size(window->target, &newwidth, &newheight);
 
 	// get the window's client rectangle
 	GetClientRect(window->hwnd, &client);
@@ -906,7 +909,7 @@ static void compute_blit_surface_size(win_window_info *window)
 		if (video_config.keepaspect)
 		{
 			win_monitor_info *monitor = winwindow_video_window_monitor(window, NULL);
-			window->target->compute_visible_area(target_width, target_height, winvideo_monitor_get_aspect(monitor), window->target->orientation(), target_width, target_height);
+			render_target_compute_visible_area(window->target, target_width, target_height, winvideo_monitor_get_aspect(monitor), render_target_get_orientation(window->target), &target_width, &target_height);
 			desired_aspect = (float)target_width / (float)target_height;
 		}
 
@@ -1051,7 +1054,7 @@ static void blit_to_primary(win_window_info *window, int srcwidth, int srcheight
 	else if (video_config.keepaspect)
 	{
 		// compute the appropriate visible area
-		window->target->compute_visible_area(rect_width(&outer), rect_height(&outer), winvideo_monitor_get_aspect(monitor), window->target->orientation(), dstwidth, dstheight);
+		render_target_compute_visible_area(window->target, rect_width(&outer), rect_height(&outer), winvideo_monitor_get_aspect(monitor), render_target_get_orientation(window->target), &dstwidth, &dstheight);
 	}
 
 	// center within
@@ -1322,7 +1325,7 @@ static void pick_best_mode(win_window_info *window)
 	// note: technically we should not be calling this from an alternate window
 	// thread; however, it is only done during init time, and the init code on
 	// the main thread is waiting for us to finish, so it is safe to do so here
-	window->target->compute_minimum_size(einfo.minimum_width, einfo.minimum_height);
+	render_target_get_minimum_size(window->target, &einfo.minimum_width, &einfo.minimum_height);
 
 	// use those as the target for now
 	einfo.target_width = einfo.minimum_width * MAX(1, video_config.prescale);
@@ -1330,9 +1333,9 @@ static void pick_best_mode(win_window_info *window)
 
 	// determine the refresh rate of the primary screen
 	einfo.target_refresh = 60.0;
-	const screen_device *primary_screen = window->machine().config().first_screen();
+	const screen_device_config *primary_screen = screen_first(*window->machine->config);
 	if (primary_screen != NULL)
-		einfo.target_refresh = ATTOSECONDS_TO_HZ(primary_screen->refresh_attoseconds());
+		einfo.target_refresh = ATTOSECONDS_TO_HZ(primary_screen->refresh());
 	printf("Target refresh = %f\n", einfo.target_refresh);
 
 	// if we're not stretching, allow some slop on the minimum since we can handle it

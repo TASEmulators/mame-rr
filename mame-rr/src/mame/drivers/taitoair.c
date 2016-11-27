@@ -166,7 +166,7 @@ Topland
 Sprite/tile priority bad.
 
 After demo game in attract, palette seems too dark for a while.
-Palette corruption has occurred with areas not restored after a fade.
+Palette corruption has occured with areas not restored after a fade.
 Don't know why. (Perhaps 68000 relies on feedback from co-processor
 in determining what parts of palette ram to write... but this would
 then be fixed by hookup of 32025 core, which it isn't.)
@@ -232,107 +232,72 @@ cpu #2 (PC=0000060E): unmapped memory word read from 0000683A & FFFF
 
 static WRITE16_HANDLER( system_control_w )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
 
 	if ((ACCESSING_BITS_0_7 == 0) && ACCESSING_BITS_8_15)
 		data >>= 8;
 
-	state->m_dsp_hold_signal = (data & 4) ? CLEAR_LINE : ASSERT_LINE;
+	state->dsp_hold_signal = (data & 4) ? CLEAR_LINE : ASSERT_LINE;
 
-	device_set_input_line(state->m_dsp, INPUT_LINE_RESET, (data & 1) ? CLEAR_LINE : ASSERT_LINE);
+	cpu_set_input_line(state->dsp, INPUT_LINE_RESET, (data & 1) ? CLEAR_LINE : ASSERT_LINE);
 
-	logerror("68K:%06x writing %04x to TMS32025.  %s HOLD , %s RESET\n", cpu_get_previouspc(&space->device()), data, ((data & 4) ? "Clear" : "Assert"), ((data & 1) ? "Clear" : "Assert"));
+	logerror("68K:%06x writing %04x to TMS32025.  %s HOLD , %s RESET\n", cpu_get_previouspc(space->cpu), data, ((data & 4) ? "Clear" : "Assert"), ((data & 1) ? "Clear" : "Assert"));
 }
 
 static READ16_HANDLER( lineram_r )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
-	return state->m_line_ram[offset];
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
+	return state->line_ram[offset];
 }
 
 static WRITE16_HANDLER( lineram_w )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15 && ACCESSING_BITS_0_7)
-		state->m_line_ram[offset] = data;
-
-	//if(offset == 0x3fff)
-	//  printf("LineRAM go %d\n",(int)space->machine().primary_screen->frame_number());
+		state->line_ram[offset] = data;
 }
 
 static READ16_HANDLER( dspram_r )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
-	return state->m_dsp_ram[offset];
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
+	return state->dsp_ram[offset];
 }
 
 static WRITE16_HANDLER( dspram_w )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15 && ACCESSING_BITS_0_7)
-		state->m_dsp_ram[offset] = data;
+		state->dsp_ram[offset] = data;
 }
 
 static READ16_HANDLER( dsp_HOLD_signal_r )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
 
 	/* HOLD signal is active low */
-	//  logerror("TMS32025:%04x Reading %01x level from HOLD signal\n", cpu_get_previouspc(&space->device()), state->m_dsp_hold_signal);
+	//  logerror("TMS32025:%04x Reading %01x level from HOLD signal\n", cpu_get_previouspc(space->cpu), state->dsp_hold_signal);
 
-	return state->m_dsp_hold_signal;
+	return state->dsp_hold_signal;
 }
 
 static WRITE16_HANDLER( dsp_HOLDA_signal_w )
 {
 	if (offset)
-		logerror("TMS32025:%04x Writing %01x level to HOLD-Acknowledge signal\n", cpu_get_previouspc(&space->device()), data);
+		logerror("TMS32025:%04x Writing %01x level to HOLD-Acknowledge signal\n", cpu_get_previouspc(space->cpu), data);
 }
 
 
 static WRITE16_HANDLER( airsys_paletteram16_w )	/* xxBBBBxRRRRxGGGG */
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
 	int a;
 
-	COMBINE_DATA(&state->m_paletteram[offset]);
+	COMBINE_DATA(&state->paletteram[offset]);
 
-	a = state->m_paletteram[offset];
-	palette_set_color_rgb(space->machine(), offset, pal4bit(a >> 0), pal4bit(a >> 5), pal4bit(a >> 10));
-}
-
-static WRITE16_HANDLER( airsys_gradram_w )
-{
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
-	UINT32 pen;
-	int r,g,b;
-	//int pal_r,pal_g,pal_b;
-
-	COMBINE_DATA(&state->m_gradram[offset]);
-	offset &= 0x1fff;
-
-	pen = (state->m_gradram[offset])|(state->m_gradram[(offset+0x2000)]<<16);
-	/* TODO: correct? */
-	r = (pen & 0x00007f) >> 0;
-	g = (pen & 0x007f00) >> (8);
-	b = (pen & 0x7f0000) >> (16);
-
-	r = (r << 1) | (r & 1);
-	g = (g << 1) | (g & 1);
-	b = (b << 1) | (b & 1);
-
-	/* TODO: I'm sure that normal paletteram and gradiation ram mixes in some way ... */
-	//pal_r = ((state->m_paletteram[(offset >> 7) + 0x300] & 0x000f) >> 0) * 0x11;
-	//pal_g = ((state->m_paletteram[(offset >> 7) + 0x300] & 0x01e0) >> 5) * 0x11;
-	//pal_b = ((state->m_paletteram[(offset >> 7) + 0x300] & 0x7c00) >> 10) * 0x11;
-
-	//if(r == 0) { r = (pal_r); }
-	//if(g == 0) { g = (pal_g); }
-	//if(b == 0) { b = (pal_b); }
-
-	palette_set_color_rgb(space->machine(), offset+0x2000, r, g, b);
+	a = state->paletteram[offset];
+	palette_set_color_rgb(space->machine, offset, pal4bit(a >> 0), pal4bit(a >> 5), pal4bit(a >> 10));
 }
 
 
@@ -349,19 +314,16 @@ static READ16_HANDLER( stick_input_r )
 	switch( offset )
 	{
 		case 0x00:	/* "counter 1" lo */
-			return input_port_read(space->machine(), STICK1_PORT_TAG);
+			return input_port_read(space->machine, STICK1_PORT_TAG);
 
 		case 0x01:	/* "counter 2" lo */
-			return input_port_read(space->machine(), STICK2_PORT_TAG);
+			return input_port_read(space->machine, STICK2_PORT_TAG);
 
 		case 0x02:	/* "counter 1" hi */
-			if(input_port_read(space->machine(), STICK1_PORT_TAG) & 0x80)
-				return 0xff;
-
-			return 0;
+			return (input_port_read(space->machine, STICK1_PORT_TAG) & 0xff00) >> 8;
 
 		case 0x03:	/* "counter 2" hi */
-			return (input_port_read(space->machine(), STICK2_PORT_TAG) & 0xff00) >> 8;
+			return (input_port_read(space->machine, STICK2_PORT_TAG) & 0xff00) >> 8;
 	}
 
 	return 0;
@@ -372,10 +334,10 @@ static READ16_HANDLER( stick2_input_r )
 	switch( offset )
 	{
 		case 0x00:	/* "counter 3" lo */
-			return input_port_read(space->machine(), STICK3_PORT_TAG);
+			return input_port_read(space->machine, STICK3_PORT_TAG);
 
 		case 0x02:	/* "counter 3" hi */
-			return (input_port_read(space->machine(), STICK3_PORT_TAG) & 0xff00) >> 8;
+			return (input_port_read(space->machine, STICK3_PORT_TAG) & 0xff00) >> 8;
 	}
 
 	return 0;
@@ -383,18 +345,18 @@ static READ16_HANDLER( stick2_input_r )
 
 
 
-static void reset_sound_region( running_machine &machine )
+static void reset_sound_region( running_machine *machine )
 {
-	taitoair_state *state = machine.driver_data<taitoair_state>();
-	memory_set_bank(machine, "bank1", state->m_banknum);
+	taitoair_state *state = (taitoair_state *)machine->driver_data;
+	memory_set_bank(machine, "bank1", state->banknum);
 }
 
 static WRITE8_HANDLER( sound_bankswitch_w )
 {
-	taitoair_state *state = space->machine().driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)space->machine->driver_data;
 
-	state->m_banknum = data & 3;
-	reset_sound_region(space->machine());
+	state->banknum = data & 3;
+	reset_sound_region(space->machine);
 }
 
 
@@ -402,17 +364,16 @@ static WRITE8_HANDLER( sound_bankswitch_w )
              MEMORY STRUCTURES
 ***********************************************************/
 
-static ADDRESS_MAP_START( airsys_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( airsys_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0bffff) AM_ROM
-	AM_RANGE(0x0c0000, 0x0cffff) AM_RAM AM_BASE_MEMBER(taitoair_state, m_m68000_mainram)
+	AM_RANGE(0x0c0000, 0x0cffff) AM_RAM AM_BASE_MEMBER(taitoair_state, m68000_mainram)
 	AM_RANGE(0x140000, 0x140001) AM_WRITE(system_control_w)	/* Pause the TMS32025 */
-	AM_RANGE(0x180000, 0x187fff) AM_RAM_WRITE(airsys_gradram_w) AM_BASE_MEMBER(taitoair_state, m_gradram)           		/* "gradiation ram (0/1)" */
-	AM_RANGE(0x188000, 0x189fff) AM_MIRROR(0x2000) AM_RAM_WRITE(airsys_paletteram16_w) AM_BASE_MEMBER(taitoair_state, m_paletteram)
+	AM_RANGE(0x180000, 0x183fff) AM_RAM             		/* "gradiation ram (0)" */
+	AM_RANGE(0x184000, 0x187fff) AM_RAM         			/* "gradiation ram (1)" */
+	AM_RANGE(0x188000, 0x18bfff) AM_RAM_WRITE(airsys_paletteram16_w) AM_BASE_MEMBER(taitoair_state, paletteram)
 	AM_RANGE(0x800000, 0x820fff) AM_DEVREADWRITE("tc0080vco", tc0080vco_word_r, tc0080vco_word_w)	/* tilemaps, sprites */
-	AM_RANGE(0x906000, 0x906007) AM_RAM // DMA?
-	AM_RANGE(0x908000, 0x90ffff) AM_RAM AM_BASE_MEMBER(taitoair_state, m_line_ram)	/* "line ram" */
-	AM_RANGE(0x910000, 0x91ffff) AM_RAM	AM_BASE_MEMBER(taitoair_state, m_dsp_ram)	/* "dsp common ram" (TMS320C25) */
-	AM_RANGE(0x980000, 0x98000f) AM_RAM AM_BASE_MEMBER(taitoair_state, m_backregs)
+	AM_RANGE(0x908000, 0x90ffff) AM_RAM AM_BASE_MEMBER(taitoair_state, line_ram)	/* "line ram" */
+	AM_RANGE(0x910000, 0x91ffff) AM_RAM	AM_BASE_MEMBER(taitoair_state, dsp_ram)	/* "dsp common ram" (TMS320C25) */
 	AM_RANGE(0xa00000, 0xa00007) AM_READ(stick_input_r)
 	AM_RANGE(0xa00100, 0xa00107) AM_READ(stick2_input_r)
 	AM_RANGE(0xa00200, 0xa0020f) AM_DEVREADWRITE8("tc0220ioc", tc0220ioc_r, tc0220ioc_w, 0x00ff)	/* other I/O */
@@ -423,7 +384,7 @@ ADDRESS_MAP_END
 
 /************************** Z80 ****************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
@@ -438,59 +399,16 @@ static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 /********************************** TMS32025 ********************************/
-
-/*
-Air Inferno:
-
-write to 0x3404 - almost always 0x00fd / 0xff38  (253, -200)
-write to 0x3408 /
-
-write to 0x341b - May not be numeric - it's weird.  stays stable,
-                  then freaks out just before "quad: unknown value 0066"
-                  This function seems to break things up into different polygon
-                  'classes'
-
-write to 0x3418 - X value
-write to 0x3419 - Y value
-write to 0x341a - Z value
-read to 0x341b, puts data to internal RAM 0x380 - 0x384 - 0x388 - 0x38c
-
-checks 0x341c - if != to 0 then skip ... ?
-checks 0x341d - if == to 0 then skip ... ?
-
-write to 0x3405 ; X value
-write to 0x3409 ; Y value
-write to 0x3406 ; Z value
-write to 0x340a ; Z value
-read to 0x340b, puts to line RAM (y) with offset + 0x160
-read to 0x3407, puts to line RAM (x) with offset + 0x5d
-
-*/
-
-static ADDRESS_MAP_START( DSP_map_program, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( DSP_map_program, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( DSP_map_data, AS_DATA, 16 )
-	AM_RANGE(0x2003, 0x2003) AM_READNOP //bit 0 DMA status flag or vblank
-	AM_RANGE(0x3000, 0x3002) AM_WRITE(dsp_flags_w)
-	AM_RANGE(0x3404, 0x3404) AM_WRITE(dsp_frustum_left_w)
-	AM_RANGE(0x3405, 0x3405) AM_WRITE(dsp_x_eyecoord_w)
-	AM_RANGE(0x3406, 0x3406) AM_WRITE(dsp_z_eyecoord_w)
-	AM_RANGE(0x3407, 0x3407) AM_READ(dsp_x_return_r)
-	AM_RANGE(0x3408, 0x3408) AM_WRITE(dsp_frustum_bottom_w)
-	AM_RANGE(0x3409, 0x3409) AM_WRITE(dsp_y_eyecoord_w)
-	AM_RANGE(0x340a, 0x340a) AM_WRITE(dsp_rasterize_w)      /* Just a (lame) guess */
-	AM_RANGE(0x340b, 0x340b) AM_READ(dsp_y_return_r)
-//  AM_RANGE(0x3418, 0x341a) AM_WRITE(dsp_sqrt_w)
-//  AM_RANGE(0x341b, 0x341b) AM_WRITE(dsp_sqrt_r)
-//  AM_RANGE(0x341c, 0x341c) AM_READ(dsp_sqrt_flags1_r)
-//  AM_RANGE(0x341d, 0x341d) AM_READ(dsp_sqrt_flags2_r)
+static ADDRESS_MAP_START( DSP_map_data, ADDRESS_SPACE_DATA, 16 )
 	AM_RANGE(0x4000, 0x7fff) AM_READWRITE(lineram_r, lineram_w)
 	AM_RANGE(0x8000, 0xffff) AM_READWRITE(dspram_r, dspram_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( DSP_map_io, AS_IO, 16 )
+static ADDRESS_MAP_START( DSP_map_io, ADDRESS_SPACE_IO, 16 )
 	AM_RANGE(TMS32025_HOLD, TMS32025_HOLD) AM_READ(dsp_HOLD_signal_r)
 	AM_RANGE(TMS32025_HOLDA, TMS32025_HOLDA) AM_WRITE(dsp_HOLDA_signal_w)
 ADDRESS_MAP_END
@@ -535,20 +453,25 @@ static INPUT_PORTS_START( topland )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW,  IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_PLAYER(1)
 	PORT_BIT( 0x10, IP_ACTIVE_LOW,  IPT_JOYSTICK_DOWN ) PORT_8WAY PORT_PLAYER(1)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW,  IPT_JOYSTICK_UP ) PORT_8WAY PORT_PLAYER(1)
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_OTHER ) // DMA status flag
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Freeze") PORT_CODE(KEYCODE_F1)
 	PORT_BIT( 0x80, IP_ACTIVE_LOW,  IPT_UNKNOWN )
 
 	PORT_START("IN2")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW,  IPT_UNUSED )
 
+	/* The range of these sticks reflects the range test mode displays.
+       Eventually we want standard 0-0xff input range and a scale-up later
+       in the stick_r routines.  And fake DSW with self-centering option
+       to make keyboard control feasible! */
+
 	PORT_START(STICK1_PORT_TAG)
-	PORT_BIT( 0x00ff, 0x0000, IPT_AD_STICK_Z ) PORT_MINMAX(0x0080,0x007f) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1) PORT_REVERSE
+	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_X ) PORT_MINMAX(0xf800,0x7ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1)
 
 	PORT_START(STICK2_PORT_TAG)
-	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_X ) PORT_MINMAX(0xf800,0x07ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1)
+	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_Y ) PORT_MINMAX(0xf800,0x7ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1)
 
 	PORT_START(STICK3_PORT_TAG)
-	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_Y ) PORT_MINMAX(0xf800,0x07ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1)
+	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_Y ) PORT_MINMAX(0xf800,0x7ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(2)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( ainferno )
@@ -595,20 +518,25 @@ static INPUT_PORTS_START( ainferno )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW,  IPT_BUTTON4 ) PORT_PLAYER(1)	/* fire */
 	PORT_BIT( 0x10, IP_ACTIVE_LOW,  IPT_BUTTON6 ) PORT_PLAYER(1)	/* pedal r */
 	PORT_BIT( 0x20, IP_ACTIVE_LOW,  IPT_BUTTON5 ) PORT_PLAYER(1)	/* pedal l */
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_OTHER ) // DMA status flag
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Freeze") PORT_CODE(KEYCODE_F1)
 	PORT_BIT( 0x80, IP_ACTIVE_LOW,  IPT_UNKNOWN )
 
 	PORT_START("IN2")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW,  IPT_UNUSED )
 
-	PORT_START(STICK1_PORT_TAG)
-	PORT_BIT( 0x00ff, 0x0000, IPT_AD_STICK_Z ) PORT_MINMAX(0x0080,0x007f) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1) PORT_REVERSE
+	/* The range of these sticks reflects the range test mode displays.
+       Eventually we want standard 0-0xff input range and a scale-up later
+       in the stick_r routines. And fake DSW with self-centering option
+       to make keyboard control feasible! */
 
-	PORT_START(STICK2_PORT_TAG)
+	PORT_START(STICK1_PORT_TAG)
 	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_X ) PORT_MINMAX(0xf800,0x7ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1)
 
-	PORT_START(STICK3_PORT_TAG)
+	PORT_START(STICK2_PORT_TAG)
 	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_Y ) PORT_MINMAX(0xf800,0x7ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(1)
+
+	PORT_START(STICK3_PORT_TAG)
+	PORT_BIT( 0xffff, 0x0000, IPT_AD_STICK_Y ) PORT_MINMAX(0xf800,0x7ff) PORT_SENSITIVITY(30) PORT_KEYDELTA(40) PORT_PLAYER(2)
 INPUT_PORTS_END
 
 
@@ -641,10 +569,10 @@ GFXDECODE_END
 ************************************************************/
 
 /* Handler called by the YM2610 emulator when the internal timers cause an IRQ */
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	taitoair_state *state = device->machine().driver_data<taitoair_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	taitoair_state *state = (taitoair_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2610_interface airsys_ym2610_interface =
@@ -675,95 +603,102 @@ static const tc0140syt_interface airsys_tc0140syt_intf =
 	"maincpu", "audiocpu"
 };
 
+static STATE_POSTLOAD( taitoair_postload )
+{
+	reset_sound_region(machine);
+}
+
 static MACHINE_START( taitoair )
 {
-	taitoair_state *state = machine.driver_data<taitoair_state>();
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	taitoair_state *state = (taitoair_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 	int i;
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0xc000], 0x4000);
 
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_dsp = machine.device("dsp");
-	state->m_tc0080vco = machine.device("tc0080vco");
+	state->audiocpu = machine->device("audiocpu");
+	state->dsp = machine->device("dsp");
+	state->tc0080vco = machine->device("tc0080vco");
 
-	state->save_item(NAME(state->m_banknum));
-	state->save_item(NAME(state->m_q.col));
-	state->save_item(NAME(state->m_q.pcount));
+	state_save_register_global(machine, state->banknum);
+	state_save_register_global(machine, state->q.col);
+	state_save_register_global(machine, state->q.pcount);
 
 	for (i = 0; i < TAITOAIR_POLY_MAX_PT; i++)
 	{
-		state_save_register_item(machine, "globals", NULL, i, state->m_q.p[i].x);
-		state_save_register_item(machine, "globals", NULL, i, state->m_q.p[i].y);
+		state_save_register_item(machine, "globals", NULL, i, state->q.p[i].x);
+		state_save_register_item(machine, "globals", NULL, i, state->q.p[i].y);
 	}
 
-	machine.save().register_postload(save_prepost_delegate(FUNC(reset_sound_region), &machine));
+	state_save_register_postload(machine, taitoair_postload, NULL);
 }
 
 static MACHINE_RESET( taitoair )
 {
-	taitoair_state *state = machine.driver_data<taitoair_state>();
+	taitoair_state *state = (taitoair_state *)machine->driver_data;
 	int i;
 
-	state->m_dsp_hold_signal = ASSERT_LINE;
-	state->m_banknum = 0;
+	state->dsp_hold_signal = ASSERT_LINE;
+	state->banknum = 0;
 
 	for (i = 0; i < TAITOAIR_POLY_MAX_PT; i++)
 	{
-		state->m_q.p[i].x = 0;
-		state->m_q.p[i].y = 0;
+		state->q.p[i].x = 0;
+		state->q.p[i].y = 0;
 	}
 }
 
-static MACHINE_CONFIG_START( airsys, taitoair_state )
+static MACHINE_DRIVER_START( airsys )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitoair_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(airsys_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(airsys_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,8000000 / 2)			/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,8000000 / 2)			/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_CPU_ADD("dsp", TMS32025,24000000)			/* 24 MHz ??? *///
-	MCFG_CPU_PROGRAM_MAP(DSP_map_program)
-	MCFG_CPU_DATA_MAP(DSP_map_data)
-	MCFG_CPU_IO_MAP(DSP_map_io)
+	MDRV_CPU_ADD("dsp", TMS32025,24000000)			/* 24 MHz ??? *///
+	MDRV_CPU_PROGRAM_MAP(DSP_map_program)
+	MDRV_CPU_DATA_MAP(DSP_map_data)
+	MDRV_CPU_IO_MAP(DSP_map_io)
 
-	MCFG_QUANTUM_PERFECT_CPU("maincpu")
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_START(taitoair)
-	MCFG_MACHINE_RESET(taitoair)
+	MDRV_MACHINE_START(taitoair)
+	MDRV_MACHINE_RESET(taitoair)
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", airsys_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", airsys_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 64*16)
-	MCFG_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 3*16, 28*16-1)
-	MCFG_SCREEN_UPDATE(taitoair)
-	MCFG_VIDEO_START(taitoair);
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 64*16)
+	MDRV_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 3*16, 28*16-1)
 
-	MCFG_GFXDECODE(airsys)
-	MCFG_PALETTE_LENGTH(512*16+512*16)
-	MCFG_PALETTE_INIT(all_black)
+	MDRV_GFXDECODE(airsys)
+	MDRV_PALETTE_LENGTH(512*16)
 
-	MCFG_TC0080VCO_ADD("tc0080vco", airsys_tc0080vco_intf)
+	MDRV_VIDEO_UPDATE(taitoair)
+
+	MDRV_TC0080VCO_ADD("tc0080vco", airsys_tc0080vco_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, 8000000)
-	MCFG_SOUND_CONFIG(airsys_ym2610_interface)
-	MCFG_SOUND_ROUTE(0, "mono", 0.30)
-	MCFG_SOUND_ROUTE(1, "mono", 0.60)
-	MCFG_SOUND_ROUTE(2, "mono", 0.60)
+	MDRV_SOUND_ADD("ymsnd", YM2610, 8000000)
+	MDRV_SOUND_CONFIG(airsys_ym2610_interface)
+	MDRV_SOUND_ROUTE(0, "mono", 0.30)
+	MDRV_SOUND_ROUTE(1, "mono", 0.60)
+	MDRV_SOUND_ROUTE(2, "mono", 0.60)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", airsys_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", airsys_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
 /*************************************************************

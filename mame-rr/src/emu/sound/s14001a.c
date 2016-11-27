@@ -95,7 +95,7 @@ TTL/CMOS compatible voltage. The AUDIO OUT pin also outputs a voltage below GND,
 and the TEST pins may do so too.
 
 START is pulled high when a word is to be said and the word number is on the
-word select/speech address input lines. The Canon 'Canola' uses a separate 'rom
+word select/speech address input lines. The Canon 'Canola' uses a seperate 'rom
 strobe' signal independent of the chip to either enable or clock the speech rom.
 Its likely that they did this to be able to force the speech chip to stop talking,
 which is normally impossible. The later 'version 3' TSI speech board as featured in
@@ -235,6 +235,7 @@ and off as it normally does during speech). Once START has gone low-high-low, th
 #undef ACCURATE_SQUEAL
 
 #include "emu.h"
+#include "streams.h"
 #include "s14001a.h"
 
 typedef struct
@@ -264,10 +265,10 @@ typedef struct
 	UINT8 VSU1000_amp; // amplitude setting on VSU-1000 board
 } S14001AChip;
 
-INLINE S14001AChip *get_safe_token(device_t *device)
+INLINE S14001AChip *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == S14001A);
+	assert(device->type() == SOUND_S14001A);
 	return (S14001AChip *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -548,9 +549,14 @@ static void s14001a_clock(S14001AChip *chip) /* called once per clock */
 
 static STREAM_UPDATE( s14001a_pcm_update )
 {
+	INT32 mix[48000];
+	//INT32 *mixp;
 	S14001AChip *chip = (S14001AChip *)param;
 	int i;
 
+	memset(mix, 0, sizeof(mix));
+
+	//mixp = &mix[0];
 	for (i = 0; i < samples; i++)
 	{
 		s14001a_clock(chip);
@@ -587,45 +593,45 @@ static DEVICE_START( s14001a )
 
 	chip->SpeechRom = *device->region();
 
-	chip->stream = device->machine().sound().stream_alloc(*device, 0, 1, device->clock() ? device->clock() : device->machine().sample_rate(), chip, s14001a_pcm_update);
+	chip->stream = stream_create(device, 0, 1, device->clock() ? device->clock() : device->machine->sample_rate, chip, s14001a_pcm_update);
 }
 
-int s14001a_bsy_r(device_t *device)
+int s14001a_bsy_r(running_device *device)
 {
 	S14001AChip *chip = get_safe_token(device);
-	chip->stream->update();
+	stream_update(chip->stream);
 #ifdef DEBUGSTATE
 	fprintf(stderr,"busy state checked: %d\n",(chip->machineState != 0) );
 #endif
 	return (chip->machineState != 0);
 }
 
-void s14001a_reg_w(device_t *device, int data)
+void s14001a_reg_w(running_device *device, int data)
 {
 	S14001AChip *chip = get_safe_token(device);
-	chip->stream->update();
+	stream_update(chip->stream);
 	chip->WordInput = data;
 }
 
-void s14001a_rst_w(device_t *device, int data)
+void s14001a_rst_w(running_device *device, int data)
 {
 	S14001AChip *chip = get_safe_token(device);
-	chip->stream->update();
+	stream_update(chip->stream);
 	chip->LatchedWord = chip->WordInput;
 	chip->resetState = (data==1);
 	chip->machineState = chip->resetState ? 1 : chip->machineState;
 }
 
-void s14001a_set_clock(device_t *device, int clock)
+void s14001a_set_clock(running_device *device, int clock)
 {
 	S14001AChip *chip = get_safe_token(device);
-	chip->stream->set_sample_rate(clock);
+	stream_set_sample_rate(chip->stream, clock);
 }
 
-void s14001a_set_volume(device_t *device, int volume)
+void s14001a_set_volume(running_device *device, int volume)
 {
 	S14001AChip *chip = get_safe_token(device);
-	chip->stream->update();
+	stream_update(chip->stream);
 	chip->VSU1000_amp = volume;
 }
 

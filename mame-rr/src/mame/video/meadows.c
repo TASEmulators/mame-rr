@@ -12,6 +12,9 @@
 #define SPR_ADJUST_Y    -14
 
 
+static tilemap_t *bg_tilemap;
+
+
 /*************************************
  *
  *  Tilemap callbacks
@@ -20,9 +23,7 @@
 
 static TILE_GET_INFO( get_tile_info )
 {
-	meadows_state *state = machine.driver_data<meadows_state>();
-	UINT8 *videoram = state->m_videoram;
-	SET_TILE_INFO(0, videoram[tile_index] & 0x7f, 0, 0);
+	SET_TILE_INFO(0, machine->generic.videoram.u8[tile_index] & 0x7f, 0, 0);
 }
 
 
@@ -35,8 +36,7 @@ static TILE_GET_INFO( get_tile_info )
 
 VIDEO_START( meadows )
 {
-	meadows_state *state = machine.driver_data<meadows_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_tile_info, tilemap_scan_rows,  8,8, 32,30);
+	bg_tilemap = tilemap_create(machine, get_tile_info, tilemap_scan_rows,  8,8, 32,30);
 }
 
 
@@ -49,10 +49,8 @@ VIDEO_START( meadows )
 
 WRITE8_HANDLER( meadows_videoram_w )
 {
-	meadows_state *state = space->machine().driver_data<meadows_state>();
-	UINT8 *videoram = state->m_videoram;
-	videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	space->machine->generic.videoram.u8[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap, offset);
 }
 
 
@@ -65,9 +63,8 @@ WRITE8_HANDLER( meadows_videoram_w )
 
 WRITE8_HANDLER( meadows_spriteram_w )
 {
-	meadows_state *state = space->machine().driver_data<meadows_state>();
-	space->machine().primary_screen->update_now();
-	state->m_spriteram[offset] = data;
+	space->machine->primary_screen->update_now();
+	space->machine->generic.spriteram.u8[offset] = data;
 }
 
 
@@ -78,10 +75,9 @@ WRITE8_HANDLER( meadows_spriteram_w )
  *
  *************************************/
 
-static void draw_sprites(running_machine &machine, bitmap_t *bitmap, const rectangle *clip)
+static void draw_sprites(running_machine *machine, bitmap_t *bitmap, const rectangle *clip)
 {
-	meadows_state *state = machine.driver_data<meadows_state>();
-	UINT8 *spriteram = state->m_spriteram;
+	UINT8 *spriteram = machine->generic.spriteram.u8;
 	int i;
 
 	for (i = 0; i < 4; i++)
@@ -93,7 +89,7 @@ static void draw_sprites(running_machine &machine, bitmap_t *bitmap, const recta
 		int bank = i;							/* that fixes it for now :-/ */
 		int flip = spriteram[i+8] >> 5;			/* bit #5 flip vertical flag */
 
-		drawgfx_transpen(bitmap, clip, machine.gfx[bank + 1], code, 0, flip, 0, x, y, 0);
+		drawgfx_transpen(bitmap, clip, machine->gfx[bank + 1], code, 0, flip, 0, x, y, 0);
 	}
 }
 
@@ -105,14 +101,13 @@ static void draw_sprites(running_machine &machine, bitmap_t *bitmap, const recta
  *
  *************************************/
 
-SCREEN_UPDATE( meadows )
+VIDEO_UPDATE( meadows )
 {
-	meadows_state *state = screen->machine().driver_data<meadows_state>();
 	/* draw the background */
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, bg_tilemap, 0, 0);
 
 	/* draw the sprites */
-	if (screen->machine().gfx[1])
-		draw_sprites(screen->machine(), bitmap, cliprect);
+	if (screen->machine->gfx[1])
+		draw_sprites(screen->machine, bitmap, cliprect);
 	return 0;
 }

@@ -117,7 +117,7 @@ typedef struct _osd_file osd_file;
 
     Notes:
 
-        This function is called by core_fopen and several other places in
+        This function is called by mame_fopen and several other places in
         the core to access files. These functions will construct paths by
         concatenating various search paths held in the options.c options
         database with partial paths specified by the core. The core assumes
@@ -723,7 +723,7 @@ void osd_work_item_release(osd_work_item *item);
 ***************************************************************************/
 
 /*-----------------------------------------------------------------------------
-    osd_malloc: allocate memory
+    osd_malloc: allocate memory that
 
     Parameters:
 
@@ -739,26 +739,6 @@ void osd_work_item_release(osd_work_item *item);
         It can be safely written as a wrapper to malloc().
 -----------------------------------------------------------------------------*/
 void *osd_malloc(size_t size);
-
-
-/*-----------------------------------------------------------------------------
-    osd_malloc_array: allocate memory, hinting tha this memory contains an
-    array
-
-    Parameters:
-
-        size - the number of bytes to allocate
-
-    Return value:
-
-        a pointer to the allocated memory
-
-    Notes:
-
-        This is just a hook to do OS-specific allocation trickery.
-        It can be safely written as a wrapper to malloc().
------------------------------------------------------------------------------*/
-void *osd_malloc_array(size_t size);
 
 
 /*-----------------------------------------------------------------------------

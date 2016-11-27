@@ -49,34 +49,23 @@ Stephh's notes (based on the games Z80 code and some tests) :
 #include "emu.h"
 
 #include "cpu/z80/z80.h"
-#include "audio/galaxian.h"
+#include "includes/galaxian.h"
 #include "includes/galaxold.h"
 #include "machine/7474.h"
 
-
-class dambustr_state : public galaxold_state
-{
-public:
-	dambustr_state(const machine_config &mconfig, device_type type, const char *tag)
-		: galaxold_state(mconfig, type, tag) { }
-
-	int m_noise_data;
-};
-
-
+static int noise_data = 0;
 
 /* FIXME: Really needed? - Should be handled by either interface */
 static WRITE8_DEVICE_HANDLER( dambustr_noise_enable_w )
 {
-	dambustr_state *state = device->machine().driver_data<dambustr_state>();
-	if (data != state->m_noise_data) {
-		state->m_noise_data = data;
+	if (data != noise_data) {
+		noise_data = data;
 		galaxian_noise_enable_w(device, offset, data);
 	}
 }
 
 
-static ADDRESS_MAP_START( dambustr_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dambustr_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 
 	AM_RANGE(0x8000, 0x8000) AM_WRITE(dambustr_bg_color_w)
@@ -84,11 +73,11 @@ static ADDRESS_MAP_START( dambustr_map, AS_PROGRAM, 8 )
 
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 
-	AM_RANGE(0xd000, 0xd3ff) AM_RAM_WRITE(galaxold_videoram_w) AM_BASE_MEMBER(galaxold_state, m_videoram)
+	AM_RANGE(0xd000, 0xd3ff) AM_RAM_WRITE(galaxold_videoram_w) AM_BASE(&galaxold_videoram)
 	AM_RANGE(0xd400, 0xd7ff) AM_READ(galaxold_videoram_r)
-	AM_RANGE(0xd800, 0xd83f) AM_RAM_WRITE(galaxold_attributesram_w) AM_BASE_MEMBER(galaxold_state, m_attributesram)
-	AM_RANGE(0xd840, 0xd85f) AM_RAM AM_BASE_MEMBER(galaxold_state, m_spriteram) AM_SIZE_MEMBER(galaxold_state, m_spriteram_size)
-	AM_RANGE(0xd860, 0xd87f) AM_RAM AM_BASE_MEMBER(galaxold_state, m_bulletsram) AM_SIZE_MEMBER(galaxold_state, m_bulletsram_size)
+	AM_RANGE(0xd800, 0xd83f) AM_RAM_WRITE(galaxold_attributesram_w) AM_BASE(&galaxold_attributesram)
+	AM_RANGE(0xd840, 0xd85f) AM_RAM AM_BASE(&galaxold_spriteram) AM_SIZE(&galaxold_spriteram_size)
+	AM_RANGE(0xd860, 0xd87f) AM_RAM AM_BASE(&galaxold_bulletsram) AM_SIZE(&galaxold_bulletsram_size)
 
 	AM_RANGE(0xd880, 0xd8ff) AM_RAM
 
@@ -205,9 +194,9 @@ static DRIVER_INIT(dambustr)
 {
 	int i, j, tmp;
 	int tmpram[16];
-	UINT8 *rom = machine.region("maincpu")->base();
-	UINT8 *usr = machine.region("user1")->base();
-	UINT8 *gfx = machine.region("gfx1")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
+	UINT8 *usr = memory_region(machine, "user1");
+	UINT8 *gfx = memory_region(machine, "gfx1");
 
 	// Bit swap addresses
 	for(i=0; i<4096*4; i++) {
@@ -242,37 +231,37 @@ static DRIVER_INIT(dambustr)
 
 
 
-static MACHINE_CONFIG_START( dambustr, dambustr_state )
+static MACHINE_DRIVER_START( dambustr )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 18432000/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(dambustr_map)
+	MDRV_CPU_ADD("maincpu", Z80, 18432000/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(dambustr_map)
 
-	MCFG_MACHINE_RESET(galaxold)
+	MDRV_MACHINE_RESET(galaxold)
 
-	MCFG_7474_ADD("7474_9m_1", "7474_9m_1", galaxold_7474_9m_1_callback, NULL)
-	MCFG_7474_ADD("7474_9m_2", "7474_9m_1", NULL, galaxold_7474_9m_2_q_callback)
+	MDRV_7474_ADD("7474_9m_1", "7474_9m_1", galaxold_7474_9m_1_callback, NULL)
+	MDRV_7474_ADD("7474_9m_2", "7474_9m_1", NULL, galaxold_7474_9m_2_q_callback)
 
-	MCFG_TIMER_ADD("int_timer", galaxold_interrupt_timer)
+	MDRV_TIMER_ADD("int_timer", galaxold_interrupt_timer)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(16000.0/132/2)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(dambustr)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(16000.0/132/2)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(dambustr)
-	MCFG_PALETTE_LENGTH(32+2+64+8)		/* 32 for the characters, 2 for the bullets, 64 for the stars, 8 for the background */
+	MDRV_GFXDECODE(dambustr)
+	MDRV_PALETTE_LENGTH(32+2+64+8)		/* 32 for the characters, 2 for the bullets, 64 for the stars, 8 for the background */
 
-	MCFG_PALETTE_INIT(dambustr)
-	MCFG_VIDEO_START(dambustr)
+	MDRV_PALETTE_INIT(dambustr)
+	MDRV_VIDEO_START(dambustr)
+	MDRV_VIDEO_UPDATE(dambustr)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_FRAGMENT_ADD(galaxian_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(galaxian_audio)
+MACHINE_DRIVER_END
 
 
 ROM_START( dambustr )

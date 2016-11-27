@@ -93,27 +93,29 @@ static const eeprom_interface eeprom_intf =
 	"0111"	/* erase command */
 };
 
+static UINT8 *nvram;
+static size_t nvram_size;
+
 static NVRAM_HANDLER( mitchell )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
 	if (read_or_write)
 	{
-		if (state->m_nvram_size)	/* Super Pang, Block Block */
-			file->write(state->m_nvram,state->m_nvram_size);	/* NVRAM */
+		if (nvram_size)	/* Super Pang, Block Block */
+			mame_fwrite(file,nvram,nvram_size);	/* NVRAM */
 	}
 	else
 	{
 		if (file)
 		{
-			if (state->m_nvram_size)	/* Super Pang, Block Block */
-				file->read(state->m_nvram,state->m_nvram_size);	/* NVRAM */
+			if (nvram_size)	/* Super Pang, Block Block */
+				mame_fread(file,nvram,nvram_size);	/* NVRAM */
 		}
 	}
 }
 
 static READ8_HANDLER( pang_port5_r )
 {
-	int bit = space->machine().device<eeprom_device>("eeprom")->read_bit() << 7;
+	int bit = eeprom_read_bit(space->machine->device("eeprom")) << 7;
 
 	/* bits 0 and (sometimes) 3 are checked in the interrupt handler.
         bit 3 is checked before updating the palette so it really seems to be vblank.
@@ -121,28 +123,25 @@ static READ8_HANDLER( pang_port5_r )
         Many games require two interrupts per frame and for these bits to toggle,
         otherwise music doesn't work.
     */
-	if (cpu_getiloops(&space->device()) & 1)
+	if (cpu_getiloops(space->cpu) & 1)
 		bit |= 0x01;
 
-	return (input_port_read(space->machine(), "SYS0") & 0x7e) | bit;
+	return (input_port_read(space->machine, "SYS0") & 0x7e) | bit;
 }
 
 static WRITE8_DEVICE_HANDLER( eeprom_cs_w )
 {
-	eeprom_device *eeprom = downcast<eeprom_device *>(device);
-	eeprom->set_cs_line(data ? CLEAR_LINE : ASSERT_LINE);
+	eeprom_set_cs_line(device, data ? CLEAR_LINE : ASSERT_LINE);
 }
 
 static WRITE8_DEVICE_HANDLER( eeprom_clock_w )
 {
-	eeprom_device *eeprom = downcast<eeprom_device *>(device);
-	eeprom->set_clock_line(data ? CLEAR_LINE : ASSERT_LINE);
+	eeprom_set_clock_line(device, data ? CLEAR_LINE : ASSERT_LINE);
 }
 
 static WRITE8_DEVICE_HANDLER( eeprom_serial_w )
 {
-	eeprom_device *eeprom = downcast<eeprom_device *>(device);
-	eeprom->write_bit(data);
+	eeprom_write_bit(device, data);
 }
 
 
@@ -154,7 +153,7 @@ static WRITE8_DEVICE_HANDLER( eeprom_serial_w )
 
 static WRITE8_HANDLER( pang_bankswitch_w )
 {
-	memory_set_bank(space->machine(), "bank1", data & 0x0f);
+	memory_set_bank(space->machine, "bank1", data & 0x0f);
 }
 
 /*************************************
@@ -165,30 +164,30 @@ static WRITE8_HANDLER( pang_bankswitch_w )
 
 static READ8_HANDLER( block_input_r )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
 	static const char *const dialnames[] = { "DIAL1", "DIAL2" };
 	static const char *const portnames[] = { "IN1", "IN2" };
 
-	if (state->m_dial_selected)
+	if (state->dial_selected)
 	{
-		int delta = (input_port_read(space->machine(), dialnames[offset]) - state->m_dial[offset]) & 0xff;
+		int delta = (input_port_read(space->machine, dialnames[offset]) - state->dial[offset]) & 0xff;
 
 		if (delta & 0x80)
 		{
 			delta = (-delta) & 0xff;
-			if (state->m_dir[offset])
+			if (state->dir[offset])
 			{
 			/* don't report movement on a direction change, otherwise it will stutter */
-				state->m_dir[offset] = 0;
+				state->dir[offset] = 0;
 				delta = 0;
 			}
 		}
 		else if (delta > 0)
 		{
-			if (!state->m_dir[offset])
+			if (!state->dir[offset])
 			{
 			/* don't report movement on a direction change, otherwise it will stutter */
-				state->m_dir[offset] = 1;
+				state->dir[offset] = 1;
 				delta = 0;
 			}
 		}
@@ -199,9 +198,9 @@ static READ8_HANDLER( block_input_r )
 	}
 	else
 	{
-		int res = input_port_read(space->machine(), portnames[offset]) & 0xf7;
+		int res = input_port_read(space->machine, portnames[offset]) & 0xf7;
 
-		if (state->m_dir[offset])
+		if (state->dir[offset])
 			res |= 0x08;
 
 		return res;
@@ -210,24 +209,24 @@ static READ8_HANDLER( block_input_r )
 
 static WRITE8_HANDLER( block_dial_control_w )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
 
 	if (data == 0x08)
 	{
 		/* reset the dial counters */
-		state->m_dial[0] = input_port_read(space->machine(), "DIAL1");
-		state->m_dial[1] = input_port_read(space->machine(), "DIAL2");
+		state->dial[0] = input_port_read(space->machine, "DIAL1");
+		state->dial[1] = input_port_read(space->machine, "DIAL2");
 	}
 	else if (data == 0x80)
-		state->m_dial_selected = 0;
+		state->dial_selected = 0;
 	else
-		state->m_dial_selected = 1;
+		state->dial_selected = 1;
 }
 
 
 static READ8_HANDLER( mahjong_input_r )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
 	int i;
 	static const char *const keynames[2][5] =
 			{
@@ -237,8 +236,8 @@ static READ8_HANDLER( mahjong_input_r )
 
 	for (i = 0; i < 5; i++)
 	{
-		if (state->m_keymatrix & (0x80 >> i))
-			return input_port_read(space->machine(), keynames[offset][i]);
+		if (state->keymatrix & (0x80 >> i))
+			return input_port_read(space->machine, keynames[offset][i]);
 	}
 
 	return 0xff;
@@ -246,48 +245,48 @@ static READ8_HANDLER( mahjong_input_r )
 
 static WRITE8_HANDLER( mahjong_input_select_w )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
-	state->m_keymatrix = data;
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
+	state->keymatrix = data;
 }
 
 
 static READ8_HANDLER( input_r )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
 	static const char *const portnames[] = { "IN0", "IN1", "IN2" };
 
-	switch (state->m_input_type)
+	switch (state->input_type)
 	{
 		case 0:
 		default:
-			return input_port_read(space->machine(), portnames[offset]);
+			return input_port_read(space->machine, portnames[offset]);
 		case 1:		/* Mahjong games */
 			if (offset)
 				return mahjong_input_r(space, offset - 1);
 			else
-				return input_port_read(space->machine(), "IN0");
+				return input_port_read(space->machine, "IN0");
 			break;
 		case 2:		/* Block Block - dial control */
 			if (offset)
 				return block_input_r(space, offset - 1);
 			else
-				return input_port_read(space->machine(), "IN0");
+				return input_port_read(space->machine, "IN0");
 			break;
 		case 3:		/* Super Pang - simulate START 1 press to initialize EEPROM */
-			return input_port_read(space->machine(), portnames[offset]);
+			return input_port_read(space->machine, portnames[offset]);
 	}
 }
 
 
 static WRITE8_HANDLER( input_w )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
 
-	switch (state->m_input_type)
+	switch (state->input_type)
 	{
 		case 0:
 		default:
-			logerror("PC %04x: write %02x to port 01\n", cpu_get_pc(&space->device()), data);
+			logerror("PC %04x: write %02x to port 01\n", cpu_get_pc(space->cpu), data);
 			break;
 		case 1:
 			mahjong_input_select_w(space, offset, data);
@@ -305,26 +304,26 @@ static WRITE8_HANDLER( input_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mgakuen_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mgakuen_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xc7ff) AM_READWRITE(mgakuen_paletteram_r, mgakuen_paletteram_w)	/* palette RAM */
-	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(pang_colorram_r, pang_colorram_w) AM_BASE_MEMBER(mitchell_state, m_colorram) /* Attribute RAM */
-	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(mgakuen_videoram_r, mgakuen_videoram_w) AM_BASE_SIZE_MEMBER(mitchell_state, m_videoram, m_videoram_size) /* char RAM */
+	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(pang_colorram_r, pang_colorram_w) AM_BASE_MEMBER(mitchell_state, colorram) /* Attribute RAM */
+	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(mgakuen_videoram_r, mgakuen_videoram_w) AM_BASE_SIZE_MEMBER(mitchell_state, videoram, videoram_size) /* char RAM */
 	AM_RANGE(0xe000, 0xefff) AM_RAM	/* Work RAM */
 	AM_RANGE(0xf000, 0xffff) AM_READWRITE(mgakuen_objram_r, mgakuen_objram_w)	/* OBJ RAM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mitchell_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mitchell_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xc7ff) AM_READWRITE(pang_paletteram_r,pang_paletteram_w) /* Banked palette RAM */
-	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(pang_colorram_r,pang_colorram_w) AM_BASE_MEMBER(mitchell_state, m_colorram) /* Attribute RAM */
-	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(pang_videoram_r,pang_videoram_w) AM_BASE_SIZE_MEMBER(mitchell_state, m_videoram, m_videoram_size)/* Banked char / OBJ RAM */
+	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(pang_colorram_r,pang_colorram_w) AM_BASE_MEMBER(mitchell_state, colorram) /* Attribute RAM */
+	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(pang_videoram_r,pang_videoram_w) AM_BASE_SIZE_MEMBER(mitchell_state, videoram, videoram_size)/* Banked char / OBJ RAM */
 	AM_RANGE(0xe000, 0xffff) AM_RAM	/* Work RAM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mitchell_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mitchell_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_WRITE(pang_gfxctrl_w)	/* Palette bank, layer enable, coin counters, more */
 	AM_RANGE(0x00, 0x02) AM_READ(input_r)			/* The Mahjong games and Block Block need special input treatment */
@@ -332,7 +331,7 @@ static ADDRESS_MAP_START( mitchell_io_map, AS_IO, 8 )
 	AM_RANGE(0x02, 0x02) AM_WRITE(pang_bankswitch_w)	/* Code bank register */
 	AM_RANGE(0x03, 0x03) AM_DEVWRITE("ymsnd", ym2413_data_port_w)
 	AM_RANGE(0x04, 0x04) AM_DEVWRITE("ymsnd", ym2413_register_port_w)
-	AM_RANGE(0x05, 0x05) AM_READ(pang_port5_r) AM_DEVWRITE_MODERN("oki", okim6295_device, write)
+	AM_RANGE(0x05, 0x05) AM_READ(pang_port5_r) AM_DEVWRITE("oki", okim6295_w)
 	AM_RANGE(0x06, 0x06) AM_WRITENOP				/* watchdog? irq ack? */
 	AM_RANGE(0x07, 0x07) AM_WRITE(pang_video_bank_w)	/* Video RAM bank register */
 	AM_RANGE(0x08, 0x08) AM_DEVWRITE("eeprom", eeprom_cs_w)
@@ -341,16 +340,16 @@ static ADDRESS_MAP_START( mitchell_io_map, AS_IO, 8 )
 ADDRESS_MAP_END
 
 /* spangbl */
-static ADDRESS_MAP_START( spangbl_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spangbl_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1") AM_WRITENOP
 	AM_RANGE(0xc000, 0xc7ff) AM_READWRITE(pang_paletteram_r, pang_paletteram_w)	/* Banked palette RAM */
-	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(pang_colorram_r, pang_colorram_w)	AM_BASE_MEMBER(mitchell_state, m_colorram)/* Attribute RAM */
-	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(pang_videoram_r, pang_videoram_w)	AM_BASE_SIZE_MEMBER(mitchell_state, m_videoram, m_videoram_size) /* Banked char / OBJ RAM */
+	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(pang_colorram_r, pang_colorram_w)	AM_BASE_MEMBER(mitchell_state, colorram)/* Attribute RAM */
+	AM_RANGE(0xd000, 0xdfff) AM_READWRITE(pang_videoram_r, pang_videoram_w)	AM_BASE_SIZE_MEMBER(mitchell_state, videoram, videoram_size) /* Banked char / OBJ RAM */
 	AM_RANGE(0xe000, 0xffff) AM_RAM		/* Work RAM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( spangbl_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( spangbl_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x02) AM_READ(input_r)
 	AM_RANGE(0x00, 0x00) AM_WRITE(pangbl_gfxctrl_w)    /* Palette bank, layer enable, coin counters, more */
@@ -369,18 +368,18 @@ ADDRESS_MAP_END
 #ifdef UNUSED_FUNCTION
 static WRITE8_HANDLER( spangbl_msm5205_data_w )
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
-	state->m_sample_buffer = data;
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
+	state->sample_buffer = data;
 }
 #endif
 
-static ADDRESS_MAP_START( spangbl_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spangbl_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 //  AM_RANGE(0xec00, 0xec00) AM_WRITE( spangbl_msm5205_data_w )
 	AM_RANGE(0xf000, 0xf3ff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( spangbl_sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( spangbl_sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 ADDRESS_MAP_END
 
@@ -388,26 +387,26 @@ ADDRESS_MAP_END
 /**** Monsters World ****/
 static WRITE8_DEVICE_HANDLER( oki_banking_w )
 {
-	mitchell_state *state = device->machine().driver_data<mitchell_state>();
-	state->m_oki->set_bank_base(0x40000 * (data & 3));
+	mitchell_state *state = (mitchell_state *)device->machine->driver_data;
+	state->oki->set_bank_base(0x40000 * (data & 3));
 }
 
-static ADDRESS_MAP_START( mstworld_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mstworld_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x9000, 0x9000) AM_DEVWRITE("oki", oki_banking_w)
-	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE("oki", okim6295_r,okim6295_w)
 	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
 static WRITE8_HANDLER(mstworld_sound_w)
 {
-	mitchell_state *state = space->machine().driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)space->machine->driver_data;
 	soundlatch_w(space, 0, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
-static ADDRESS_MAP_START( mstworld_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mstworld_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("IN0") AM_WRITE(mstworld_gfxctrl_w)	/* Palette bank, layer enable, coin counters, more */
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("IN1")
@@ -554,7 +553,7 @@ static INPUT_PORTS_START( mgakuen )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )	// not IPT_VBLANK
 
 	PORT_START("DSW0")
-	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coinage ) )		PORT_DIPLOCATION("DSW0:1,2,3")
+	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 2C_1C ) )
@@ -563,41 +562,43 @@ static INPUT_PORTS_START( mgakuen )
 	PORT_DIPSETTING(    0x05, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_6C ) )
-	PORT_DIPNAME( 0x08, 0x08, "Rules" )			PORT_DIPLOCATION("DSW0:4")
+	PORT_DIPNAME( 0x08, 0x08, "Rules" )
 	PORT_DIPSETTING(    0x08, "Kantou" )
 	PORT_DIPSETTING(    0x00, "Kansai" )
-	PORT_DIPNAME( 0x10, 0x00, "Harness Type" )		PORT_DIPLOCATION("DSW0:5")
+	PORT_DIPNAME( 0x10, 0x00, "Harness Type" )
 	PORT_DIPSETTING(    0x10, "Generic" )
 	PORT_DIPSETTING(    0x00, "Royal Mahjong" )
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("DSW0:6")
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x40, "Freeze" )			PORT_DIPLOCATION("DSW0:7")
+	PORT_DIPNAME( 0x40, 0x40, "Freeze" )
 	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_SERVICE( 0x80, IP_ACTIVE_LOW )			PORT_DIPLOCATION("DSW0:8")
+	PORT_SERVICE( 0x80, IP_ACTIVE_LOW )
 
 	PORT_START("DSW1")
-	PORT_DIPNAME( 0x03, 0x03, "Player 1 Skill" )		PORT_DIPLOCATION("DSW1:1,2")
+	PORT_DIPNAME( 0x03, 0x03, "Player 1 Skill" )
 	PORT_DIPSETTING(    0x03, "Weak" )
 	PORT_DIPSETTING(    0x02, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x01, "Strong" )
 	PORT_DIPSETTING(    0x00, "Very Strong" )
-	PORT_DIPNAME( 0x0c, 0x0c, "Player 2 Skill" )		PORT_DIPLOCATION("DSW1:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, "Player 1 Skill" )
 	PORT_DIPSETTING(    0x0c, "Weak" )
 	PORT_DIPSETTING(    0x08, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x04, "Strong" )
 	PORT_DIPSETTING(    0x00, "Very Strong" )
-	PORT_DIPNAME( 0x10, 0x00, "Music" )			PORT_DIPLOCATION("DSW1:5")
+	PORT_DIPNAME( 0x10, 0x00, "Music" )
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("DSW1:6")
+	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x00, "Help Mode" )			PORT_DIPLOCATION("DSW1:7")
+	PORT_DIPNAME( 0x40, 0x00, "Help Mode" )
 	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNKNOWN_DIPLOC( 0x80, 0x80, "DSW1:8" )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( marukin )
@@ -1079,106 +1080,112 @@ GFXDECODE_END
 
 static MACHINE_START( mitchell )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_sample_buffer));
-	state->save_item(NAME(state->m_sample_select));
-	state->save_item(NAME(state->m_dial_selected));
-	state->save_item(NAME(state->m_keymatrix));
-	state->save_item(NAME(state->m_dir));
-	state->save_item(NAME(state->m_dial));
+	state_save_register_global(machine, state->sample_buffer);
+	state_save_register_global(machine, state->sample_select);
+	state_save_register_global(machine, state->dial_selected);
+	state_save_register_global(machine, state->keymatrix);
+	state_save_register_global_array(machine, state->dir);
+	state_save_register_global_array(machine, state->dial);
 //  state_save_register_global(machine, init_eeprom_count);
 }
 
 static MACHINE_RESET( mitchell )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
 
-	state->m_sample_buffer = 0;
-	state->m_sample_select = 0;
-	state->m_dial_selected = 0;
-	state->m_dial[0] = 0;
-	state->m_dial[1] = 0;
-	state->m_dir[0] = 0;
-	state->m_dir[1] = 0;
-	state->m_keymatrix = 0;
+	state->sample_buffer = 0;
+	state->sample_select = 0;
+	state->dial_selected = 0;
+	state->dial[0] = 0;
+	state->dial[1] = 0;
+	state->dir[0] = 0;
+	state->dir[1] = 0;
+	state->keymatrix = 0;
 }
 
-static MACHINE_CONFIG_START( mgakuen, mitchell_state )
+static MACHINE_DRIVER_START( mgakuen )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mitchell_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_16MHz/2) /* probably same clock as the other mitchell hardware games */
-	MCFG_CPU_PROGRAM_MAP(mgakuen_map)
-	MCFG_CPU_IO_MAP(mitchell_io_map)
-	MCFG_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_16MHz/2) /* probably same clock as the other mitchell hardware games */
+	MDRV_CPU_PROGRAM_MAP(mgakuen_map)
+	MDRV_CPU_IO_MAP(mitchell_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
 
-	MCFG_MACHINE_START(mitchell)
-	MCFG_MACHINE_RESET(mitchell)
+	MDRV_MACHINE_START(mitchell)
+	MDRV_MACHINE_RESET(mitchell)
 
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
-	MCFG_SCREEN_UPDATE(pang)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(mgakuen)
-	MCFG_PALETTE_LENGTH(1024)	/* less colors than the others */
+	MDRV_GFXDECODE(mgakuen)
+	MDRV_PALETTE_LENGTH(1024)	/* less colors than the others */
 
-	MCFG_VIDEO_START(pang)
+	MDRV_VIDEO_START(pang)
+	MDRV_VIDEO_UPDATE(pang)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* probably same clock as the other mitchell hardware games */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* probably same clock as the other mitchell hardware games */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL_16MHz/4) /* probably same clock as the other mitchell hardware games */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2413, XTAL_16MHz/4) /* probably same clock as the other mitchell hardware games */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( pang, mitchell_state )
+static MACHINE_DRIVER_START( pang )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mitchell_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu",Z80, XTAL_16MHz/2) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(mitchell_map)
-	MCFG_CPU_IO_MAP(mitchell_io_map)
-	MCFG_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
+	MDRV_CPU_ADD("maincpu",Z80, XTAL_16MHz/2) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(mitchell_map)
+	MDRV_CPU_IO_MAP(mitchell_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
 
-	MCFG_MACHINE_START(mitchell)
-	MCFG_MACHINE_RESET(mitchell)
+	MDRV_MACHINE_START(mitchell)
+	MDRV_MACHINE_RESET(mitchell)
 
-	MCFG_NVRAM_HANDLER(mitchell)
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
+	MDRV_NVRAM_HANDLER(mitchell)
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57.42)   /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57.42)   /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(mitchell)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(mitchell)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(pang)
-	MCFG_SCREEN_UPDATE(pang)
+	MDRV_VIDEO_START(pang)
+	MDRV_VIDEO_UPDATE(pang)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ymsnd",YM2413, XTAL_16MHz/4) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd",YM2413, XTAL_16MHz/4) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 static const gfx_layout blcharlayout =
 {
@@ -1199,14 +1206,14 @@ GFXDECODE_END
 
 
 
-static void spangbl_adpcm_int( device_t *device )
+static void spangbl_adpcm_int( running_device *device )
 {
-	mitchell_state *state = device->machine().driver_data<mitchell_state>();
-	msm5205_data_w(device, state->m_sample_buffer & 0x0f);
-	state->m_sample_buffer >>= 4;
-	state->m_sample_select ^= 1;
-	if(state->m_sample_select == 0)
-		device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+	mitchell_state *state = (mitchell_state *)device->machine->driver_data;
+	msm5205_data_w(device, state->sample_buffer & 0x0f);
+	state->sample_buffer >>= 4;
+	state->sample_select ^= 1;
+	if(state->sample_select == 0)
+		cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 
@@ -1217,100 +1224,107 @@ static const msm5205_interface msm5205_config =
 };
 
 
-static MACHINE_CONFIG_DERIVED( spangbl, pang )
+static MACHINE_DRIVER_START( spangbl )
+	MDRV_IMPORT_FROM(pang)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(spangbl_map)
-	MCFG_CPU_IO_MAP(spangbl_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(spangbl_map)
+	MDRV_CPU_IO_MAP(spangbl_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 8000000)
-	MCFG_CPU_PROGRAM_MAP(spangbl_sound_map)
-	MCFG_CPU_IO_MAP(spangbl_sound_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-//  MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("audiocpu", Z80, 8000000)
+	MDRV_CPU_PROGRAM_MAP(spangbl_sound_map)
+	MDRV_CPU_IO_MAP(spangbl_sound_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+//  MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_GFXDECODE(spangbl)
+	MDRV_GFXDECODE(spangbl)
 
-	MCFG_DEVICE_REMOVE("oki")
-	MCFG_SOUND_ADD("msm", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("oki")
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( mstworld, mitchell_state )
+static MACHINE_DRIVER_START( mstworld )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mitchell_state)
 
 	/* basic machine hardware */
 	/* it doesn't glitch with the clock speed set to 4x normal, however this is incorrect..
       the interrupt handling (and probably various irq flags / vbl flags handling etc.) is
       more likely wrong.. the game appears to run too fast anyway .. */
-	MCFG_CPU_ADD("maincpu", Z80, 6000000*4)
-	MCFG_CPU_PROGRAM_MAP(mitchell_map)
-	MCFG_CPU_IO_MAP(mstworld_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 6000000*4)
+	MDRV_CPU_PROGRAM_MAP(mitchell_map)
+	MDRV_CPU_IO_MAP(mstworld_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,6000000)		 /* 6 MHz? */
-	MCFG_CPU_PROGRAM_MAP(mstworld_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,6000000)		 /* 6 MHz? */
+	MDRV_CPU_PROGRAM_MAP(mstworld_sound_map)
 
-	MCFG_MACHINE_START(mitchell)
-	MCFG_MACHINE_RESET(mitchell)
+	MDRV_MACHINE_START(mitchell)
+	MDRV_MACHINE_RESET(mitchell)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(mstworld)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(mstworld)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(pang)
-	MCFG_SCREEN_UPDATE(pang)
+	MDRV_VIDEO_START(pang)
+	MDRV_VIDEO_UPDATE(pang)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 990000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 990000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( marukin, mitchell_state )
+static MACHINE_DRIVER_START( marukin )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mitchell_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_16MHz/2) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(mitchell_map)
-	MCFG_CPU_IO_MAP(mitchell_io_map)
-	MCFG_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_16MHz/2) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(mitchell_map)
+	MDRV_CPU_IO_MAP(mitchell_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
 
-	MCFG_NVRAM_HANDLER(mitchell)
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
+	MDRV_NVRAM_HANDLER(mitchell)
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(marukin)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(marukin)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(pang)
-	MCFG_SCREEN_UPDATE(pang)
+	MDRV_VIDEO_START(pang)
+	MDRV_VIDEO_UPDATE(pang)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL_16MHz/4) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2413, XTAL_16MHz/4) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 /*
 
@@ -1330,40 +1344,43 @@ Vsync is 59.09hz
 
 */
 
-static MACHINE_CONFIG_START( pkladiesbl, mitchell_state )
+static MACHINE_DRIVER_START( pkladiesbl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mitchell_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_12MHz/2) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(mitchell_map)
-	MCFG_CPU_IO_MAP(mitchell_io_map)
-	MCFG_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_12MHz/2) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(mitchell_map)
+	MDRV_CPU_IO_MAP(mitchell_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)	/* ??? one extra irq seems to be needed for music (see input5_r) */
 
-	MCFG_NVRAM_HANDLER(mitchell)
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
+	MDRV_NVRAM_HANDLER(mitchell)
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.09) /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.09) /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(pkladiesbl)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(pkladiesbl)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(pang)
-	MCFG_SCREEN_UPDATE(pang)
+	MDRV_VIDEO_START(pang)
+	MDRV_VIDEO_UPDATE(pang)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* It should be a OKIM5205 with a 384khz resonator */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_OKIM6295_ADD("oki", XTAL_16MHz/16, OKIM6295_PIN7_HIGH) /* It should be a OKIM5205 with a 384khz resonator */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("ymsnd", YM2413, 3750000) /* verified on pcb, read the comments */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2413, 3750000) /* verified on pcb, read the comments */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 /*************************************
  *
@@ -2100,169 +2117,169 @@ ROM_END
  *
  *************************************/
 
-static void bootleg_decode( running_machine &machine )
+static void bootleg_decode( running_machine *machine )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->set_decrypted_region(0x0000, 0x7fff, machine.region("maincpu")->base() + 0x50000);
-	memory_configure_bank_decrypted(machine, "bank1", 0, 16, machine.region("maincpu")->base() + 0x60000, 0x4000);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_set_decrypted_region(space, 0x0000, 0x7fff, memory_region(machine, "maincpu") + 0x50000);
+	memory_configure_bank_decrypted(machine, "bank1", 0, 16, memory_region(machine, "maincpu") + 0x60000, 0x4000);
 }
 
 
-static void configure_banks( running_machine &machine )
+static void configure_banks( running_machine *machine )
 {
-	memory_configure_bank(machine, "bank1", 0, 16, machine.region("maincpu")->base() + 0x10000, 0x4000);
+	memory_configure_bank(machine, "bank1", 0, 16, memory_region(machine, "maincpu") + 0x10000, 0x4000);
 }
 
 
 static DRIVER_INIT( dokaben )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	mgakuen2_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( pang )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	pang_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( pangb )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	bootleg_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( cworld )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	cworld_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( hatena )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	hatena_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( spang )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 3;
-	state->m_nvram_size = 0x80;
-	state->m_nvram = &machine.region("maincpu")->base()[0xe000];	/* NVRAM */
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 3;
+	nvram_size = 0x80;
+	nvram = &memory_region(machine, "maincpu")[0xe000];	/* NVRAM */
 	spang_decode(machine);
 	configure_banks(machine);
 }
 
 static DRIVER_INIT( spangbl )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 3;
-	state->m_nvram_size = 0x80;
-	state->m_nvram = &machine.region("maincpu")->base()[0xe000];	/* NVRAM */
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 3;
+	nvram_size = 0x80;
+	nvram = &memory_region(machine, "maincpu")[0xe000];	/* NVRAM */
 	bootleg_decode(machine);
 	configure_banks(machine);
 }
 
 static DRIVER_INIT( spangj )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 3;
-	state->m_nvram_size = 0x80;
-	state->m_nvram = &machine.region("maincpu")->base()[0xe000];	/* NVRAM */
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 3;
+	nvram_size = 0x80;
+	nvram = &memory_region(machine, "maincpu")[0xe000];	/* NVRAM */
 	spangj_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( sbbros )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 3;
-	state->m_nvram_size = 0x80;
-	state->m_nvram = &machine.region("maincpu")->base()[0xe000];	/* NVRAM */
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 3;
+	nvram_size = 0x80;
+	nvram = &memory_region(machine, "maincpu")[0xe000];	/* NVRAM */
 	sbbros_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( qtono1 )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	qtono1_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( qsangoku )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 0;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 0;
+	nvram_size = 0;
 	qsangoku_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( mgakuen )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 1;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 1;
 	configure_banks(machine);
-	machine.device("maincpu")->memory().space(AS_IO)->install_read_port(0x03, 0x03, "DSW0");
-	machine.device("maincpu")->memory().space(AS_IO)->install_read_port(0x04, 0x04, "DSW1");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x03, 0x03, 0, 0, "DSW0");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x04, 0x04, 0, 0, "DSW1");
 }
 static DRIVER_INIT( mgakuen2 )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 1;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 1;
+	nvram_size = 0;
 	mgakuen2_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( pkladies )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 1;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 1;
+	nvram_size = 0;
 	mgakuen2_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( pkladiesbl )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 1;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 1;
+	nvram_size = 0;
 	bootleg_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( marukin )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 1;
-	state->m_nvram_size = 0;
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 1;
+	nvram_size = 0;
 	marukin_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( block )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 2;
-	state->m_nvram_size = 0x80;
-	state->m_nvram = &machine.region("maincpu")->base()[0xff80];	/* NVRAM */
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 2;
+	nvram_size = 0x80;
+	nvram = &memory_region(machine, "maincpu")[0xff80];	/* NVRAM */
 	block_decode(machine);
 	configure_banks(machine);
 }
 static DRIVER_INIT( blockbl )
 {
-	mitchell_state *state = machine.driver_data<mitchell_state>();
-	state->m_input_type = 2;
-	state->m_nvram_size = 0x80;
-	state->m_nvram = &machine.region("maincpu")->base()[0xff80];	/* NVRAM */
+	mitchell_state *state = (mitchell_state *)machine->driver_data;
+	state->input_type = 2;
+	nvram_size = 0x80;
+	nvram = &memory_region(machine, "maincpu")[0xff80];	/* NVRAM */
 	bootleg_decode(machine);
 	configure_banks(machine);
 }
@@ -2270,9 +2287,9 @@ static DRIVER_INIT( blockbl )
 static DRIVER_INIT( mstworld )
 {
 	/* descramble the program rom .. */
-	int len = machine.region("maincpu")->bytes();
+	int len = memory_region_length(machine, "maincpu");
 	UINT8* source = auto_alloc_array(machine, UINT8, len);
-	UINT8* dst = machine.region("maincpu")->base() ;
+	UINT8* dst = memory_region(machine, "maincpu") ;
 	int x;
 
 	static const int tablebank[]=

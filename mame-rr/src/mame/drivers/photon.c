@@ -18,23 +18,13 @@
 #include "emu.h"
 #include "cpu/i8085/i8085.h"
 #include "includes/pk8000.h"
-#include "machine/i8255.h"
+#include "machine/i8255a.h"
 #include "sound/speaker.h"
 
-
-class photon_state : public driver_device
+static void pk8000_set_bank(running_machine *machine,UINT8 data)
 {
-public:
-	photon_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
-static void pk8000_set_bank(running_machine &machine,UINT8 data)
-{
-	UINT8 *rom = machine.region("maincpu")->base();
-	UINT8 *ram = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
+	UINT8 *ram = memory_region(machine, "maincpu");
 	UINT8 block1 = data & 3;
 	UINT8 block2 = (data >> 2) & 3;
 	UINT8 block3 = (data >> 4) & 3;
@@ -92,7 +82,7 @@ static void pk8000_set_bank(running_machine &machine,UINT8 data)
 }
 static WRITE8_DEVICE_HANDLER(pk8000_80_porta_w)
 {
-	pk8000_set_bank(device->machine(),data);
+	pk8000_set_bank(device->machine,data);
 }
 
 static READ8_DEVICE_HANDLER(pk8000_80_portb_r)
@@ -102,15 +92,15 @@ static READ8_DEVICE_HANDLER(pk8000_80_portb_r)
 
 static WRITE8_DEVICE_HANDLER(pk8000_80_portc_w)
 {
-	speaker_level_w(device->machine().device("speaker"), BIT(data,7));
+	speaker_level_w(device->machine->device("speaker"), BIT(data,7));
 }
 
-static I8255_INTERFACE( pk8000_ppi8255_interface_1 )
+static I8255A_INTERFACE( pk8000_ppi8255_interface_1 )
 {
 	DEVCB_NULL,
-	DEVCB_HANDLER(pk8000_80_porta_w),
 	DEVCB_HANDLER(pk8000_80_portb_r),
 	DEVCB_NULL,
+	DEVCB_HANDLER(pk8000_80_porta_w),
 	DEVCB_NULL,
 	DEVCB_HANDLER(pk8000_80_portc_w)
 };
@@ -132,14 +122,14 @@ static WRITE8_DEVICE_HANDLER(pk8000_84_portc_w)
 static I8255A_INTERFACE( pk8000_ppi8255_interface_2 )
 {
 	DEVCB_HANDLER(pk8000_84_porta_r),
+	DEVCB_NULL,
+	DEVCB_NULL,
 	DEVCB_HANDLER(pk8000_84_porta_w),
-	DEVCB_NULL,
-	DEVCB_NULL,
 	DEVCB_NULL,
 	DEVCB_HANDLER(pk8000_84_portc_w)
 };
 
-static ADDRESS_MAP_START(pk8000_mem, AS_PROGRAM, 8)
+static ADDRESS_MAP_START(pk8000_mem, ADDRESS_SPACE_PROGRAM, 8)
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE( 0x0000, 0x3fff ) AM_READ_BANK("bank1") AM_WRITE_BANK("bank5")
 	AM_RANGE( 0x4000, 0x7fff ) AM_READ_BANK("bank2") AM_WRITE_BANK("bank6")
@@ -147,10 +137,10 @@ static ADDRESS_MAP_START(pk8000_mem, AS_PROGRAM, 8)
 	AM_RANGE( 0xc000, 0xffff ) AM_READ_BANK("bank4") AM_WRITE_BANK("bank8")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( pk8000_io , AS_IO, 8)
+static ADDRESS_MAP_START( pk8000_io , ADDRESS_SPACE_IO, 8)
 	ADDRESS_MAP_UNMAP_HIGH
-	AM_RANGE(0x80, 0x83) AM_DEVREADWRITE_MODERN("ppi8255_1", i8255_device, read, write)
-	AM_RANGE(0x84, 0x87) AM_DEVREADWRITE_MODERN("ppi8255_2", i8255_device, read, write)
+	AM_RANGE(0x80, 0x83) AM_DEVREADWRITE("ppi8255_1", i8255a_r, i8255a_w)
+	AM_RANGE(0x84, 0x87) AM_DEVREADWRITE("ppi8255_2", i8255a_r, i8255a_w)
 	AM_RANGE(0x88, 0x88) AM_READWRITE(pk8000_video_color_r,pk8000_video_color_w)
 	AM_RANGE(0x8c, 0x8c) AM_READ_PORT("JOY1")
 	AM_RANGE(0x8d, 0x8d) AM_READ_PORT("JOY2")
@@ -178,7 +168,7 @@ INPUT_PORTS_END
 
 static INTERRUPT_GEN( pk8000_interrupt )
 {
-	device_set_input_line(device, 0, HOLD_LINE);
+	cpu_set_input_line(device, 0, HOLD_LINE);
 }
 
 static IRQ_CALLBACK(pk8000_irq_callback)
@@ -190,49 +180,49 @@ static IRQ_CALLBACK(pk8000_irq_callback)
 static MACHINE_RESET(pk8000)
 {
 	pk8000_set_bank(machine,0);
-	device_set_irq_callback(machine.device("maincpu"), pk8000_irq_callback);
+	cpu_set_irq_callback(machine->device("maincpu"), pk8000_irq_callback);
 }
 
 static VIDEO_START( photon )
 {
 }
 
-static SCREEN_UPDATE( photon )
+static VIDEO_UPDATE( photon )
 {
-	return pk8000_video_update(screen, bitmap, cliprect, screen->machine().region("maincpu")->base());
+	return pk8000_video_update(screen, bitmap, cliprect, memory_region(screen->machine, "maincpu"));
 }
 
-static MACHINE_CONFIG_START( photon, photon_state )
+static MACHINE_DRIVER_START( photon )
 
     /* basic machine hardware */
-    MCFG_CPU_ADD("maincpu",I8080, 1780000)
-    MCFG_CPU_PROGRAM_MAP(pk8000_mem)
-    MCFG_CPU_IO_MAP(pk8000_io)
-    MCFG_CPU_VBLANK_INT("screen", pk8000_interrupt)
+    MDRV_CPU_ADD("maincpu",I8080, 1780000)
+    MDRV_CPU_PROGRAM_MAP(pk8000_mem)
+    MDRV_CPU_IO_MAP(pk8000_io)
+    MDRV_CPU_VBLANK_INT("screen", pk8000_interrupt)
 
-    MCFG_MACHINE_RESET(pk8000)
+    MDRV_MACHINE_RESET(pk8000)
 
     /* video hardware */
-    MCFG_SCREEN_ADD("screen", RASTER)
-    MCFG_SCREEN_REFRESH_RATE(50)
-    MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-    MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-    MCFG_SCREEN_SIZE(256+32, 192+32)
-    MCFG_SCREEN_VISIBLE_AREA(0, 256+32-1, 0, 192+32-1)
-    MCFG_SCREEN_UPDATE(photon)
-    MCFG_PALETTE_LENGTH(16)
-    MCFG_PALETTE_INIT(pk8000)
+    MDRV_SCREEN_ADD("screen", RASTER)
+    MDRV_SCREEN_REFRESH_RATE(50)
+    MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
+    MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+    MDRV_SCREEN_SIZE(256+32, 192+32)
+    MDRV_SCREEN_VISIBLE_AREA(0, 256+32-1, 0, 192+32-1)
+    MDRV_PALETTE_LENGTH(16)
+    MDRV_PALETTE_INIT(pk8000)
 
-    MCFG_VIDEO_START(photon)
+    MDRV_VIDEO_START(photon)
+    MDRV_VIDEO_UPDATE(photon)
 
-    MCFG_I8255_ADD( "ppi8255_1", pk8000_ppi8255_interface_1 )
-    MCFG_I8255_ADD( "ppi8255_2", pk8000_ppi8255_interface_2 )
+    MDRV_I8255A_ADD( "ppi8255_1", pk8000_ppi8255_interface_1 )
+    MDRV_I8255A_ADD( "ppi8255_2", pk8000_ppi8255_interface_2 )
 
     /* audio hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("speaker", SPEAKER_SOUND, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("speaker", SPEAKER, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 /*
     Dump was made using custom adaptor, hence it is marked as bad dump.

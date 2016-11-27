@@ -64,13 +64,13 @@ CPU_DISASSEMBLE( jaguardsp );
 
 #define CONDITION(x)		condition_table[(x) + ((jaguar->FLAGS & 7) << 5)]
 
-#define READBYTE(J,a)		(J)->program->read_byte(a)
-#define READWORD(J,a)		(J)->program->read_word(a)
-#define READLONG(J,a)		(J)->program->read_dword(a)
+#define READBYTE(J,a)		memory_read_byte_32be((J)->program, a)
+#define READWORD(J,a)		memory_read_word_32be((J)->program, a)
+#define READLONG(J,a)		memory_read_dword_32be((J)->program, a)
 
-#define WRITEBYTE(J,a,v)	(J)->program->write_byte(a, v)
-#define WRITEWORD(J,a,v)	(J)->program->write_word(a, v)
-#define WRITELONG(J,a,v)	(J)->program->write_dword(a, v)
+#define WRITEBYTE(J,a,v)	memory_write_byte_32be((J)->program, a, v)
+#define WRITEWORD(J,a,v)	memory_write_word_32be((J)->program, a, v)
+#define WRITELONG(J,a,v)	memory_write_dword_32be((J)->program, a, v)
 
 
 
@@ -101,8 +101,7 @@ struct _jaguar_state
 	device_irq_callback irq_callback;
 	jaguar_int_func cpu_interrupt;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 };
 
 
@@ -241,7 +240,7 @@ static void (*const dsp_op_table[64])(jaguar_state *jaguar, UINT16 op) =
     MEMORY ACCESSORS
 ***************************************************************************/
 
-#define ROPCODE(J,pc)		((J)->direct->read_decrypted_word(pc, WORD_XOR_BE(0)))
+#define ROPCODE(J,pc)		(memory_decrypted_read_word((J)->program, WORD_XOR_BE((UINT32)(pc))))
 
 
 
@@ -249,7 +248,7 @@ static void (*const dsp_op_table[64])(jaguar_state *jaguar, UINT16 op) =
     INLINE FUNCTIONS
 ***************************************************************************/
 
-INLINE jaguar_state *get_safe_token(device_t *device)
+INLINE jaguar_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == JAGUARGPU ||
@@ -399,8 +398,11 @@ static void init_tables(void)
 }
 
 
-static void jaguar_postload(jaguar_state *jaguar)
+static STATE_POSTLOAD( jaguar_postload )
 {
+	legacy_cpu_device *device = (legacy_cpu_device *)param;
+	jaguar_state *jaguar = get_safe_token(device);
+
 	update_register_banks(jaguar);
 	check_irqs(jaguar);
 }
@@ -408,7 +410,7 @@ static void jaguar_postload(jaguar_state *jaguar)
 
 static void init_common(int isdsp, legacy_cpu_device *device, device_irq_callback irqcallback)
 {
-	const jaguar_cpu_config *configdata = (const jaguar_cpu_config *)device->static_config();
+	const jaguar_cpu_config *configdata = (const jaguar_cpu_config *)device->baseconfig().static_config();
 	jaguar_state *jaguar = get_safe_token(device);
 
 	init_tables();
@@ -419,15 +421,14 @@ static void init_common(int isdsp, legacy_cpu_device *device, device_irq_callbac
 	jaguar->irq_callback = irqcallback;
 	jaguar->device = device;
 	jaguar->program = device->space(AS_PROGRAM);
-	jaguar->direct = &jaguar->program->direct();
 	if (configdata != NULL)
 		jaguar->cpu_interrupt = configdata->cpu_int_callback;
 
-	device->save_item(NAME(jaguar->r));
-	device->save_item(NAME(jaguar->a));
-	device->save_item(NAME(jaguar->ctrl));
-	device->save_item(NAME(jaguar->ppc));
-	device->machine().save().register_postload(save_prepost_delegate(FUNC(jaguar_postload), jaguar));
+	state_save_register_device_item_array(device, 0, jaguar->r);
+	state_save_register_device_item_array(device, 0, jaguar->a);
+	state_save_register_device_item_array(device, 0, jaguar->ctrl);
+	state_save_register_device_item(device, 0, jaguar->ppc);
+	state_save_register_postload(device->machine, jaguar_postload, (void *)device);
 }
 
 
@@ -479,7 +480,7 @@ static CPU_EXECUTE( jaguargpu )
 	/* if we're halted, we shouldn't be here */
 	if (!(jaguar->ctrl[G_CTRL] & 1))
 	{
-		//device_set_input_line(device, INPUT_LINE_HALT, ASSERT_LINE);
+		cpu_set_input_line(device, INPUT_LINE_HALT, ASSERT_LINE);
 		jaguar->icount = 0;
 		return;
 	}
@@ -518,7 +519,7 @@ static CPU_EXECUTE( jaguardsp )
 	/* if we're halted, we shouldn't be here */
 	if (!(jaguar->ctrl[G_CTRL] & 1))
 	{
-		//device_set_input_line(device, INPUT_LINE_HALT, ASSERT_LINE);
+		cpu_set_input_line(device, INPUT_LINE_HALT, ASSERT_LINE);
 		jaguar->icount = 0;
 		return;
 	}
@@ -1234,7 +1235,7 @@ void xor_rn_rn(jaguar_state *jaguar, UINT16 op)
     I/O HANDLING
 ***************************************************************************/
 
-UINT32 jaguargpu_ctrl_r(device_t *device, offs_t offset)
+UINT32 jaguargpu_ctrl_r(running_device *device, offs_t offset)
 {
 	jaguar_state *jaguar = get_safe_token(device);
 
@@ -1244,7 +1245,7 @@ UINT32 jaguargpu_ctrl_r(device_t *device, offs_t offset)
 }
 
 
-void jaguargpu_ctrl_w(device_t *device, offs_t offset, UINT32 data, UINT32 mem_mask)
+void jaguargpu_ctrl_w(running_device *device, offs_t offset, UINT32 data, UINT32 mem_mask)
 {
 	jaguar_state *jaguar = get_safe_token(device);
 	UINT32 oldval, newval;
@@ -1296,8 +1297,8 @@ void jaguargpu_ctrl_w(device_t *device, offs_t offset, UINT32 data, UINT32 mem_m
 			jaguar->ctrl[offset] = newval;
 			if ((oldval ^ newval) & 0x01)
 			{
-				device_set_input_line(device, INPUT_LINE_HALT, (newval & 1) ? CLEAR_LINE : ASSERT_LINE);
-				device_yield(device);
+				cpu_set_input_line(device, INPUT_LINE_HALT, (newval & 1) ? CLEAR_LINE : ASSERT_LINE);
+				cpu_yield(device);
 			}
 			if (newval & 0x02)
 			{
@@ -1330,7 +1331,7 @@ void jaguargpu_ctrl_w(device_t *device, offs_t offset, UINT32 data, UINT32 mem_m
     I/O HANDLING
 ***************************************************************************/
 
-UINT32 jaguardsp_ctrl_r(device_t *device, offs_t offset)
+UINT32 jaguardsp_ctrl_r(running_device *device, offs_t offset)
 {
 	jaguar_state *jaguar = get_safe_token(device);
 
@@ -1342,7 +1343,7 @@ UINT32 jaguardsp_ctrl_r(device_t *device, offs_t offset)
 }
 
 
-void jaguardsp_ctrl_w(device_t *device, offs_t offset, UINT32 data, UINT32 mem_mask)
+void jaguardsp_ctrl_w(running_device *device, offs_t offset, UINT32 data, UINT32 mem_mask)
 {
 	jaguar_state *jaguar = get_safe_token(device);
 	UINT32 oldval, newval;
@@ -1395,8 +1396,8 @@ void jaguardsp_ctrl_w(device_t *device, offs_t offset, UINT32 data, UINT32 mem_m
 			jaguar->ctrl[offset] = newval;
 			if ((oldval ^ newval) & 0x01)
 			{
-				device_set_input_line(device, INPUT_LINE_HALT, (newval & 1) ? CLEAR_LINE : ASSERT_LINE);
-				device_yield(device);
+				cpu_set_input_line(device, INPUT_LINE_HALT, (newval & 1) ? CLEAR_LINE : ASSERT_LINE);
+				cpu_yield(device);
 			}
 			if (newval & 0x02)
 			{
@@ -1504,9 +1505,9 @@ CPU_GET_INFO( jaguargpu )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;										break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;										break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 32;								break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 24;								break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;								break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 32;								break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 24;								break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;								break;
 
 		case CPUINFO_INT_INPUT_STATE + JAGUAR_IRQ0:		info->i = (jaguar->ctrl[G_CTRL] & 0x40) ? ASSERT_LINE : CLEAR_LINE; break;
 		case CPUINFO_INT_INPUT_STATE + JAGUAR_IRQ1:		info->i = (jaguar->ctrl[G_CTRL] & 0x80) ? ASSERT_LINE : CLEAR_LINE; break;

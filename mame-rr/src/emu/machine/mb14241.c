@@ -18,7 +18,7 @@ struct _mb14241_state
     INLINE FUNCTIONS
 *****************************************************************************/
 
-INLINE mb14241_state *get_safe_token( device_t *device )
+INLINE mb14241_state *get_safe_token( running_device *device )
 {
 	assert(device != NULL);
 	assert(device->type() == MB14241);
@@ -56,8 +56,8 @@ static DEVICE_START( mb14241 )
 {
 	mb14241_state *mb14241 = get_safe_token(device);
 
-	device->save_item(NAME(mb14241->shift_data));
-	device->save_item(NAME(mb14241->shift_count));
+	state_save_register_device_item(device, 0, mb14241->shift_data);
+	state_save_register_device_item(device, 0, mb14241->shift_count);
 }
 
 static DEVICE_RESET( mb14241 )

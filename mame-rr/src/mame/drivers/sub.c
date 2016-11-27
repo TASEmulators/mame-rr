@@ -112,29 +112,30 @@ PCB2  (Top board, CPU board)
 
 #define MASTER_CLOCK			XTAL_18_432MHz
 
-class sub_state : public driver_device
+class sub_state
 {
 public:
-	sub_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, sub_state(machine)); }
 
-	UINT8* m_vid;
-	UINT8* m_attr;
-	UINT8* m_scrolly;
-	UINT8* m_spriteram;
-	UINT8* m_spriteram2;
-	UINT8 m_nmi_en;
+	sub_state(running_machine &machine) { }
+
+	UINT8* vid;
+	UINT8* attr;
+	UINT8* scrolly;
+	UINT8* spriteram;
+	UINT8* spriteram2;
+	UINT8 nmi_en;
 };
 
 static VIDEO_START(sub)
 {
 }
 
-static SCREEN_UPDATE(sub)
+static VIDEO_UPDATE(sub)
 {
-	sub_state *state = screen->machine().driver_data<sub_state>();
-	const gfx_element *gfx = screen->machine().gfx[0];
-	const gfx_element *gfx_1 = screen->machine().gfx[1];
+	sub_state *state = (sub_state *)screen->machine->driver_data;
+	const gfx_element *gfx = screen->machine->gfx[0];
+	const gfx_element *gfx_1 = screen->machine->gfx[1];
 	int y,x;
 	int count = 0;
 
@@ -142,12 +143,12 @@ static SCREEN_UPDATE(sub)
 	{
 		for (x=0;x<32;x++)
 		{
-			UINT16 tile = state->m_vid[count];
+			UINT16 tile = state->vid[count];
 			UINT8 col;
-			UINT8 y_offs = state->m_scrolly[x];
+			UINT8 y_offs = state->scrolly[x];
 
-			tile += (state->m_attr[count]&0xe0)<<3;
-			col = (state->m_attr[count]&0x1f);
+			tile += (state->attr[count]&0xe0)<<3;
+			col = (state->attr[count]&0x1f);
 
 			drawgfx_opaque(bitmap,cliprect,gfx,tile,col+0x40,0,0,x*8,(y*8)-y_offs);
 			drawgfx_opaque(bitmap,cliprect,gfx,tile,col+0x40,0,0,x*8,(y*8)-y_offs+256);
@@ -168,8 +169,8 @@ static SCREEN_UPDATE(sub)
     1 --cc cccc color
     */
 	{
-		UINT8 *spriteram = state->m_spriteram;
-		UINT8 *spriteram_2 = state->m_spriteram2;
+		UINT8 *spriteram = state->spriteram;
+		UINT8 *spriteram_2 = state->spriteram2;
 		UINT8 x,y,spr_offs,i,col,fx,fy;
 
 		for(i=0;i<0x40;i+=2)
@@ -193,12 +194,12 @@ static SCREEN_UPDATE(sub)
 	{
 		for (x=0;x<32;x++)
 		{
-			UINT16 tile = state->m_vid[count];
+			UINT16 tile = state->vid[count];
 			UINT8 col;
-			UINT8 y_offs = state->m_scrolly[x];
+			UINT8 y_offs = state->scrolly[x];
 
-			tile += (state->m_attr[count]&0xe0)<<3;
-			col = (state->m_attr[count]&0x1f);
+			tile += (state->attr[count]&0xe0)<<3;
+			col = (state->attr[count]&0x1f);
 
 			if(x >= 28)
 			{
@@ -213,14 +214,14 @@ static SCREEN_UPDATE(sub)
 	return 0;
 }
 
-static ADDRESS_MAP_START( subm_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( subm_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xafff) AM_ROM
 	AM_RANGE(0xb000, 0xbfff) AM_RAM
-	AM_RANGE(0xc000, 0xc3ff) AM_RAM AM_BASE_MEMBER(sub_state,m_attr)
-	AM_RANGE(0xc400, 0xc7ff) AM_RAM AM_BASE_MEMBER(sub_state,m_vid)
-	AM_RANGE(0xd000, 0xd03f) AM_RAM AM_BASE_MEMBER(sub_state,m_spriteram)
-	AM_RANGE(0xd800, 0xd83f) AM_RAM AM_BASE_MEMBER(sub_state,m_spriteram2)
-	AM_RANGE(0xd840, 0xd85f) AM_RAM AM_BASE_MEMBER(sub_state,m_scrolly)
+	AM_RANGE(0xc000, 0xc3ff) AM_RAM AM_BASE_MEMBER(sub_state,attr)
+	AM_RANGE(0xc400, 0xc7ff) AM_RAM AM_BASE_MEMBER(sub_state,vid)
+	AM_RANGE(0xd000, 0xd03f) AM_RAM AM_BASE_MEMBER(sub_state,spriteram)
+	AM_RANGE(0xd800, 0xd83f) AM_RAM AM_BASE_MEMBER(sub_state,spriteram2)
+	AM_RANGE(0xd840, 0xd85f) AM_RAM AM_BASE_MEMBER(sub_state,scrolly)
 
 	AM_RANGE(0xe000, 0xe000) AM_NOP
 	AM_RANGE(0xe800, 0xe800) AM_NOP
@@ -238,28 +239,28 @@ ADDRESS_MAP_END
 static WRITE8_HANDLER( subm_to_sound_w )
 {
 	soundlatch_w(space, 0, data & 0xff);
-	cputag_set_input_line(space->machine(), "soundcpu", 0, HOLD_LINE);
+	cputag_set_input_line(space->machine, "soundcpu", 0, HOLD_LINE);
 }
 
 static WRITE8_HANDLER( nmi_mask_w )
 {
-	sub_state *state = space->machine().driver_data<sub_state>();
+	sub_state *state = (sub_state *)space->machine->driver_data;
 
-	state->m_nmi_en = data & 1;
+	state->nmi_en = data & 1;
 }
 
-static ADDRESS_MAP_START( subm_io, AS_IO, 8 )
+static ADDRESS_MAP_START( subm_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READWRITE(soundlatch2_r, subm_to_sound_w) // to/from sound CPU
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( subm_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( subm_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x47ff) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_WRITE(nmi_mask_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( subm_sound_io, AS_IO, 8 )
+static ADDRESS_MAP_START( subm_sound_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READWRITE(soundlatch_r, soundlatch2_w) // to/from main CPU
 	AM_RANGE(0x40, 0x41) AM_DEVREADWRITE("ay1", ay8910_r, ay8910_address_data_w)
@@ -336,7 +337,7 @@ static INPUT_PORTS_START( sub )
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Cabinet ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Upright ) )	/* separate controls for each player */
+	PORT_DIPSETTING(    0x20, DEF_STR( Upright ) )	/* Seperate controls for each player */
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) ) /* Controls via player 1 for both, but need to get x/y screen flip working to fully test */
 	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
@@ -381,10 +382,10 @@ GFXDECODE_END
 static PALETTE_INIT( sub )
 {
 	int i;
-	UINT8* lookup = machine.region("proms2")->base();
+	UINT8* lookup = memory_region(machine,"proms2");
 
 	/* allocate the colortable */
-	machine.colortable = colortable_alloc(machine, 0x100);
+	machine->colortable = colortable_alloc(machine, 0x100);
 
 	for (i = 0;i < 0x100;i++)
 	{
@@ -393,8 +394,8 @@ static PALETTE_INIT( sub )
 		g = (color_prom[0x100] >> 0);
 		b = (color_prom[0x200] >> 0);
 
-		//colortable_palette_set_color(machine.colortable, i, MAKE_RGB(r, g, b));
-		colortable_palette_set_color(machine.colortable, i, MAKE_RGB(pal4bit(r), pal4bit(g), pal4bit(b)));
+		//colortable_palette_set_color(machine->colortable, i, MAKE_RGB(r, g, b));
+		colortable_palette_set_color(machine->colortable, i, MAKE_RGB(pal4bit(r), pal4bit(g), pal4bit(b)));
 
 		color_prom++;
 	}
@@ -403,7 +404,7 @@ static PALETTE_INIT( sub )
 	for (i = 0;i < 0x400;i++)
 	{
 		UINT8 ctabentry = lookup[i+0x400] | (lookup[i+0x000] << 4);
-		colortable_entry_set_value(machine.colortable, i, ctabentry);
+		colortable_entry_set_value(machine->colortable, i, ctabentry);
 	}
 
 }
@@ -411,50 +412,52 @@ static PALETTE_INIT( sub )
 
 static INTERRUPT_GEN( subm_sound_irq )
 {
-	sub_state *state = device->machine().driver_data<sub_state>();
+	sub_state *state = (sub_state *)device->machine->driver_data;
 
-	if(state->m_nmi_en)
-		cputag_set_input_line(device->machine(), "soundcpu", INPUT_LINE_NMI, PULSE_LINE);
+	if(state->nmi_en)
+		cputag_set_input_line(device->machine, "soundcpu", INPUT_LINE_NMI, PULSE_LINE);
 }
 
-static MACHINE_CONFIG_START( sub, sub_state )
+static MACHINE_DRIVER_START( sub )
+
+	MDRV_DRIVER_DATA( sub_state )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,MASTER_CLOCK/6)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(subm_map)
-	MCFG_CPU_IO_MAP(subm_io)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,MASTER_CLOCK/6)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(subm_map)
+	MDRV_CPU_IO_MAP(subm_io)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("soundcpu", Z80,MASTER_CLOCK/6)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(subm_sound_map)
-	MCFG_CPU_IO_MAP(subm_sound_io)
-	MCFG_CPU_PERIODIC_INT(subm_sound_irq, 120) //???
+	MDRV_CPU_ADD("soundcpu", Z80,MASTER_CLOCK/6)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(subm_sound_map)
+	MDRV_CPU_IO_MAP(subm_sound_io)
+	MDRV_CPU_PERIODIC_INT(subm_sound_irq, 120) //???
 
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 16, 256-16-1)
-	MCFG_SCREEN_UPDATE(sub)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 256-1, 16, 256-16-1)
 
-	MCFG_GFXDECODE(sub)
-	MCFG_PALETTE_LENGTH(0x400)
-	MCFG_PALETTE_INIT(sub)
+	MDRV_GFXDECODE(sub)
+	MDRV_PALETTE_LENGTH(0x400)
+	MDRV_PALETTE_INIT(sub)
 
-	MCFG_VIDEO_START(sub)
+	MDRV_VIDEO_START(sub)
+	MDRV_VIDEO_UPDATE(sub)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, MASTER_CLOCK/6/2) /* ? Mhz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
+	MDRV_SOUND_ADD("ay1", AY8910, MASTER_CLOCK/6/2) /* ? Mhz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
 
-	MCFG_SOUND_ADD("ay2", AY8910, MASTER_CLOCK/6/2) /* ? Mhz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, MASTER_CLOCK/6/2) /* ? Mhz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
+MACHINE_DRIVER_END
 
 
 ROM_START( sub )

@@ -66,10 +66,10 @@ Notes:
       6116          - 2kx8 SRAM (DIP24)
       DL-0100-103   - NEC custom (SDIP64)
       ROMs          -
-                      LS-07       - 27C512 EPROM (DIP28)
-                      LS-08       - 27C256 EPROM (DIP28)
-                      LS-05/06    - 128kx8 mask ROM (DIP28)
-                      LS-01 to 04 - 27C1000 EPROM (DIP32)
+                      LS-07    - 27C512 EPROM (DIP28)
+                      LS-08    - 27C256 EPROM (DIP28)
+                      LS-05/06 - 128kx8 mask ROM (DIP28)
+                      LS-01 thru 04 - 27C1000 EPROM (DIP32)
       Measurements  -
                       VSync 57.4444Hz
                       HSync 15.1432kHz
@@ -133,7 +133,7 @@ static WRITE16_HANDLER( lastduel_sound_w )
 
 /******************************************************************************/
 
-static ADDRESS_MAP_START( lastduel_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( lastduel_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x05ffff) AM_ROM
 	AM_RANGE(0xfc0000, 0xfc0003) AM_WRITENOP /* Written rarely */
 	AM_RANGE(0xfc0800, 0xfc0fff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
@@ -142,31 +142,31 @@ static ADDRESS_MAP_START( lastduel_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xfc4004, 0xfc4005) AM_READ_PORT("DSW1")
 	AM_RANGE(0xfc4006, 0xfc4007) AM_READ_PORT("DSW2")
 	AM_RANGE(0xfc8000, 0xfc800f) AM_WRITE(lastduel_scroll_w)
-	AM_RANGE(0xfcc000, 0xfcdfff) AM_RAM_WRITE(lastduel_vram_w) AM_BASE_MEMBER(lastduel_state, m_vram)
-	AM_RANGE(0xfd0000, 0xfd3fff) AM_RAM_WRITE(lastduel_scroll1_w) AM_BASE_MEMBER(lastduel_state, m_scroll1)
-	AM_RANGE(0xfd4000, 0xfd7fff) AM_RAM_WRITE(lastduel_scroll2_w) AM_BASE_MEMBER(lastduel_state, m_scroll2)
-	AM_RANGE(0xfd8000, 0xfd87ff) AM_RAM_WRITE(lastduel_palette_word_w) AM_BASE_MEMBER(lastduel_state, m_paletteram)
+	AM_RANGE(0xfcc000, 0xfcdfff) AM_RAM_WRITE(lastduel_vram_w) AM_BASE_MEMBER(lastduel_state, vram)
+	AM_RANGE(0xfd0000, 0xfd3fff) AM_RAM_WRITE(lastduel_scroll1_w) AM_BASE_MEMBER(lastduel_state, scroll1)
+	AM_RANGE(0xfd4000, 0xfd7fff) AM_RAM_WRITE(lastduel_scroll2_w) AM_BASE_MEMBER(lastduel_state, scroll2)
+	AM_RANGE(0xfd8000, 0xfd87ff) AM_RAM_WRITE(lastduel_palette_word_w) AM_BASE_MEMBER(lastduel_state, paletteram)
 	AM_RANGE(0xfe0000, 0xffffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( madgear_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( madgear_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0xfc1800, 0xfc1fff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
 	AM_RANGE(0xfc4000, 0xfc4001) AM_READ_PORT("DSW1") AM_WRITE(lastduel_flip_w)
 	AM_RANGE(0xfc4002, 0xfc4003) AM_READ_PORT("DSW2") AM_WRITE(lastduel_sound_w)
 	AM_RANGE(0xfc4004, 0xfc4005) AM_READ_PORT("P1_P2")
 	AM_RANGE(0xfc4006, 0xfc4007) AM_READ_PORT("SYSTEM")
-	AM_RANGE(0xfc8000, 0xfc9fff) AM_RAM_WRITE(lastduel_vram_w) AM_BASE_MEMBER(lastduel_state, m_vram)
-	AM_RANGE(0xfcc000, 0xfcc7ff) AM_RAM_WRITE(lastduel_palette_word_w) AM_BASE_MEMBER(lastduel_state, m_paletteram)
+	AM_RANGE(0xfc8000, 0xfc9fff) AM_RAM_WRITE(lastduel_vram_w) AM_BASE_MEMBER(lastduel_state, vram)
+	AM_RANGE(0xfcc000, 0xfcc7ff) AM_RAM_WRITE(lastduel_palette_word_w) AM_BASE_MEMBER(lastduel_state, paletteram)
 	AM_RANGE(0xfd0000, 0xfd000f) AM_WRITE(lastduel_scroll_w)
-	AM_RANGE(0xfd4000, 0xfd7fff) AM_RAM_WRITE(madgear_scroll1_w) AM_BASE_MEMBER(lastduel_state, m_scroll1)
-	AM_RANGE(0xfd8000, 0xfdffff) AM_RAM_WRITE(madgear_scroll2_w) AM_BASE_MEMBER(lastduel_state, m_scroll2)
+	AM_RANGE(0xfd4000, 0xfd7fff) AM_RAM_WRITE(madgear_scroll1_w) AM_BASE_MEMBER(lastduel_state, scroll1)
+	AM_RANGE(0xfd8000, 0xfdffff) AM_RAM_WRITE(madgear_scroll2_w) AM_BASE_MEMBER(lastduel_state, scroll2)
 	AM_RANGE(0xff0000, 0xffffff) AM_RAM
 ADDRESS_MAP_END
 
 /******************************************************************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xdfff) AM_ROM
 	AM_RANGE(0xe000, 0xe7ff) AM_RAM
 	AM_RANGE(0xe800, 0xe801) AM_DEVREADWRITE("ym1", ym2203_r,ym2203_w)
@@ -176,16 +176,16 @@ ADDRESS_MAP_END
 
 static WRITE8_HANDLER( mg_bankswitch_w )
 {
-	memory_set_bank(space->machine(), "bank1", data & 0x01);
+	memory_set_bank(space->machine, "bank1", data & 0x01);
 }
 
-static ADDRESS_MAP_START( madgear_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( madgear_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xcfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xd000, 0xd7ff) AM_RAM
 	AM_RANGE(0xf000, 0xf001) AM_DEVREADWRITE("ym1", ym2203_r,ym2203_w)
 	AM_RANGE(0xf002, 0xf003) AM_DEVREADWRITE("ym2", ym2203_r,ym2203_w)
-	AM_RANGE(0xf004, 0xf004) AM_DEVWRITE_MODERN("oki", okim6295_device, write)
+	AM_RANGE(0xf004, 0xf004) AM_DEVWRITE("oki", okim6295_w)
 	AM_RANGE(0xf006, 0xf006) AM_READ(soundlatch_r)
 	AM_RANGE(0xf00a, 0xf00a) AM_WRITE(mg_bankswitch_w)
 ADDRESS_MAP_END
@@ -440,10 +440,10 @@ GFXDECODE_END
 /******************************************************************************/
 
 /* handler called by the 2203 emulator when the internal timers cause an IRQ */
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	lastduel_state *state = device->machine().driver_data<lastduel_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	lastduel_state *state = (lastduel_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2203_interface ym2203_config =
@@ -459,32 +459,32 @@ static const ym2203_interface ym2203_config =
 static INTERRUPT_GEN( lastduel_interrupt )
 {
 	if (cpu_getiloops(device) == 0)
-		device_set_input_line(device, 2, HOLD_LINE); /* VBL */
+		cpu_set_input_line(device, 2, HOLD_LINE); /* VBL */
 	else
-		device_set_input_line(device, 4, HOLD_LINE); /* Controls */
+		cpu_set_input_line(device, 4, HOLD_LINE); /* Controls */
 }
 
 static INTERRUPT_GEN( madgear_interrupt )
 {
 	if (cpu_getiloops(device) == 0)
-		device_set_input_line(device, 5, HOLD_LINE); /* VBL */
+		cpu_set_input_line(device, 5, HOLD_LINE); /* VBL */
 	else
-		device_set_input_line(device, 6, HOLD_LINE); /* Controls */
+		cpu_set_input_line(device, 6, HOLD_LINE); /* Controls */
 }
 
 static MACHINE_START( lastduel )
 {
-	lastduel_state *state = machine.driver_data<lastduel_state>();
+	lastduel_state *state = (lastduel_state *)machine->driver_data;
 
-	state->m_audiocpu = machine.device("audiocpu");
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_tilemap_priority));
-	state->save_item(NAME(state->m_scroll));
+	state_save_register_global(machine, state->tilemap_priority);
+	state_save_register_global_array(machine, state->scroll);
 }
 
 static MACHINE_START( madgear )
 {
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 
 	memory_configure_bank(machine, "bank1", 0, 2, &ROM[0x10000], 0x4000);
 
@@ -493,100 +493,106 @@ static MACHINE_START( madgear )
 
 static MACHINE_RESET( lastduel )
 {
-	lastduel_state *state = machine.driver_data<lastduel_state>();
+	lastduel_state *state = (lastduel_state *)machine->driver_data;
 	int i;
 
-	state->m_tilemap_priority = 0;
+	state->tilemap_priority = 0;
 
 	for (i = 0; i < 8; i++)
-		state->m_scroll[i] = 0;
+		state->scroll[i] = 0;
 }
 
-static MACHINE_CONFIG_START( lastduel, lastduel_state )
+static MACHINE_DRIVER_START( lastduel )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(lastduel_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 10000000) /* Could be 8 MHz */
-	MCFG_CPU_PROGRAM_MAP(lastduel_map)
-	MCFG_CPU_VBLANK_INT_HACK(lastduel_interrupt,3)	/* 1 for vbl, 2 for control reads?? */
+	MDRV_CPU_ADD("maincpu", M68000, 10000000) /* Could be 8 MHz */
+	MDRV_CPU_PROGRAM_MAP(lastduel_map)
+	MDRV_CPU_VBLANK_INT_HACK(lastduel_interrupt,3)	/* 1 for vbl, 2 for control reads?? */
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3579545) /* Accurate */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 3579545) /* Accurate */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(lastduel)
-	MCFG_MACHINE_RESET(lastduel)
+	MDRV_MACHINE_START(lastduel)
+	MDRV_MACHINE_RESET(lastduel)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK | VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK | VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
-	MCFG_SCREEN_UPDATE(lastduel)
-	MCFG_SCREEN_EOF(lastduel)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(lastduel)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(lastduel)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(lastduel)
+	MDRV_VIDEO_START(lastduel)
+	MDRV_VIDEO_EOF(lastduel)
+	MDRV_VIDEO_UPDATE(lastduel)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 3579545)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym1", YM2203, 3579545)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 3579545)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, 3579545)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( madgear, lastduel_state )
+static MACHINE_DRIVER_START( madgear )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(lastduel_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 10000000) /* Accurate */
-	MCFG_CPU_PROGRAM_MAP(madgear_map)
-	MCFG_CPU_VBLANK_INT_HACK(madgear_interrupt,3)	/* 1 for vbl, 2 for control reads?? */
+	MDRV_CPU_ADD("maincpu", M68000, 10000000) /* Accurate */
+	MDRV_CPU_PROGRAM_MAP(madgear_map)
+	MDRV_CPU_VBLANK_INT_HACK(madgear_interrupt,3)	/* 1 for vbl, 2 for control reads?? */
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(madgear_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(madgear_sound_map)
 
-	MCFG_MACHINE_START(madgear)
-	MCFG_MACHINE_RESET(lastduel)
+	MDRV_MACHINE_START(madgear)
+	MDRV_MACHINE_RESET(lastduel)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK | VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK | VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
-	MCFG_SCREEN_UPDATE(madgear)
-	MCFG_SCREEN_EOF(lastduel)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(8*8, (64-8)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(madgear)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(madgear)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(madgear)
+	MDRV_VIDEO_START(madgear)
+	MDRV_VIDEO_EOF(lastduel)
+	MDRV_VIDEO_UPDATE(madgear)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym1", YM2203, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("ym2", YM2203, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym2", YM2203, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_OKIM6295_ADD("oki", XTAL_10MHz/10, OKIM6295_PIN7_HIGH) /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.98)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", XTAL_10MHz/10, OKIM6295_PIN7_HIGH) /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.98)
+MACHINE_DRIVER_END
 
 /******************************************************************************/
 

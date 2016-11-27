@@ -956,7 +956,7 @@ static void LOAD(am29000_state *am29000)
 				return;
 			}
 
-			r = am29000->data->read_dword(addr);
+			r = memory_read_dword_32be(am29000->data, addr);
 		}
 	}
 
@@ -1020,7 +1020,7 @@ static void LOADM(am29000_state *am29000)
 				return;
 			}
 
-			r = am29000->data->read_dword(addr);
+			r = memory_read_dword_32be(am29000->data, addr);
 		}
 	}
 
@@ -1045,7 +1045,7 @@ static void LOADM(am29000_state *am29000)
 		int cnt;
 		for (cnt = 0; cnt <= GET_CHC_CR; ++cnt)
 		{
-			am29000->r[r] = am29000->data->read_dword(addr);
+			am29000->r[r] = memory_read_dword_32be(am29000->data, addr);
 
 //          SET_CHC_CR(cnt - 1);
 			addr += 4;
@@ -1059,7 +1059,7 @@ static void LOADM(am29000_state *am29000)
 static void STORE(am29000_state *am29000)
 {
 	UINT32 addr = INST_M_BIT ? I8: GET_RB_VAL;
-//  UINT32 r;
+	UINT32 r;
 
 	if (INST_UA_BIT)
 		fatalerror("Am29000: UA bit set on LOAD\n");
@@ -1067,7 +1067,7 @@ static void STORE(am29000_state *am29000)
 	if (INST_CE_BIT)
 	{
 		logerror("Am29000: Attempting a co-processor LOAD!\n");
-//      r = 0;
+		r = 0;
 	}
 	else
 	{
@@ -1086,7 +1086,7 @@ static void STORE(am29000_state *am29000)
 		}
 	}
 
-	am29000->data->write_dword(addr, am29000->r[RA]);
+	memory_write_dword_32be(am29000->data, addr, am29000->r[RA]);
 
 	if (!FREEZE_MODE)
 	{
@@ -1159,7 +1159,7 @@ static void STOREM(am29000_state *am29000)
 		int cnt;
 		for (cnt = 0; cnt <= GET_CHC_CR; ++cnt)
 		{
-			am29000->data->write_dword(addr, am29000->r[r]);
+			memory_write_dword_32be(am29000->data, addr, am29000->r[r]);
 
 //          SET_CHC_CR(cnt - 1);
 			addr += 4;

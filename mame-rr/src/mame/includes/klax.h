@@ -6,11 +6,14 @@
 
 #include "machine/atarigen.h"
 
-class klax_state : public atarigen_state
+class klax_state
 {
 public:
-	klax_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, klax_state(machine)); }
+
+	klax_state(running_machine &machine) { }
+
+	atarigen_state			atarigen;
 };
 
 
@@ -19,4 +22,4 @@ public:
 WRITE16_HANDLER( klax_latch_w );
 
 VIDEO_START( klax );
-SCREEN_UPDATE( klax );
+VIDEO_UPDATE( klax );

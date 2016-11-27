@@ -68,7 +68,7 @@ enum
     STRUCTURES
 ***************************************************************************/
 
-typedef void (*rsp_set_status_func)(device_t *device, UINT32 status);
+typedef void (*rsp_set_status_func)(running_device *device, UINT32 status);
 
 typedef struct _rsp_config rsp_config;
 struct _rsp_config
@@ -86,10 +86,10 @@ struct _rsp_config
     PUBLIC FUNCTIONS
 ***************************************************************************/
 
-void rspdrc_flush_drc_cache(device_t *device);
-void rspdrc_set_options(device_t *device, UINT32 options);
-void rspdrc_add_imem(device_t *device, void *base);
-void rspdrc_add_dmem(device_t *device, void *base);
+void rspdrc_flush_drc_cache(running_device *device);
+void rspdrc_set_options(running_device *device, UINT32 options);
+void rspdrc_add_imem(running_device *device, void *base);
+void rspdrc_add_dmem(running_device *device, void *base);
 
 /***************************************************************************
     HELPER MACROS
@@ -139,20 +139,51 @@ void rspdrc_add_dmem(device_t *device, void *base);
 
 #define RSPDRC_STRICT_VERIFY	0x0001			/* verify all instructions */
 
-typedef union
+typedef struct
 {
-	UINT64 d[2];
-	UINT32 l[4];
-	INT16 s[8];
-	UINT8 b[16];
+	union
+	{
+		UINT8 b[16];
+		UINT16 s[8];
+		UINT32 l[4];
+		UINT64 d[2];
+	};
 } VECTOR_REG;
 
-typedef union
+typedef struct
 {
-	INT64 q;
-	INT32 l[2];
-	INT16 w[4];
-} ACCUMULATOR_REG;
+	union
+	{
+		INT64 l;
+#ifdef LSB_FIRST
+		struct
+		{
+			INT16 z;
+			INT16 low;
+			INT16 mid;
+			INT16 high;
+		} h;
+		struct
+		{
+			INT32 zl;
+			INT32 mh;
+		} w;
+#else
+		struct
+		{
+			INT16 high;
+			INT16 mid;
+			INT16 low;
+			INT16 z;
+		} h;
+		struct
+		{
+			INT32 mh;
+			INT32 zl;
+		} w;
+#endif
+	};
+} ACCUMULATOR;
 
 typedef struct _rspimp_state rspimp_state;
 typedef struct _rsp_state rsp_state;
@@ -168,20 +199,18 @@ struct _rsp_state
 	UINT32 sr;
 	UINT32 step_count;
 
-	ACCUMULATOR_REG accum[8];
+	ACCUMULATOR accum[8];
 	INT32 square_root_res;
 	INT32 square_root_high;
 	INT32 reciprocal_res;
 	INT32 reciprocal_high;
-	INT32 dp_allowed;
 
 	UINT32 ppc;
 	UINT32 nextpc;
 
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	int icount;
 
 	rspimp_state* impstate;

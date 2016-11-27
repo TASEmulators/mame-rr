@@ -27,11 +27,9 @@ Known games currently not dumped:
 #include "includes/segas16.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/segaic16.h"
-#include "machine/nvram.h"
 #include "sound/2151intf.h"
 #include "sound/segapcm.h"
 #include "video/segaic16.h"
-#include "includes/segaipt.h"
 
 #include "pdrift.lh"
 
@@ -50,6 +48,8 @@ Known games currently not dumped:
  *
  *************************************/
 
+static UINT16 *backupram;
+
 /* callbacks to handle output */
 typedef void (*yboard_output_callback)(UINT16 data);
 static yboard_output_callback ybd_output_cb1, ybd_output_cb2;
@@ -62,13 +62,13 @@ static UINT16 pdrift_bank;
  *
  *************************************/
 
-static void yboard_generic_init( running_machine &machine )
+static void yboard_generic_init( running_machine *machine )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
 	/* reset globals */
-	state->m_vblank_irq_state = 0;
-	state->m_timer_irq_state = 0;
+	state->vblank_irq_state = 0;
+	state->timer_irq_state = 0;
 
 	ybd_output_cb1 = NULL;
 	ybd_output_cb2 = NULL;
@@ -82,22 +82,22 @@ static void yboard_generic_init( running_machine &machine )
  *
  *************************************/
 
-static void update_main_irqs(running_machine &machine)
+static void update_main_irqs(running_machine *machine)
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
-	device_set_input_line(state->m_maincpu, 2, state->m_timer_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_subx, 2, state->m_timer_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_suby, 2, state->m_timer_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_maincpu, 4, state->m_vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_subx, 4, state->m_vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_suby, 4, state->m_vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_maincpu, 6, state->m_timer_irq_state && state->m_vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_subx, 6, state->m_timer_irq_state && state->m_vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
-	device_set_input_line(state->m_suby, 6, state->m_timer_irq_state && state->m_vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->maincpu, 2, state->timer_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->subx, 2, state->timer_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->suby, 2, state->timer_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->maincpu, 4, state->vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->subx, 4, state->vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->suby, 4, state->vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->maincpu, 6, state->timer_irq_state && state->vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->subx, 6, state->timer_irq_state && state->vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
+	cpu_set_input_line(state->suby, 6, state->timer_irq_state && state->vblank_irq_state ? ASSERT_LINE : CLEAR_LINE);
 
-	if (state->m_timer_irq_state || state->m_vblank_irq_state)
-		machine.scheduler().boost_interleave(attotime::zero, attotime::from_usec(50));
+	if (state->timer_irq_state || state->vblank_irq_state)
+		cpuexec_boost_interleave(machine, attotime_zero, ATTOTIME_IN_USEC(50));
 }
 
 
@@ -137,55 +137,55 @@ static void update_main_irqs(running_machine &machine)
 
 static TIMER_DEVICE_CALLBACK( scanline_callback )
 {
-	segas1x_state *state = timer.machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)timer.machine->driver_data;
 	int scanline = param;
 
 	/* on scanline 'irq2_scanline' generate an IRQ2 */
-	if (scanline == state->m_irq2_scanline)
+	if (scanline == state->irq2_scanline)
 	{
-		state->m_timer_irq_state = 1;
-		scanline = state->m_irq2_scanline + 1;
+		state->timer_irq_state = 1;
+		scanline = state->irq2_scanline + 1;
 	}
 
 	/* on scanline 'irq2_scanline' + 1, clear the IRQ2 */
-	else if (scanline == state->m_irq2_scanline + 1)
+	else if (scanline == state->irq2_scanline + 1)
 	{
-		state->m_timer_irq_state = 0;
+		state->timer_irq_state = 0;
 		scanline = 223;
 	}
 
 	/* on scanline 223 generate VBLANK for all CPUs */
 	else if (scanline == 223)
 	{
-		state->m_vblank_irq_state = 1;
+		state->vblank_irq_state = 1;
 		scanline = 224;
 	}
 
 	/* on scanline 224 we turn it off */
 	else if (scanline == 224)
 	{
-		state->m_vblank_irq_state = 0;
-		scanline = state->m_irq2_scanline;
+		state->vblank_irq_state = 0;
+		scanline = state->irq2_scanline;
 	}
 
 	/* update IRQs on the main CPU */
-	update_main_irqs(timer.machine());
+	update_main_irqs(timer.machine);
 
 	/* come back at the next appropriate scanline */
-	timer.adjust(timer.machine().primary_screen->time_until_pos(scanline), scanline);
+	timer.adjust(timer.machine->primary_screen->time_until_pos(scanline), scanline);
 
 #if TWEAK_IRQ2_SCANLINE
 	if (scanline == 223)
 	{
-		int old = state->m_irq2_scanline;
+		int old = state->irq2_scanline;
 
 		/* Q = -10 scanlines, W = -1 scanline, E = +1 scanline, R = +10 scanlines */
-		if (timer->machine().input().code_pressed(KEYCODE_Q)) { while (timer->machine().input().code_pressed(KEYCODE_Q)) ; state->m_irq2_scanline -= 10; }
-		if (timer->machine().input().code_pressed(KEYCODE_W)) { while (timer->machine().input().code_pressed(KEYCODE_W)) ; state->m_irq2_scanline -= 1; }
-		if (timer->machine().input().code_pressed(KEYCODE_E)) { while (timer->machine().input().code_pressed(KEYCODE_E)) ; state->m_irq2_scanline += 1; }
-		if (timer->machine().input().code_pressed(KEYCODE_R)) { while (timer->machine().input().code_pressed(KEYCODE_R)) ; state->m_irq2_scanline += 10; }
-		if (old != state->m_irq2_scanline)
-			popmessage("scanline = %d", state->m_irq2_scanline);
+		if (input_code_pressed(timer->machine, KEYCODE_Q)) { while (input_code_pressed(timer->machine, KEYCODE_Q)) ; state->irq2_scanline -= 10; }
+		if (input_code_pressed(timer->machine, KEYCODE_W)) { while (input_code_pressed(timer->machine, KEYCODE_W)) ; state->irq2_scanline -= 1; }
+		if (input_code_pressed(timer->machine, KEYCODE_E)) { while (input_code_pressed(timer->machine, KEYCODE_E)) ; state->irq2_scanline += 1; }
+		if (input_code_pressed(timer->machine, KEYCODE_R)) { while (input_code_pressed(timer->machine, KEYCODE_R)) ; state->irq2_scanline += 10; }
+		if (old != state->irq2_scanline)
+			popmessage("scanline = %d", state->irq2_scanline);
 	}
 #endif
 }
@@ -193,28 +193,28 @@ static TIMER_DEVICE_CALLBACK( scanline_callback )
 
 static MACHINE_START( yboard )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_soundcpu = machine.device("soundcpu");
-	state->m_subx = machine.device("subx");
-	state->m_suby = machine.device("suby");
+	state->maincpu = machine->device("maincpu");
+	state->soundcpu = machine->device("soundcpu");
+	state->subx = machine->device("subx");
+	state->suby = machine->device("suby");
 
-	state->save_item(NAME(state->m_vblank_irq_state));
-	state->save_item(NAME(state->m_timer_irq_state));
-	state->save_item(NAME(state->m_irq2_scanline));
-	state->save_item(NAME(state->m_misc_io_data));
-	state->save_item(NAME(state->m_analog_data));
+	state_save_register_global(machine, state->vblank_irq_state);
+	state_save_register_global(machine, state->timer_irq_state);
+	state_save_register_global(machine, state->irq2_scanline);
+	state_save_register_global_array(machine, state->misc_io_data);
+	state_save_register_global_array(machine, state->analog_data);
 }
 
 
 static MACHINE_RESET( yboard )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
-	state->m_irq2_scanline = 170;
+	state->irq2_scanline = 170;
 
-	state->m_interrupt_timer->adjust(machine.primary_screen->time_until_pos(223), 223);
+	state->interrupt_timer->adjust(machine->primary_screen->time_until_pos(223), 223);
 }
 
 
@@ -225,35 +225,35 @@ static MACHINE_RESET( yboard )
  *
  *************************************/
 
-static void sound_cpu_irq(device_t *device, int state)
+static void sound_cpu_irq(running_device *device, int state)
 {
-	segas1x_state *driver = device->machine().driver_data<segas1x_state>();
+	segas1x_state *driver = (segas1x_state *)device->machine->driver_data;
 
-	device_set_input_line(driver->m_soundcpu, 0, state);
+	cpu_set_input_line(driver->soundcpu, 0, state);
 }
 
 
 static TIMER_CALLBACK( delayed_sound_data_w )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
-	address_space *space = state->m_maincpu->memory().space(AS_PROGRAM);
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
+	const address_space *space = cpu_get_address_space(state->maincpu, ADDRESS_SPACE_PROGRAM);
 
 	soundlatch_w(space, 0, param);
-	device_set_input_line(state->m_soundcpu, INPUT_LINE_NMI, ASSERT_LINE);
+	cpu_set_input_line(state->soundcpu, INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 
 static WRITE16_HANDLER( sound_data_w )
 {
 	if (ACCESSING_BITS_0_7)
-		space->machine().scheduler().synchronize(FUNC(delayed_sound_data_w), data & 0xff);
+		timer_call_after_resynch(space->machine, NULL, data & 0xff, delayed_sound_data_w);
 }
 
 
 static READ8_HANDLER( sound_data_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
-	device_set_input_line(state->m_soundcpu, INPUT_LINE_NMI, CLEAR_LINE);
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
+	cpu_set_input_line(state->soundcpu, INPUT_LINE_NMI, CLEAR_LINE);
 	return soundlatch_r(space, offset);
 }
 
@@ -267,7 +267,7 @@ static READ8_HANDLER( sound_data_r )
 
 static READ16_HANDLER( io_chip_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	static const char *const portnames[] = { "P1", "GENERAL", "PORTC", "PORTD", "PORTE", "DSW", "COINAGE", "PORTH" };
 	offset &= 0x1f/2;
 
@@ -283,11 +283,11 @@ static READ16_HANDLER( io_chip_r )
 		case 0x0c/2:
 		case 0x0e/2:
 			/* if the port is configured as an output, return the last thing written */
-			if (state->m_misc_io_data[0x1e/2] & (1 << offset))
-				return state->m_misc_io_data[offset];
+			if (state->misc_io_data[0x1e/2] & (1 << offset))
+				return state->misc_io_data[offset];
 
 			/* otherwise, return an input port */
-			return input_port_read(space->machine(), portnames[offset]);
+			return input_port_read(space->machine, portnames[offset]);
 
 		/* 'SEGA' protection */
 		case 0x10/2:
@@ -302,12 +302,12 @@ static READ16_HANDLER( io_chip_r )
 		/* CNT register & mirror */
 		case 0x18/2:
 		case 0x1c/2:
-			return state->m_misc_io_data[0x1c/2];
+			return state->misc_io_data[0x1c/2];
 
 		/* port direction register & mirror */
 		case 0x1a/2:
 		case 0x1e/2:
-			return state->m_misc_io_data[0x1e/2];
+			return state->misc_io_data[0x1e/2];
 	}
 	return 0xffff;
 }
@@ -315,13 +315,13 @@ static READ16_HANDLER( io_chip_r )
 
 static WRITE16_HANDLER( io_chip_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	UINT8 old;
 
 	/* generic implementation */
 	offset &= 0x1f/2;
-	old = state->m_misc_io_data[offset];
-	state->m_misc_io_data[offset] = data;
+	old = state->misc_io_data[offset];
+	state->misc_io_data[offset] = data;
 
 	switch (offset)
 	{
@@ -353,12 +353,12 @@ static WRITE16_HANDLER( io_chip_w )
                 D2 = YRES
                 D1-D0 = ADC0-1
         */
-			segaic16_set_display_enable(space->machine(), data & 0x80);
+			segaic16_set_display_enable(space->machine, data & 0x80);
 			if (((old ^ data) & 0x20) && !(data & 0x20))
 				watchdog_reset_w(space, 0, 0);
-			device_set_input_line(state->m_soundcpu, INPUT_LINE_RESET, (data & 0x10) ? CLEAR_LINE : ASSERT_LINE);
-			device_set_input_line(state->m_subx, INPUT_LINE_RESET, (data & 0x08) ? ASSERT_LINE : CLEAR_LINE);
-			device_set_input_line(state->m_suby, INPUT_LINE_RESET, (data & 0x04) ? ASSERT_LINE : CLEAR_LINE);
+			cpu_set_input_line(state->soundcpu, INPUT_LINE_RESET, (data & 0x10) ? CLEAR_LINE : ASSERT_LINE);
+			cpu_set_input_line(state->subx, INPUT_LINE_RESET, (data & 0x08) ? ASSERT_LINE : CLEAR_LINE);
+			cpu_set_input_line(state->suby, INPUT_LINE_RESET, (data & 0x04) ? ASSERT_LINE : CLEAR_LINE);
 			break;
 
 		/* mute */
@@ -369,7 +369,7 @@ static WRITE16_HANDLER( io_chip_w )
 
 			/* D7 = /MUTE */
 			/* D6-D0 = FLT31-25 */
-			space->machine().sound().system_enable(data & 0x80);
+			sound_global_enable(space->machine, data & 0x80);
 			break;
 
 		/* CNT register */
@@ -387,12 +387,12 @@ static WRITE16_HANDLER( io_chip_w )
 
 static READ16_HANDLER( analog_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	int result = 0xff;
 	if (ACCESSING_BITS_0_7)
 	{
-		result = state->m_analog_data[offset & 3] & 0x80;
-		state->m_analog_data[offset & 3] <<= 1;
+		result = state->analog_data[offset & 3] & 0x80;
+		state->analog_data[offset & 3] <<= 1;
 	}
 	return result;
 }
@@ -400,12 +400,28 @@ static READ16_HANDLER( analog_r )
 
 static WRITE16_HANDLER( analog_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	static const char *const ports[] = { "ADC0", "ADC1", "ADC2", "ADC3", "ADC4", "ADC5", "ADC6" };
-	int selected = ((offset & 3) == 3) ? (3 + (state->m_misc_io_data[0x08/2] & 3)) : (offset & 3);
-	int value = input_port_read_safe(space->machine(), ports[selected], 0xff);
+	int selected = ((offset & 3) == 3) ? (3 + (state->misc_io_data[0x08/2] & 3)) : (offset & 3);
+	int value = input_port_read_safe(space->machine, ports[selected], 0xff);
 
-	state->m_analog_data[offset & 3] = value;
+	state->analog_data[offset & 3] = value;
+}
+
+
+
+/*************************************
+ *
+ *  Capacitor-backed RAM
+ *
+ *************************************/
+
+static NVRAM_HANDLER( yboard )
+{
+	if (read_or_write)
+		mame_fwrite(file, backupram, 0x4000);
+	else if (file)
+		mame_fread(file, backupram, 0x4000);
 }
 
 
@@ -416,7 +432,7 @@ static WRITE16_HANDLER( analog_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
 	ADDRESS_MAP_GLOBAL_MASK(0x1fffff)
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
@@ -438,7 +454,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( subx_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( subx_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
 	ADDRESS_MAP_GLOBAL_MASK(0x1fffff)
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
@@ -447,11 +463,11 @@ static ADDRESS_MAP_START( subx_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x0c0000, 0x0cffff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0x180000, 0x18ffff) AM_RAM AM_BASE(&segaic16_spriteram_1)
 	AM_RANGE(0x1f8000, 0x1fbfff) AM_RAM
-	AM_RANGE(0x1fc000, 0x1fffff) AM_RAM AM_SHARE("backupram")
+	AM_RANGE(0x1fc000, 0x1fffff) AM_RAM AM_BASE(&backupram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( suby_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( suby_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
 	ADDRESS_MAP_GLOBAL_MASK(0x1fffff)
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
@@ -473,14 +489,14 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE(0x0000, 0xefff) AM_ROM
 	AM_RANGE(0xf000, 0xf0ff) AM_MIRROR(0x0700) AM_DEVREADWRITE("pcm", sega_pcm_r, sega_pcm_w)
 	AM_RANGE(0xf800, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_portmap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_MIRROR(0x3e) AM_DEVREADWRITE("ymsnd", ym2151_r, ym2151_w)
@@ -519,17 +535,66 @@ static INPUT_PORTS_START( yboard_generic )
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("DSW")
-	PORT_DIPUNUSED_DIPLOC( 0x01, IP_ACTIVE_LOW, "SWB:1" )
-	PORT_DIPUNUSED_DIPLOC( 0x02, IP_ACTIVE_LOW, "SWB:2" )
-	PORT_DIPUNUSED_DIPLOC( 0x04, IP_ACTIVE_LOW, "SWB:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, IP_ACTIVE_LOW, "SWB:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, IP_ACTIVE_LOW, "SWB:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, IP_ACTIVE_LOW, "SWB:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, IP_ACTIVE_LOW, "SWB:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, IP_ACTIVE_LOW, "SWB:8" )
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:1")
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:2")
+	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:3")
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:4")
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:5")
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:6")
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:7")
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:8")
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("COINAGE")
-	SEGA_COINAGE_LOC(SWA)
+	PORT_DIPNAME( 0x0f, 0x0f, DEF_STR( Coin_A ) ) PORT_DIPLOCATION("SWA:1,2,3,4")
+	PORT_DIPSETTING(    0x07, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x09, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x05, "2 Coins/1 Credit 5/3 6/4" )
+	PORT_DIPSETTING(    0x04, "2 Coins/1 Credit 4/3" )
+	PORT_DIPSETTING(    0x0f, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x01, "1 Coin/1 Credit 2/3" )
+	PORT_DIPSETTING(    0x02, "1 Coin/1 Credit 4/5" )
+	PORT_DIPSETTING(    0x03, "1 Coin/1 Credit 5/6" )
+	PORT_DIPSETTING(    0x06, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0x0e, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x0d, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0x0b, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0x0a, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x00, "Free Play (if Coin B too) or 1/1" )
+	PORT_DIPNAME( 0xf0, 0xf0, DEF_STR( Coin_B ) ) PORT_DIPLOCATION("SWA:5,6,7,8")
+	PORT_DIPSETTING(    0x70, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x90, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x50, "2 Coins/1 Credit 5/3 6/4" )
+	PORT_DIPSETTING(    0x40, "2 Coins/1 Credit 4/3" )
+	PORT_DIPSETTING(    0xf0, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x10, "1 Coin/1 Credit 2/3" )
+	PORT_DIPSETTING(    0x20, "1 Coin/1 Credit 4/5" )
+	PORT_DIPSETTING(    0x30, "1 Coin/1 Credit 5/6" )
+	PORT_DIPSETTING(    0x60, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0xe0, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0xd0, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0xc0, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0xb0, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0xa0, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x00, "Free Play (if Coin A too) or 1/1" )
 
 	PORT_START("PORTH")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -766,7 +831,9 @@ static INPUT_PORTS_START( pdrifte )
 	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:3")
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x08, IP_ACTIVE_LOW, "SWB:4" )
+    PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:4")
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 	PORT_DIPNAME( 0x10, 0x00, "Initial Credit" ) PORT_DIPLOCATION("SWB:5")
 	PORT_DIPSETTING(    0x00, "1" )
 	PORT_DIPSETTING(    0x10, "2" )
@@ -793,7 +860,9 @@ static INPUT_PORTS_START( pdriftj )
 	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:3")
 	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x08, IP_ACTIVE_LOW, "SWB:4" )
+    PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:4")
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 	PORT_DIPNAME( 0x10, 0x00, "Initial Credit" ) PORT_DIPLOCATION("SWB:5")
 	PORT_DIPSETTING(    0x00, "1" )
 	PORT_DIPSETTING(    0x10, "2" )
@@ -934,64 +1003,67 @@ static const sega_pcm_interface segapcm_interface =
  *
  *************************************/
 
-static MACHINE_CONFIG_START( yboard, segas1x_state )
+static MACHINE_DRIVER_START( yboard )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(segas1x_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, MASTER_CLOCK/4)
-	MCFG_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_ADD("maincpu", M68000, MASTER_CLOCK/4)
+	MDRV_CPU_PROGRAM_MAP(main_map)
 
-	MCFG_CPU_ADD("subx", M68000, MASTER_CLOCK/4)
-	MCFG_CPU_PROGRAM_MAP(subx_map)
+	MDRV_CPU_ADD("subx", M68000, MASTER_CLOCK/4)
+	MDRV_CPU_PROGRAM_MAP(subx_map)
 
-	MCFG_CPU_ADD("suby", M68000, MASTER_CLOCK/4)
-	MCFG_CPU_PROGRAM_MAP(suby_map)
+	MDRV_CPU_ADD("suby", M68000, MASTER_CLOCK/4)
+	MDRV_CPU_PROGRAM_MAP(suby_map)
 
-	MCFG_CPU_ADD("soundcpu", Z80, SOUND_CLOCK/8)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_portmap)
+	MDRV_CPU_ADD("soundcpu", Z80, SOUND_CLOCK/8)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_portmap)
 
-	MCFG_MACHINE_START(yboard)
-	MCFG_MACHINE_RESET(yboard)
-	MCFG_NVRAM_ADD_0FILL("backupram")
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	MDRV_MACHINE_START(yboard)
+	MDRV_MACHINE_RESET(yboard)
+	MDRV_NVRAM_HANDLER(yboard)
+	MDRV_QUANTUM_TIME(HZ(6000))
 
-	MCFG_TIMER_ADD("int_timer", scanline_callback)
+	MDRV_TIMER_ADD("int_timer", scanline_callback)
 
-	MCFG_315_5248_ADD("5248_main")
-	MCFG_315_5248_ADD("5248_subx")
-	MCFG_315_5248_ADD("5248_suby")
-	MCFG_315_5249_ADD("5249_main")
-	MCFG_315_5249_ADD("5249_subx")
-	MCFG_315_5249_ADD("5249_suby")
+	MDRV_315_5248_ADD("5248_main")
+	MDRV_315_5248_ADD("5248_subx")
+	MDRV_315_5248_ADD("5248_suby")
+	MDRV_315_5249_ADD("5249_main")
+	MDRV_315_5249_ADD("5249_subx")
+	MDRV_315_5249_ADD("5249_suby")
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(342,262)	/* to be verified */
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(yboard)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(342,262)	/* to be verified */
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 0*8, 28*8-1)
 
-	MCFG_SEGA16SP_ADD_YBOARD_16B("segaspr1")
-	MCFG_SEGA16SP_ADD_YBOARD("segaspr2")
+	MDRV_SEGA16SP_ADD_YBOARD_16B("segaspr1")
+	MDRV_SEGA16SP_ADD_YBOARD("segaspr2")
 
-	MCFG_PALETTE_LENGTH(8192*3)
+	MDRV_PALETTE_LENGTH(8192*3)
 
-	MCFG_VIDEO_START(yboard)
+	MDRV_VIDEO_START(yboard)
+	MDRV_VIDEO_UPDATE(yboard)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, SOUND_CLOCK/8)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.43)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.43)
+	MDRV_SOUND_ADD("ymsnd", YM2151, SOUND_CLOCK/8)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.43)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.43)
 
-	MCFG_SOUND_ADD("pcm", SEGAPCM, SOUND_CLOCK/8)
-	MCFG_SOUND_CONFIG(segapcm_interface)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("pcm", SEGAPCM, SOUND_CLOCK/8)
+	MDRV_SOUND_CONFIG(segapcm_interface)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 
@@ -1028,8 +1100,8 @@ ROM_START( gforce2 )
 	ROM_LOAD16_BYTE( "epr-11874.80",   0x000001, 0x20000, CRC(5301fd79) SHA1(60a751c168d519cd45a9575e138514d580bce9b6) )
 
 	ROM_REGION( 0x040000, "suby", 0 ) // Y
-	ROM_LOAD16_BYTE( "epr-11816b.54",   0x000000, 0x20000, CRC(317dd0c2) SHA1(7f1c7dcfb111385e2a94912975c2f9bfe78445ac) )
-	ROM_LOAD16_BYTE( "epr-11815b.53",   0x000001, 0x20000, CRC(f1fb22f1) SHA1(da3ce521b0a19b391913c35af34084d29edceca7) )
+	ROM_LOAD16_BYTE( "epr-11816.54",   0x000000, 0x20000, CRC(317dd0c2) SHA1(7f1c7dcfb111385e2a94912975c2f9bfe78445ac) )
+	ROM_LOAD16_BYTE( "epr-11815.53",   0x000001, 0x20000, CRC(f1fb22f1) SHA1(da3ce521b0a19b391913c35af34084d29edceca7) )
 
 	ROM_REGION16_BE( 0x080000, "gfx2", 0 )
 	ROM_LOAD16_BYTE( "mpr-11467.16",   0x000000, 0x20000, CRC(6e60e736) SHA1(73086744cb2fe1ce162f851cb879755c21819b33) )
@@ -1452,11 +1524,11 @@ ROM_START( pdrift )
 
 	ROM_REGION( 0x200000, "pcm", ROMREGION_ERASEFF )	/* SegaPCM samples */
 	ROM_LOAD( "mpr-11754.107",  0x000000, 0x80000, CRC(ebeb8484) SHA1(269f33cb1a9be126bada858e25291385d48686a2) )
-	ROM_LOAD( "epr-11756.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
+	ROM_LOAD( "epr-11755.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
 	ROM_RELOAD(                 0x0a0000, 0x20000 )
 	ROM_RELOAD(                 0x0c0000, 0x20000 )
 	ROM_RELOAD(                 0x0e0000, 0x20000 )
-	ROM_LOAD( "epr-11755.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
+	ROM_LOAD( "epr-11756.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
 	ROM_RELOAD(                 0x120000, 0x20000 )
 	ROM_RELOAD(                 0x140000, 0x20000 )
 	ROM_RELOAD(                 0x160000, 0x20000 )
@@ -1532,11 +1604,11 @@ ROM_START( pdrifta )
 
 	ROM_REGION( 0x200000, "pcm", ROMREGION_ERASEFF )	/* SegaPCM samples */
 	ROM_LOAD( "mpr-11754.107",  0x000000, 0x80000, CRC(ebeb8484) SHA1(269f33cb1a9be126bada858e25291385d48686a2) )
-	ROM_LOAD( "epr-11756.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
+	ROM_LOAD( "epr-11755.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
 	ROM_RELOAD(                 0x0a0000, 0x20000 )
 	ROM_RELOAD(                 0x0c0000, 0x20000 )
 	ROM_RELOAD(                 0x0e0000, 0x20000 )
-	ROM_LOAD( "epr-11755.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
+	ROM_LOAD( "epr-11756.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
 	ROM_RELOAD(                 0x120000, 0x20000 )
 	ROM_RELOAD(                 0x140000, 0x20000 )
 	ROM_RELOAD(                 0x160000, 0x20000 )
@@ -1612,11 +1684,11 @@ ROM_START( pdrifte ) /* Earlier set based on eprom numbers & Sega Eprom/Mask Rom
 
 	ROM_REGION( 0x200000, "pcm", ROMREGION_ERASEFF )	/* SegaPCM samples */
 	ROM_LOAD( "mpr-11754.107",  0x000000, 0x80000, CRC(ebeb8484) SHA1(269f33cb1a9be126bada858e25291385d48686a2) )
-	ROM_LOAD( "epr-11756.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
+	ROM_LOAD( "epr-11755.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
 	ROM_RELOAD(                 0x0a0000, 0x20000 )
 	ROM_RELOAD(                 0x0c0000, 0x20000 )
 	ROM_RELOAD(                 0x0e0000, 0x20000 )
-	ROM_LOAD( "epr-11755.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
+	ROM_LOAD( "epr-11756.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
 	ROM_RELOAD(                 0x120000, 0x20000 )
 	ROM_RELOAD(                 0x140000, 0x20000 )
 	ROM_RELOAD(                 0x160000, 0x20000 )
@@ -1698,11 +1770,11 @@ ROM_START( pdriftj )
 
 	ROM_REGION( 0x200000, "pcm", ROMREGION_ERASEFF )	/* SegaPCM samples */
 	ROM_LOAD( "mpr-11754.107",  0x000000, 0x80000, CRC(ebeb8484) SHA1(269f33cb1a9be126bada858e25291385d48686a2) )
-	ROM_LOAD( "epr-11756.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
+	ROM_LOAD( "epr-11755.105",  0x080000, 0x20000, CRC(12e43f8a) SHA1(0f9a11ba6b7c1a352daa1146a01ce147945e91e4) )
 	ROM_RELOAD(                 0x0a0000, 0x20000 )
 	ROM_RELOAD(                 0x0c0000, 0x20000 )
 	ROM_RELOAD(                 0x0e0000, 0x20000 )
-	ROM_LOAD( "epr-11755.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
+	ROM_LOAD( "epr-11756.106",  0x100000, 0x20000, CRC(c2db1244) SHA1(c98fe17c9f04a639a862cc2a86fab17d1f5d025c) )
 	ROM_RELOAD(                 0x120000, 0x20000 )
 	ROM_RELOAD(                 0x140000, 0x20000 )
 	ROM_RELOAD(                 0x160000, 0x20000 )
@@ -2204,16 +2276,15 @@ static DRIVER_INIT( rchase )
  *
  *************************************/
 
-//    YEAR, NAME,      PARENT,  MACHINE,INPUT,    INIT,    MONITOR,COMPANY,FULLNAME,FLAGS,                                     LAYOUT
-GAME( 1988, gforce2,   0,       yboard, gforce2,  gforce2, ROT0,   "Sega", "Galaxy Force 2", GAME_SUPPORTS_SAVE )
-GAME( 1988, gforce2j,  gforce2, yboard, gforce2,  gforce2, ROT0,   "Sega", "Galaxy Force 2 (Japan)", GAME_SUPPORTS_SAVE )
-GAME( 1988, gforce2ja, gforce2, yboard, gforce2,  gforce2, ROT0,   "Sega", "Galaxy Force 2 (Japan, Rev A)", GAME_SUPPORTS_SAVE )
-GAME( 1990, gloc,      0,       yboard, gloc,     gloc,    ROT0,   "Sega", "G-LOC Air Battle (US)", GAME_SUPPORTS_SAVE )
-GAME( 1990, glocr360,  gloc,    yboard, glocr360, r360,    ROT0,   "Sega", "G-LOC R360", GAME_SUPPORTS_SAVE )
-GAMEL(1988, pdrift,    0,       yboard, pdrift,   pdrift,  ROT0,   "Sega", "Power Drift (World, Rev A)", GAME_SUPPORTS_SAVE,   layout_pdrift )
-GAMEL(1988, pdrifta,   pdrift,  yboard, pdrift,   pdrift,  ROT0,   "Sega", "Power Drift (World)", GAME_SUPPORTS_SAVE,          layout_pdrift )
-GAMEL(1988, pdrifte,   pdrift,  yboard, pdrifte,  pdrift,  ROT0,   "Sega", "Power Drift (World, Earlier)", GAME_SUPPORTS_SAVE, layout_pdrift )
-GAMEL(1988, pdriftj,   pdrift,  yboard, pdriftj,  pdrift,  ROT0,   "Sega", "Power Drift (Japan)", GAME_SUPPORTS_SAVE,          layout_pdrift )
-GAME( 1991, rchase,    0,       yboard, rchase,   rchase,  ROT0,   "Sega", "Rail Chase (World)", GAME_SUPPORTS_SAVE )
-GAME( 1991, rchasej,   rchase,  yboard, rchase,   rchase,  ROT0,   "Sega", "Rail Chase (Japan)", GAME_SUPPORTS_SAVE )
-GAME( 1991, strkfgtr,  0,       yboard, strkfgtr, gloc,    ROT0,   "Sega", "Strike Fighter (Japan)", GAME_SUPPORTS_SAVE )
+GAME( 1988, gforce2,   0,       yboard, gforce2,  gforce2, ROT0, "Sega", "Galaxy Force 2" , GAME_SUPPORTS_SAVE )
+GAME( 1988, gforce2j,  gforce2, yboard, gforce2,  gforce2, ROT0, "Sega", "Galaxy Force 2 (Japan)" , GAME_SUPPORTS_SAVE )
+GAME( 1988, gforce2ja, gforce2, yboard, gforce2,  gforce2, ROT0, "Sega", "Galaxy Force 2 (Japan, Rev A)" , GAME_SUPPORTS_SAVE )
+GAME( 1990, gloc,      0,       yboard, gloc,     gloc, ROT0, "Sega", "G-LOC Air Battle (US)" , GAME_SUPPORTS_SAVE )
+GAME( 1990, glocr360,  gloc,    yboard, glocr360, r360, ROT0, "Sega", "G-LOC R360", GAME_SUPPORTS_SAVE )
+GAMEL(1988, pdrift,    0,       yboard, pdrift,   pdrift, ROT0, "Sega", "Power Drift (World, Rev A)", GAME_SUPPORTS_SAVE, layout_pdrift )
+GAMEL(1988, pdrifta,   pdrift,  yboard, pdrift,   pdrift, ROT0, "Sega", "Power Drift (World)", GAME_SUPPORTS_SAVE, layout_pdrift )
+GAMEL(1988, pdrifte,   pdrift,  yboard, pdrifte,  pdrift, ROT0, "Sega", "Power Drift (World, Earlier)", GAME_SUPPORTS_SAVE, layout_pdrift )
+GAMEL(1988, pdriftj,   pdrift,  yboard, pdriftj,  pdrift, ROT0, "Sega", "Power Drift (Japan)", GAME_SUPPORTS_SAVE, layout_pdrift )
+GAME( 1991, rchase,    0,       yboard, rchase,   rchase, ROT0, "Sega", "Rail Chase (World)", GAME_SUPPORTS_SAVE )
+GAME( 1991, rchasej,   rchase,  yboard, rchase,   rchase, ROT0, "Sega", "Rail Chase (Japan)", GAME_SUPPORTS_SAVE )
+GAME( 1991, strkfgtr,  0,       yboard, strkfgtr, gloc, ROT0, "Sega", "Strike Fighter (Japan)", GAME_SUPPORTS_SAVE )

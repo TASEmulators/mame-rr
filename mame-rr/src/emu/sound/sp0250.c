@@ -17,6 +17,7 @@
 */
 
 #include "emu.h"
+#include "streams.h"
 #include "sp0250.h"
 
 /*
@@ -46,8 +47,8 @@ struct _sp0250_state
 	UINT8 fifo[15];
 	int fifo_pos;
 
-	device_t *device;
-	void (*drq)(device_t *device, int state);
+	running_device *device;
+	void (*drq)(running_device *device, int state);
 
 	struct
 	{
@@ -56,10 +57,10 @@ struct _sp0250_state
 	} filter[6];
 };
 
-INLINE sp0250_state *get_safe_token(device_t *device)
+INLINE sp0250_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == SP0250);
+	assert(device->type() == SOUND_SP0250);
 	return (sp0250_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -127,7 +128,7 @@ static void sp0250_load_values(sp0250_state *sp)
 static TIMER_CALLBACK( sp0250_timer_tick )
 {
 	sp0250_state *sp = (sp0250_state *)ptr;
-	sp->stream->update();
+	stream_update(sp->stream);
 }
 
 static STREAM_UPDATE( sp0250_update )
@@ -199,7 +200,7 @@ static STREAM_UPDATE( sp0250_update )
 
 static DEVICE_START( sp0250 )
 {
-	const struct sp0250_interface *intf = (const struct sp0250_interface *)device->static_config();
+	const struct sp0250_interface *intf = (const struct sp0250_interface *)device->baseconfig().static_config();
 	sp0250_state *sp = get_safe_token(device);
 
 	sp->device = device;
@@ -208,17 +209,17 @@ static DEVICE_START( sp0250 )
 	if (sp->drq != NULL)
 	{
 		sp->drq(sp->device, ASSERT_LINE);
-		device->machine().scheduler().timer_pulse(attotime::from_hz(device->clock()) * CLOCK_DIVIDER, FUNC(sp0250_timer_tick), 0, sp);
+		timer_pulse(device->machine, attotime_mul(ATTOTIME_IN_HZ(device->clock()), CLOCK_DIVIDER), sp, 0, sp0250_timer_tick);
 	}
 
-	sp->stream = device->machine().sound().stream_alloc(*device, 0, 1, device->clock() / CLOCK_DIVIDER, sp, sp0250_update);
+	sp->stream = stream_create(device, 0, 1, device->clock() / CLOCK_DIVIDER, sp, sp0250_update);
 }
 
 
 WRITE8_DEVICE_HANDLER( sp0250_w )
 {
 	sp0250_state *sp = get_safe_token(device);
-	sp->stream->update();
+	stream_update(sp->stream);
 	if (sp->fifo_pos != 15)
 	{
 		sp->fifo[sp->fifo_pos++] = data;
@@ -226,14 +227,14 @@ WRITE8_DEVICE_HANDLER( sp0250_w )
 			sp->drq(sp->device, CLEAR_LINE);
 	}
 	else
-		logerror("%s: overflow SP0250 FIFO\n", device->machine().describe_context());
+		logerror("%s: overflow SP0250 FIFO\n", cpuexec_describe_context(device->machine));
 }
 
 
-UINT8 sp0250_drq_r(device_t *device)
+UINT8 sp0250_drq_r(running_device *device)
 {
 	sp0250_state *sp = get_safe_token(device);
-	sp->stream->update();
+	stream_update(sp->stream);
 	return (sp->fifo_pos == 15) ? CLEAR_LINE : ASSERT_LINE;
 }
 

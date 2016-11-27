@@ -9,32 +9,22 @@
 #include "emu.h"
 #include "cpu/i86/i86.h"
 
-
-class neptunp2_state : public driver_device
-{
-public:
-	neptunp2_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
 static VIDEO_START( neptunp2 )
 {
 
 }
 
-static SCREEN_UPDATE( neptunp2 )
+static VIDEO_UPDATE( neptunp2 )
 {
 	return 0;
 }
 
 static READ8_HANDLER( test_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
-static ADDRESS_MAP_START( neptunp2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( neptunp2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x00000, 0xbffff) AM_ROM
 	AM_RANGE(0xe0000, 0xeffff) AM_RAM
 
@@ -51,7 +41,7 @@ static ADDRESS_MAP_START( neptunp2_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xffff0, 0xfffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( neptunp2_io, AS_IO, 8 )
+static ADDRESS_MAP_START( neptunp2_io, ADDRESS_SPACE_IO, 8 )
 ADDRESS_MAP_END
 
 
@@ -76,31 +66,31 @@ static GFXDECODE_START( neptunp2 )
 //  GFXDECODE_ENTRY( "gfx1", 0, charlayout,     0, 8 )
 GFXDECODE_END
 
-static MACHINE_CONFIG_START( neptunp2, neptunp2_state )
+static MACHINE_DRIVER_START( neptunp2 )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu",I80188,20000000) // N80C188-20 AMD
-	MCFG_CPU_PROGRAM_MAP(neptunp2_map)
-	MCFG_CPU_IO_MAP(neptunp2_io)
-//  MCFG_CPU_VBLANK_INT("screen",irq0_line_hold)
+	MDRV_CPU_ADD("maincpu",I80188,20000000) // N80C188-20 AMD
+	MDRV_CPU_PROGRAM_MAP(neptunp2_map)
+	MDRV_CPU_IO_MAP(neptunp2_io)
+//  MDRV_CPU_VBLANK_INT("screen",irq0_line_hold)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(neptunp2)
-	MCFG_GFXDECODE(neptunp2)
-	MCFG_PALETTE_LENGTH(512)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
+	MDRV_GFXDECODE(neptunp2)
+	MDRV_PALETTE_LENGTH(512)
 
-	MCFG_VIDEO_START(neptunp2)
+	MDRV_VIDEO_START(neptunp2)
+	MDRV_VIDEO_UPDATE(neptunp2)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 /***************************************************************************
 

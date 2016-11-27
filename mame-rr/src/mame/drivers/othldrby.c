@@ -22,13 +22,13 @@ Notes:
 
 static READ16_HANDLER( pip )
 {
-	othldrby_state *state = space->machine().driver_data<othldrby_state>();
-	return state->m_toggle ^= 1;
+	othldrby_state *state = (othldrby_state *)space->machine->driver_data;
+	return state->toggle ^= 1;
 }
 
 static READ16_HANDLER( pap )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 
@@ -42,10 +42,10 @@ static WRITE16_HANDLER( coinctrl_w )
 {
 	if (ACCESSING_BITS_0_7)
 	{
-		coin_counter_w(space->machine(), 0, data & 1);
-		coin_counter_w(space->machine(), 1, data & 2);
-		coin_lockout_w(space->machine(), 0, ~data & 4);
-		coin_lockout_w(space->machine(), 1, ~data & 8);
+		coin_counter_w(space->machine, 0, data & 1);
+		coin_counter_w(space->machine, 1, data & 2);
+		coin_lockout_w(space->machine, 0, ~data & 4);
+		coin_lockout_w(space->machine, 1, ~data & 8);
 	}
 }
 
@@ -57,7 +57,7 @@ static READ16_HANDLER( calendar_r )
 {
 	system_time systime;
 
-	space->machine().base_datetime(systime);
+	space->machine->base_datetime(systime);
 
 	switch (offset)
 	{
@@ -82,7 +82,7 @@ static READ16_HANDLER( calendar_r )
 }
 
 
-static ADDRESS_MAP_START( othldrby_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( othldrby_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAM
 	AM_RANGE(0x200000, 0x20000f) AM_READWRITE(calendar_r, calendar_w)
@@ -92,7 +92,7 @@ static ADDRESS_MAP_START( othldrby_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x30000c, 0x30000d) AM_READ(pip)	// vblank?
 	AM_RANGE(0x30000c, 0x30000f) AM_WRITE(othldrby_vreg_w)
 	AM_RANGE(0x400000, 0x400fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x600000, 0x600001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)
+	AM_RANGE(0x600000, 0x600001) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0x00ff)
 	AM_RANGE(0x700000, 0x700001) AM_READ(pap)	// scanline???
 	AM_RANGE(0x700004, 0x700005) AM_READ_PORT("DSW1")
 	AM_RANGE(0x700008, 0x700009) AM_READ_PORT("DSW2")
@@ -218,56 +218,59 @@ GFXDECODE_END
 
 static MACHINE_START( othldrby )
 {
-	othldrby_state *state = machine.driver_data<othldrby_state>();
+	othldrby_state *state = (othldrby_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_toggle));
-	state->save_item(NAME(state->m_vram_addr));
-	state->save_item(NAME(state->m_vreg_addr));
-	state->save_item(NAME(state->m_vreg));
+	state_save_register_global(machine, state->toggle);
+	state_save_register_global(machine, state->vram_addr);
+	state_save_register_global(machine, state->vreg_addr);
+	state_save_register_global_array(machine, state->vreg);
 }
 
 static MACHINE_RESET( othldrby )
 {
-	othldrby_state *state = machine.driver_data<othldrby_state>();
+	othldrby_state *state = (othldrby_state *)machine->driver_data;
 
-	state->m_toggle = 0xff;
-	state->m_vram_addr = 0;
-	state->m_vreg_addr = 0;
+	state->toggle = 0xff;
+	state->vram_addr = 0;
+	state->vreg_addr = 0;
 
-	memset(state->m_vreg, 0, ARRAY_LENGTH(state->m_vreg));
+	memset(state->vreg, 0, ARRAY_LENGTH(state->vreg));
 }
 
-static MACHINE_CONFIG_START( othldrby, othldrby_state )
+static MACHINE_DRIVER_START( othldrby )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(othldrby_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 16000000)
-	MCFG_CPU_PROGRAM_MAP(othldrby_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 16000000)
+	MDRV_CPU_PROGRAM_MAP(othldrby_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_MACHINE_START(othldrby)
-	MCFG_MACHINE_RESET(othldrby)
+	MDRV_MACHINE_START(othldrby)
+	MDRV_MACHINE_RESET(othldrby)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(12*8, (64-12)*8-1, 1*8, 31*8-1 )
-	MCFG_SCREEN_UPDATE(othldrby)
-	MCFG_SCREEN_EOF(othldrby)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(12*8, (64-12)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(othldrby)
-	MCFG_PALETTE_LENGTH(0x800)
+	MDRV_GFXDECODE(othldrby)
+	MDRV_PALETTE_LENGTH(0x800)
 
-	MCFG_VIDEO_START(othldrby)
+	MDRV_VIDEO_START(othldrby)
+	MDRV_VIDEO_EOF(othldrby)
+	MDRV_VIDEO_UPDATE(othldrby)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 1584000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1584000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 

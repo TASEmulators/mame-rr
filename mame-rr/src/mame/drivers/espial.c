@@ -5,8 +5,6 @@
 Espial: The Orca logo is displayed, but looks to be "blacked out" via the
         color proms by having 0x1c & 0x1d set to black.
 
-TODO:
-- merge with zodiack.c
 
 Stephh's notes (based on the games Z80 code and some tests) :
 
@@ -37,132 +35,135 @@ Stephh's notes (based on the games Z80 code and some tests) :
 ***************************************************************************/
 
 #include "emu.h"
+#include "deprecat.h"
 #include "includes/espial.h"
 #include "cpu/z80/z80.h"
 #include "sound/ay8910.h"
 
 
-
-
-static MACHINE_RESET( espial )
+static TIMER_CALLBACK( interrupt_disable )
 {
-	espial_state *state = machine.driver_data<espial_state>();
-
-	state->m_flipscreen = 0;
-
-	state->m_main_nmi_enabled = FALSE;
-	state->m_sound_nmi_enabled = FALSE;
+	espial_state *state = (espial_state *)machine->driver_data;
+	//interrupt_enable = 0;
+	cpu_interrupt_enable(state->maincpu, 0);
 }
 
-static MACHINE_START( espial )
+MACHINE_RESET( espial )
 {
-	espial_state *state = machine.driver_data<espial_state>();
+	espial_state *state = (espial_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
+	state->flipscreen = 0;
+
+	/* we must start with NMI interrupts disabled */
+	timer_call_after_resynch(machine, NULL, 0, interrupt_disable);
+	state->sound_nmi_enabled = FALSE;
+}
+
+MACHINE_START( espial )
+{
+	espial_state *state = (espial_state *)machine->driver_data;
+
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
 
 	//state_save_register_global_array(machine, mcu_out[1]);
-	state->save_item(NAME(state->m_sound_nmi_enabled));
+	state_save_register_global(machine, state->sound_nmi_enabled);
 }
 
 
-static WRITE8_HANDLER( espial_master_interrupt_enable_w )
+WRITE8_HANDLER( zodiac_master_interrupt_enable_w )
 {
-	espial_state *state = space->machine().driver_data<espial_state>();
-	state->m_main_nmi_enabled = ~(data & 1);
+	interrupt_enable_w(space, offset, ~data & 1);
 }
 
 
 WRITE8_HANDLER( espial_sound_nmi_enable_w )
 {
-	espial_state *state = space->machine().driver_data<espial_state>();
-	state->m_sound_nmi_enabled = data & 1;
-}
-
-static TIMER_DEVICE_CALLBACK( espial_scanline )
-{
-	espial_state *state = timer.machine().driver_data<espial_state>();
-	int scanline = param;
-
-	if(scanline == 240 && state->m_main_nmi_enabled) // vblank-out irq
-		cputag_set_input_line(timer.machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE);
-
-	if(scanline == 16) // timer irq, checks soundlatch port then updates some sound related work RAM buffers
-		cputag_set_input_line(timer.machine(), "maincpu", 0, HOLD_LINE);
+	espial_state *state = (espial_state *)space->machine->driver_data;
+	state->sound_nmi_enabled = data & 1;
 }
 
 
 INTERRUPT_GEN( espial_sound_nmi_gen )
 {
-	espial_state *state = device->machine().driver_data<espial_state>();
+	espial_state *state = (espial_state *)device->machine->driver_data;
 
-	if (state->m_sound_nmi_enabled)
+	if (state->sound_nmi_enabled)
 		nmi_line_pulse(device);
 }
 
 
-static WRITE8_HANDLER( espial_master_soundlatch_w )
+INTERRUPT_GEN( zodiac_master_interrupt )
 {
-	espial_state *state = space->machine().driver_data<espial_state>();
-	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	if (cpu_getiloops(device) == 0)
+		nmi_line_pulse(device);
+	else
+		irq0_line_hold(device);
 }
 
 
-static ADDRESS_MAP_START( espial_map, AS_PROGRAM, 8 )
+WRITE8_HANDLER( zodiac_master_soundlatch_w )
+{
+	espial_state *state = (espial_state *)space->machine->driver_data;
+	soundlatch_w(space, offset, data);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
+}
+
+
+static ADDRESS_MAP_START( espial_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x4fff) AM_ROM
 	AM_RANGE(0x5800, 0x5fff) AM_RAM
 	AM_RANGE(0x6081, 0x6081) AM_READ_PORT("IN0")
 	AM_RANGE(0x6082, 0x6082) AM_READ_PORT("DSW1")
 	AM_RANGE(0x6083, 0x6083) AM_READ_PORT("IN1")
 	AM_RANGE(0x6084, 0x6084) AM_READ_PORT("IN2")
-	AM_RANGE(0x6090, 0x6090) AM_READWRITE(soundlatch2_r, espial_master_soundlatch_w)
+	AM_RANGE(0x6090, 0x6090) AM_READWRITE(soundlatch_r, zodiac_master_soundlatch_w)	/* the main CPU reads the command back from the slave */
 	AM_RANGE(0x7000, 0x7000) AM_READWRITE(watchdog_reset_r, watchdog_reset_w)
-	AM_RANGE(0x7100, 0x7100) AM_WRITE(espial_master_interrupt_enable_w)
+	AM_RANGE(0x7100, 0x7100) AM_WRITE(zodiac_master_interrupt_enable_w)
 	AM_RANGE(0x7200, 0x7200) AM_WRITE(espial_flipscreen_w)
-	AM_RANGE(0x8000, 0x801f) AM_RAM AM_BASE_MEMBER(espial_state, m_spriteram_1)
+	AM_RANGE(0x8000, 0x801f) AM_RAM AM_BASE_MEMBER(espial_state, spriteram_1)
 	AM_RANGE(0x8020, 0x803f) AM_READONLY
-	AM_RANGE(0x8400, 0x87ff) AM_RAM_WRITE(espial_videoram_w) AM_BASE_MEMBER(espial_state, m_videoram)
-	AM_RANGE(0x8800, 0x880f) AM_WRITEONLY AM_BASE_MEMBER(espial_state, m_spriteram_3)
-	AM_RANGE(0x8c00, 0x8fff) AM_RAM_WRITE(espial_attributeram_w) AM_BASE_MEMBER(espial_state, m_attributeram)
-	AM_RANGE(0x9000, 0x901f) AM_RAM AM_BASE_MEMBER(espial_state, m_spriteram_2)
-	AM_RANGE(0x9020, 0x903f) AM_RAM_WRITE(espial_scrollram_w) AM_BASE_MEMBER(espial_state, m_scrollram)
-	AM_RANGE(0x9400, 0x97ff) AM_RAM_WRITE(espial_colorram_w) AM_BASE_MEMBER(espial_state, m_colorram)
+	AM_RANGE(0x8400, 0x87ff) AM_RAM_WRITE(espial_videoram_w) AM_BASE_MEMBER(espial_state, videoram)
+	AM_RANGE(0x8800, 0x880f) AM_WRITEONLY AM_BASE_MEMBER(espial_state, spriteram_3)
+	AM_RANGE(0x8c00, 0x8fff) AM_RAM_WRITE(espial_attributeram_w) AM_BASE_MEMBER(espial_state, attributeram)
+	AM_RANGE(0x9000, 0x901f) AM_RAM AM_BASE_MEMBER(espial_state, spriteram_2)
+	AM_RANGE(0x9020, 0x903f) AM_RAM_WRITE(espial_scrollram_w) AM_BASE_MEMBER(espial_state, scrollram)
+	AM_RANGE(0x9400, 0x97ff) AM_RAM_WRITE(espial_colorram_w) AM_BASE_MEMBER(espial_state, colorram)
 	AM_RANGE(0xc000, 0xcfff) AM_ROM
 ADDRESS_MAP_END
 
 
 /* there are a lot of unmapped reads from all over memory as the
    code uses POP instructions in a delay loop */
-static ADDRESS_MAP_START( netwars_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( netwars_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x5800, 0x5fff) AM_RAM
 	AM_RANGE(0x6081, 0x6081) AM_READ_PORT("IN0")
 	AM_RANGE(0x6082, 0x6082) AM_READ_PORT("DSW1")
 	AM_RANGE(0x6083, 0x6083) AM_READ_PORT("IN1")
 	AM_RANGE(0x6084, 0x6084) AM_READ_PORT("IN2")
-	AM_RANGE(0x6090, 0x6090) AM_READWRITE(soundlatch2_r, espial_master_soundlatch_w)
+	AM_RANGE(0x6090, 0x6090) AM_READWRITE(soundlatch_r, zodiac_master_soundlatch_w)	/* the main CPU reads the command back from the slave */
 	AM_RANGE(0x7000, 0x7000) AM_READWRITE(watchdog_reset_r, watchdog_reset_w)
-	AM_RANGE(0x7100, 0x7100) AM_WRITE(espial_master_interrupt_enable_w)
+	AM_RANGE(0x7100, 0x7100) AM_WRITE(zodiac_master_interrupt_enable_w)
 	AM_RANGE(0x7200, 0x7200) AM_WRITE(espial_flipscreen_w)
-	AM_RANGE(0x8000, 0x801f) AM_RAM AM_BASE_MEMBER(espial_state, m_spriteram_1)
-	AM_RANGE(0x8000, 0x87ff) AM_RAM_WRITE(espial_videoram_w) AM_BASE_MEMBER(espial_state, m_videoram)
-	AM_RANGE(0x8800, 0x880f) AM_RAM AM_BASE_MEMBER(espial_state, m_spriteram_3)
-	AM_RANGE(0x8800, 0x8fff) AM_RAM_WRITE(espial_attributeram_w) AM_BASE_MEMBER(espial_state, m_attributeram)
-	AM_RANGE(0x9000, 0x901f) AM_RAM AM_BASE_MEMBER(espial_state, m_spriteram_2)
-	AM_RANGE(0x9020, 0x903f) AM_RAM_WRITE(espial_scrollram_w) AM_BASE_MEMBER(espial_state, m_scrollram)
-	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(espial_colorram_w) AM_BASE_MEMBER(espial_state, m_colorram)
+	AM_RANGE(0x8000, 0x801f) AM_RAM AM_BASE_MEMBER(espial_state, spriteram_1)
+	AM_RANGE(0x8000, 0x87ff) AM_RAM_WRITE(espial_videoram_w) AM_BASE_MEMBER(espial_state, videoram)
+	AM_RANGE(0x8800, 0x880f) AM_RAM AM_BASE_MEMBER(espial_state, spriteram_3)
+	AM_RANGE(0x8800, 0x8fff) AM_RAM_WRITE(espial_attributeram_w) AM_BASE_MEMBER(espial_state, attributeram)
+	AM_RANGE(0x9000, 0x901f) AM_RAM AM_BASE_MEMBER(espial_state, spriteram_2)
+	AM_RANGE(0x9020, 0x903f) AM_RAM_WRITE(espial_scrollram_w) AM_BASE_MEMBER(espial_state, scrollram)
+	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(espial_colorram_w) AM_BASE_MEMBER(espial_state, colorram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( espial_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( espial_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x23ff) AM_RAM
 	AM_RANGE(0x4000, 0x4000) AM_WRITE(espial_sound_nmi_enable_w)
-	AM_RANGE(0x6000, 0x6000) AM_READWRITE(soundlatch_r, soundlatch2_w)
+	AM_RANGE(0x6000, 0x6000) AM_READWRITE(soundlatch_r, soundlatch_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( espial_sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( espial_sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVWRITE("aysnd", ay8910_address_data_w)
 ADDRESS_MAP_END
@@ -323,55 +324,59 @@ GFXDECODE_END
 
 
 
-static MACHINE_CONFIG_START( espial, espial_state )
+static MACHINE_DRIVER_START( espial )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(espial_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 3072000)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(espial_map)
-	MCFG_TIMER_ADD_SCANLINE("scantimer", espial_scanline, "screen", 0, 1)
+	MDRV_CPU_ADD("maincpu", Z80, 3072000)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(espial_map)
+	MDRV_CPU_VBLANK_INT_HACK(zodiac_master_interrupt,2)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3072000)	/* 2 MHz?????? */
-	MCFG_CPU_PROGRAM_MAP(espial_sound_map)
-	MCFG_CPU_IO_MAP(espial_sound_io_map)
-	MCFG_CPU_PERIODIC_INT(espial_sound_nmi_gen,4*60)
+	MDRV_CPU_ADD("audiocpu", Z80, 3072000)	/* 2 MHz?????? */
+	MDRV_CPU_PROGRAM_MAP(espial_sound_map)
+	MDRV_CPU_IO_MAP(espial_sound_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(espial_sound_nmi_gen,4)
 
-	MCFG_MACHINE_RESET(espial)
-	MCFG_MACHINE_START(espial)
+	MDRV_MACHINE_RESET(espial)
+	MDRV_MACHINE_START(espial)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(espial)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(espial)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(espial)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(espial)
-	MCFG_VIDEO_START(espial)
+	MDRV_PALETTE_INIT(espial)
+	MDRV_VIDEO_START(espial)
+	MDRV_VIDEO_UPDATE(espial)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("aysnd", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("aysnd", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( netwars, espial )
+static MACHINE_DRIVER_START( netwars )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(espial)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(netwars_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(netwars_map)
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_SIZE(32*8, 64*8)
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_SIZE(32*8, 64*8)
 
-	MCFG_VIDEO_START(netwars)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(netwars)
+MACHINE_DRIVER_END
 
 
 

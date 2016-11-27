@@ -24,7 +24,7 @@ struct _unsp_state
 	UINT8 saved_sb;
 
 	legacy_cpu_device *device;
-	address_space *program;
+	const address_space *program;
 	int icount;
 
 	unspimp_state *impstate;

@@ -7,8 +7,12 @@
 #include "emu.h"
 #include "includes/videopin.h"
 
+UINT8* videopin_video_ram;
 
+static int ball_x;
+static int ball_y;
 
+static tilemap_t* bg_tilemap;
 
 
 static TILEMAP_MAPPER( get_memory_offset )
@@ -19,8 +23,7 @@ static TILEMAP_MAPPER( get_memory_offset )
 
 static TILE_GET_INFO( get_tile_info )
 {
-	videopin_state *state = machine.driver_data<videopin_state>();
-	UINT8 code = state->m_video_ram[tile_index];
+	UINT8 code = videopin_video_ram[tile_index];
 
 	SET_TILE_INFO(0, code, 0, (code & 0x40) ? TILE_FLIPY : 0);
 }
@@ -28,20 +31,18 @@ static TILE_GET_INFO( get_tile_info )
 
 VIDEO_START( videopin )
 {
-	videopin_state *state = machine.driver_data<videopin_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_tile_info, get_memory_offset,  8, 8, 48, 32);
+	bg_tilemap = tilemap_create(machine, get_tile_info, get_memory_offset,  8, 8, 48, 32);
 }
 
 
-SCREEN_UPDATE( videopin )
+VIDEO_UPDATE( videopin )
 {
-	videopin_state *state = screen->machine().driver_data<videopin_state>();
 	int col;
 	int row;
 
-	tilemap_set_scrollx(state->m_bg_tilemap, 0, -8);   /* account for delayed loading of shift reg C6 */
+	tilemap_set_scrollx(bg_tilemap, 0, -8);   /* account for delayed loading of shift reg C6 */
 
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, bg_tilemap, 0, 0);
 
 	for (row = 0; row < 32; row++)
 	{
@@ -49,7 +50,7 @@ SCREEN_UPDATE( videopin )
 		{
 			UINT32 offset = get_memory_offset(col, row, 48, 32);
 
-			if (state->m_video_ram[offset] & 0x80)   /* ball bit found */
+			if (videopin_video_ram[offset] & 0x80)   /* ball bit found */
 			{
 				rectangle rect;
 
@@ -75,8 +76,8 @@ SCREEN_UPDATE( videopin )
 				if (rect.max_y > cliprect->max_y)
 					rect.max_y = cliprect->max_y;
 
-				x -= state->m_ball_x;
-				y -= state->m_ball_y;
+				x -= ball_x;
+				y -= ball_y;
 
 				/* ball placement is still 0.5 pixels off but don't tell anyone */
 
@@ -84,7 +85,7 @@ SCREEN_UPDATE( videopin )
 				{
 					for (j = 0; j < 2; j++)
 					{
-						drawgfx_transpen(bitmap, &rect, screen->machine().gfx[1],
+						drawgfx_transpen(bitmap, &rect, screen->machine->gfx[1],
 							0, 0,
 							0, 0,
 							x + 16 * i,
@@ -102,15 +103,13 @@ SCREEN_UPDATE( videopin )
 
 WRITE8_HANDLER( videopin_ball_w )
 {
-	videopin_state *state = space->machine().driver_data<videopin_state>();
-	state->m_ball_x = data & 15;
-	state->m_ball_y = data >> 4;
+	ball_x = data & 15;
+	ball_y = data >> 4;
 }
 
 
 WRITE8_HANDLER( videopin_video_ram_w )
 {
-	videopin_state *state = space->machine().driver_data<videopin_state>();
-	state->m_video_ram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	videopin_video_ram[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap, offset);
 }

@@ -4,28 +4,27 @@
 
 *************************************************************************/
 
-class gotcha_state : public driver_device
+class gotcha_state
 {
 public:
-	gotcha_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, gotcha_state(machine)); }
+
+	gotcha_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_fgvideoram;
-	UINT16 *    m_bgvideoram;
-	UINT16 *    m_spriteram;
-//  UINT16 *    m_paletteram; // currently this uses generic palette handling
-	size_t      m_spriteram_size;
+	UINT16 *    fgvideoram;
+	UINT16 *    bgvideoram;
+	UINT16 *    spriteram;
+//  UINT16 *    paletteram; // currently this uses generic palette handling
+	size_t      spriteram_size;
 
 	/* video-related */
-	tilemap_t     *m_bg_tilemap;
-	tilemap_t     *m_fg_tilemap;
-	int         m_banksel;
-	int         m_gfxbank[4];
-	UINT16      m_scroll[4];
+	tilemap_t     *bg_tilemap, *fg_tilemap;
+	int         banksel, gfxbank[4];
+	UINT16      scroll[4];
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -33,7 +32,7 @@ public:
 
 
 VIDEO_START( gotcha );
-SCREEN_UPDATE( gotcha );
+VIDEO_UPDATE( gotcha );
 
 WRITE16_HANDLER( gotcha_fgvideoram_w );
 WRITE16_HANDLER( gotcha_bgvideoram_w );

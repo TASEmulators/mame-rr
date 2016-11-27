@@ -9,27 +9,27 @@
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "sound/2203intf.h"
-#include "machine/nvram.h"
 
 #define MCLK 10000000
 
 
-class mayumi_state : public driver_device
+class mayumi_state
 {
 public:
-	mayumi_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mayumi_state(machine)); }
+
+	mayumi_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-//  UINT8 *    m_nvram;       // this currently uses generic nvram handlers
+	UINT8 *    videoram;
+//  UINT8 *    nvram;       // this currently uses generic nvram handlers
 
 	/* video-related */
-	tilemap_t *m_tilemap;
+	tilemap_t *tilemap;
 
 	/* misc */
-	int m_int_enable;
-	int m_input_sel;
+	int int_enable;
+	int input_sel;
 };
 
 
@@ -41,30 +41,30 @@ public:
 
 static TILE_GET_INFO( get_tile_info )
 {
-	mayumi_state *state = machine.driver_data<mayumi_state>();
-	int code = state->m_videoram[tile_index] + (state->m_videoram[tile_index + 0x800] & 0x1f) * 0x100;
-	int col = (state->m_videoram[tile_index + 0x1000] >> 3) & 0x1f;
+	mayumi_state *state = (mayumi_state *)machine->driver_data;
+	int code = state->videoram[tile_index] + (state->videoram[tile_index + 0x800] & 0x1f) * 0x100;
+	int col = (state->videoram[tile_index + 0x1000] >> 3) & 0x1f;
 
 	SET_TILE_INFO(0, code, col, 0);
 }
 
 static VIDEO_START( mayumi )
 {
-	mayumi_state *state = machine.driver_data<mayumi_state>();
-	state->m_tilemap = tilemap_create(machine, get_tile_info, tilemap_scan_rows, 8, 8, 64, 32);
+	mayumi_state *state = (mayumi_state *)machine->driver_data;
+	state->tilemap = tilemap_create(machine, get_tile_info, tilemap_scan_rows, 8, 8, 64, 32);
 }
 
 static WRITE8_HANDLER( mayumi_videoram_w )
 {
-	mayumi_state *state = space->machine().driver_data<mayumi_state>();
-	state->m_videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_tilemap, offset & 0x7ff);
+	mayumi_state *state = (mayumi_state *)space->machine->driver_data;
+	state->videoram[offset] = data;
+	tilemap_mark_tile_dirty(state->tilemap, offset & 0x7ff);
 }
 
-static SCREEN_UPDATE( mayumi )
+static VIDEO_UPDATE( mayumi )
 {
-	mayumi_state *state = screen->machine().driver_data<mayumi_state>();
-	tilemap_draw(bitmap, cliprect, state->m_tilemap, 0, 0);
+	mayumi_state *state = (mayumi_state *)screen->machine->driver_data;
+	tilemap_draw(bitmap, cliprect, state->tilemap, 0, 0);
 	return 0;
 }
 
@@ -76,10 +76,10 @@ static SCREEN_UPDATE( mayumi )
 
 static INTERRUPT_GEN( mayumi_interrupt )
 {
-	mayumi_state *state = device->machine().driver_data<mayumi_state>();
+	mayumi_state *state = (mayumi_state *)device->machine->driver_data;
 
-	if (state->m_int_enable)
-		 device_set_input_line(device, 0, HOLD_LINE);
+	if (state->int_enable)
+		 cpu_set_input_line(device, 0, HOLD_LINE);
 }
 
 /*************************************
@@ -90,25 +90,25 @@ static INTERRUPT_GEN( mayumi_interrupt )
 
 static WRITE8_HANDLER( bank_sel_w )
 {
-	mayumi_state *state = space->machine().driver_data<mayumi_state>();
+	mayumi_state *state = (mayumi_state *)space->machine->driver_data;
 	int bank = BIT(data, 7) | (BIT(data, 6) << 1);
 
-	memory_set_bank(space->machine(), "bank1", bank);
+	memory_set_bank(space->machine, "bank1", bank);
 
-	state->m_int_enable = data & 1;
+	state->int_enable = data & 1;
 
-	flip_screen_set(space->machine(), data & 2);
+	flip_screen_set(space->machine, data & 2);
 }
 
 static WRITE8_HANDLER( input_sel_w )
 {
-	mayumi_state *state = space->machine().driver_data<mayumi_state>();
-	state->m_input_sel = data;
+	mayumi_state *state = (mayumi_state *)space->machine->driver_data;
+	state->input_sel = data;
 }
 
 static READ8_HANDLER( key_matrix_r )
 {
-	mayumi_state *state = space->machine().driver_data<mayumi_state>();
+	mayumi_state *state = (mayumi_state *)space->machine->driver_data;
 	int p, i, ret;
 	static const char *const keynames[2][5] =
 			{
@@ -118,12 +118,12 @@ static READ8_HANDLER( key_matrix_r )
 
 	ret = 0xff;
 
-	p = ~state->m_input_sel & 0x1f;
+	p = ~state->input_sel & 0x1f;
 
 	for (i = 0; i < 5; i++)
 	{
 		if (BIT(p, i))
-			ret &= input_port_read(space->machine(), keynames[offset][i]);
+			ret &= input_port_read(space->machine, keynames[offset][i]);
 	}
 
 	return ret;
@@ -135,15 +135,15 @@ static READ8_HANDLER( key_matrix_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mayumi_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mayumi_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
-	AM_RANGE(0xc000, 0xdfff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0xe000, 0xf7ff) AM_RAM_WRITE(mayumi_videoram_w) AM_BASE_MEMBER(mayumi_state, m_videoram)
+	AM_RANGE(0xc000, 0xdfff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0xe000, 0xf7ff) AM_RAM_WRITE(mayumi_videoram_w) AM_BASE_MEMBER(mayumi_state, videoram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( mayumi_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mayumi_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x30, 0x30) AM_READ_PORT("IN0") AM_WRITE(bank_sel_w)
 	AM_RANGE(0xc0, 0xc0) AM_WRITE(input_sel_w)
@@ -349,63 +349,66 @@ static const ym2203_interface ym2203_config =
 
 static MACHINE_START( mayumi )
 {
-	mayumi_state *state = machine.driver_data<mayumi_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	mayumi_state *state = (mayumi_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x10000], 0x4000);
 	memory_set_bank(machine, "bank1", 0);
 
-	state->save_item(NAME(state->m_int_enable));
-	state->save_item(NAME(state->m_input_sel));
+	state_save_register_global(machine, state->int_enable);
+	state_save_register_global(machine, state->input_sel);
 }
 
 static MACHINE_RESET( mayumi )
 {
-	mayumi_state *state = machine.driver_data<mayumi_state>();
+	mayumi_state *state = (mayumi_state *)machine->driver_data;
 
-	state->m_int_enable = 0;
-	state->m_input_sel = 0;
+	state->int_enable = 0;
+	state->input_sel = 0;
 }
 
-static MACHINE_CONFIG_START( mayumi, mayumi_state )
+static MACHINE_DRIVER_START( mayumi )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mayumi_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MCLK/2) /* 5.000 MHz ? */
-	MCFG_CPU_PROGRAM_MAP(mayumi_map)
-	MCFG_CPU_IO_MAP(mayumi_io_map)
-	MCFG_CPU_VBLANK_INT("screen", mayumi_interrupt)
+	MDRV_CPU_ADD("maincpu", Z80, MCLK/2) /* 5.000 MHz ? */
+	MDRV_CPU_PROGRAM_MAP(mayumi_map)
+	MDRV_CPU_IO_MAP(mayumi_io_map)
+	MDRV_CPU_VBLANK_INT("screen", mayumi_interrupt)
 
-	MCFG_MACHINE_START( mayumi )
-	MCFG_MACHINE_RESET( mayumi )
+	MDRV_MACHINE_START( mayumi )
+	MDRV_MACHINE_RESET( mayumi )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(2*8, 62*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(mayumi)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(2*8, 62*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(mayumi)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(mayumi)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(mayumi)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(mayumi)
+	MDRV_VIDEO_UPDATE(mayumi)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, MCLK/4)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.15)
-	MCFG_SOUND_ROUTE(1, "mono", 0.15)
-	MCFG_SOUND_ROUTE(2, "mono", 0.15)
-	MCFG_SOUND_ROUTE(3, "mono", 0.40)
+	MDRV_SOUND_ADD("ymsnd", YM2203, MCLK/4)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.15)
+	MDRV_SOUND_ROUTE(1, "mono", 0.15)
+	MDRV_SOUND_ROUTE(2, "mono", 0.15)
+	MDRV_SOUND_ROUTE(3, "mono", 0.40)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 /*************************************
  *

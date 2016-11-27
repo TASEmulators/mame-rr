@@ -1,48 +1,48 @@
 
-class xmen_state : public driver_device
+class xmen_state
 {
 public:
-	xmen_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, xmen_state(machine)); }
+
+	xmen_state(running_machine &machine) { }
 
 	/* memory pointers */
-//  UINT16 *   m_paletteram;    // currently this uses generic palette handling
+//  UINT16 *   paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int        m_layer_colorbase[3];
-	int        m_sprite_colorbase;
-	int        m_layerpri[3];
+	int        layer_colorbase[3], sprite_colorbase;
+	int        layerpri[3];
 
 	/* for xmen6p */
-	bitmap_t   *m_screen_right;
-	bitmap_t   *m_screen_left;
-	UINT16 *   m_xmen6p_spriteramleft;
-	UINT16 *   m_xmen6p_spriteramright;
-	UINT16 *   m_xmen6p_tilemapleft;
-	UINT16 *   m_xmen6p_tilemapright;
-	UINT16 *   m_k053247_ram;
+	bitmap_t   *screen_right;
+	bitmap_t   *screen_left;
+	UINT16 *   xmen6p_spriteramleft;
+	UINT16 *   xmen6p_spriteramright;
+	UINT16 *   xmen6p_tilemapleft;
+	UINT16 *   xmen6p_tilemapright;
+	UINT16 *   k053247_ram;
+	UINT16     current_frame;
 
 	/* misc */
-	UINT8       m_sound_curbank;
-	UINT8       m_vblank_irq_mask;
+	UINT8       sound_curbank;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k054539;
-	device_t *m_k052109;
-	device_t *m_k053246;
-	device_t *m_k053251;
-	device_t *m_lscreen;
-	device_t *m_rscreen;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k054539;
+	running_device *k052109;
+	running_device *k053246;
+	running_device *k053251;
+	running_device *lscreen;
+	running_device *rscreen;
 };
 
 /*----------- defined in video/xmen.c -----------*/
 
-void xmen_tile_callback(running_machine &machine, int layer,int bank,int *code,int *color,int *flags,int *priority);
-void xmen_sprite_callback(running_machine &machine, int *code,int *color,int *priority_mask);
+void xmen_tile_callback(running_machine *machine, int layer,int bank,int *code,int *color,int *flags,int *priority);
+void xmen_sprite_callback(running_machine *machine, int *code,int *color,int *priority_mask);
 
 VIDEO_START( xmen6p );
-SCREEN_UPDATE( xmen );
-SCREEN_UPDATE( xmen6p );
-SCREEN_EOF( xmen6p );
+VIDEO_UPDATE( xmen );
+VIDEO_UPDATE( xmen6p );
+VIDEO_EOF( xmen6p );

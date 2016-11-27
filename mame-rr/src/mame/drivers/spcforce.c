@@ -35,52 +35,56 @@ a000-a3ff   R/W X/Y scroll position of each character (can be scrolled up
 #include "cpu/i8085/i8085.h"
 #include "cpu/mcs48/mcs48.h"
 #include "sound/sn76496.h"
-#include "includes/spcforce.h"
 
+
+extern UINT8 *spcforce_videoram;
+extern UINT8 *spcforce_colorram;
+extern UINT8 *spcforce_scrollram;
+
+WRITE8_HANDLER( spcforce_flip_screen_w );
+VIDEO_UPDATE( spcforce );
+
+
+static int spcforce_SN76496_latch;
+static int spcforce_SN76496_select;
 
 static WRITE8_HANDLER( spcforce_SN76496_latch_w )
 {
-	spcforce_state *state = space->machine().driver_data<spcforce_state>();
-
-	state->m_sn76496_latch = data;
+	spcforce_SN76496_latch = data;
 }
 
 static READ8_HANDLER( spcforce_SN76496_select_r )
 {
-	spcforce_state *state = space->machine().driver_data<spcforce_state>();
-
-	if (~state->m_sn76496_select & 0x40) return sn76496_ready_r(space->machine().device("sn1"));
-	if (~state->m_sn76496_select & 0x20) return sn76496_ready_r(space->machine().device("sn2"));
-	if (~state->m_sn76496_select & 0x10) return sn76496_ready_r(space->machine().device("sn3"));
+	if (~spcforce_SN76496_select & 0x40) return sn76496_ready_r(space->machine->device("sn1"));
+	if (~spcforce_SN76496_select & 0x20) return sn76496_ready_r(space->machine->device("sn2"));
+	if (~spcforce_SN76496_select & 0x10) return sn76496_ready_r(space->machine->device("sn3"));
 
 	return 0;
 }
 
 static WRITE8_HANDLER( spcforce_SN76496_select_w )
 {
-	spcforce_state *state = space->machine().driver_data<spcforce_state>();
+    spcforce_SN76496_select = data;
 
-	state->m_sn76496_select = data;
-
-	if (~data & 0x40) sn76496_w(space->machine().device("sn1"), 0, state->m_sn76496_latch);
-	if (~data & 0x20) sn76496_w(space->machine().device("sn2"), 0, state->m_sn76496_latch);
-	if (~data & 0x10) sn76496_w(space->machine().device("sn3"), 0, state->m_sn76496_latch);
+	if (~data & 0x40)  sn76496_w(space->machine->device("sn1"), 0, spcforce_SN76496_latch);
+	if (~data & 0x20)  sn76496_w(space->machine->device("sn2"), 0, spcforce_SN76496_latch);
+	if (~data & 0x10)  sn76496_w(space->machine->device("sn3"), 0, spcforce_SN76496_latch);
 }
 
 static READ8_HANDLER( spcforce_t0_r )
 {
 	/* SN76496 status according to Al - not supported by MAME?? */
-	return space->machine().rand() & 1;
+	return mame_rand(space->machine) & 1;
 }
 
 
 static WRITE8_HANDLER( spcforce_soundtrigger_w )
 {
-	cputag_set_input_line(space->machine(), "audiocpu", 0, (~data & 0x08) ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(space->machine, "audiocpu", 0, (~data & 0x08) ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
-static ADDRESS_MAP_START( spcforce_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spcforce_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_RAM
 	AM_RANGE(0x7000, 0x7000) AM_READ_PORT("DSW") AM_WRITE(soundlatch_w)
@@ -89,16 +93,16 @@ static ADDRESS_MAP_START( spcforce_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x700b, 0x700b) AM_WRITE(spcforce_flip_screen_w)
 	AM_RANGE(0x700e, 0x700e) AM_WRITE(interrupt_enable_w)
 	AM_RANGE(0x700f, 0x700f) AM_WRITENOP
-	AM_RANGE(0x8000, 0x83ff) AM_RAM AM_BASE_MEMBER(spcforce_state, m_videoram)
-	AM_RANGE(0x9000, 0x93ff) AM_RAM AM_BASE_MEMBER(spcforce_state, m_colorram)
-	AM_RANGE(0xa000, 0xa3ff) AM_RAM AM_BASE_MEMBER(spcforce_state, m_scrollram)
+	AM_RANGE(0x8000, 0x83ff) AM_RAM AM_BASE(&spcforce_videoram)
+	AM_RANGE(0x9000, 0x93ff) AM_RAM AM_BASE(&spcforce_colorram)
+	AM_RANGE(0xa000, 0xa3ff) AM_RAM AM_BASE(&spcforce_scrollram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( spcforce_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spcforce_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( spcforce_sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( spcforce_sound_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(MCS48_PORT_BUS, MCS48_PORT_BUS) AM_READ(soundlatch_r)
 	AM_RANGE(MCS48_PORT_P1, MCS48_PORT_P1) AM_WRITE(spcforce_SN76496_latch_w)
 	AM_RANGE(MCS48_PORT_P2, MCS48_PORT_P2) AM_READWRITE(spcforce_SN76496_select_r, spcforce_SN76496_select_w)
@@ -199,7 +203,7 @@ static const gfx_layout charlayout =
 	8,8,    /* 8*8 chars */
 	512,    /* 512 characters */
 	3,      /* 3 bits per pixel */
-	{ 2*512*8*8, 512*8*8, 0 },  /* The bitplanes are separate */
+	{ 2*512*8*8, 512*8*8, 0 },  /* The bitplanes are seperate */
 	{ 0, 1, 2, 3, 4, 5, 6, 7},
 	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8},
 	8*8     /* every char takes 8 consecutive bytes */
@@ -238,44 +242,44 @@ static PALETTE_INIT( spcforce )
 }
 
 
-static MACHINE_CONFIG_START( spcforce, spcforce_state )
+static MACHINE_DRIVER_START( spcforce )
 
 	/* basic machine hardware */
 	/* FIXME: The 8085A had a max clock of 6MHz, internally divided by 2! */
-	MCFG_CPU_ADD("maincpu", I8085A, 8000000 * 2)        /* 4.00 MHz??? */
-	MCFG_CPU_PROGRAM_MAP(spcforce_map)
-	MCFG_CPU_VBLANK_INT("screen", irq3_line_pulse)
+	MDRV_CPU_ADD("maincpu", I8085A, 8000000 * 2)        /* 4.00 MHz??? */
+	MDRV_CPU_PROGRAM_MAP(spcforce_map)
+	MDRV_CPU_VBLANK_INT("screen", irq3_line_pulse)
 
-	MCFG_CPU_ADD("audiocpu", I8035, 6144000)		/* divisor ??? */
-	MCFG_CPU_PROGRAM_MAP(spcforce_sound_map)
-	MCFG_CPU_IO_MAP(spcforce_sound_io_map)
+	MDRV_CPU_ADD("audiocpu", I8035, 6144000)		/* divisor ??? */
+	MDRV_CPU_PROGRAM_MAP(spcforce_sound_map)
+	MDRV_CPU_IO_MAP(spcforce_sound_io_map)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(spcforce)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(spcforce)
-	MCFG_PALETTE_LENGTH(sizeof(colortable_source) / sizeof(colortable_source[0]))
+	MDRV_GFXDECODE(spcforce)
+	MDRV_PALETTE_LENGTH(sizeof(colortable_source) / sizeof(colortable_source[0]))
 
-	MCFG_PALETTE_INIT(spcforce)
+	MDRV_PALETTE_INIT(spcforce)
+	MDRV_VIDEO_UPDATE(spcforce)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76496, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("sn1", SN76496, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("sn2", SN76496, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("sn2", SN76496, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("sn3", SN76496, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("sn3", SN76496, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

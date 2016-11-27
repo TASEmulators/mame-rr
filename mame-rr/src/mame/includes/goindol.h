@@ -4,31 +4,31 @@
 
 *************************************************************************/
 
-class goindol_state : public driver_device
+class goindol_state
 {
 public:
-	goindol_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, goindol_state(machine)); }
+
+	goindol_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_bg_videoram;
-	UINT8 *    m_fg_videoram;
-	UINT8 *    m_fg_scrollx;
-	UINT8 *    m_fg_scrolly;
-	UINT8 *    m_ram;
-	UINT8 *    m_spriteram;
-	UINT8 *    m_spriteram2;
-	size_t     m_fg_videoram_size;
-	size_t     m_bg_videoram_size;
-	size_t     m_spriteram_size;
+	UINT8 *    bg_videoram;
+	UINT8 *    fg_videoram;
+	UINT8 *    fg_scrollx;
+	UINT8 *    fg_scrolly;
+	UINT8 *    ram;
+	UINT8 *    spriteram;
+	UINT8 *    spriteram2;
+	size_t     fg_videoram_size;
+	size_t     bg_videoram_size;
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t     *m_bg_tilemap;
-	tilemap_t     *m_fg_tilemap;
-	UINT16      m_char_bank;
+	tilemap_t     *bg_tilemap, *fg_tilemap;
+	UINT16      char_bank;
 
 	/* misc */
-	int         m_prot_toggle;
+	int         prot_toggle;
 };
 
 
@@ -39,4 +39,4 @@ WRITE8_HANDLER( goindol_fg_videoram_w );
 WRITE8_HANDLER( goindol_bg_videoram_w );
 
 VIDEO_START( goindol );
-SCREEN_UPDATE( goindol );
+VIDEO_UPDATE( goindol );

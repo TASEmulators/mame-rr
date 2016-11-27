@@ -4,27 +4,26 @@
 
 *************************************************************************/
 
-class glass_state : public driver_device
+class glass_state
 {
 public:
-	glass_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, glass_state(machine)); }
+
+	glass_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_videoram;
-	UINT16 *    m_vregs;
-	UINT16 *    m_spriteram;
-//      UINT16 *    m_paletteram;    // currently this uses generic palette handling
+	UINT16 *    videoram;
+	UINT16 *    vregs;
+	UINT16 *    spriteram;
+//      UINT16 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t     *m_pant[2];
-	bitmap_t    *m_screen_bitmap;
+	tilemap_t     *pant[2];
+	bitmap_t    *screen_bitmap;
 
 	/* misc */
-	int         m_current_bit;
-	int         m_current_command;
-	int         m_cause_interrupt;
-	int         m_blitter_serial_buffer[5];
+	int         current_bit, current_command, cause_interrupt;
+	int         blitter_serial_buffer[5];
 };
 
 
@@ -34,4 +33,4 @@ WRITE16_HANDLER( glass_vram_w );
 WRITE16_HANDLER( glass_blitter_w );
 
 VIDEO_START( glass );
-SCREEN_UPDATE( glass );
+VIDEO_UPDATE( glass );

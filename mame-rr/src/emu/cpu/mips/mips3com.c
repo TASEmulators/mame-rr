@@ -71,7 +71,7 @@ INLINE int tlb_entry_is_global(const mips3_tlb_entry *entry)
 
 void mips3com_init(mips3_state *mips, mips3_flavor flavor, int bigendian, legacy_cpu_device *device, device_irq_callback irqcallback)
 {
-	const mips3_config *config = (const mips3_config *)device->static_config();
+	const mips3_config *config = (const mips3_config *)device->baseconfig().static_config();
 	int tlbindex;
 
 	/* initialize based on the config */
@@ -82,7 +82,6 @@ void mips3com_init(mips3_state *mips, mips3_flavor flavor, int bigendian, legacy
 	mips->irq_callback = irqcallback;
 	mips->device = device;
 	mips->program = device->space(AS_PROGRAM);
-	mips->direct = &mips->program->direct();
 	mips->icache_size = config->icache;
 	mips->dcache_size = config->dcache;
 	mips->system_clock = config->system_clock;
@@ -99,29 +98,29 @@ void mips3com_init(mips3_state *mips, mips3_flavor flavor, int bigendian, legacy
 	}
 
 	/* set up the endianness */
-	mips->program->accessors(mips->memory);
+	mips->memory = mips->program->accessors;
 
 	/* allocate the virtual TLB */
-	mips->vtlb = vtlb_alloc(device, AS_PROGRAM, 2 * mips->tlbentries + 2, 0);
+	mips->vtlb = vtlb_alloc(device, ADDRESS_SPACE_PROGRAM, 2 * mips->tlbentries + 2, 0);
 
 	/* allocate a timer for the compare interrupt */
-	mips->compare_int_timer = device->machine().scheduler().timer_alloc(FUNC(compare_int_callback), (void *)device);
+	mips->compare_int_timer = timer_alloc(device->machine, compare_int_callback, (void *)device);
 
 	/* reset the state */
 	mips3com_reset(mips);
 
 	/* register for save states */
-	device->save_item(NAME(mips->pc));
-	device->save_item(NAME(mips->r));
-	device->save_item(NAME(mips->cpr));
-	device->save_item(NAME(mips->ccr));
-	device->save_item(NAME(mips->llbit));
-	device->save_item(NAME(mips->count_zero_time));
+	state_save_register_device_item(device, 0, mips->pc);
+	state_save_register_device_item_array(device, 0, mips->r);
+	state_save_register_device_item_2d_array(device, 0, mips->cpr);
+	state_save_register_device_item_2d_array(device, 0, mips->ccr);
+	state_save_register_device_item(device, 0, mips->llbit);
+	state_save_register_device_item(device, 0, mips->count_zero_time);
 	for (tlbindex = 0; tlbindex < mips->tlbentries; tlbindex++)
 	{
-		device->save_item(NAME(mips->tlb[tlbindex].page_mask), tlbindex);
-		device->save_item(NAME(mips->tlb[tlbindex].entry_hi), tlbindex);
-		device->save_item(NAME(mips->tlb[tlbindex].entry_lo), tlbindex);
+		state_save_register_device_item(device, tlbindex, mips->tlb[tlbindex].page_mask);
+		state_save_register_device_item(device, tlbindex, mips->tlb[tlbindex].entry_hi);
+		state_save_register_device_item_array(device, tlbindex, mips->tlb[tlbindex].entry_lo);
 	}
 }
 
@@ -205,10 +204,10 @@ void mips3com_update_cycle_counting(mips3_state *mips)
 		UINT32 compare = mips->cpr[0][COP0_Compare];
 		UINT32 delta = compare - count;
 		attotime newtime = mips->device->cycles_to_attotime((UINT64)delta * 2);
-		mips->compare_int_timer->adjust(newtime);
+		timer_adjust_oneshot(mips->compare_int_timer, newtime, 0);
 		return;
 	}
-	mips->compare_int_timer->adjust(attotime::never);
+	timer_adjust_oneshot(mips->compare_int_timer, attotime_never, 0);
 }
 
 
@@ -238,10 +237,10 @@ void mips3com_asid_changed(mips3_state *mips)
     from logical to physical
 -------------------------------------------------*/
 
-int mips3com_translate_address(mips3_state *mips, address_spacenum space, int intention, offs_t *address)
+int mips3com_translate_address(mips3_state *mips, int space, int intention, offs_t *address)
 {
 	/* only applies to the program address space */
-	if (space == AS_PROGRAM)
+	if (space == ADDRESS_SPACE_PROGRAM)
 	{
 		const vtlb_entry *table = vtlb_table(mips->vtlb);
 		vtlb_entry entry = table[*address >> MIPS3_MIN_PAGE_SHIFT];
@@ -312,7 +311,7 @@ void mips3com_tlbwr(mips3_state *mips)
 void mips3com_tlbp(mips3_state *mips)
 {
 	UINT32 tlbindex;
-//  UINT64 vpn;
+	UINT64 vpn;
 
 	/* iterate over TLB entries */
 	for (tlbindex = 0; tlbindex < mips->tlbentries; tlbindex++)
@@ -329,7 +328,7 @@ void mips3com_tlbp(mips3_state *mips)
 	}
 
 	/* validate that our tlb_table was in sync */
-//  vpn = ((mips->cpr[0][COP0_EntryHi] >> 13) & 0x07ffffff) << 1;
+	vpn = ((mips->cpr[0][COP0_EntryHi] >> 13) & 0x07ffffff) << 1;
 	if (tlbindex != mips->tlbentries)
 		mips->cpr[0][COP0_Index] = tlbindex;
 	else
@@ -468,9 +467,9 @@ void mips3com_get_info(mips3_state *mips, UINT32 state, cpuinfo *info)
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 40;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = MIPS3_MAX_PADDR_SHIFT;break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = MIPS3_MAX_PADDR_SHIFT;break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
 		case CPUINFO_INT_LOGADDR_WIDTH_PROGRAM: info->i = 32;					break;
 		case CPUINFO_INT_PAGE_SHIFT_PROGRAM:	info->i = MIPS3_MIN_PAGE_SHIFT;	break;
 
@@ -753,7 +752,7 @@ void mips3com_get_info(mips3_state *mips, UINT32 state, cpuinfo *info)
 static TIMER_CALLBACK( compare_int_callback )
 {
 	legacy_cpu_device *device = (legacy_cpu_device *)ptr;
-	device_set_input_line(device, MIPS3_IRQ5, ASSERT_LINE);
+	cpu_set_input_line(device, MIPS3_IRQ5, ASSERT_LINE);
 }
 
 

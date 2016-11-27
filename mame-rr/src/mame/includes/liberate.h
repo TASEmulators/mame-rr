@@ -1,40 +1,41 @@
-class liberate_state : public driver_device
+class liberate_state
 {
 public:
-	liberate_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, liberate_state(machine)); }
 
-	UINT8 *m_videoram;
-	UINT8 *m_colorram;
-	UINT8 *m_paletteram;
-	UINT8 *m_spriteram;
-	UINT8 *m_scratchram;
-	UINT8 *m_charram;	/* prosoccr */
-	UINT8 *m_bg_vram; /* prosport */
+	liberate_state(running_machine &machine) { }
 
-	UINT8 m_io_ram[16];
+	UINT8 *videoram;
+	UINT8 *colorram;
+	UINT8 *paletteram;
+	UINT8 *spriteram;
+	UINT8 *scratchram;
+	UINT8 *charram;	/* prosoccr */
+	UINT8 *bg_vram; /* prosport */
 
-	int m_bank;
-	int m_latch;
-	UINT8 m_gfx_rom_readback;
-	int m_background_color;
-	int m_background_disable;
+	UINT8 io_ram[16];
 
-	tilemap_t *m_back_tilemap;
-	tilemap_t *m_fix_tilemap;
+	int bank;
+	int latch;
+	UINT8 gfx_rom_readback;
+	int background_color;
+	int background_disable;
 
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	tilemap_t *back_tilemap;
+	tilemap_t *fix_tilemap;
+
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 
 /*----------- defined in video/liberate.c -----------*/
 
 PALETTE_INIT( liberate );
-SCREEN_UPDATE( prosoccr );
-SCREEN_UPDATE( prosport );
-SCREEN_UPDATE( liberate );
-SCREEN_UPDATE( boomrang );
+VIDEO_UPDATE( prosoccr );
+VIDEO_UPDATE( prosport );
+VIDEO_UPDATE( liberate );
+VIDEO_UPDATE( boomrang );
 VIDEO_START( prosoccr );
 VIDEO_START( prosport );
 VIDEO_START( boomrang );

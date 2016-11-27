@@ -81,30 +81,30 @@ static WRITE8_HANDLER( bank_select_w )
         xxxxxxx  - unused ?
 
     */
-	memory_set_bank(space->machine(), "bank1", data & 0x01);
+	memory_set_bank(space->machine, "bank1", data & 0x01);
 }
 
 static WRITE8_HANDLER( latch_w )
 {
-	ksayakyu_state *state = space->machine().driver_data<ksayakyu_state>();
-	state->m_sound_status &= ~0x80;
+	ksayakyu_state *state = (ksayakyu_state *)space->machine->driver_data;
+	state->sound_status &= ~0x80;
 	soundlatch_w(space, 0, data | 0x80);
 }
 
 static READ8_HANDLER (sound_status_r)
 {
-	ksayakyu_state *state = space->machine().driver_data<ksayakyu_state>();
-	return state->m_sound_status | 4;
+	ksayakyu_state *state = (ksayakyu_state *)space->machine->driver_data;
+	return state->sound_status | 4;
 }
 
 static WRITE8_HANDLER(tomaincpu_w)
 {
-	ksayakyu_state *state = space->machine().driver_data<ksayakyu_state>();
-	state->m_sound_status |= 0x80;
+	ksayakyu_state *state = (ksayakyu_state *)space->machine->driver_data;
+	state->sound_status |= 0x80;
 	soundlatch_w(space, 0, data);
 }
 
-static ADDRESS_MAP_START( maincpu_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( maincpu_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x9fff) AM_ROM
@@ -118,11 +118,11 @@ static ADDRESS_MAP_START( maincpu_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xa806, 0xa806) AM_READ(sound_status_r)
 	AM_RANGE(0xa807, 0xa807) AM_READNOP /* watchdog ? */
 	AM_RANGE(0xa808, 0xa808) AM_WRITE(bank_select_w)
-	AM_RANGE(0xb000, 0xb7ff) AM_RAM_WRITE(ksayakyu_videoram_w) AM_BASE_MEMBER(ksayakyu_state, m_videoram)
-	AM_RANGE(0xb800, 0xbfff) AM_RAM AM_BASE_SIZE_MEMBER(ksayakyu_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xb000, 0xb7ff) AM_RAM_WRITE(ksayakyu_videoram_w) AM_BASE_MEMBER(ksayakyu_state, videoram)
+	AM_RANGE(0xb800, 0xbfff) AM_RAM AM_BASE_SIZE_MEMBER(ksayakyu_state, spriteram, spriteram_size)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( soundcpu_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( soundcpu_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x83ff) AM_RAM
 	AM_RANGE(0xa001, 0xa001) AM_DEVREAD("ay1", ay8910_r)
@@ -252,70 +252,73 @@ GFXDECODE_END
 
 static MACHINE_START( ksayakyu )
 {
-	ksayakyu_state *state = machine.driver_data<ksayakyu_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	ksayakyu_state *state = (ksayakyu_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 2, &ROM[0x10000], 0x4000);
 
-	state->save_item(NAME(state->m_sound_status));
-	state->save_item(NAME(state->m_video_ctrl));
-	state->save_item(NAME(state->m_flipscreen));
+	state_save_register_global(machine, state->sound_status);
+	state_save_register_global(machine, state->video_ctrl);
+	state_save_register_global(machine, state->flipscreen);
 }
 
 static MACHINE_RESET( ksayakyu )
 {
-	ksayakyu_state *state = machine.driver_data<ksayakyu_state>();
+	ksayakyu_state *state = (ksayakyu_state *)machine->driver_data;
 
-	state->m_sound_status = 0xff;
-	state->m_video_ctrl = 0;
-	state->m_flipscreen = 0;
+	state->sound_status = 0xff;
+	state->video_ctrl = 0;
+	state->flipscreen = 0;
 }
 
-static MACHINE_CONFIG_START( ksayakyu, ksayakyu_state )
+static MACHINE_DRIVER_START( ksayakyu )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(ksayakyu_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,MAIN_CLOCK/8) //divider is guessed
-	MCFG_CPU_PROGRAM_MAP(maincpu_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,MAIN_CLOCK/8) //divider is guessed
+	MDRV_CPU_PROGRAM_MAP(maincpu_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, MAIN_CLOCK/8) //divider is guessed, controls DAC tempo
-	MCFG_CPU_PROGRAM_MAP(soundcpu_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,60) //guess, controls music tempo
+	MDRV_CPU_ADD("audiocpu", Z80, MAIN_CLOCK/8) //divider is guessed, controls DAC tempo
+	MDRV_CPU_PROGRAM_MAP(soundcpu_map)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold,60) //guess, controls music tempo
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60000))
+	MDRV_QUANTUM_TIME(HZ(60000))
 
-	MCFG_MACHINE_START(ksayakyu)
-	MCFG_MACHINE_RESET(ksayakyu)
+	MDRV_MACHINE_START(ksayakyu)
+	MDRV_MACHINE_RESET(ksayakyu)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(ksayakyu)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(ksayakyu)
-	MCFG_PALETTE_INIT(ksayakyu)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(ksayakyu)
+	MDRV_PALETTE_INIT(ksayakyu)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(ksayakyu)
+	MDRV_VIDEO_START(ksayakyu)
+	MDRV_VIDEO_UPDATE(ksayakyu)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, MAIN_CLOCK/16) //unknown clock
-	MCFG_SOUND_CONFIG(ay8910_interface_1)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay1", AY8910, MAIN_CLOCK/16) //unknown clock
+	MDRV_SOUND_CONFIG(ay8910_interface_1)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ay2", AY8910, MAIN_CLOCK/16) //unknown clock
-	MCFG_SOUND_CONFIG(ay8910_interface_2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay2", AY8910, MAIN_CLOCK/16) //unknown clock
+	MDRV_SOUND_CONFIG(ay8910_interface_2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
+MACHINE_DRIVER_END
 
 ROM_START( ksayakyu )
 	ROM_REGION( 0x20000, "maincpu", 0 )

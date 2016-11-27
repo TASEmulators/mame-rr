@@ -169,29 +169,29 @@ Language
 #include "sound/sn76496.h"
 
 
-static void appoooh_adpcm_int(device_t *device)
+static void appoooh_adpcm_int(running_device *device)
 {
-	appoooh_state *state = device->machine().driver_data<appoooh_state>();
+	appoooh_state *state = (appoooh_state *)device->machine->driver_data;
 
-	if (state->m_adpcm_address != 0xffffffff)
+	if (state->adpcm_address != 0xffffffff)
 	{
-		if (state->m_adpcm_data == 0xffffffff)
+		if (state->adpcm_data == 0xffffffff)
 		{
-			UINT8 *RAM = device->machine().region("adpcm")->base();
+			UINT8 *RAM = memory_region(device->machine, "adpcm");
 
-			state->m_adpcm_data = RAM[state->m_adpcm_address++];
-			msm5205_data_w(device, state->m_adpcm_data >> 4);
+			state->adpcm_data = RAM[state->adpcm_address++];
+			msm5205_data_w(device, state->adpcm_data >> 4);
 
-			if (state->m_adpcm_data == 0x70)
+			if (state->adpcm_data == 0x70)
 			{
-				state->m_adpcm_address = 0xffffffff;
+				state->adpcm_address = 0xffffffff;
 				msm5205_reset_w(device, 1);
 			}
 		}
 		else
 		{
-			msm5205_data_w(device, state->m_adpcm_data & 0x0f );
-			state->m_adpcm_data = -1;
+			msm5205_data_w(device, state->adpcm_data & 0x0f );
+			state->adpcm_data = -1;
 		}
 	}
 }
@@ -199,11 +199,11 @@ static void appoooh_adpcm_int(device_t *device)
 /* adpcm address write */
 static WRITE8_HANDLER( appoooh_adpcm_w )
 {
-	appoooh_state *state = space->machine().driver_data<appoooh_state>();
+	appoooh_state *state = (appoooh_state *)space->machine->driver_data;
 
-	state->m_adpcm_address = data << 8;
-	msm5205_reset_w(state->m_adpcm, 0);
-	state->m_adpcm_data = 0xffffffff;
+	state->adpcm_address = data << 8;
+	msm5205_reset_w(state->adpcm, 0);
+	state->adpcm_data = 0xffffffff;
 }
 
 
@@ -213,23 +213,23 @@ static WRITE8_HANDLER( appoooh_adpcm_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x9fff) AM_ROM
 	AM_RANGE(0xa000, 0xdfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xe000, 0xe7ff) AM_RAM
 	AM_RANGE(0xe800, 0xefff) AM_RAM /* RAM ? */
 
-	AM_RANGE(0xf000, 0xf01f) AM_BASE_MEMBER(appoooh_state, m_spriteram)
-	AM_RANGE(0xf020, 0xf3ff) AM_WRITE(appoooh_fg_videoram_w) AM_BASE_MEMBER(appoooh_state, m_fg_videoram)
-	AM_RANGE(0xf420, 0xf7ff) AM_WRITE(appoooh_fg_colorram_w) AM_BASE_MEMBER(appoooh_state, m_fg_colorram)
-	AM_RANGE(0xf800, 0xf81f) AM_BASE_MEMBER(appoooh_state, m_spriteram_2)
-	AM_RANGE(0xf820, 0xfbff) AM_WRITE(appoooh_bg_videoram_w) AM_BASE_MEMBER(appoooh_state, m_bg_videoram)
-	AM_RANGE(0xfc20, 0xffff) AM_WRITE(appoooh_bg_colorram_w) AM_BASE_MEMBER(appoooh_state, m_bg_colorram)
+	AM_RANGE(0xf000, 0xf01f) AM_BASE_MEMBER(appoooh_state, spriteram)
+	AM_RANGE(0xf020, 0xf3ff) AM_WRITE(appoooh_fg_videoram_w) AM_BASE_MEMBER(appoooh_state, fg_videoram)
+	AM_RANGE(0xf420, 0xf7ff) AM_WRITE(appoooh_fg_colorram_w) AM_BASE_MEMBER(appoooh_state, fg_colorram)
+	AM_RANGE(0xf800, 0xf81f) AM_BASE_MEMBER(appoooh_state, spriteram_2)
+	AM_RANGE(0xf820, 0xfbff) AM_WRITE(appoooh_bg_videoram_w) AM_BASE_MEMBER(appoooh_state, bg_videoram)
+	AM_RANGE(0xfc20, 0xffff) AM_WRITE(appoooh_bg_colorram_w) AM_BASE_MEMBER(appoooh_state, bg_colorram)
 	AM_RANGE(0xf000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( main_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( main_portmap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("P1") AM_DEVWRITE("sn1", sn76496_w)
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("P2") AM_DEVWRITE("sn2", sn76496_w)
@@ -402,90 +402,97 @@ static const msm5205_interface msm5205_config =
 
 static MACHINE_START( appoooh )
 {
-	appoooh_state *state = machine.driver_data<appoooh_state>();
+	appoooh_state *state = (appoooh_state *)machine->driver_data;
 
-	state->m_adpcm = machine.device("msm");
+	state->adpcm = machine->device("msm");
 
-	state->save_item(NAME(state->m_adpcm_data));
-	state->save_item(NAME(state->m_adpcm_address));
+	state_save_register_global(machine, state->adpcm_data);
+	state_save_register_global(machine, state->adpcm_address);
 }
 
 
 static MACHINE_RESET( appoooh )
 {
-	appoooh_state *state = machine.driver_data<appoooh_state>();
+	appoooh_state *state = (appoooh_state *)machine->driver_data;
 
-	state->m_adpcm_address = 0xffffffff;
-	state->m_adpcm_data = 0;
-	state->m_scroll_x = 0;
-	state->m_priority = 0;
+	state->adpcm_address = 0xffffffff;
+	state->adpcm_data = 0;
+	state->scroll_x = 0;
+	state->priority = 0;
 }
 
-static MACHINE_CONFIG_START( appoooh_common, appoooh_state )
+static MACHINE_DRIVER_START( appoooh_common )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(appoooh_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,18432000/6)	/* ??? the main xtal is 18.432 MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_IO_MAP(main_portmap)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80,18432000/6)	/* ??? the main xtal is 18.432 MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_IO_MAP(main_portmap)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_MACHINE_START(appoooh)
-	MCFG_MACHINE_RESET(appoooh)
+	MDRV_MACHINE_START(appoooh)
+	MDRV_MACHINE_RESET(appoooh)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76489, 18432000/6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("sn1", SN76489, 18432000/6)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("sn2", SN76489, 18432000/6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("sn2", SN76489, 18432000/6)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("sn3", SN76489, 18432000/6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("sn3", SN76489, 18432000/6)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("msm", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( appoooh, appoooh_common )
-
-	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(appoooh)
-
-	MCFG_GFXDECODE(appoooh)
-	MCFG_PALETTE_LENGTH(32*8+32*8)
-
-	MCFG_PALETTE_INIT(appoooh)
-	MCFG_VIDEO_START(appoooh)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( robowres, appoooh_common )
+static MACHINE_DRIVER_START( appoooh )
+
+	/* common machine hardware */
+	MDRV_IMPORT_FROM(appoooh_common)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(robowres)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
+	MDRV_GFXDECODE(appoooh)
+	MDRV_PALETTE_LENGTH(32*8+32*8)
 
-	MCFG_GFXDECODE(robowres)
-	MCFG_PALETTE_LENGTH(32*8+32*8)
+	MDRV_PALETTE_INIT(appoooh)
+	MDRV_VIDEO_START(appoooh)
+	MDRV_VIDEO_UPDATE(appoooh)
+MACHINE_DRIVER_END
 
-	MCFG_PALETTE_INIT(robowres)
-	MCFG_VIDEO_START(appoooh)
-MACHINE_CONFIG_END
+
+static MACHINE_DRIVER_START( robowres )
+
+	/* common machine hardware */
+	MDRV_IMPORT_FROM(appoooh_common)
+
+	/* video hardware */
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
+	MDRV_GFXDECODE(robowres)
+	MDRV_PALETTE_LENGTH(32*8+32*8)
+
+	MDRV_PALETTE_INIT(robowres)
+	MDRV_VIDEO_START(appoooh)
+	MDRV_VIDEO_UPDATE(robowres)
+MACHINE_DRIVER_END
 
 /*************************************
  *
@@ -598,8 +605,8 @@ static DRIVER_INIT(robowres)
 
 static DRIVER_INIT(robowresb)
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->set_decrypted_region(0x0000, 0x7fff, machine.region("maincpu")->base() + 0x1c000);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_set_decrypted_region(space, 0x0000, 0x7fff, memory_region(machine, "maincpu") + 0x1c000);
 }
 
 

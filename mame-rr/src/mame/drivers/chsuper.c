@@ -13,30 +13,17 @@ TODO:
 #include "emu.h"
 #include "cpu/z180/z180.h"
 #include "sound/dac.h"
-#include "machine/nvram.h"
 
-
-class chsuper_state : public driver_device
-{
-public:
-	chsuper_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	int m_tilexor;
-	struct { int r,g,b,offs,offs_internal; } m_pal;
-};
-
-
+static int chsuper_tilexor;
 
 static VIDEO_START(chsuper)
 {
 }
 
-static SCREEN_UPDATE(chsuper)
+static VIDEO_UPDATE(chsuper)
 {
-	//chsuper_state *state = screen->machine().driver_data<chsuper_state>();
-	const gfx_element *gfx = screen->machine().gfx[0];
-	UINT8 *vram = screen->machine().region("vram")->base();
+	const gfx_element *gfx = screen->machine->gfx[0];
+	UINT8 *vram = memory_region(screen->machine, "vram");
 	int count = 0x0000;
 	int y,x;
 
@@ -46,7 +33,7 @@ static SCREEN_UPDATE(chsuper)
 		{
 			int tile = ((vram[count+1]<<8) | vram[count]) & 0xffff;
 
-			//tile ^=state->m_tilexor;
+			//tile ^=chsuper_tilexor;
 
 			drawgfx_opaque(bitmap,cliprect,gfx,tile,0,0,0,x*4,y*8);
 			count+=2;
@@ -58,31 +45,32 @@ static SCREEN_UPDATE(chsuper)
 
 static WRITE8_HANDLER( paletteram_io_w )
 {
-	chsuper_state *state = space->machine().driver_data<chsuper_state>();
+	static int pal_offs,r,g,b,internal_pal_offs;
+
 	switch(offset)
 	{
 		case 0:
-			state->m_pal.offs = data;
+			pal_offs = data;
 			break;
 		case 2:
-			state->m_pal.offs_internal = 0;
+			internal_pal_offs = 0;
 			break;
 		case 1:
-			switch(state->m_pal.offs_internal)
+			switch(internal_pal_offs)
 			{
 				case 0:
-					state->m_pal.r = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
-					state->m_pal.offs_internal++;
+					r = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
+					internal_pal_offs++;
 					break;
 				case 1:
-					state->m_pal.g = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
-					state->m_pal.offs_internal++;
+					g = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
+					internal_pal_offs++;
 					break;
 				case 2:
-					state->m_pal.b = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
-					palette_set_color(space->machine(), state->m_pal.offs, MAKE_RGB(state->m_pal.r, state->m_pal.g, state->m_pal.b));
-					state->m_pal.offs_internal = 0;
-					state->m_pal.offs++;
+					b = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
+					palette_set_color(space->machine, pal_offs, MAKE_RGB(r, g, b));
+					internal_pal_offs = 0;
+					pal_offs++;
 					break;
 			}
 
@@ -97,21 +85,21 @@ static READ8_HANDLER( ff_r )
 
 static WRITE8_HANDLER( chsuper_vram_w )
 {
-	UINT8 *vram = space->machine().region("vram")->base();
+	UINT8 *vram = memory_region(space->machine, "vram");
 
 	vram[offset] = data;
 }
 
-static ADDRESS_MAP_START( chsuper_prg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( chsuper_prg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x00000, 0x0efff) AM_ROM
 	AM_RANGE(0x00000, 0x01fff) AM_WRITE( chsuper_vram_w )
 	AM_RANGE(0x0f000, 0x0ffff) AM_RAM AM_REGION("maincpu", 0xf000)
-	AM_RANGE(0xfb000, 0xfbfff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xfb000, 0xfbfff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 ADDRESS_MAP_END
 
-//  AM_RANGE(0xaff8, 0xaff8) AM_DEVWRITE_MODERN("oki", okim6295_device, write)
+//  AM_RANGE(0xaff8, 0xaff8) AM_DEVWRITE("oki", okim6295_w)
 
-static ADDRESS_MAP_START( chsuper_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( chsuper_portmap, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE( 0x0000, 0x003f ) AM_RAM // Z180 internal regs
 	AM_RANGE( 0x00e8, 0x00e8 ) AM_READ_PORT("IN0")
 	AM_RANGE( 0x00e9, 0x00e9 ) AM_READ_PORT("IN1")
@@ -201,36 +189,36 @@ static GFXDECODE_START( chsuper )
 	GFXDECODE_ENTRY( "gfx1", 0x00000, charlayout,   0, 1 )
 GFXDECODE_END
 
-static MACHINE_CONFIG_START( chsuper, chsuper_state )
+static MACHINE_DRIVER_START( chsuper )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z180, XTAL_12MHz / 2)	/* HD64180RP8, 8 MHz? */
-	MCFG_CPU_PROGRAM_MAP(chsuper_prg_map)
-	MCFG_CPU_IO_MAP(chsuper_portmap)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z180, XTAL_12MHz / 2)	/* HD64180RP8, 8 MHz? */
+	MDRV_CPU_PROGRAM_MAP(chsuper_prg_map)
+	MDRV_CPU_IO_MAP(chsuper_portmap)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 64*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 48*8-1, 0, 30*8-1)
-	MCFG_SCREEN_UPDATE(chsuper)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 64*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 48*8-1, 0, 30*8-1)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER( generic_0fill )
 
-	MCFG_GFXDECODE(chsuper)
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_GFXDECODE(chsuper)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_VIDEO_START(chsuper)
+	MDRV_VIDEO_START(chsuper)
+	MDRV_VIDEO_UPDATE(chsuper)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 /*  ROM Regions definition
@@ -280,12 +268,11 @@ ROM_END
 
 static DRIVER_INIT( chsuper2 )
 {
-	chsuper_state *state = machine.driver_data<chsuper_state>();
 	UINT8 *buffer;
-	UINT8 *rom = machine.region("gfx1")->base();
+	UINT8 *rom = memory_region(machine,"gfx1");
 	int i;
 
-	state->m_tilexor = 0x7f00;
+	chsuper_tilexor = 0x7f00;
 
 	buffer = auto_alloc_array(machine, UINT8, 0x100000);
 
@@ -293,24 +280,23 @@ static DRIVER_INIT( chsuper2 )
 	{
 		int j;
 
-		j = i ^ (state->m_tilexor << 5);
+		j = i ^ (chsuper_tilexor << 5);
 
 		buffer[j] = rom[i];
 	}
 
 	memcpy(rom,buffer,0x100000);
 
-	state->m_tilexor = 0x0000;
+	chsuper_tilexor = 0x0000;
 }
 
 static DRIVER_INIT( chsuper3 )
 {
-	chsuper_state *state = machine.driver_data<chsuper_state>();
 	UINT8 *buffer;
-	UINT8 *rom = machine.region("gfx1")->base();
+	UINT8 *rom = memory_region(machine,"gfx1");
 	int i;
 
-	state->m_tilexor = 0x0e00;
+	chsuper_tilexor = 0x0e00;
 
 	buffer = auto_alloc_array(machine, UINT8, 0x100000);
 
@@ -318,24 +304,23 @@ static DRIVER_INIT( chsuper3 )
 	{
 		int j;
 
-		j = i ^ (state->m_tilexor << 5);
+		j = i ^ (chsuper_tilexor << 5);
 
 		buffer[j] = rom[i];
 	}
 
 	memcpy(rom,buffer,0x100000);
 
-	state->m_tilexor = 0x0000;
+	chsuper_tilexor = 0x0000;
 }
 
 static DRIVER_INIT( chmpnum )
 {
-	chsuper_state *state = machine.driver_data<chsuper_state>();
 	UINT8 *buffer;
-	UINT8 *rom = machine.region("gfx1")->base();
+	UINT8 *rom = memory_region(machine,"gfx1");
 	int i;
 
-	state->m_tilexor = 0x1800;
+	chsuper_tilexor = 0x1800;
 
 	buffer = auto_alloc_array(machine, UINT8, 0x100000);
 
@@ -343,7 +328,7 @@ static DRIVER_INIT( chmpnum )
 	{
 		int j;
 
-		j = i ^ (state->m_tilexor << 5);
+		j = i ^ (chsuper_tilexor << 5);
 
 		j = BITSWAP24(j,23,22,21,20,19,18,17,13, 15,14,16,12, 11,10,9,8, 7,6,5,4, 3,2,1,0);
 		j = BITSWAP24(j,23,22,21,20,19,18,17,14, 15,16,13,12, 11,10,9,8, 7,6,5,4, 3,2,1,0);
@@ -354,7 +339,7 @@ static DRIVER_INIT( chmpnum )
 
 	memcpy(rom,buffer,0x100000);
 
-	state->m_tilexor = 0x0000;
+	chsuper_tilexor = 0x0000;
 }
 
 

@@ -55,10 +55,10 @@ it as ASCII text.
 #include "includes/btime.h"
 
 
-static ADDRESS_MAP_START( dommy_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dommy_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
-	AM_RANGE(0x2000, 0x23ff) AM_RAM AM_BASE_SIZE_MEMBER(btime_state, m_videoram, m_videoram_size)
-	AM_RANGE(0x2400, 0x27ff) AM_RAM AM_BASE_MEMBER(btime_state, m_colorram)
+	AM_RANGE(0x2000, 0x23ff) AM_RAM AM_BASE_SIZE_MEMBER(btime_state, videoram, videoram_size)
+	AM_RANGE(0x2400, 0x27ff) AM_RAM AM_BASE_MEMBER(btime_state, colorram)
 	AM_RANGE(0x2800, 0x2bff) AM_READWRITE(btime_mirrorvideoram_r, btime_mirrorvideoram_w)
 	AM_RANGE(0x4000, 0x4000) AM_READ_PORT("DSW1") AM_WRITENOP
 	AM_RANGE(0x4001, 0x4001) AM_READ_PORT("DSW2") AM_WRITE(btime_video_control_w)
@@ -71,10 +71,10 @@ static ADDRESS_MAP_START( dommy_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( eggs_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( eggs_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
-	AM_RANGE(0x1000, 0x13ff) AM_RAM AM_BASE_SIZE_MEMBER(btime_state, m_videoram, m_videoram_size)
-	AM_RANGE(0x1400, 0x17ff) AM_RAM AM_BASE_MEMBER(btime_state, m_colorram)
+	AM_RANGE(0x1000, 0x13ff) AM_RAM AM_BASE_SIZE_MEMBER(btime_state, videoram, videoram_size)
+	AM_RANGE(0x1400, 0x17ff) AM_RAM AM_BASE_MEMBER(btime_state, colorram)
 	AM_RANGE(0x1800, 0x1bff) AM_READWRITE(btime_mirrorvideoram_r,btime_mirrorvideoram_w)
 	AM_RANGE(0x1c00, 0x1fff) AM_READWRITE(btime_mirrorcolorram_r,btime_mirrorcolorram_w)
 	AM_RANGE(0x2000, 0x2000) AM_READ_PORT("DSW1") AM_WRITE(btime_video_control_w)
@@ -202,100 +202,106 @@ GFXDECODE_END
 
 static MACHINE_START( scregg )
 {
-	btime_state *state = machine.driver_data<btime_state>();
+	btime_state *state = (btime_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = NULL;
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = NULL;
 
-	state->save_item(NAME(state->m_btime_palette));
-	state->save_item(NAME(state->m_bnj_scroll1));
-	state->save_item(NAME(state->m_bnj_scroll2));
-	state->save_item(NAME(state->m_btime_tilemap));
+	state_save_register_global(machine, state->btime_palette);
+	state_save_register_global(machine, state->bnj_scroll1);
+	state_save_register_global(machine, state->bnj_scroll2);
+	state_save_register_global_array(machine, state->btime_tilemap);
 }
 
 static MACHINE_RESET( scregg )
 {
-	btime_state *state = machine.driver_data<btime_state>();
+	btime_state *state = (btime_state *)machine->driver_data;
 
-	state->m_btime_palette = 0;
-	state->m_bnj_scroll1 = 0;
-	state->m_bnj_scroll2 = 0;
-	state->m_btime_tilemap[0] = 0;
-	state->m_btime_tilemap[1] = 0;
-	state->m_btime_tilemap[2] = 0;
-	state->m_btime_tilemap[3] = 0;
+	state->btime_palette = 0;
+	state->bnj_scroll1 = 0;
+	state->bnj_scroll2 = 0;
+	state->btime_tilemap[0] = 0;
+	state->btime_tilemap[1] = 0;
+	state->btime_tilemap[2] = 0;
+	state->btime_tilemap[3] = 0;
 }
 
-static MACHINE_CONFIG_START( dommy, btime_state )
+static MACHINE_DRIVER_START( dommy )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(btime_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6502, 1500000)
-	MCFG_CPU_PROGRAM_MAP(dommy_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,16*60) //???
+	MDRV_CPU_ADD("maincpu", M6502, 1500000)
+	MDRV_CPU_PROGRAM_MAP(dommy_map)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold,16*60) //???
 
-	MCFG_MACHINE_START(scregg)
-	MCFG_MACHINE_RESET(scregg)
+	MDRV_MACHINE_START(scregg)
+	MDRV_MACHINE_RESET(scregg)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(3072)        /* frames per second, vblank duration taken from Burger Time */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 31*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(eggs)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(3072)        /* frames per second, vblank duration taken from Burger Time */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 31*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(scregg)
-	MCFG_PALETTE_LENGTH(8)
+	MDRV_GFXDECODE(scregg)
+	MDRV_PALETTE_LENGTH(8)
 
-	MCFG_PALETTE_INIT(btime)
-	MCFG_VIDEO_START(btime)
+	MDRV_PALETTE_INIT(btime)
+	MDRV_VIDEO_START(btime)
+	MDRV_VIDEO_UPDATE(eggs)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
+	MDRV_SOUND_ADD("ay1", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( scregg, btime_state )
+static MACHINE_DRIVER_START( scregg )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(btime_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6502, 1500000)
-	MCFG_CPU_PROGRAM_MAP(eggs_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,16*60) //???
+	MDRV_CPU_ADD("maincpu", M6502, 1500000)
+	MDRV_CPU_PROGRAM_MAP(eggs_map)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold,16*60) //???
 
-	MCFG_MACHINE_START(scregg)
-	MCFG_MACHINE_RESET(scregg)
+	MDRV_MACHINE_START(scregg)
+	MDRV_MACHINE_RESET(scregg)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(3072)        /* frames per second, vblank duration taken from Burger Time */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(eggs)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(3072)        /* frames per second, vblank duration taken from Burger Time */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(scregg)
-	MCFG_PALETTE_LENGTH(8)
+	MDRV_GFXDECODE(scregg)
+	MDRV_PALETTE_LENGTH(8)
 
-	MCFG_PALETTE_INIT(btime)
-	MCFG_VIDEO_START(btime)
+	MDRV_PALETTE_INIT(btime)
+	MDRV_VIDEO_START(btime)
+	MDRV_VIDEO_UPDATE(eggs)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
+	MDRV_SOUND_ADD("ay1", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.23)
+MACHINE_DRIVER_END
 
 
 ROM_START( dommy )
@@ -391,7 +397,7 @@ static DRIVER_INIT( rockduck )
 {
 	// rd2.rdh and rd1.rdj are bitswapped, but not rd3.rdg .. are they really from the same board?
 	int x;
-	UINT8 *src = machine.region( "gfx1" )->base();
+	UINT8 *src = memory_region( machine, "gfx1" );
 
 	for (x = 0x2000; x < 0x6000; x++)
 	{

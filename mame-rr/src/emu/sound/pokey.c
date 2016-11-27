@@ -50,6 +50,7 @@
  *****************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "pokey.h"
 
 /*
@@ -173,7 +174,7 @@ struct _pokey_state
 	UINT32 r9;				/* rand9 index */
 	UINT32 r17;             /* rand17 index */
 	UINT32 clockmult;		/* clock multiplier */
-	device_t *device;
+	running_device *device;
 	sound_stream * channel; /* streams channel */
 	emu_timer *timer[3];	/* timers for channel 1,2 and 4 events */
 	attotime timer_period[3];	/* computed periods for these timers */
@@ -184,7 +185,7 @@ struct _pokey_state
 	devcb_resolved_read8 allpot_r;
 	devcb_resolved_read8 serin_r;
 	devcb_resolved_write8 serout_w;
-	void (*interrupt_cb)(device_t *device, int mask);
+	void (*interrupt_cb)(running_device *device, int mask);
 	UINT8 AUDF[4];          /* AUDFx (D200, D202, D204, D206) */
 	UINT8 AUDC[4];			/* AUDCx (D201, D203, D205, D207) */
 	UINT8 POTx[8];			/* POTx   (R/D200-D207) */
@@ -465,7 +466,7 @@ static TIMER_CALLBACK( pokey_pot_trigger );
 			PROCESS_SAMPLE(chip);										\
 		}																\
 	}																	\
-	chip->rtimer->adjust(attotime::never)
+	timer_adjust_oneshot(chip->rtimer, attotime_never, 0)
 
 #else   /* no HEAVY_MACRO_USAGE */
 /*
@@ -516,15 +517,15 @@ static TIMER_CALLBACK( pokey_pot_trigger );
 			PROCESS_CHANNEL(chip,channel);								\
 		}																\
 	}																	\
-	chip->rtimer->adjust(attotime::never)
+	timer_adjust_oneshot(chip->rtimer, attotime_never, 0)
 
 #endif
 
 
-INLINE pokey_state *get_safe_token(device_t *device)
+INLINE pokey_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == POKEY);
+	assert(device->type() == SOUND_POKEY);
 	return (pokey_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -572,40 +573,43 @@ static void rand_init(UINT8 *rng, int size, int left, int right, int add)
 }
 
 
-static void register_for_save(pokey_state *chip, device_t *device)
+static void register_for_save(pokey_state *chip, running_device *device)
 {
-	device->save_item(NAME(chip->counter));
-	device->save_item(NAME(chip->divisor));
-	device->save_item(NAME(chip->volume));
-	device->save_item(NAME(chip->output));
-	device->save_item(NAME(chip->audible));
-	device->save_item(NAME(chip->samplepos_fract));
-	device->save_item(NAME(chip->samplepos_whole));
-	device->save_item(NAME(chip->polyadjust));
-	device->save_item(NAME(chip->p4));
-	device->save_item(NAME(chip->p5));
-	device->save_item(NAME(chip->p9));
-	device->save_item(NAME(chip->p17));
-	device->save_item(NAME(chip->r9));
-	device->save_item(NAME(chip->r17));
-	device->save_item(NAME(chip->clockmult));
-	device->save_item(NAME(chip->timer_period[0]));
-	device->save_item(NAME(chip->timer_period[1]));
-	device->save_item(NAME(chip->timer_period[2]));
-	device->save_item(NAME(chip->timer_param));
-	device->save_item(NAME(chip->AUDF));
-	device->save_item(NAME(chip->AUDC));
-	device->save_item(NAME(chip->POTx));
-	device->save_item(NAME(chip->AUDCTL));
-	device->save_item(NAME(chip->ALLPOT));
-	device->save_item(NAME(chip->KBCODE));
-	device->save_item(NAME(chip->RANDOM));
-	device->save_item(NAME(chip->SERIN));
-	device->save_item(NAME(chip->SEROUT));
-	device->save_item(NAME(chip->IRQST));
-	device->save_item(NAME(chip->IRQEN));
-	device->save_item(NAME(chip->SKSTAT));
-	device->save_item(NAME(chip->SKCTL));
+	state_save_register_device_item_array(device, 0, chip->counter);
+	state_save_register_device_item_array(device, 0, chip->divisor);
+	state_save_register_device_item_array(device, 0, chip->volume);
+	state_save_register_device_item_array(device, 0, chip->output);
+	state_save_register_device_item_array(device, 0, chip->audible);
+	state_save_register_device_item(device, 0, chip->samplepos_fract);
+	state_save_register_device_item(device, 0, chip->samplepos_whole);
+	state_save_register_device_item(device, 0, chip->polyadjust);
+	state_save_register_device_item(device, 0, chip->p4);
+	state_save_register_device_item(device, 0, chip->p5);
+	state_save_register_device_item(device, 0, chip->p9);
+	state_save_register_device_item(device, 0, chip->p17);
+	state_save_register_device_item(device, 0, chip->r9);
+	state_save_register_device_item(device, 0, chip->r17);
+	state_save_register_device_item(device, 0, chip->clockmult);
+	state_save_register_device_item(device, 0, chip->timer_period[0].seconds);
+	state_save_register_device_item(device, 0, chip->timer_period[0].attoseconds);
+	state_save_register_device_item(device, 0, chip->timer_period[1].seconds);
+	state_save_register_device_item(device, 0, chip->timer_period[1].attoseconds);
+	state_save_register_device_item(device, 0, chip->timer_period[2].seconds);
+	state_save_register_device_item(device, 0, chip->timer_period[2].attoseconds);
+	state_save_register_device_item_array(device, 0, chip->timer_param);
+	state_save_register_device_item_array(device, 0, chip->AUDF);
+	state_save_register_device_item_array(device, 0, chip->AUDC);
+	state_save_register_device_item_array(device, 0, chip->POTx);
+	state_save_register_device_item(device, 0, chip->AUDCTL);
+	state_save_register_device_item(device, 0, chip->ALLPOT);
+	state_save_register_device_item(device, 0, chip->KBCODE);
+	state_save_register_device_item(device, 0, chip->RANDOM);
+	state_save_register_device_item(device, 0, chip->SERIN);
+	state_save_register_device_item(device, 0, chip->SEROUT);
+	state_save_register_device_item(device, 0, chip->IRQST);
+	state_save_register_device_item(device, 0, chip->IRQEN);
+	state_save_register_device_item(device, 0, chip->SKSTAT);
+	state_save_register_device_item(device, 0, chip->SKCTL);
 }
 
 
@@ -615,10 +619,10 @@ static DEVICE_START( pokey )
 	int sample_rate = device->clock();
 	int i;
 
-	if (device->static_config())
-		memcpy(&chip->intf, device->static_config(), sizeof(pokey_interface));
+	if (device->baseconfig().static_config())
+		memcpy(&chip->intf, device->baseconfig().static_config(), sizeof(pokey_interface));
 	chip->device = device;
-	chip->clock_period = attotime::from_hz(device->clock());
+	chip->clock_period = ATTOTIME_IN_HZ(device->clock());
 
 	/* calculate the A/D times
      * In normal, slow mode (SKCTL bit SK_PADDLE is clear) the conversion
@@ -627,8 +631,8 @@ static DEVICE_START( pokey )
      * In quick mode (SK_PADDLE set) the conversion is done very fast
      * (takes two scanlines) but the result is not as accurate.
      */
-	chip->ad_time_fast = (attotime::from_nsec(64000*2/228) * FREQ_17_EXACT) / device->clock();
-	chip->ad_time_slow = (attotime::from_nsec(64000      ) * FREQ_17_EXACT) / device->clock();
+	chip->ad_time_fast = attotime_div(attotime_mul(ATTOTIME_IN_NSEC(64000*2/228), FREQ_17_EXACT), device->clock());
+	chip->ad_time_slow = attotime_div(attotime_mul(ATTOTIME_IN_NSEC(64000      ), FREQ_17_EXACT), device->clock());
 
 	/* initialize the poly counters */
 	poly_init(chip->poly4,   4, 3, 1, 0x00004);
@@ -648,23 +652,23 @@ static DEVICE_START( pokey )
 	chip->clockmult = DIV_64;
 	chip->KBCODE = 0x09;		 /* Atari 800 'no key' */
 	chip->SKCTL = SK_RESET;	 /* let the RNG run after reset */
-	chip->rtimer = device->machine().scheduler().timer_alloc(FUNC_NULL);
+	chip->rtimer = timer_alloc(device->machine,  NULL, NULL);
 
-	chip->timer[0] = device->machine().scheduler().timer_alloc(FUNC(pokey_timer_expire), chip);
-	chip->timer[1] = device->machine().scheduler().timer_alloc(FUNC(pokey_timer_expire), chip);
-	chip->timer[2] = device->machine().scheduler().timer_alloc(FUNC(pokey_timer_expire), chip);
+	chip->timer[0] = timer_alloc(device->machine, pokey_timer_expire, chip);
+	chip->timer[1] = timer_alloc(device->machine, pokey_timer_expire, chip);
+	chip->timer[2] = timer_alloc(device->machine, pokey_timer_expire, chip);
 
 	for (i=0; i<8; i++)
 	{
-		chip->ptimer[i] = device->machine().scheduler().timer_alloc(FUNC(pokey_pot_trigger), chip);
-		chip->pot_r[i].resolve(chip->intf.pot_r[i], *device);
+		chip->ptimer[i] = timer_alloc(device->machine, pokey_pot_trigger, chip);
+		devcb_resolve_read8(&chip->pot_r[i], &chip->intf.pot_r[i], device);
 	}
-	chip->allpot_r.resolve(chip->intf.allpot_r, *device);
-	chip->serin_r.resolve(chip->intf.serin_r, *device);
-	chip->serout_w.resolve(chip->intf.serout_w, *device);
+	devcb_resolve_read8(&chip->allpot_r, &chip->intf.allpot_r, device);
+	devcb_resolve_read8(&chip->serin_r, &chip->intf.serin_r, device);
+	devcb_resolve_write8(&chip->serout_w, &chip->intf.serout_w, device);
 	chip->interrupt_cb = chip->intf.interrupt_cb;
 
-	chip->channel = device->machine().sound().stream_alloc(*device, 0, 1, sample_rate, chip, pokey_update);
+	chip->channel = stream_create(device, 0, 1, sample_rate, chip, pokey_update);
 
 	register_for_save(chip, device);
 }
@@ -778,7 +782,7 @@ static TIMER_CALLBACK( pokey_pot_trigger )
 {
 	pokey_state *p = (pokey_state *)ptr;
 	int pot = param;
-	LOG(("POKEY #%p POT%d triggers after %dus\n", p, pot, (int)(1000000 * p->ptimer[pot]->elapsed().as_double())));
+	LOG(("POKEY #%p POT%d triggers after %dus\n", p, pot, (int)(1000000 * attotime_to_double(timer_timeelapsed(p->ptimer[pot])))));
 	p->ALLPOT &= ~(1 << pot);	/* set the enabled timer irq status bits */
 }
 
@@ -795,9 +799,9 @@ static void pokey_potgo(pokey_state *p)
     for( pot = 0; pot < 8; pot++ )
 	{
 		p->POTx[pot] = 0xff;
-		if( !p->pot_r[pot].isnull() )
+		if( p->pot_r[pot].read )
 		{
-			int r = p->pot_r[pot](pot);
+			int r = devcb_call_read8(&p->pot_r[pot], pot);
 
 			LOG(("POKEY %s pot_r(%d) returned $%02x\n", p->device->tag(), pot, r));
 			if( r != -1 )
@@ -807,7 +811,7 @@ static void pokey_potgo(pokey_state *p)
 
                 /* final value */
                 p->POTx[pot] = r;
-				p->ptimer[pot]->adjust(AD_TIME * r, pot);
+				timer_adjust_oneshot(p->ptimer[pot], attotime_mul(AD_TIME, r), pot);
 			}
 		}
 	}
@@ -824,7 +828,7 @@ READ8_DEVICE_HANDLER( pokey_r )
 	case POT0_C: case POT1_C: case POT2_C: case POT3_C:
 	case POT4_C: case POT5_C: case POT6_C: case POT7_C:
 		pot = offset & 7;
-		if( !p->pot_r[pot].isnull() )
+		if( p->pot_r[pot].read )
 		{
 			/*
              * If the conversion is not yet finished (ptimer running),
@@ -833,7 +837,7 @@ READ8_DEVICE_HANDLER( pokey_r )
              */
 			if( p->ALLPOT & (1 << pot) )
 			{
-				data = p->ptimer[pot]->elapsed().attoseconds / AD_TIME.attoseconds;
+				data = timer_timeelapsed(p->ptimer[pot]).attoseconds / AD_TIME.attoseconds;
 				LOG(("POKEY '%s' read POT%d (interpolated) $%02x\n", p->device->tag(), pot, data));
             }
 			else
@@ -843,7 +847,7 @@ READ8_DEVICE_HANDLER( pokey_r )
 			}
 		}
 		else
-			logerror("%s: warning - read '%s' POT%d\n", p->device->machine().describe_context(), p->device->tag(), pot);
+			logerror("%s: warning - read '%s' POT%d\n", cpuexec_describe_context(p->device->machine), p->device->tag(), pot);
 		break;
 
     case ALLPOT_C:
@@ -856,9 +860,9 @@ READ8_DEVICE_HANDLER( pokey_r )
 			data = 0;
 			LOG(("POKEY '%s' ALLPOT internal $%02x (reset)\n", p->device->tag(), data));
 		}
-		else if( !p->allpot_r.isnull() )
+		else if( p->allpot_r.read )
 		{
-			data = p->allpot_r(offset);
+			data = devcb_call_read8(&p->allpot_r, offset);
 			LOG(("POKEY '%s' ALLPOT callback $%02x\n", p->device->tag(), data));
 		}
 		else
@@ -883,7 +887,7 @@ READ8_DEVICE_HANDLER( pokey_r )
          ****************************************************************/
 		if( p->SKCTL & SK_RESET )
 		{
-			adjust = p->rtimer->elapsed().as_double() / p->clock_period.as_double();
+			adjust = attotime_to_double(timer_timeelapsed(p->rtimer)) / attotime_to_double(p->clock_period);
 			p->r9 = (p->r9 + adjust) % 0x001ff;
 			p->r17 = (p->r17 + adjust) % 0x1ffff;
 		}
@@ -905,13 +909,13 @@ READ8_DEVICE_HANDLER( pokey_r )
 			LOG_RAND(("POKEY '%s' adjust %u rand17[$%05x]: $%02x\n", p->device->tag(), adjust, p->r17, p->RANDOM));
 		}
 		if (adjust > 0)
-			p->rtimer->adjust(attotime::never);
+			timer_adjust_oneshot(p->rtimer, attotime_never, 0);
 		data = p->RANDOM ^ 0xff;
 		break;
 
 	case SERIN_C:
-		if( !p->serin_r.isnull() )
-			p->SERIN = p->serin_r(offset);
+		if( p->serin_r.read )
+			p->SERIN = devcb_call_read8(&p->serin_r, offset);
 		data = p->SERIN;
 		LOG(("POKEY '%s' SERIN  $%02x\n", p->device->tag(), data));
 		break;
@@ -943,7 +947,7 @@ READ8_HANDLER( quad_pokey_r )
 	int control = (offset & 0x20) >> 2;
 	int pokey_reg = (offset % 8) | control;
 
-	return pokey_r(space->machine().device(devname[pokey_num]), pokey_reg);
+	return pokey_r(space->machine->device(devname[pokey_num]), pokey_reg);
 }
 
 
@@ -952,7 +956,7 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 	pokey_state *p = get_safe_token(device);
 	int ch_mask = 0, new_val;
 
-	p->channel->update();
+	stream_update(p->channel);
 
     /* determine which address was changed */
 	switch (offset & 15)
@@ -1040,9 +1044,9 @@ WRITE8_DEVICE_HANDLER( pokey_w )
         /* first remove any existing timers */
 		LOG_TIMER(("POKEY '%s' STIMER $%02x\n", p->device->tag(), data));
 
-		p->timer[TIMER1]->adjust(attotime::never, p->timer_param[TIMER1]);
-		p->timer[TIMER2]->adjust(attotime::never, p->timer_param[TIMER2]);
-		p->timer[TIMER4]->adjust(attotime::never, p->timer_param[TIMER4]);
+		timer_adjust_oneshot(p->timer[TIMER1], attotime_never, p->timer_param[TIMER1]);
+		timer_adjust_oneshot(p->timer[TIMER2], attotime_never, p->timer_param[TIMER2]);
+		timer_adjust_oneshot(p->timer[TIMER4], attotime_never, p->timer_param[TIMER4]);
 
         /* reset all counters to zero (side effect) */
 		p->polyadjust = 0;
@@ -1058,9 +1062,9 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 			{
 				LOG_TIMER(("POKEY '%s' timer1+2 after %d clocks\n", p->device->tag(), p->divisor[CHAN2]));
 				/* set timer #1 _and_ #2 event after timer_div clocks of joined CHAN1+CHAN2 */
-				p->timer_period[TIMER2] = p->clock_period * p->divisor[CHAN2];
+				p->timer_period[TIMER2] = attotime_mul(p->clock_period, p->divisor[CHAN2]);
 				p->timer_param[TIMER2] = IRQ_TIMR2|IRQ_TIMR1;
-				p->timer[TIMER2]->adjust(p->timer_period[TIMER2], p->timer_param[TIMER2], p->timer_period[TIMER2]);
+				timer_adjust_periodic(p->timer[TIMER2], p->timer_period[TIMER2], p->timer_param[TIMER2], p->timer_period[TIMER2]);
 			}
         }
         else
@@ -1069,18 +1073,18 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 			{
 				LOG_TIMER(("POKEY '%s' timer1 after %d clocks\n", p->device->tag(), p->divisor[CHAN1]));
 				/* set timer #1 event after timer_div clocks of CHAN1 */
-				p->timer_period[TIMER1] = p->clock_period * p->divisor[CHAN1];
+				p->timer_period[TIMER1] = attotime_mul(p->clock_period, p->divisor[CHAN1]);
 				p->timer_param[TIMER1] = IRQ_TIMR1;
-				p->timer[TIMER1]->adjust(p->timer_period[TIMER1], p->timer_param[TIMER1], p->timer_period[TIMER1]);
+				timer_adjust_periodic(p->timer[TIMER1], p->timer_period[TIMER1], p->timer_param[TIMER1], p->timer_period[TIMER1]);
 			}
 
 			if( p->divisor[CHAN2] > 4 )
 			{
 				LOG_TIMER(("POKEY '%s' timer2 after %d clocks\n", p->device->tag(), p->divisor[CHAN2]));
 				/* set timer #2 event after timer_div clocks of CHAN2 */
-				p->timer_period[TIMER2] = p->clock_period * p->divisor[CHAN2];
+				p->timer_period[TIMER2] = attotime_mul(p->clock_period, p->divisor[CHAN2]);
 				p->timer_param[TIMER2] = IRQ_TIMR2;
-				p->timer[TIMER2]->adjust(p->timer_period[TIMER2], p->timer_param[TIMER2], p->timer_period[TIMER2]);
+				timer_adjust_periodic(p->timer[TIMER2], p->timer_period[TIMER2], p->timer_param[TIMER2], p->timer_period[TIMER2]);
 			}
         }
 
@@ -1095,9 +1099,9 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 				{
 					LOG_TIMER(("POKEY '%s' timer4 after %d clocks\n", p->device->tag(), p->divisor[CHAN4]));
 					/* set timer #4 event after timer_div clocks of CHAN4 */
-					p->timer_period[TIMER4] = p->clock_period * p->divisor[CHAN4];
+					p->timer_period[TIMER4] = attotime_mul(p->clock_period, p->divisor[CHAN4]);
 					p->timer_param[TIMER4] = IRQ_TIMR4;
-					p->timer[TIMER4]->adjust(p->timer_period[TIMER4], p->timer_param[TIMER4], p->timer_period[TIMER4]);
+					timer_adjust_periodic(p->timer[TIMER4], p->timer_period[TIMER4], p->timer_param[TIMER4], p->timer_period[TIMER4]);
 				}
             }
         }
@@ -1107,15 +1111,15 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 			{
 				LOG_TIMER(("POKEY '%s' timer4 after %d clocks\n", p->device->tag(), p->divisor[CHAN4]));
 				/* set timer #4 event after timer_div clocks of CHAN4 */
-				p->timer_period[TIMER4] = p->clock_period * p->divisor[CHAN4];
+				p->timer_period[TIMER4] = attotime_mul(p->clock_period, p->divisor[CHAN4]);
 				p->timer_param[TIMER4] = IRQ_TIMR4;
-				p->timer[TIMER4]->adjust(p->timer_period[TIMER4], p->timer_param[TIMER4], p->timer_period[TIMER4]);
+				timer_adjust_periodic(p->timer[TIMER4], p->timer_period[TIMER4], p->timer_param[TIMER4], p->timer_period[TIMER4]);
 			}
         }
 
-		p->timer[TIMER1]->enable(p->IRQEN & IRQ_TIMR1);
-		p->timer[TIMER2]->enable(p->IRQEN & IRQ_TIMR2);
-		p->timer[TIMER4]->enable(p->IRQEN & IRQ_TIMR4);
+		timer_enable(p->timer[TIMER1], p->IRQEN & IRQ_TIMR1);
+		timer_enable(p->timer[TIMER2], p->IRQEN & IRQ_TIMR2);
+		timer_enable(p->timer[TIMER4], p->IRQEN & IRQ_TIMR4);
         break;
 
     case SKREST_C:
@@ -1131,16 +1135,16 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 
     case SEROUT_C:
 		LOG(("POKEY '%s' SEROUT $%02x\n", p->device->tag(), data));
-		p->serout_w(offset, data);
+		devcb_call_write8(&p->serout_w, offset, data);
 		p->SKSTAT |= SK_SEROUT;
         /*
          * These are arbitrary values, tested with some custom boot
          * loaders from Ballblazer and Escape from Fractalus
          * The real times are unknown
          */
-        device->machine().scheduler().timer_set(attotime::from_usec(200), FUNC(pokey_serout_ready_cb), 0, p);
+        timer_set(device->machine, ATTOTIME_IN_USEC(200), p, 0, pokey_serout_ready_cb);
         /* 10 bits (assumption 1 start, 8 data and 1 stop bit) take how long? */
-        device->machine().scheduler().timer_set(attotime::from_usec(2000), FUNC(pokey_serout_complete), 0, p);
+        timer_set(device->machine, ATTOTIME_IN_USEC(2000), p, 0, pokey_serout_complete);
         break;
 
     case IRQEN_C:
@@ -1157,11 +1161,11 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 			/* enable/disable timers now to avoid unneeded
                breaking of the CPU cores for masked timers */
 			if( p->timer[TIMER1] && ((p->IRQEN^data) & IRQ_TIMR1) )
-				p->timer[TIMER1]->enable(data & IRQ_TIMR1);
+				timer_enable(p->timer[TIMER1], data & IRQ_TIMR1);
 			if( p->timer[TIMER2] && ((p->IRQEN^data) & IRQ_TIMR2) )
-				p->timer[TIMER2]->enable(data & IRQ_TIMR2);
+				timer_enable(p->timer[TIMER2], data & IRQ_TIMR2);
 			if( p->timer[TIMER4] && ((p->IRQEN^data) & IRQ_TIMR4) )
-				p->timer[TIMER4]->enable(data & IRQ_TIMR4);
+				timer_enable(p->timer[TIMER4], data & IRQ_TIMR4);
         }
 		/* store irq enable */
 		p->IRQEN = data;
@@ -1205,7 +1209,7 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 		if( new_val < p->counter[CHAN1] )
 			p->counter[CHAN1] = new_val;
 		if( p->interrupt_cb && p->timer[TIMER1] )
-			p->timer[TIMER1]->adjust(p->clock_period * new_val, p->timer_param[TIMER1], p->timer_period[TIMER1]);
+			timer_adjust_periodic(p->timer[TIMER1], attotime_mul(p->clock_period, new_val), p->timer_param[TIMER1], p->timer_period[TIMER1]);
 		p->audible[CHAN1] = !(
 			(p->AUDC[CHAN1] & VOLUME_ONLY) ||
 			(p->AUDC[CHAN1] & VOLUME_MASK) == 0 ||
@@ -1241,7 +1245,7 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 		if( new_val < p->counter[CHAN2] )
 			p->counter[CHAN2] = new_val;
 		if( p->interrupt_cb && p->timer[TIMER2] )
-			p->timer[TIMER2]->adjust(p->clock_period * new_val, p->timer_param[TIMER2], p->timer_period[TIMER2]);
+			timer_adjust_periodic(p->timer[TIMER2], attotime_mul(p->clock_period, new_val), p->timer_param[TIMER2], p->timer_period[TIMER2]);
 		p->audible[CHAN2] = !(
 			(p->AUDC[CHAN2] & VOLUME_ONLY) ||
 			(p->AUDC[CHAN2] & VOLUME_MASK) == 0 ||
@@ -1306,7 +1310,7 @@ WRITE8_DEVICE_HANDLER( pokey_w )
 		if( new_val < p->counter[CHAN4] )
 			p->counter[CHAN4] = new_val;
 		if( p->interrupt_cb && p->timer[TIMER4] )
-			p->timer[TIMER4]->adjust(p->clock_period * new_val, p->timer_param[TIMER4], p->timer_period[TIMER4]);
+			timer_adjust_periodic(p->timer[TIMER4], attotime_mul(p->clock_period, new_val), p->timer_param[TIMER4], p->timer_period[TIMER4]);
 		p->audible[CHAN4] = !(
 			(p->AUDC[CHAN4] & VOLUME_ONLY) ||
 			(p->AUDC[CHAN4] & VOLUME_MASK) == 0 ||
@@ -1329,16 +1333,16 @@ WRITE8_HANDLER( quad_pokey_w )
     int control = (offset & 0x20) >> 2;
     int pokey_reg = (offset % 8) | control;
 
-    pokey_w(space->machine().device(devname[pokey_num]), pokey_reg, data);
+    pokey_w(space->machine->device(devname[pokey_num]), pokey_reg, data);
 }
 
-void pokey_serin_ready(device_t *device, int after)
+void pokey_serin_ready(running_device *device, int after)
 {
 	pokey_state *p = get_safe_token(device);
-	device->machine().scheduler().timer_set(p->clock_period * after, FUNC(pokey_serin_ready_cb), 0, p);
+	timer_set(device->machine, attotime_mul(p->clock_period, after), p, 0, pokey_serin_ready_cb);
 }
 
-void pokey_break_w(device_t *device, int shift)
+void pokey_break_w(running_device *device, int shift)
 {
 	pokey_state *p = get_safe_token(device);
 	if( shift )                     /* shift code ? */
@@ -1355,7 +1359,7 @@ void pokey_break_w(device_t *device, int shift)
 	}
 }
 
-void pokey_kbcode_w(device_t *device, int kbcode, int make)
+void pokey_kbcode_w(running_device *device, int kbcode, int make)
 {
 	pokey_state *p = get_safe_token(device);
     /* make code ? */

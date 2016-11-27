@@ -80,7 +80,7 @@ static int s_undoType = 0; // 0 means can't undo, 1 means can undo, 2 means can 
 void RamSearchSaveUndoStateIfNotTooBig(HWND hDlg);
 static const int tooManyRegionsForUndo = 10000;
 
-running_machine * machine_rw;
+running_machine *machine_rw;
 HWAddressType MemoryAddressStart = INVALID_HARDWARE_ADDRESS;
 HWAddressType MemoryAddressEnd = INVALID_HARDWARE_ADDRESS;
 bool littleEndian = false;
@@ -95,44 +95,44 @@ bool IsHardwareAddressValid(HWAddressType address)
 		return false;
 }
 
-static UINT16 custom_read_word(address_space *space, offs_t address) {
+static UINT16 custom_read_word(const address_space *space, offs_t address) {
 	// if this is misaligned read, just read two bytes
 	if ((address & 1) != 0) {
-		UINT8 byte0 = space->read_byte(address + 0);
-		UINT8 byte1 = space->read_byte(address + 1);
+		UINT8 byte0 = memory_read_byte(space, address + 0);
+		UINT8 byte1 = memory_read_byte(space, address + 1);
 
 		// based on the endianness, the result is assembled differently
-		if (space->endianness() == ENDIANNESS_LITTLE)
+		if (space->endianness == ENDIANNESS_LITTLE)
 			return (byte0 | (byte1 << 8));
 		else
 			return (byte1 | (byte0 << 8));
 	}
 	else
-		return space->read_word(address);
+		return memory_read_word(space, address);
 }
 
-static UINT32 custom_read_dword(address_space *space, offs_t address) {
+static UINT32 custom_read_dword(const address_space *space, offs_t address) {
 	// if this is misaligned read, just read two words */
 	if ((address & 3) != 0) {
 		UINT16 word0 = custom_read_word(space, address + 0);
 		UINT16 word1 = custom_read_word(space, address + 2);
 
 		// based on the endianness, the result is assembled differently
-		if (space->endianness() == ENDIANNESS_LITTLE)
+		if (space->endianness == ENDIANNESS_LITTLE)
 			return (word0 | (word1 << 16));
 		else
 			return (word1 | (word0 << 16));
 	}
 	else
-		return space->read_dword(address);
+		return memory_read_dword(space, address);
 }
 
 unsigned int ReadValueAtHardwareAddress(HWAddressType address, unsigned int size)
 {
-	address_space *space = machine_rw->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine_rw->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	if (size == 1)
-		return space->read_byte(address);
+		return memory_read_byte(space, address);
 	else if (size == 2)
 		return custom_read_word(space, address);
 	else
@@ -151,29 +151,29 @@ void ResetMemoryRegions()
 	const char * region_share[100];
 	int region_count = 0;
 	address_map_entry *entry;
-	address_space *space = machine_rw->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine_rw->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	MemoryAddressStart = INVALID_HARDWARE_ADDRESS;
 	MemoryAddressEnd = INVALID_HARDWARE_ADDRESS;
 	
-	if (space->endianness() == ENDIANNESS_LITTLE)
+	if (space->endianness == ENDIANNESS_LITTLE)
 		littleEndian = true;
 	else
 		littleEndian = false;
-	for (entry = space->map()->m_entrylist.first(); entry != NULL; entry = entry->next())
+	for (entry = space->map->entrylist; entry != NULL; entry = entry->next)
 	{
 		int shared = 0;
-		HWAddressType offset = space->address_to_byte(entry->m_addrstart) & space->bytemask();
-		HWAddressType endoffset = space->address_to_byte(entry->m_addrend) & space->bytemask();
-		region_share[region_count] = entry->m_share;
+		HWAddressType offset = memory_address_to_byte(space, entry->addrstart) & space->bytemask;
+		HWAddressType endoffset = memory_address_to_byte(space, entry->addrend) & space->bytemask;
+		region_share[region_count] = entry->share;
 
-		if (entry->m_share != NULL)
+		if (entry->share != NULL)
 			for (int i = 0; i < region_count; i++)
 				if (region_share[i] != NULL)
-					if (strcmp(region_share[i], entry->m_share)==0)
+					if (strcmp(region_share[i], entry->share)==0)
 						shared = 1;
 
-		if (!shared && entry->m_write.m_type == AMH_RAM) {
+		if (!shared && entry->write.type == AMH_RAM) {
 			MemoryRegion region = { offset, regionSearchGranularity + (endoffset - offset) };
 			s_activeMemoryRegions.push_back(region);
 
@@ -1855,7 +1855,7 @@ invalid_field:
 
 						// bring up the ram watch window if it's not already showing so the user knows where the watch went
 						if(inserted && !RamWatchHWnd)
-							RamWatchOpen(*machine_rw);
+							RamWatchOpen(machine_rw);
 						SetForegroundWindow(RamSearchHWnd);
 					}
 					{rv = true; break;}
@@ -2069,14 +2069,14 @@ void init_list_box(HWND Box, const WCHAR* Strs[], int numColumns, int *columnWid
 	ListView_SetExtendedListViewStyle(Box, LVS_EX_FULLROWSELECT);
 }
 
-void RamSearchOpen(running_machine &machine)
+void RamSearchOpen(running_machine *machine)
 {
-	if (empty_driver.compare(machine.basename()) == 0) {
+	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Search",MB_OK | MB_ICONSTOP);
 		return;
 	}
-	if (machine_rw != &machine)
-		machine_rw = &machine;
+	if (machine_rw != machine)
+		machine_rw = machine;
 	if(!RamSearchHWnd)
 	{
 		reset_address_info();
@@ -2086,14 +2086,14 @@ void RamSearchOpen(running_machine &machine)
 		SetForegroundWindow(RamSearchHWnd);
 }
 
-void RamWatchOpen(running_machine &machine)
+void RamWatchOpen(running_machine *machine)
 {
-	if (empty_driver.compare(machine.basename()) == 0) {
+	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(hWnd,L"You can't use this tool before loading a game.",L"RAM Watch",MB_OK | MB_ICONSTOP);
 		return;
 	}
-	if (machine_rw != &machine)
-		machine_rw = &machine;
+	if (machine_rw != machine)
+		machine_rw = machine;
 	if(!RamWatchHWnd)
 	{
 		RamWatchHWnd = CreateDialog(hInst, MAKEINTRESOURCE(IDD_RAMWATCH), NULL, (DLGPROC) RamWatchProc);

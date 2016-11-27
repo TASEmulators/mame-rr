@@ -7,6 +7,7 @@
 *****************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "hc55516.h"
 
 
@@ -51,17 +52,17 @@ static STREAM_UPDATE( hc55516_update );
 
 
 
-INLINE hc55516_state *get_safe_token(device_t *device)
+INLINE hc55516_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == HC55516 ||
-		   device->type() == MC3417 ||
-		   device->type() == MC3418);
+	assert(device->type() == SOUND_HC55516 ||
+		   device->type() == SOUND_MC3417 ||
+		   device->type() == SOUND_MC3418);
 	return (hc55516_state *)downcast<legacy_device_base *>(device)->token();
 }
 
 
-static void start_common(device_t *device, UINT8 _shiftreg_mask, int _active_clock_hi)
+static void start_common(running_device *device, UINT8 _shiftreg_mask, int _active_clock_hi)
 {
 	hc55516_state *chip = get_safe_token(device);
 
@@ -76,17 +77,17 @@ static void start_common(device_t *device, UINT8 _shiftreg_mask, int _active_clo
 	chip->last_clock_state = 0;
 
 	/* create the stream */
-	chip->channel = device->machine().sound().stream_alloc(*device, 0, 1, SAMPLE_RATE, chip, hc55516_update);
+	chip->channel = stream_create(device, 0, 1, SAMPLE_RATE, chip, hc55516_update);
 
-	device->save_item(NAME(chip->last_clock_state));
-	device->save_item(NAME(chip->digit));
-	device->save_item(NAME(chip->new_digit));
-	device->save_item(NAME(chip->shiftreg));
-	device->save_item(NAME(chip->curr_sample));
-	device->save_item(NAME(chip->next_sample));
-	device->save_item(NAME(chip->update_count));
-	device->save_item(NAME(chip->filter));
-	device->save_item(NAME(chip->integrator));
+	state_save_register_device_item(device, 0, chip->last_clock_state);
+	state_save_register_device_item(device, 0, chip->digit);
+	state_save_register_device_item(device, 0, chip->new_digit);
+	state_save_register_device_item(device, 0, chip->shiftreg);
+	state_save_register_device_item(device, 0, chip->curr_sample);
+	state_save_register_device_item(device, 0, chip->next_sample);
+	state_save_register_device_item(device, 0, chip->update_count);
+	state_save_register_device_item(device, 0, chip->filter);
+	state_save_register_device_item(device, 0, chip->integrator);
 }
 
 
@@ -242,7 +243,7 @@ static STREAM_UPDATE( hc55516_update )
 }
 
 
-void hc55516_clock_w(device_t *device, int state)
+void hc55516_clock_w(running_device *device, int state)
 {
 	hc55516_state *chip = get_safe_token(device);
 	UINT8 clock_state = state ? TRUE : FALSE;
@@ -254,7 +255,7 @@ void hc55516_clock_w(device_t *device, int state)
 	if (is_active_clock_transition(chip, clock_state))
 	{
 		/* update the output buffer before changing the registers */
-		chip->channel->update();
+		stream_update(chip->channel);
 
 		/* clear the update count */
 		chip->update_count = 0;
@@ -267,13 +268,13 @@ void hc55516_clock_w(device_t *device, int state)
 }
 
 
-void hc55516_digit_w(device_t *device, int digit)
+void hc55516_digit_w(running_device *device, int digit)
 {
 	hc55516_state *chip = get_safe_token(device);
 
 	if (is_external_osciallator(chip))
 	{
-		chip->channel->update();
+		stream_update(chip->channel);
 		chip->new_digit = digit & 1;
 	}
 	else
@@ -281,14 +282,14 @@ void hc55516_digit_w(device_t *device, int digit)
 }
 
 
-int hc55516_clock_state_r(device_t *device)
+int hc55516_clock_state_r(running_device *device)
 {
 	hc55516_state *chip = get_safe_token(device);
 
 	/* only makes sense for setups with an external oscillator */
 	assert(is_external_osciallator(chip));
 
-	chip->channel->update();
+	stream_update(chip->channel);
 
 	return current_clock_state(chip);
 }

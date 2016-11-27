@@ -4,32 +4,30 @@
 
 *************************************************************************/
 
-class hcastle_state : public driver_device
+class hcastle_state
 {
 public:
-	hcastle_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, hcastle_state(machine)); }
+
+	hcastle_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_pf1_videoram;
-	UINT8 *    m_pf2_videoram;
-	UINT8 *    m_paletteram;
-//  UINT8 *    m_spriteram;
-//  UINT8 *    m_spriteram2;
+	UINT8 *    pf1_videoram;
+	UINT8 *    pf2_videoram;
+	UINT8 *    paletteram;
+//  UINT8 *    spriteram;
+//  UINT8 *    spriteram2;
 
 	/* video-related */
-	tilemap_t    *m_fg_tilemap;
-	tilemap_t    *m_bg_tilemap;
-	int        m_pf2_bankbase;
-	int        m_pf1_bankbase;
-	int        m_old_pf1;
-	int        m_old_pf2;
-	int        m_gfx_bank;
+	tilemap_t    *fg_tilemap, *bg_tilemap;
+	int        pf2_bankbase, pf1_bankbase;
+	int        old_pf1, old_pf2;
+	int        gfx_bank;
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_k007121_1;
-	device_t *m_k007121_2;
+	running_device *audiocpu;
+	running_device *k007121_1;
+	running_device *k007121_2;
 };
 
 
@@ -43,5 +41,5 @@ WRITE8_HANDLER( hcastle_pf1_control_w );
 WRITE8_HANDLER( hcastle_pf2_control_w );
 
 PALETTE_INIT( hcastle );
-SCREEN_UPDATE( hcastle );
+VIDEO_UPDATE( hcastle );
 VIDEO_START( hcastle );

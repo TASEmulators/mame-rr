@@ -58,15 +58,6 @@
 #include "sound/okim6295.h"
 
 
-class itgamble_state : public driver_device
-{
-public:
-	itgamble_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
 /*************************
 *     Video Hardware     *
 *************************/
@@ -75,7 +66,7 @@ static VIDEO_START( itgamble )
 {
 }
 
-static SCREEN_UPDATE( itgamble )
+static VIDEO_UPDATE( itgamble )
 {
 	return 0;
 }
@@ -85,7 +76,7 @@ static SCREEN_UPDATE( itgamble )
 * Memory map information *
 *************************/
 
-static ADDRESS_MAP_START( itgamble_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( itgamble_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_GLOBAL_MASK(0xffffff)
 	AM_RANGE(0x000000, 0xffffff) AM_ROM
 ADDRESS_MAP_END
@@ -188,53 +179,54 @@ static MACHINE_RESET( itgamble )
 *     Machine Drivers     *
 **************************/
 
-static MACHINE_CONFIG_START( itgamble, itgamble_state )
+static MACHINE_DRIVER_START( itgamble )
 
     /* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", H83044, MAIN_CLOCK/2)	/* probably the wrong CPU */
-	MCFG_CPU_PROGRAM_MAP(itgamble_map)
+	MDRV_CPU_ADD("maincpu", H83044, MAIN_CLOCK/2)	/* probably the wrong CPU */
+	MDRV_CPU_PROGRAM_MAP(itgamble_map)
 
     /* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE( itgamble )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
+	MDRV_MACHINE_RESET( itgamble )
 
-	MCFG_MACHINE_RESET( itgamble )
-
-	MCFG_GFXDECODE(itgamble)
-	MCFG_PALETTE_LENGTH(0x200)
-	MCFG_VIDEO_START( itgamble )
+	MDRV_GFXDECODE(itgamble)
+	MDRV_PALETTE_LENGTH(0x200)
+	MDRV_VIDEO_START( itgamble )
+	MDRV_VIDEO_UPDATE( itgamble )
 
     /* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_OKIM6295_ADD("oki", SND_CLOCK, OKIM6295_PIN7_HIGH)	/* 1MHz resonator */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_OKIM6295_ADD("oki", SND_CLOCK, OKIM6295_PIN7_HIGH)	/* 1MHz resonator */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( mnumber, itgamble )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_CLOCK(MNUMBER_MAIN_CLOCK/2)	/* probably the wrong CPU */
+static MACHINE_DRIVER_START( mnumber )
 
-	MCFG_OKIM6295_REPLACE("oki", MNUMBER_SND_CLOCK/16, OKIM6295_PIN7_HIGH) /* clock frequency & pin 7 not verified */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(itgamble)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_CLOCK(MNUMBER_MAIN_CLOCK/2)	/* probably the wrong CPU */
+
+	MDRV_OKIM6295_REPLACE("oki", MNUMBER_SND_CLOCK/16, OKIM6295_PIN7_HIGH) /* clock frequency & pin 7 not verified */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-#ifdef UNUSED_CODE
-static MACHINE_CONFIG_DERIVED( ejollyx5, itgamble )
+static MACHINE_DRIVER_START( ejollyx5 )
+
+	MDRV_IMPORT_FROM(itgamble)
 	/* wrong CPU. we need a Renesas M16/62A 16bit microcomputer core */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_CLOCK(EJOLLYX5_MAIN_CLOCK/2)	/* up to 10MHz.*/
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_CLOCK(EJOLLYX5_MAIN_CLOCK/2)	/* up to 10MHz.*/
 
-	MCFG_OKIM6295_REPLACE("oki", MNUMBER_SND_CLOCK/16, OKIM6295_PIN7_HIGH) /* clock frequency & pin 7 not verified */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
-#endif
+	MDRV_OKIM6295_REPLACE("oki", MNUMBER_SND_CLOCK/16, OKIM6295_PIN7_HIGH) /* clock frequency & pin 7 not verified */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************

@@ -8,19 +8,7 @@
 #include "v60.h"
 
 // memory accessors
-#if defined(LSB_FIRST) && !defined(ALIGN_INTS)
-#define OpRead8(s, a)	((s)->direct->read_decrypted_byte(a))
-#define OpRead16(s, a)	((s)->direct->read_decrypted_word(a))
-#define OpRead32(s, a)	((s)->direct->read_decrypted_dword(a))
-#else
-#define OpRead8(s, a)   ((s)->direct->read_decrypted_byte((a), (s)->fetch_xor))
-#define OpRead16(s, a)	(((s)->direct->read_decrypted_byte(((a)+0), (s)->fetch_xor) << 0) | \
-						 ((s)->direct->read_decrypted_byte(((a)+1), (s)->fetch_xor) << 8))
-#define OpRead32(s, a)	(((s)->direct->read_decrypted_byte(((a)+0), (s)->fetch_xor) << 0) | \
-						 ((s)->direct->read_decrypted_byte(((a)+1), (s)->fetch_xor) << 8) | \
-						 ((s)->direct->read_decrypted_byte(((a)+2), (s)->fetch_xor) << 16) | \
-						 ((s)->direct->read_decrypted_byte(((a)+3), (s)->fetch_xor) << 24))
-#endif
+#include "v60mem.c"
 
 
 // macros stolen from MAME for flags calc
@@ -84,17 +72,15 @@ struct _v60_flags
 typedef struct _v60_state v60_state;
 struct _v60_state
 {
-	offs_t				fetch_xor;
-	offs_t				start_pc;
+	struct cpu_info 	info;
 	UINT32				reg[68];
 	v60_flags			flags;
 	UINT8				irq_line;
 	UINT8				nmi_line;
 	device_irq_callback	irq_cb;
 	legacy_cpu_device *		device;
-	address_space *program;
-	direct_read_data *	direct;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 	UINT32				PPC;
 	int					icount;
 	int					stall_io;
@@ -125,7 +111,7 @@ struct _v60_state
 	UINT8				moddim;
 };
 
-INLINE v60_state *get_safe_token(device_t *device)
+INLINE v60_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == V60 ||
@@ -299,7 +285,7 @@ INLINE UINT32 v60_update_psw_for_exception(v60_state *cpustate, int is_interrupt
 }
 
 
-#define GETINTVECT(cs, nint)					(cs)->program->read_dword(((cs)->SBR & ~0xfff) + (nint) * 4)
+#define GETINTVECT(cs, nint)					MemRead32((cs)->program,((cs)->SBR & ~0xfff) + (nint) * 4)
 #define EXCEPTION_CODE_AND_SIZE(code, size)	(((code) << 16) | (size))
 
 
@@ -317,7 +303,7 @@ INLINE UINT32 v60_update_psw_for_exception(v60_state *cpustate, int is_interrupt
 
 static UINT32 opUNHANDLED(v60_state *cpustate)
 {
-	fatalerror("Unhandled OpCode found : %02x at %08x", OpRead16(cpustate, cpustate->PC), cpustate->PC);
+	fatalerror("Unhandled OpCode found : %02x at %08x", OpRead16(cpustate->program, cpustate->PC), cpustate->PC);
 	return 0; /* never reached, fatalerror won't return */
 }
 
@@ -334,14 +320,14 @@ static void base_init(legacy_cpu_device *device, device_irq_callback irqcallback
 	cpustate->irq_line = CLEAR_LINE;
 	cpustate->nmi_line = CLEAR_LINE;
 
-	device->save_item(NAME(cpustate->reg));
-	device->save_item(NAME(cpustate->irq_line));
-	device->save_item(NAME(cpustate->nmi_line));
-	device->save_item(NAME(cpustate->PPC));
-	device->save_item(NAME(cpustate->_CY));
-	device->save_item(NAME(cpustate->_OV));
-	device->save_item(NAME(cpustate->_S));
-	device->save_item(NAME(cpustate->_Z));
+	state_save_register_device_item_array(device, 0, cpustate->reg);
+	state_save_register_device_item(device, 0, cpustate->irq_line);
+	state_save_register_device_item(device, 0, cpustate->nmi_line);
+	state_save_register_device_item(device, 0, cpustate->PPC);
+	state_save_register_device_item(device, 0, cpustate->_CY);
+	state_save_register_device_item(device, 0, cpustate->_OV);
+	state_save_register_device_item(device, 0, cpustate->_S);
+	state_save_register_device_item(device, 0, cpustate->_Z);
 }
 
 static CPU_INIT( v60 )
@@ -352,11 +338,9 @@ static CPU_INIT( v60 )
 	// Set cpustate->PIR (Processor ID) for NEC cpustate-> LSB is reserved to NEC,
 	// so I don't know what it contains.
 	cpustate->PIR = 0x00006000;
-	cpustate->fetch_xor = BYTE_XOR_LE(0);
-	cpustate->start_pc = 0xfffff0;
+	cpustate->info = v60_i;
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->io = device->space(AS_IO);
 }
 
@@ -368,11 +352,9 @@ static CPU_INIT( v70 )
 	// Set cpustate->PIR (Processor ID) for NEC v70. LSB is reserved to NEC,
 	// so I don't know what it contains.
 	cpustate->PIR = 0x00007000;
-	cpustate->fetch_xor = BYTE4_XOR_LE(0);
-	cpustate->start_pc = 0xfffffff0;
+	cpustate->info = v70_i;
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->io = device->space(AS_IO);
 }
 
@@ -381,7 +363,7 @@ static CPU_RESET( v60 )
 	v60_state *cpustate = get_safe_token(device);
 
 	cpustate->PSW	= 0x10000000;
-	cpustate->PC	= cpustate->start_pc;
+	cpustate->PC	= cpustate->info.start_pc;
 	cpustate->SBR	= 0x00000000;
 	cpustate->SYCW	= 0x00000070;
 	cpustate->TKCW	= 0x0000e000;
@@ -397,7 +379,7 @@ static CPU_EXIT( v60 )
 {
 }
 
-void v60_stall(device_t *device)
+void v60_stall(running_device *device)
 {
 	v60_state *cpustate = get_safe_token(device);
 	cpustate->stall_io = 1;
@@ -409,9 +391,9 @@ static void v60_do_irq(v60_state *cpustate, int vector)
 
 	// Push cpustate->PC and cpustate->PSW onto the stack
 	cpustate->SP-=4;
-	cpustate->program->write_dword_unaligned(cpustate->SP, oldPSW);
+	MemWrite32(cpustate->program, cpustate->SP, oldPSW);
 	cpustate->SP-=4;
-	cpustate->program->write_dword_unaligned(cpustate->SP, cpustate->PC);
+	MemWrite32(cpustate->program, cpustate->SP, cpustate->PC);
 
 	// Jump to vector for user interrupt
 	cpustate->PC = GETINTVECT(cpustate, vector);
@@ -467,7 +449,7 @@ static CPU_EXECUTE( v60 )
 		cpustate->PPC = cpustate->PC;
 		debugger_instruction_hook(device, cpustate->PC);
 		cpustate->icount -= 8;	/* fix me -- this is just an average */
-		inc = OpCodeTable[OpRead8(cpustate, cpustate->PC)](cpustate);
+		inc = OpCodeTable[OpRead8(cpustate->program, cpustate->PC)](cpustate);
 		cpustate->PC += inc;
 		if (cpustate->irq_line != CLEAR_LINE)
 			v60_try_irq(cpustate);
@@ -581,15 +563,15 @@ CPU_GET_INFO( v60 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 24;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 24;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 24;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 24;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + 0:				info->i = cpustate->irq_line;			break;
 		case CPUINFO_INT_INPUT_STATE + INPUT_LINE_NMI:	info->i = cpustate->nmi_line;			break;
@@ -747,9 +729,9 @@ CPU_GET_INFO( v70 )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as 64-bit signed integers --- */
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
 
 		/* --- the following bits of info are returned as pointers to data or functions --- */
 		case CPUINFO_FCT_INIT:							info->init = CPU_INIT_NAME(v70);					break;

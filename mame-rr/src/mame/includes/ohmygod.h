@@ -4,27 +4,27 @@
 
 *************************************************************************/
 
-class ohmygod_state : public driver_device
+class ohmygod_state
 {
 public:
-	ohmygod_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ohmygod_state(machine)); }
+
+	ohmygod_state(running_machine &machine) { }
 
 
 	/* memory pointers */
-	UINT16 *    m_videoram;
-	UINT16 *    m_spriteram;
-	size_t      m_spriteram_size;
+	UINT16 *    videoram;
+	UINT16 *    spriteram;
+	size_t      spriteram_size;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	int m_spritebank;
-	UINT16 m_scrollx;
-	UINT16 m_scrolly;
+	tilemap_t    *bg_tilemap;
+	int spritebank;
+	UINT16 scrollx, scrolly;
 
 	/* misc */
-	int m_adpcm_bank_shift;
-	int m_sndbank;
+	int adpcm_bank_shift;
+	int sndbank;
 };
 
 
@@ -36,4 +36,4 @@ WRITE16_HANDLER( ohmygod_scrollx_w );
 WRITE16_HANDLER( ohmygod_scrolly_w );
 
 VIDEO_START( ohmygod );
-SCREEN_UPDATE( ohmygod );
+VIDEO_UPDATE( ohmygod );

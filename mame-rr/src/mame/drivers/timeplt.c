@@ -46,9 +46,8 @@
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
-#include "includes/konamipt.h"
-#include "audio/timeplt.h"
 #include "includes/timeplt.h"
+#include "includes/konamipt.h"
 
 #define MASTER_CLOCK         XTAL_18_432MHz
 
@@ -60,20 +59,20 @@
 
 static INTERRUPT_GEN( timeplt_interrupt )
 {
-	timeplt_state *state = device->machine().driver_data<timeplt_state>();
+	timeplt_state *state = (timeplt_state *)device->machine->driver_data;
 
-	if (state->m_nmi_enable)
-		device_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
+	if (state->nmi_enable)
+		cpu_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 
 static WRITE8_HANDLER( timeplt_nmi_enable_w )
 {
-	timeplt_state *state = space->machine().driver_data<timeplt_state>();
+	timeplt_state *state = (timeplt_state *)space->machine->driver_data;
 
-	state->m_nmi_enable = data & 1;
-	if (!state->m_nmi_enable)
-		device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, CLEAR_LINE);
+	state->nmi_enable = data & 1;
+	if (!state->nmi_enable)
+		cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, CLEAR_LINE);
 }
 
 
@@ -86,7 +85,7 @@ static WRITE8_HANDLER( timeplt_nmi_enable_w )
 
 static WRITE8_HANDLER( timeplt_coin_counter_w )
 {
-	coin_counter_w(space->machine(), offset >> 1, data);
+	coin_counter_w(space->machine, offset >> 1, data);
 }
 
 
@@ -113,14 +112,14 @@ static READ8_HANDLER( psurge_protection_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( timeplt_main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( timeplt_main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
-	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(timeplt_colorram_w) AM_BASE_MEMBER(timeplt_state, m_colorram)
-	AM_RANGE(0xa400, 0xa7ff) AM_RAM_WRITE(timeplt_videoram_w) AM_BASE_MEMBER(timeplt_state, m_videoram)
+	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(timeplt_colorram_w) AM_BASE_MEMBER(timeplt_state, colorram)
+	AM_RANGE(0xa400, 0xa7ff) AM_RAM_WRITE(timeplt_videoram_w) AM_BASE_MEMBER(timeplt_state, videoram)
 	AM_RANGE(0xa800, 0xafff) AM_RAM
-	AM_RANGE(0xb000, 0xb0ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, m_spriteram)
-	AM_RANGE(0xb400, 0xb4ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, m_spriteram2)
+	AM_RANGE(0xb000, 0xb0ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram)
+	AM_RANGE(0xb400, 0xb4ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram2)
 	AM_RANGE(0xc000, 0xc000) AM_MIRROR(0x0cff) AM_WRITE(soundlatch_w)
 	AM_RANGE(0xc200, 0xc200) AM_MIRROR(0x0cff) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0xc300, 0xc300) AM_MIRROR(0x0cf1) AM_WRITE(timeplt_nmi_enable_w)
@@ -136,15 +135,15 @@ static ADDRESS_MAP_START( timeplt_main_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( psurge_main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( psurge_main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6004, 0x6004) AM_READ(psurge_protection_r)
-	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(timeplt_colorram_w) AM_BASE_MEMBER(timeplt_state, m_colorram)
-	AM_RANGE(0xa400, 0xa7ff) AM_RAM_WRITE(timeplt_videoram_w) AM_BASE_MEMBER(timeplt_state, m_videoram)
+	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(timeplt_colorram_w) AM_BASE_MEMBER(timeplt_state, colorram)
+	AM_RANGE(0xa400, 0xa7ff) AM_RAM_WRITE(timeplt_videoram_w) AM_BASE_MEMBER(timeplt_state, videoram)
 	AM_RANGE(0xa800, 0xafff) AM_RAM
-	AM_RANGE(0xb000, 0xb0ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, m_spriteram)
-	AM_RANGE(0xb400, 0xb4ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, m_spriteram2)
+	AM_RANGE(0xb000, 0xb0ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram)
+	AM_RANGE(0xb400, 0xb4ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram2)
 	AM_RANGE(0xc000, 0xc000) AM_MIRROR(0x0cff) AM_WRITE(soundlatch_w)
 	AM_RANGE(0xc200, 0xc200) AM_MIRROR(0x0cff) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0xc302, 0xc302) AM_MIRROR(0x0cf1) AM_WRITE(timeplt_flipscreen_w)
@@ -158,15 +157,15 @@ static ADDRESS_MAP_START( psurge_main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xc360, 0xc360) AM_MIRROR(0x0c9f) AM_READ_PORT("DSW0")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( chkun_main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( chkun_main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6000, 0x67ff) AM_RAM
-	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(timeplt_colorram_w) AM_BASE_MEMBER(timeplt_state, m_colorram)
-	AM_RANGE(0xa400, 0xa7ff) AM_RAM_WRITE(timeplt_videoram_w) AM_BASE_MEMBER(timeplt_state, m_videoram)
+	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(timeplt_colorram_w) AM_BASE_MEMBER(timeplt_state, colorram)
+	AM_RANGE(0xa400, 0xa7ff) AM_RAM_WRITE(timeplt_videoram_w) AM_BASE_MEMBER(timeplt_state, videoram)
 	AM_RANGE(0xa800, 0xafff) AM_RAM
-	AM_RANGE(0xb000, 0xb0ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, m_spriteram)
-	AM_RANGE(0xb400, 0xb4ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, m_spriteram2)
+	AM_RANGE(0xb000, 0xb0ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram)
+	AM_RANGE(0xb400, 0xb4ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram2)
 	AM_RANGE(0xc000, 0xc000) AM_MIRROR(0x0cff) AM_WRITE(soundlatch_w)
 	AM_RANGE(0xc200, 0xc200) AM_MIRROR(0x0cff) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0xc300, 0xc300) AM_MIRROR(0x0cf1) AM_WRITE(timeplt_nmi_enable_w)
@@ -356,77 +355,82 @@ GFXDECODE_END
 
 static MACHINE_START( common )
 {
-	timeplt_state *state = machine.driver_data<timeplt_state>();
+	timeplt_state *state = (timeplt_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device<cpu_device>("maincpu");
+	state->maincpu = machine->device<cpu_device>("maincpu");
 }
 
 static MACHINE_START( timeplt )
 {
-	timeplt_state *state = machine.driver_data<timeplt_state>();
+	timeplt_state *state = (timeplt_state *)machine->driver_data;
 
 	MACHINE_START_CALL(common);
 
-	state->save_item(NAME(state->m_nmi_enable));
+	state_save_register_global(machine, state->nmi_enable);
 }
 
 static MACHINE_RESET( timeplt )
 {
-	timeplt_state *state = machine.driver_data<timeplt_state>();
+	timeplt_state *state = (timeplt_state *)machine->driver_data;
 
-	state->m_nmi_enable = 0;
+	state->nmi_enable = 0;
 }
 
-static MACHINE_CONFIG_START( timeplt, timeplt_state )
+static MACHINE_DRIVER_START( timeplt )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(timeplt_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/3/2)	/* not confirmed, but common for Konami games of the era */
-	MCFG_CPU_PROGRAM_MAP(timeplt_main_map)
-	MCFG_CPU_VBLANK_INT("screen", timeplt_interrupt)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/3/2)	/* not confirmed, but common for Konami games of the era */
+	MDRV_CPU_PROGRAM_MAP(timeplt_main_map)
+	MDRV_CPU_VBLANK_INT("screen", timeplt_interrupt)
 
-	MCFG_MACHINE_START(timeplt)
-	MCFG_MACHINE_RESET(timeplt)
+	MDRV_MACHINE_START(timeplt)
+	MDRV_MACHINE_RESET(timeplt)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_SCANLINE)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_SCANLINE)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(timeplt)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(timeplt)
-	MCFG_PALETTE_LENGTH(32*4+64*4)
+	MDRV_GFXDECODE(timeplt)
+	MDRV_PALETTE_LENGTH(32*4+64*4)
 
-	MCFG_PALETTE_INIT(timeplt)
-	MCFG_VIDEO_START(timeplt)
+	MDRV_PALETTE_INIT(timeplt)
+	MDRV_VIDEO_START(timeplt)
+	MDRV_VIDEO_UPDATE(timeplt)
 
 	/* sound hardware */
-	MCFG_FRAGMENT_ADD(timeplt_sound)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(timeplt_sound)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( psurge, timeplt )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(psurge_main_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
-
-	MCFG_MACHINE_START(common)
-	MCFG_MACHINE_RESET(0)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( chkun, timeplt )
+static MACHINE_DRIVER_START( psurge )
+	MDRV_IMPORT_FROM(timeplt)
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(chkun_main_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(psurge_main_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_VIDEO_START(chkun)
-MACHINE_CONFIG_END
+	MDRV_MACHINE_START(common)
+	MDRV_MACHINE_RESET(0)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( chkun )
+	MDRV_IMPORT_FROM(timeplt)
+
+	/* basic machine hardware */
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(chkun_main_map)
+
+	MDRV_VIDEO_START(chkun)
+MACHINE_DRIVER_END
 
 /*************************************
  *

@@ -4,25 +4,26 @@
 
 **************************************************************************/
 
-class epos_state : public driver_device
+class epos_state
 {
 public:
-	epos_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, epos_state(machine)); }
+
+	epos_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	size_t   m_videoram_size;
+	UINT8 *  videoram;
+	size_t   videoram_size;
 
 	/* video-related */
-	UINT8    m_palette;
+	UINT8    palette;
 
 	/* misc */
-	int      m_counter;
+	int      counter;
 };
 
 
 /*----------- defined in video/epos.c -----------*/
 
 WRITE8_HANDLER( epos_port_1_w );
-SCREEN_UPDATE( epos );
+VIDEO_UPDATE( epos );

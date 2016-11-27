@@ -1,20 +1,21 @@
 #include "sound/discrete.h"
 #include "sound/samples.h"
 
-class blockade_state : public driver_device
+class blockade_state
 {
 public:
-	blockade_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, blockade_state(machine)); }
 
-	UINT8 *  m_videoram;
+	blockade_state(running_machine &machine) { }
+
+	UINT8 *  videoram;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
+	tilemap_t  *bg_tilemap;
 
 	/* input-related */
-	UINT8 m_coin_latch;  /* Active Low */
-	UINT8 m_just_been_reset;
+	UINT8 coin_latch;  /* Active Low */
+	UINT8 just_been_reset;
 };
 
 
@@ -23,7 +24,7 @@ public:
 WRITE8_HANDLER( blockade_videoram_w );
 
 VIDEO_START( blockade );
-SCREEN_UPDATE( blockade );
+VIDEO_UPDATE( blockade );
 
 /*----------- defined in audio/blockade.c -----------*/
 

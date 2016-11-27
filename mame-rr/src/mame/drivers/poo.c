@@ -45,30 +45,19 @@ Other bits from DSW2 (but bit 5) don't seem to be read / tested at all ...
 #include "cpu/z80/z80.h"
 #include "sound/ay8910.h"
 
-
-class poo_state : public driver_device
-{
-public:
-	poo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_vram;
-	UINT8 *m_scrolly;
-	UINT8 *m_sprites;
-	UINT8 m_vram_colbank;
-};
-
+static UINT8 *poo_vram, *poo_scrolly, *poo_sprites;
+static UINT8 vram_colbank;
 
 static VIDEO_START(unclepoo)
 {
+
 }
 
-static SCREEN_UPDATE(unclepoo)
+static VIDEO_UPDATE(unclepoo)
 {
-	poo_state *state = screen->machine().driver_data<poo_state>();
 	int y,x;
 	int count;
-	const gfx_element *gfx = screen->machine().gfx[0];
+	const gfx_element *gfx = screen->machine->gfx[0];
 
 	count = 0;
 
@@ -76,12 +65,12 @@ static SCREEN_UPDATE(unclepoo)
 	{
 		for (y=0;y<32;y++)
 		{
-			int tile = state->m_vram[count+0x000] | ((state->m_vram[count+0x400] & 3) <<8);
-			int color = (state->m_vram[count+0x400] & 0x38) >> 3;
-			int scrolly = (state->m_scrolly[x*4]);
+			int tile = poo_vram[count+0x000] | ((poo_vram[count+0x400] & 3) <<8);
+			int color = (poo_vram[count+0x400] & 0x38) >> 3;
+			int scrolly = (poo_scrolly[x*4]);
 
-			drawgfx_opaque(bitmap,cliprect,gfx,tile,color+state->m_vram_colbank,0,0,x*8,256-(y*8)+scrolly);
-			drawgfx_opaque(bitmap,cliprect,gfx,tile,color+state->m_vram_colbank,0,0,x*8,0-(y*8)+scrolly);
+			drawgfx_opaque(bitmap,cliprect,gfx,tile,color+vram_colbank,0,0,x*8,256-(y*8)+scrolly);
+			drawgfx_opaque(bitmap,cliprect,gfx,tile,color+vram_colbank,0,0,x*8,0-(y*8)+scrolly);
 
 			count++;
 		}
@@ -92,10 +81,10 @@ static SCREEN_UPDATE(unclepoo)
 
 		for(i=0;i<0x80;i+=4)
 		{
-			spr_offs = state->m_sprites[i+2] | (state->m_sprites[i+3] & 3) << 8;
-			y = state->m_sprites[i+0]+8;
-			x = state->m_sprites[i+1];
-			col = (state->m_sprites[i+3] & 0xf8) >> 3;
+			spr_offs = poo_sprites[i+2] | (poo_sprites[i+3] & 3) << 8;
+			y = poo_sprites[i+0]+8;
+			x = poo_sprites[i+1];
+			col = (poo_sprites[i+3] & 0xf8) >> 3;
 			fx = 0;
 			fy = 0;
 
@@ -108,7 +97,7 @@ static SCREEN_UPDATE(unclepoo)
 
 static READ8_HANDLER( unk_inp_r )
 {
-	return 0x00;//space->machine().rand();
+	return 0x00;//mame_rand(space->machine);
 }
 
 #if 0
@@ -120,7 +109,7 @@ static READ8_HANDLER( unk_inp2_r )
 
 static READ8_HANDLER( unk_inp3_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 #endif
 
@@ -136,24 +125,23 @@ static WRITE8_HANDLER( unk_w )
 static WRITE8_HANDLER( sound_cmd_w )
 {
 	soundlatch_w(space, 0, (data & 0xff));
-	cputag_set_input_line(space->machine(), "subcpu", 0, HOLD_LINE);
+	cputag_set_input_line(space->machine, "subcpu", 0, HOLD_LINE);
 }
 
 static WRITE8_HANDLER( poo_vregs_w )
 {
-	poo_state *state = space->machine().driver_data<poo_state>();
 	// bit 2 used, unknown purpose
-	state->m_vram_colbank = data & 0x18;
+	vram_colbank = data & 0x18;
 }
 
-static ADDRESS_MAP_START( unclepoo_main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( unclepoo_main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM AM_WRITENOP
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
 	AM_RANGE(0x9000, 0x97ff) AM_RAM
 	AM_RANGE(0x9800, 0x9801) AM_READ(unk_inp_r) //AM_WRITE( unk_w )
 
-	AM_RANGE(0xb000, 0xb07f) AM_RAM AM_BASE_MEMBER(poo_state, m_sprites)
-	AM_RANGE(0xb080, 0xb0ff) AM_RAM AM_BASE_MEMBER(poo_state, m_scrolly)
+	AM_RANGE(0xb000, 0xb07f) AM_RAM AM_BASE(&poo_sprites)
+	AM_RANGE(0xb080, 0xb0ff) AM_RAM AM_BASE(&poo_scrolly)
 
 	AM_RANGE(0xb400, 0xb400) AM_WRITE(sound_cmd_w)
 
@@ -165,23 +153,23 @@ static ADDRESS_MAP_START( unclepoo_main_map, AS_PROGRAM, 8 )
 
 	AM_RANGE(0xb700, 0xb700) AM_WRITE(poo_vregs_w)
 
-	AM_RANGE(0xb800, 0xbfff) AM_RAM AM_BASE_MEMBER(poo_state, m_vram)
+	AM_RANGE(0xb800, 0xbfff) AM_RAM AM_BASE(&poo_vram)
 
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( unclepoo_main_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( unclepoo_main_portmap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 ADDRESS_MAP_END
 
 
 
-static ADDRESS_MAP_START( unclepoo_sub_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( unclepoo_sub_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_WRITENOP  /* R/C filter ??? */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( unclepoo_sub_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( unclepoo_sub_portmap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x40, 0x40) AM_DEVREADWRITE("ay", ay8910_r, ay8910_data_w)
 	AM_RANGE(0x80, 0x80) AM_DEVWRITE("ay", ay8910_address_w)
@@ -285,7 +273,7 @@ static PALETTE_INIT( unclepoo )
 	int i,r,g,b,val;
 	int bit0,bit1,bit2;
 
-	for (i = 0; i < 0x100; i++)
+	for (i = 0; i < 0x200; i++)
 	{
 		val = (color_prom[i+0x100]) | (color_prom[i+0x000]<<4);
 
@@ -308,7 +296,7 @@ static PALETTE_INIT( unclepoo )
 
  static READ8_HANDLER( timer_r )
 {
-	return downcast<cpu_device *>(&space->device())->total_cycles() / 16;
+	return downcast<cpu_device *>(space->cpu)->total_cycles() / 16;
 }
 
 
@@ -322,39 +310,39 @@ static const ay8910_interface ay8910_config =
 	DEVCB_NULL
 };
 
-static MACHINE_CONFIG_START( unclepoo, poo_state )
+static MACHINE_DRIVER_START( unclepoo )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,18000000/6)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(unclepoo_main_map)
-	MCFG_CPU_IO_MAP(unclepoo_main_portmap)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,256) // ??? controls game speed
+	MDRV_CPU_ADD("maincpu", Z80,18000000/6)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(unclepoo_main_map)
+	MDRV_CPU_IO_MAP(unclepoo_main_portmap)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold,256) // ??? controls game speed
 
-	MCFG_CPU_ADD("subcpu", Z80,18000000/12)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(unclepoo_sub_map)
-	MCFG_CPU_IO_MAP(unclepoo_sub_portmap)
-//  MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("subcpu", Z80,18000000/12)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(unclepoo_sub_map)
+	MDRV_CPU_IO_MAP(unclepoo_sub_portmap)
+//  MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(unclepoo)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 256-1, 16, 256-1)
 
-	MCFG_GFXDECODE(unclepoo)
-	MCFG_PALETTE_LENGTH(0x100)
-	MCFG_PALETTE_INIT(unclepoo)
+	MDRV_GFXDECODE(unclepoo)
+	MDRV_PALETTE_LENGTH(0x100)
+	MDRV_PALETTE_INIT(unclepoo)
 
-	MCFG_VIDEO_START(unclepoo)
+	MDRV_VIDEO_START(unclepoo)
+	MDRV_VIDEO_UPDATE(unclepoo)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("ay", AY8910, 18000000/12) /* ? Mhz */
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("ay", AY8910, 18000000/12) /* ? Mhz */
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 

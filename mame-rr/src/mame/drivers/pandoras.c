@@ -37,18 +37,18 @@ Boards:
 
 static INTERRUPT_GEN( pandoras_master_interrupt )
 {
-	pandoras_state *state = device->machine().driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)device->machine->driver_data;
 
-	if (state->m_irq_enable_a)
-		device_set_input_line(device, M6809_IRQ_LINE, HOLD_LINE);
+	if (state->irq_enable_a)
+		cpu_set_input_line(device, M6809_IRQ_LINE, HOLD_LINE);
 }
 
 static INTERRUPT_GEN( pandoras_slave_interrupt )
 {
-	pandoras_state *state = device->machine().driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)device->machine->driver_data;
 
-	if (state->m_irq_enable_b)
-		device_set_input_line(device, M6809_IRQ_LINE, HOLD_LINE);
+	if (state->irq_enable_b)
+		cpu_set_input_line(device, M6809_IRQ_LINE, HOLD_LINE);
 }
 
 static WRITE8_HANDLER( pandoras_int_control_w )
@@ -62,82 +62,82 @@ static WRITE8_HANDLER( pandoras_int_control_w )
 
         other bytes unknown */
 
-	pandoras_state *state = space->machine().driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x00:	if (!data)
-					device_set_input_line(state->m_maincpu, M6809_IRQ_LINE, CLEAR_LINE);
-				state->m_irq_enable_a = data;
+					cpu_set_input_line(state->maincpu, M6809_IRQ_LINE, CLEAR_LINE);
+				state->irq_enable_a = data;
 				break;
-		case 0x02:	coin_counter_w(space->machine(), 0,data & 0x01);
+		case 0x02:	coin_counter_w(space->machine, 0,data & 0x01);
 				break;
-		case 0x03:	coin_counter_w(space->machine(), 1,data & 0x01);
+		case 0x03:	coin_counter_w(space->machine, 1,data & 0x01);
 				break;
 		case 0x05:	pandoras_flipscreen_w(space, 0, data);
 				break;
 		case 0x06:	if (!data)
-					device_set_input_line(state->m_subcpu, M6809_IRQ_LINE, CLEAR_LINE);
-				state->m_irq_enable_b = data;
+					cpu_set_input_line(state->subcpu, M6809_IRQ_LINE, CLEAR_LINE);
+				state->irq_enable_b = data;
 				break;
-		case 0x07:	device_set_input_line(state->m_subcpu, INPUT_LINE_NMI, PULSE_LINE);
+		case 0x07:	cpu_set_input_line(state->subcpu, INPUT_LINE_NMI, PULSE_LINE);
 				break;
 
-		default:	logerror("%04x: (irq_ctrl) write %02x to %02x\n",cpu_get_pc(&space->device()), data, offset);
+		default:	logerror("%04x: (irq_ctrl) write %02x to %02x\n",cpu_get_pc(space->cpu), data, offset);
 				break;
 	}
 }
 
 static WRITE8_HANDLER( pandoras_cpua_irqtrigger_w )
 {
-	pandoras_state *state = space->machine().driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)space->machine->driver_data;
 
-	if (!state->m_firq_old_data_a && data)
-		device_set_input_line(state->m_maincpu, M6809_FIRQ_LINE, HOLD_LINE);
+	if (!state->firq_old_data_a && data)
+		cpu_set_input_line(state->maincpu, M6809_FIRQ_LINE, HOLD_LINE);
 
-	state->m_firq_old_data_a = data;
+	state->firq_old_data_a = data;
 }
 
 static WRITE8_HANDLER( pandoras_cpub_irqtrigger_w )
 {
-	pandoras_state *state = space->machine().driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)space->machine->driver_data;
 
-	if (!state->m_firq_old_data_b && data)
-		device_set_input_line(state->m_subcpu, M6809_FIRQ_LINE, HOLD_LINE);
+	if (!state->firq_old_data_b && data)
+		cpu_set_input_line(state->subcpu, M6809_FIRQ_LINE, HOLD_LINE);
 
-	state->m_firq_old_data_b = data;
+	state->firq_old_data_b = data;
 }
 
 static WRITE8_HANDLER( pandoras_i8039_irqtrigger_w )
 {
-	pandoras_state *state = space->machine().driver_data<pandoras_state>();
-	device_set_input_line(state->m_mcu, 0, ASSERT_LINE);
+	pandoras_state *state = (pandoras_state *)space->machine->driver_data;
+	cpu_set_input_line(state->mcu, 0, ASSERT_LINE);
 }
 
 static WRITE8_HANDLER( i8039_irqen_and_status_w )
 {
-	pandoras_state *state = space->machine().driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)space->machine->driver_data;
 
 	/* bit 7 enables IRQ */
 	if ((data & 0x80) == 0)
-		device_set_input_line(state->m_mcu, 0, CLEAR_LINE);
+		cpu_set_input_line(state->mcu, 0, CLEAR_LINE);
 
 	/* bit 5 goes to 8910 port A */
-	state->m_i8039_status = (data & 0x20) >> 5;
+	state->i8039_status = (data & 0x20) >> 5;
 }
 
 static WRITE8_HANDLER( pandoras_z80_irqtrigger_w )
 {
-	pandoras_state *state = space->machine().driver_data<pandoras_state>();
-	device_set_input_line_and_vector(state->m_audiocpu, 0, HOLD_LINE, 0xff);
+	pandoras_state *state = (pandoras_state *)space->machine->driver_data;
+	cpu_set_input_line_and_vector(state->audiocpu, 0, HOLD_LINE, 0xff);
 }
 
 
 
-static ADDRESS_MAP_START( pandoras_master_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x0fff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(pandoras_state, m_spriteram)				/* Work RAM (Shared with CPU B) */
-	AM_RANGE(0x1000, 0x13ff) AM_RAM_WRITE(pandoras_cram_w) AM_SHARE("share2") AM_BASE_MEMBER(pandoras_state, m_colorram)	/* Color RAM (shared with CPU B) */
-	AM_RANGE(0x1400, 0x17ff) AM_RAM_WRITE(pandoras_vram_w) AM_SHARE("share3") AM_BASE_MEMBER(pandoras_state, m_videoram)	/* Video RAM (shared with CPU B) */
+static ADDRESS_MAP_START( pandoras_master_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x0fff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(pandoras_state, spriteram)				/* Work RAM (Shared with CPU B) */
+	AM_RANGE(0x1000, 0x13ff) AM_RAM_WRITE(pandoras_cram_w) AM_SHARE("share2") AM_BASE_MEMBER(pandoras_state, colorram)	/* Color RAM (shared with CPU B) */
+	AM_RANGE(0x1400, 0x17ff) AM_RAM_WRITE(pandoras_vram_w) AM_SHARE("share3") AM_BASE_MEMBER(pandoras_state, videoram)	/* Video RAM (shared with CPU B) */
 	AM_RANGE(0x1800, 0x1807) AM_WRITE(pandoras_int_control_w)								/* INT control */
 	AM_RANGE(0x1a00, 0x1a00) AM_WRITE(pandoras_scrolly_w)									/* bg scroll */
 	AM_RANGE(0x1c00, 0x1c00) AM_WRITE(pandoras_z80_irqtrigger_w)							/* cause INT on the Z80 */
@@ -145,14 +145,14 @@ static ADDRESS_MAP_START( pandoras_master_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x2000, 0x2000) AM_WRITE(pandoras_cpub_irqtrigger_w)							/* cause FIRQ on CPU B */
 	AM_RANGE(0x2001, 0x2001) AM_WRITE(watchdog_reset_w)										/* watchdog reset */
 	AM_RANGE(0x4000, 0x5fff) AM_ROM															/* space for diagnostic ROM */
-	AM_RANGE(0x6000, 0x67ff) AM_RAM AM_SHARE("share4")										/* Shared RAM with CPU B */
+	AM_RANGE(0x6000, 0x67ff) AM_RAM AM_SHARE("share4")											/* Shared RAM with CPU B */
 	AM_RANGE(0x8000, 0xffff) AM_ROM															/* ROM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( pandoras_slave_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( pandoras_slave_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_RAM AM_SHARE("share1")										/* Work RAM (Shared with CPU A) */
-	AM_RANGE(0x1000, 0x13ff) AM_RAM_WRITE(pandoras_cram_w) AM_SHARE("share2")				/* Color RAM (shared with CPU A) */
-	AM_RANGE(0x1400, 0x17ff) AM_RAM_WRITE(pandoras_vram_w) AM_SHARE("share3")				/* Video RAM (shared with CPU A) */
+	AM_RANGE(0x1000, 0x13ff) AM_RAM_WRITE(pandoras_cram_w) AM_SHARE("share2")						/* Color RAM (shared with CPU A) */
+	AM_RANGE(0x1400, 0x17ff) AM_RAM_WRITE(pandoras_vram_w) AM_SHARE("share3")						/* Video RAM (shared with CPU A) */
 	AM_RANGE(0x1800, 0x1800) AM_READ_PORT("DSW1")
 	AM_RANGE(0x1800, 0x1807) AM_WRITE(pandoras_int_control_w)								/* INT control */
 	AM_RANGE(0x1a00, 0x1a00) AM_READ_PORT("SYSTEM")
@@ -163,26 +163,26 @@ static ADDRESS_MAP_START( pandoras_slave_map, AS_PROGRAM, 8 )
 //  AM_RANGE(0x1e00, 0x1e00) AM_READNOP                                                     /* ??? seems to be important */
 	AM_RANGE(0x8000, 0x8000) AM_WRITE(watchdog_reset_w)										/* watchdog reset */
 	AM_RANGE(0xa000, 0xa000) AM_WRITE(pandoras_cpua_irqtrigger_w)							/* cause FIRQ on CPU A */
-	AM_RANGE(0xc000, 0xc7ff) AM_RAM AM_SHARE("share4")										/* Shared RAM with the CPU A */
+	AM_RANGE(0xc000, 0xc7ff) AM_RAM AM_SHARE("share4")												/* Shared RAM with the CPU A */
 	AM_RANGE(0xe000, 0xffff) AM_ROM															/* ROM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( pandoras_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( pandoras_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM															/* ROM */
 	AM_RANGE(0x2000, 0x23ff) AM_RAM															/* RAM */
 	AM_RANGE(0x4000, 0x4000) AM_READ(soundlatch_r)											/* soundlatch_r */
 	AM_RANGE(0x6000, 0x6000) AM_DEVWRITE("aysnd", ay8910_address_w)							/* AY-8910 */
-	AM_RANGE(0x6001, 0x6001) AM_DEVREAD("aysnd", ay8910_r)									/* AY-8910 */
-	AM_RANGE(0x6002, 0x6002) AM_DEVWRITE("aysnd", ay8910_data_w)							/* AY-8910 */
+	AM_RANGE(0x6001, 0x6001) AM_DEVREAD("aysnd", ay8910_r)										/* AY-8910 */
+	AM_RANGE(0x6002, 0x6002) AM_DEVWRITE("aysnd", ay8910_data_w)								/* AY-8910 */
 	AM_RANGE(0x8000, 0x8000) AM_WRITE(pandoras_i8039_irqtrigger_w)							/* cause INT on the 8039 */
 	AM_RANGE(0xa000, 0xa000) AM_WRITE(soundlatch2_w)										/* sound command to the 8039 */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( pandoras_i8039_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( pandoras_i8039_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( pandoras_i8039_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( pandoras_i8039_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0xff) AM_READ(soundlatch2_r)
 	AM_RANGE(MCS48_PORT_P1, MCS48_PORT_P1) AM_DEVWRITE("dac", dac_w)
 	AM_RANGE(MCS48_PORT_P2, MCS48_PORT_P2) AM_WRITE(i8039_irqen_and_status_w)
@@ -300,43 +300,43 @@ GFXDECODE_END
 
 static MACHINE_START( pandoras )
 {
-	pandoras_state *state = machine.driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device<cpu_device>("maincpu");
-	state->m_subcpu = machine.device<cpu_device>("sub");
-	state->m_audiocpu = machine.device<cpu_device>("audiocpu");
-	state->m_mcu = machine.device<cpu_device>("mcu");
+	state->maincpu = machine->device<cpu_device>("maincpu");
+	state->subcpu = machine->device<cpu_device>("sub");
+	state->audiocpu = machine->device<cpu_device>("audiocpu");
+	state->mcu = machine->device<cpu_device>("mcu");
 
-	state->save_item(NAME(state->m_firq_old_data_a));
-	state->save_item(NAME(state->m_firq_old_data_b));
-	state->save_item(NAME(state->m_irq_enable_a));
-	state->save_item(NAME(state->m_irq_enable_b));
-	state->save_item(NAME(state->m_i8039_status));
+	state_save_register_global(machine, state->firq_old_data_a);
+	state_save_register_global(machine, state->firq_old_data_b);
+	state_save_register_global(machine, state->irq_enable_a);
+	state_save_register_global(machine, state->irq_enable_b);
+	state_save_register_global(machine, state->i8039_status);
 }
 
 static MACHINE_RESET( pandoras )
 {
-	pandoras_state *state = machine.driver_data<pandoras_state>();
+	pandoras_state *state = (pandoras_state *)machine->driver_data;
 
-	state->m_firq_old_data_a = 0;
-	state->m_firq_old_data_b = 0;
-	state->m_irq_enable_a = 0;
-	state->m_irq_enable_b = 0;
-	state->m_i8039_status = 0;
+	state->firq_old_data_a = 0;
+	state->firq_old_data_b = 0;
+	state->irq_enable_a = 0;
+	state->irq_enable_b = 0;
+	state->i8039_status = 0;
 
-	state->m_flipscreen = 0;
+	state->flipscreen = 0;
 }
 
 static READ8_DEVICE_HANDLER( pandoras_portA_r )
 {
-	pandoras_state *state = device->machine().driver_data<pandoras_state>();
-	return state->m_i8039_status;
+	pandoras_state *state = (pandoras_state *)device->machine->driver_data;
+	return state->i8039_status;
 }
 
 static READ8_DEVICE_HANDLER( pandoras_portB_r )
 {
-	pandoras_state *state = device->machine().driver_data<pandoras_state>();
-	return (state->m_audiocpu->total_cycles() / 512) & 0x0f;
+	pandoras_state *state = (pandoras_state *)device->machine->driver_data;
+	return (state->audiocpu->total_cycles() / 512) & 0x0f;
 }
 
 static const ay8910_interface ay8910_config =
@@ -349,54 +349,57 @@ static const ay8910_interface ay8910_config =
 	DEVCB_NULL
 };
 
-static MACHINE_CONFIG_START( pandoras, pandoras_state )
+static MACHINE_DRIVER_START( pandoras )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(pandoras_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, MASTER_CLOCK/6)	/* CPU A */
-	MCFG_CPU_PROGRAM_MAP(pandoras_master_map)
-	MCFG_CPU_VBLANK_INT("screen", pandoras_master_interrupt)
+	MDRV_CPU_ADD("maincpu", M6809, MASTER_CLOCK/6)	/* CPU A */
+	MDRV_CPU_PROGRAM_MAP(pandoras_master_map)
+	MDRV_CPU_VBLANK_INT("screen", pandoras_master_interrupt)
 
-	MCFG_CPU_ADD("sub", M6809, MASTER_CLOCK/6)		/* CPU B */
-	MCFG_CPU_PROGRAM_MAP(pandoras_slave_map)
-	MCFG_CPU_VBLANK_INT("screen", pandoras_slave_interrupt)
+	MDRV_CPU_ADD("sub", M6809, MASTER_CLOCK/6)		/* CPU B */
+	MDRV_CPU_PROGRAM_MAP(pandoras_slave_map)
+	MDRV_CPU_VBLANK_INT("screen", pandoras_slave_interrupt)
 
-	MCFG_CPU_ADD("audiocpu", Z80, SOUND_CLOCK/8)
-	MCFG_CPU_PROGRAM_MAP(pandoras_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, SOUND_CLOCK/8)
+	MDRV_CPU_PROGRAM_MAP(pandoras_sound_map)
 
-	MCFG_CPU_ADD("mcu", I8039, SOUND_CLOCK/2)
-	MCFG_CPU_PROGRAM_MAP(pandoras_i8039_map)
-	MCFG_CPU_IO_MAP(pandoras_i8039_io_map)
+	MDRV_CPU_ADD("mcu", I8039, SOUND_CLOCK/2)
+	MDRV_CPU_PROGRAM_MAP(pandoras_i8039_map)
+	MDRV_CPU_IO_MAP(pandoras_i8039_io_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* 100 CPU slices per frame - needed for correct synchronization of the sound CPUs */
+	MDRV_QUANTUM_TIME(HZ(3000))	/* slices per frame */
 
-	MCFG_MACHINE_START(pandoras)
-	MCFG_MACHINE_RESET(pandoras)
+	MDRV_MACHINE_START(pandoras)
+	MDRV_MACHINE_RESET(pandoras)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(pandoras)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(pandoras)
-	MCFG_PALETTE_LENGTH(16*16+16*16)
+	MDRV_GFXDECODE(pandoras)
+	MDRV_PALETTE_LENGTH(16*16+16*16)
 
-	MCFG_PALETTE_INIT(pandoras)
-	MCFG_VIDEO_START(pandoras)
+	MDRV_PALETTE_INIT(pandoras)
+	MDRV_VIDEO_START(pandoras)
+	MDRV_VIDEO_UPDATE(pandoras)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, SOUND_CLOCK/8)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("aysnd", AY8910, SOUND_CLOCK/8)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

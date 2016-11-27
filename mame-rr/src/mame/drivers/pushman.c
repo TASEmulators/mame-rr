@@ -35,9 +35,9 @@ static WRITE16_HANDLER( pushman_flipscreen_w )
 {
 	if (ACCESSING_BITS_8_15)
 	{
-		flip_screen_set(space->machine(), data & 0x0200);
-		coin_counter_w(space->machine(), 0, data & 0x4000);
-		coin_counter_w(space->machine(), 1, data & 0x8000);
+		flip_screen_set(space->machine, data & 0x0200);
+		coin_counter_w(space->machine, 0, data & 0x4000);
+		coin_counter_w(space->machine, 1, data & 0x8000);
 	}
 }
 
@@ -49,81 +49,81 @@ static WRITE16_HANDLER( pushman_control_w )
 
 static READ16_HANDLER( pushman_68705_r )
 {
-	pushman_state *state = space->machine().driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)space->machine->driver_data;
 
 	if (offset == 0)
-		return state->m_latch;
+		return state->latch;
 
-	if (offset == 3 && state->m_new_latch)
+	if (offset == 3 && state->new_latch)
 	{
-		state->m_new_latch = 0;
+		state->new_latch = 0;
 		return 0;
 	}
-	if (offset == 3 && !state->m_new_latch)
+	if (offset == 3 && !state->new_latch)
 		return 0xff;
 
-	return (state->m_shared_ram[2 * offset + 1] << 8) + state->m_shared_ram[2 * offset];
+	return (state->shared_ram[2 * offset + 1] << 8) + state->shared_ram[2 * offset];
 }
 
 static WRITE16_HANDLER( pushman_68705_w )
 {
-	pushman_state *state = space->machine().driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
-		state->m_shared_ram[2 * offset] = data >> 8;
+		state->shared_ram[2 * offset] = data >> 8;
 	if (ACCESSING_BITS_0_7)
-		state->m_shared_ram[2 * offset + 1] = data & 0xff;
+		state->shared_ram[2 * offset + 1] = data & 0xff;
 
 	if (offset == 1)
 	{
-		device_set_input_line(state->m_mcu, M68705_IRQ_LINE, HOLD_LINE);
-		device_spin(&space->device());
-		state->m_new_latch = 0;
+		cpu_set_input_line(state->mcu, M68705_IRQ_LINE, HOLD_LINE);
+		cpu_spin(space->cpu);
+		state->new_latch = 0;
 	}
 }
 
 /* ElSemi - Bouncing balls protection. */
 static READ16_HANDLER( bballs_68705_r )
 {
-	pushman_state *state = space->machine().driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)space->machine->driver_data;
 
 	if (offset == 0)
-		return state->m_latch;
-	if (offset == 3 && state->m_new_latch)
+		return state->latch;
+	if (offset == 3 && state->new_latch)
 	{
-		state->m_new_latch = 0;
+		state->new_latch = 0;
 		return 0;
 	}
-	if (offset == 3 && !state->m_new_latch)
+	if (offset == 3 && !state->new_latch)
 		return 0xff;
 
-	return (state->m_shared_ram[2 * offset + 1] << 8) + state->m_shared_ram[2 * offset];
+	return (state->shared_ram[2 * offset + 1] << 8) + state->shared_ram[2 * offset];
 }
 
 static WRITE16_HANDLER( bballs_68705_w )
 {
-	pushman_state *state = space->machine().driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
-		state->m_shared_ram[2 * offset] = data >> 8;
+		state->shared_ram[2 * offset] = data >> 8;
 	if (ACCESSING_BITS_0_7)
-		state->m_shared_ram[2 * offset + 1] = data & 0xff;
+		state->shared_ram[2 * offset + 1] = data & 0xff;
 
 	if (offset == 0)
 	{
-		state->m_latch = 0;
-		if (state->m_shared_ram[0] <= 0xf)
+		state->latch = 0;
+		if (state->shared_ram[0] <= 0xf)
 		{
-			state->m_latch = state->m_shared_ram[0] << 2;
-			if (state->m_shared_ram[1])
-				state->m_latch |= 2;
-			state->m_new_latch = 1;
+			state->latch = state->shared_ram[0] << 2;
+			if (state->shared_ram[1])
+				state->latch |= 2;
+			state->new_latch = 1;
 		}
-		else if (state->m_shared_ram[0])
+		else if (state->shared_ram[0])
 		{
-			if (state->m_shared_ram[1])
-				state->m_latch |= 2;
-			state->m_new_latch = 1;
+			if (state->shared_ram[1])
+				state->latch |= 2;
+			state->new_latch = 1;
 		}
 	}
 }
@@ -131,67 +131,67 @@ static WRITE16_HANDLER( bballs_68705_w )
 
 static READ8_HANDLER( pushman_68000_r )
 {
-	pushman_state *state = space->machine().driver_data<pushman_state>();
-	return state->m_shared_ram[offset];
+	pushman_state *state = (pushman_state *)space->machine->driver_data;
+	return state->shared_ram[offset];
 }
 
 static WRITE8_HANDLER( pushman_68000_w )
 {
-	pushman_state *state = space->machine().driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)space->machine->driver_data;
 
-	if (offset == 2 && (state->m_shared_ram[2] & 2) == 0 && data & 2)
+	if (offset == 2 && (state->shared_ram[2] & 2) == 0 && data & 2)
 	{
-		state->m_latch = (state->m_shared_ram[1] << 8) | state->m_shared_ram[0];
-		state->m_new_latch = 1;
+		state->latch = (state->shared_ram[1] << 8) | state->shared_ram[0];
+		state->new_latch = 1;
 	}
-	state->m_shared_ram[offset] = data;
+	state->shared_ram[offset] = data;
 }
 
 /******************************************************************************/
 
-static ADDRESS_MAP_START( pushman_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( pushman_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x01ffff) AM_ROM
 	AM_RANGE(0x060000, 0x060007) AM_READWRITE(pushman_68705_r, pushman_68705_w)
-	AM_RANGE(0xfe0800, 0xfe17ff) AM_RAM AM_BASE_MEMBER(pushman_state, m_spriteram)
+	AM_RANGE(0xfe0800, 0xfe17ff) AM_RAM AM_BASE_MEMBER(pushman_state, spriteram)
 	AM_RANGE(0xfe4000, 0xfe4001) AM_READ_PORT("INPUTS") AM_WRITE(pushman_flipscreen_w)
 	AM_RANGE(0xfe4002, 0xfe4003) AM_READ_PORT("SYSTEM") AM_WRITE(pushman_control_w)
 	AM_RANGE(0xfe4004, 0xfe4005) AM_READ_PORT("DSW")
 	AM_RANGE(0xfe8000, 0xfe8003) AM_WRITE(pushman_scroll_w)
 	AM_RANGE(0xfe800e, 0xfe800f) AM_WRITENOP /* ? */
-	AM_RANGE(0xfec000, 0xfec7ff) AM_RAM_WRITE(pushman_videoram_w) AM_BASE_MEMBER(pushman_state, m_videoram)
+	AM_RANGE(0xfec000, 0xfec7ff) AM_RAM_WRITE(pushman_videoram_w) AM_BASE_MEMBER(pushman_state, videoram)
 	AM_RANGE(0xff8000, 0xff87ff) AM_RAM_WRITE(paletteram16_xxxxRRRRGGGGBBBB_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xffc000, 0xffffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mcu_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mcu_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0007) AM_READWRITE(pushman_68000_r, pushman_68000_w)
 	AM_RANGE(0x0010, 0x007f) AM_RAM
 	AM_RANGE(0x0080, 0x0fff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xe000, 0xe000) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVWRITE("ym1", ym2203_w)
 	AM_RANGE(0x80, 0x81) AM_DEVWRITE("ym2", ym2203_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( bballs_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( bballs_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_GLOBAL_MASK(0xfffff)
 	AM_RANGE(0x00000, 0x1ffff) AM_ROM
 	AM_RANGE(0x60000, 0x60007) AM_READWRITE(bballs_68705_r, bballs_68705_w)
-	AM_RANGE(0xe0800, 0xe17ff) AM_RAM AM_BASE_MEMBER(pushman_state, m_spriteram)
+	AM_RANGE(0xe0800, 0xe17ff) AM_RAM AM_BASE_MEMBER(pushman_state, spriteram)
 	AM_RANGE(0xe4000, 0xe4001) AM_READ_PORT("INPUTS") AM_WRITE(pushman_flipscreen_w)
 	AM_RANGE(0xe4002, 0xe4003) AM_READ_PORT("SYSTEM") AM_WRITE(pushman_control_w)
 	AM_RANGE(0xe4004, 0xe4005) AM_READ_PORT("DSW")
 	AM_RANGE(0xe8000, 0xe8003) AM_WRITE(pushman_scroll_w)
 	AM_RANGE(0xe800e, 0xe800f) AM_WRITENOP /* ? */
-	AM_RANGE(0xec000, 0xec7ff) AM_RAM_WRITE(pushman_videoram_w) AM_BASE_MEMBER(pushman_state, m_videoram)
+	AM_RANGE(0xec000, 0xec7ff) AM_RAM_WRITE(pushman_videoram_w) AM_BASE_MEMBER(pushman_state, videoram)
 	AM_RANGE(0xf8000, 0xf87ff) AM_RAM_WRITE(paletteram16_xxxxRRRRGGGGBBBB_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xfc000, 0xfffff) AM_RAM
 ADDRESS_MAP_END
@@ -229,25 +229,29 @@ static INPUT_PORTS_START( pushman )
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_COIN2 )
 
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x0001, 0x0001, "Debug Mode (Cheat)") 		PORT_DIPLOCATION("SW1:1")	 /* Listed as "Screen Skip" */
+	PORT_DIPNAME( 0x0001, 0x0001, "Debug Mode (Cheat)") /* Listed as "Screen Skip" */
 	PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0002, 0x0002, "Pull Option" )			PORT_DIPLOCATION("SW1:2")
+	PORT_DIPNAME( 0x0002, 0x0002, "Pull Option" )
 	PORT_DIPSETTING(      0x0002, "5" )
 	PORT_DIPSETTING(      0x0000, "9" )
-	PORT_DIPNAME( 0x0004, 0x0004, DEF_STR( Level_Select ) ) 	PORT_DIPLOCATION("SW1:3")
+	PORT_DIPNAME( 0x0004, 0x0004, DEF_STR( Level_Select ) )
 	PORT_DIPSETTING(      0x0004, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0008, 0x0008, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:4")
+	PORT_DIPNAME( 0x0008, 0x0008, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(      0x0008, DEF_STR( Upright ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x0010, 0x0010, DEF_STR( Demo_Sounds ) )		PORT_DIPLOCATION("SW1:5")
+	PORT_DIPNAME( 0x0010, 0x0010, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0010, DEF_STR( On ) )
-	PORT_SERVICE_DIPLOC(  0x0020, IP_ACTIVE_LOW, "SW1:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x0040, 0x0040, "SW1:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x0080, 0x0080, "SW1:8" )
-	PORT_DIPNAME( 0x0700, 0x0700, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW2:1,2,3")
+	PORT_SERVICE( 0x0020, IP_ACTIVE_LOW )
+	PORT_DIPNAME( 0x0040, 0x0040, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0080, 0x0080, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(      0x0080, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0700, 0x0700, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( 5C_1C ) )
 	PORT_DIPSETTING(      0x0100, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(      0x0200, DEF_STR( 3C_1C ) )
@@ -256,13 +260,21 @@ static INPUT_PORTS_START( pushman )
 	PORT_DIPSETTING(      0x0600, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(      0x0500, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(      0x0400, DEF_STR( 1C_4C ) )
-	PORT_DIPNAME( 0x0800, 0x0800, DEF_STR( Difficulty ) )		PORT_DIPLOCATION("SW2:4")
+	PORT_DIPNAME( 0x0800, 0x0800, DEF_STR( Difficulty ) )
 	PORT_DIPSETTING(      0x0800, DEF_STR( Easy ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( Hard ) )
-	PORT_DIPUNUSED_DIPLOC( 0x1000, 0x1000, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x2000, 0x2000, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x4000, 0x4000, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x8000, 0x8000, "SW2:8" )
+	PORT_DIPNAME( 0x1000, 0x1000, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(      0x1000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x2000, 0x2000, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x4000, 0x4000, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(      0x4000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x8000, 0x8000, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( bballs )
@@ -296,7 +308,7 @@ static INPUT_PORTS_START( bballs )
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_COIN2 )
 
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x0007, 0x0007, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW1:1,2,3")
+	PORT_DIPNAME( 0x0007, 0x0007, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( 5C_1C ) )
 	PORT_DIPSETTING(      0x0001, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(      0x0002, DEF_STR( 3C_1C ) )
@@ -305,33 +317,33 @@ static INPUT_PORTS_START( bballs )
 	PORT_DIPSETTING(      0x0006, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(      0x0005, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(      0x0004, DEF_STR( 1C_4C ) )
-	PORT_DIPNAME( 0x0008, 0x0008, DEF_STR( Difficulty ) )		PORT_DIPLOCATION("SW1:4")
+	PORT_DIPNAME( 0x0008, 0x0008, DEF_STR( Difficulty ) )
 	PORT_DIPSETTING(      0x0008, DEF_STR( Easy ) )			// less bubbles before cycling
 	PORT_DIPSETTING(      0x0000, DEF_STR( Hard ) )			// more bubbles before cycling
-	PORT_DIPNAME( 0x0010, 0x0000, "Music (In-game)" )		PORT_DIPLOCATION("SW1:5")
+	PORT_DIPNAME( 0x0010, 0x0000, "Music (In-game)" )
 	PORT_DIPSETTING(      0x0010, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0020, 0x0000, "Music (Attract Mode)" )		PORT_DIPLOCATION("SW1:6")
+	PORT_DIPNAME( 0x0020, 0x0000, "Music (Attract Mode)" )
 	PORT_DIPSETTING(      0x0020, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x00c0, 0x00c0, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW1:7,8")
+	PORT_DIPNAME( 0x00c0, 0x00c0, DEF_STR( Lives ) )
 	PORT_DIPSETTING(      0x00c0, "1" )
 	PORT_DIPSETTING(      0x0080, "2" )
 	PORT_DIPSETTING(      0x0040, "3" )
 	PORT_DIPSETTING(      0x0000, "4" )
-	PORT_DIPNAME( 0x0100, 0x0100, "Zaps" )				PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x0100, 0x0100, "Zaps" )
 	PORT_DIPSETTING(      0x0100, "1" )
 	PORT_DIPSETTING(      0x0000, "2" )
-	PORT_DIPNAME( 0x0200, 0x0000, "Display Next Ball" ) 		PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x0200, 0x0000, "Display Next Ball" )
 	PORT_DIPSETTING(      0x0200, DEF_STR( No ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( Yes ) )
-	PORT_DIPUNUSED_DIPLOC( 0x0400, 0x0400, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x0800, 0x0800, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x1000, 0x1000, "SW2:5" )
-	PORT_DIPNAME( 0x2000, 0x2000, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW2:6")	// code at 0x0054ac, 0x0054f2, 0x0056fc
+	PORT_DIPUNUSED( 0x0400, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x0800, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x1000, IP_ACTIVE_LOW )
+	PORT_DIPNAME( 0x2000, 0x2000, DEF_STR( Unknown ) )	// code at 0x0054ac, 0x0054f2, 0x0056fc
 	PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0xc000, 0xc000, DEF_STR( Service_Mode ) ) 	PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc000, 0xc000, DEF_STR( Service_Mode ) )
 	PORT_DIPSETTING(      0xc000, DEF_STR( Off ) )
 //  PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x4000, "Inputs/Outputs" )
@@ -389,10 +401,10 @@ GFXDECODE_END
 
 /******************************************************************************/
 
-static void irqhandler(device_t *device, int irq)
+static void irqhandler(running_device *device, int irq)
 {
-	pushman_state *state = device->machine().driver_data<pushman_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	pushman_state *state = (pushman_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2203_interface ym2203_config =
@@ -408,124 +420,130 @@ static const ym2203_interface ym2203_config =
 
 static MACHINE_START( pushman )
 {
-	pushman_state *state = machine.driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_mcu = machine.device("mcu");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->mcu = machine->device("mcu");
 
-	state->save_item(NAME(state->m_control));
-	state->save_item(NAME(state->m_shared_ram));
-	state->save_item(NAME(state->m_latch));
-	state->save_item(NAME(state->m_new_latch));
+	state_save_register_global_array(machine, state->control);
+	state_save_register_global_array(machine, state->shared_ram);
+	state_save_register_global(machine, state->latch);
+	state_save_register_global(machine, state->new_latch);
 }
 
 static MACHINE_RESET( pushman )
 {
-	pushman_state *state = machine.driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)machine->driver_data;
 
-	state->m_latch = 0;
-	state->m_new_latch = 0;
-	state->m_control[0] = 0;
-	state->m_control[1] = 0;
+	state->latch = 0;
+	state->new_latch = 0;
+	state->control[0] = 0;
+	state->control[1] = 0;
 
-	memset(state->m_shared_ram, 0, ARRAY_LENGTH(state->m_shared_ram));
+	memset(state->shared_ram, 0, ARRAY_LENGTH(state->shared_ram));
 }
 
-static MACHINE_CONFIG_START( pushman, pushman_state )
+static MACHINE_DRIVER_START( pushman )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(pushman_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 8000000)
-	MCFG_CPU_PROGRAM_MAP(pushman_map)
-	MCFG_CPU_VBLANK_INT("screen", irq2_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 8000000)
+	MDRV_CPU_PROGRAM_MAP(pushman_map)
+	MDRV_CPU_VBLANK_INT("screen", irq2_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_io_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_io_map)
 
 	/* ElSemi. Reversed the CPU order so the sound callback works with bballs */
-	MCFG_CPU_ADD("mcu", M68705, 4000000)	/* No idea */
-	MCFG_CPU_PROGRAM_MAP(mcu_map)
+	MDRV_CPU_ADD("mcu", M68705, 4000000)	/* No idea */
+	MDRV_CPU_PROGRAM_MAP(mcu_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(3600))
+	MDRV_QUANTUM_TIME(HZ(3600))
 
-	MCFG_MACHINE_START(pushman)
-	MCFG_MACHINE_RESET(pushman)
+	MDRV_MACHINE_START(pushman)
+	MDRV_MACHINE_RESET(pushman)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(pushman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(pushman)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(pushman)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(pushman)
+	MDRV_VIDEO_START(pushman)
+	MDRV_VIDEO_UPDATE(pushman)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 2000000)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym1", YM2203, 2000000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+MACHINE_DRIVER_END
 
 static MACHINE_RESET( bballs )
 {
-	pushman_state *state = machine.driver_data<pushman_state>();
+	pushman_state *state = (pushman_state *)machine->driver_data;
 
 	MACHINE_RESET_CALL(pushman);
 
-	state->m_latch = 0x400;
+	state->latch = 0x400;
 }
 
-static MACHINE_CONFIG_START( bballs, pushman_state )
+static MACHINE_DRIVER_START( bballs )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(pushman_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 8000000)
-	MCFG_CPU_PROGRAM_MAP(bballs_map)
-	MCFG_CPU_VBLANK_INT("screen", irq2_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 8000000)
+	MDRV_CPU_PROGRAM_MAP(bballs_map)
+	MDRV_CPU_VBLANK_INT("screen", irq2_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_io_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_io_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(3600))
+	MDRV_QUANTUM_TIME(HZ(3600))
 
-	MCFG_MACHINE_START(pushman)
-	MCFG_MACHINE_RESET(bballs)
+	MDRV_MACHINE_START(pushman)
+	MDRV_MACHINE_RESET(bballs)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(pushman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(pushman)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(pushman)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(pushman)
+	MDRV_VIDEO_START(pushman)
+	MDRV_VIDEO_UPDATE(pushman)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 2000000)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym1", YM2203, 2000000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 2000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, 2000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************/

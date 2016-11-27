@@ -38,10 +38,6 @@ struct pic8259_interface
 {
 	/* Called when int line changes */
 	devcb_write_line out_int_func;
-	/* 1 - when master, 0 - when slave */
-	devcb_read_line sp_en_func;
-	/* Called when on master slave irq is trigered*/
-	devcb_read8 read_slave_ack_func;
 };
 
 
@@ -49,15 +45,15 @@ struct pic8259_interface
     DEVICE CONFIGURATION MACROS
 ***************************************************************************/
 
-#define MCFG_PIC8259_ADD(_tag, _intrf) \
-	MCFG_DEVICE_ADD(_tag, PIC8259, 0) \
-	MCFG_DEVICE_CONFIG(_intrf)
+#define MDRV_PIC8259_ADD(_tag, _intrf) \
+	MDRV_DEVICE_ADD(_tag, PIC8259, 0) \
+	MDRV_DEVICE_CONFIG(_intrf)
 
 
 /* device interface */
 READ8_DEVICE_HANDLER( pic8259_r );
 WRITE8_DEVICE_HANDLER( pic8259_w );
-int pic8259_acknowledge(device_t *device);
+int pic8259_acknowledge(running_device *device);
 
 /* interrupt requests */
 WRITE_LINE_DEVICE_HANDLER( pic8259_ir0_w );

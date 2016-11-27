@@ -6,45 +6,38 @@
 
 #include "machine/atarigen.h"
 
-class atarisy2_state : public atarigen_state
+class atarisy2_state
 {
 public:
-	atarisy2_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, atarisy2_state(machine)); }
 
-	UINT16 *		m_slapstic_base;
+	atarisy2_state(running_machine &machine) { }
 
-	UINT8			m_interrupt_enable;
-	UINT16 *		m_bankselect;
+	atarigen_state	atarigen;
 
-	INT8			m_pedal_count;
+	UINT16 *		slapstic_base;
 
-	UINT8			m_has_tms5220;
+	UINT8			interrupt_enable;
+	UINT16 *		bankselect;
 
-	UINT8			m_which_adc;
+	INT8			pedal_count;
 
-	UINT8			m_p2portwr_state;
-	UINT8			m_p2portrd_state;
+	UINT8			has_tms5220;
 
-	UINT16 *		m_rombank1;
-	UINT16 *		m_rombank2;
+	UINT8			which_adc;
 
-	UINT8			m_sound_reset_state;
+	UINT8			p2portwr_state;
+	UINT8			p2portrd_state;
 
-	emu_timer *		m_yscroll_reset_timer;
-	UINT32			m_playfield_tile_bank[2];
-	UINT32			m_videobank;
+	UINT16 *		rombank1;
+	UINT16 *		rombank2;
 
-	// 720 fake joystick
-	double			m_joy_last_angle;
-	int				m_joy_rotations;
+	UINT8			sound_reset_state;
 
-	// 720 fake spinner
-	UINT32			m_spin_last_rotate_count;
-	INT32			m_spin_pos;					/* track fake position of spinner */
-	UINT32			m_spin_center_count;
-
-	UINT16			m_vram[0x8000/2];
+	emu_timer *		yscroll_reset_timer;
+	UINT32			playfield_tile_bank[2];
+	UINT32			videobank;
+	UINT16			vram[0x8000/2];
 };
 
 
@@ -60,4 +53,4 @@ WRITE16_HANDLER( atarisy2_videoram_w );
 WRITE16_HANDLER( atarisy2_paletteram_w );
 
 VIDEO_START( atarisy2 );
-SCREEN_UPDATE( atarisy2 );
+VIDEO_UPDATE( atarisy2 );

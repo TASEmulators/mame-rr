@@ -25,6 +25,7 @@
 ************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "nile.h"
 
 #define NILE_VOICES 8
@@ -51,20 +52,21 @@ enum
 
 
 
+UINT16 *nile_sound_regs;
+
 typedef struct _nile_state nile_state;
 struct _nile_state
 {
 	sound_stream * stream;
 	UINT8 *sound_ram;
-	UINT16 sound_regs[0x80];
 	int vpos[NILE_VOICES], frac[NILE_VOICES], lponce[NILE_VOICES];
 	UINT16 ctrl;
 };
 
-INLINE nile_state *get_safe_token(device_t *device)
+INLINE nile_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == NILE);
+	assert(device->type() == SOUND_NILE);
 	return (nile_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -74,11 +76,11 @@ WRITE16_DEVICE_HANDLER( nile_sndctrl_w )
 	nile_state *info = get_safe_token(device);
 	UINT16 ctrl=info->ctrl;
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	COMBINE_DATA(&info->ctrl);
 
-//  printf("CTRL: %04x -> %04x (PC=%x)\n", ctrl, info->ctrl, cpu_get_pc(&space->device()));
+//  printf("CTRL: %04x -> %04x (PC=%x)\n", ctrl, info->ctrl, cpu_get_pc(space->cpu));
 
 	ctrl^=info->ctrl;
 }
@@ -87,7 +89,7 @@ READ16_DEVICE_HANDLER( nile_sndctrl_r )
 {
 	nile_state *info = get_safe_token(device);
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	return info->ctrl;
 }
@@ -97,12 +99,12 @@ READ16_DEVICE_HANDLER( nile_snd_r )
 	nile_state *info = get_safe_token(device);
 	int reg=offset&0xf;
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	if(reg==2 || reg==3)
 	{
 		int slot=offset/16;
-		int sptr = ((info->sound_regs[slot*16+3]<<16)|info->sound_regs[slot*16+2])+info->vpos[slot];
+		int sptr = ((nile_sound_regs[slot*16+3]<<16)|nile_sound_regs[slot*16+2])+info->vpos[slot];
 
 		if(reg==2)
 		{
@@ -113,7 +115,7 @@ READ16_DEVICE_HANDLER( nile_snd_r )
 			return sptr>>16;
 		}
 	}
-	return info->sound_regs[offset];
+	return nile_sound_regs[offset];
 }
 
 WRITE16_DEVICE_HANDLER( nile_snd_w )
@@ -121,9 +123,9 @@ WRITE16_DEVICE_HANDLER( nile_snd_w )
 	nile_state *info = get_safe_token(device);
 	int v, r;
 
-	info->stream->update();
+	stream_update(info->stream);
 
-	COMBINE_DATA(&info->sound_regs[offset]);
+	COMBINE_DATA(&nile_sound_regs[offset]);
 
 	v = offset / 16;
 	r = offset % 16;
@@ -133,7 +135,7 @@ WRITE16_DEVICE_HANDLER( nile_snd_w )
 		info->vpos[v] = info->frac[v] = info->lponce[v] = 0;
 	}
 
-	//printf("v%02d: %04x to reg %02d (PC=%x)\n", v, info->sound_regs[offset], r, cpu_get_pc(&space->device()));
+//  printf("v%02d: %04x to reg %02d (PC=%x)\n", v, nile_sound_regs[offset], r, cpu_get_pc(space->cpu));
 }
 
 static STREAM_UPDATE( nile_update )
@@ -153,7 +155,7 @@ static STREAM_UPDATE( nile_update )
 
 	for (v = 0; v < NILE_VOICES; v++)
 	{
-		slot = &info->sound_regs[v * 16];
+		slot = &nile_sound_regs[v * 16];
 
 		if (info->ctrl&(1<<v))
 		{
@@ -227,7 +229,7 @@ static DEVICE_START( nile )
 
 	info->sound_ram = *device->region();
 
-	info->stream = device->machine().sound().stream_alloc(*device, 0, 2, 44100, info, nile_update);
+	info->stream = stream_create(device, 0, 2, 44100, info, nile_update);
 }
 
 

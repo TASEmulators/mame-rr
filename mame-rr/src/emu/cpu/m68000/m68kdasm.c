@@ -82,26 +82,23 @@
 #define TYPE_68020 8
 #define TYPE_68030 16
 #define TYPE_68040 32
-#define TYPE_68340 64	// (CPU32)
-#define TYPE_COLDFIRE 128
 
 #define M68000_ONLY		(TYPE_68000 | TYPE_68008)
 
 #define M68010_ONLY		TYPE_68010
 #define M68010_LESS		(TYPE_68000 | TYPE_68008 | TYPE_68010)
-#define M68010_PLUS		(TYPE_68010 | TYPE_68020 | TYPE_68030 | TYPE_68040 | TYPE_68340 | TYPE_COLDFIRE)
+#define M68010_PLUS		(TYPE_68010 | TYPE_68020 | TYPE_68030 | TYPE_68040)
 
-#define M68020_ONLY 	(TYPE_68020 | TYPE_68340)
-#define M68020_LESS 	(TYPE_68010 | TYPE_68020 | TYPE_68340)
-#define M68020_PLUS		(TYPE_68020 | TYPE_68030 | TYPE_68040 | TYPE_68340 | TYPE_COLDFIRE)
+#define M68020_ONLY 	TYPE_68020
+#define M68020_LESS 	(TYPE_68010 | TYPE_68020)
+#define M68020_PLUS		(TYPE_68020 | TYPE_68030 | TYPE_68040)
 
 #define M68030_ONLY 	TYPE_68030
-#define M68030_LESS 	(TYPE_68010 | TYPE_68020 | TYPE_68030 | TYPE_68340 )
+#define M68030_LESS 	(TYPE_68010 | TYPE_68020 | TYPE_68030)
 #define M68030_PLUS		(TYPE_68030 | TYPE_68040)
 
 #define M68040_PLUS		TYPE_68040
 
-#define COLDFIRE		TYPE_COLDFIRE
 
 /* Extension word formats */
 #define EXT_8BIT_DISPLACEMENT(A)          ((A)&0xff)
@@ -1337,22 +1334,19 @@ static void d68020_chk2_cmp2_32(void)
 static void d68040_cinv(void)
 {
 	LIMIT_CPU_TYPES(M68040_PLUS);
-
-	static const char *cachetype[4] = { "nop", "data", "inst", "both" };
-
 	switch((g_cpu_ir>>3)&3)
 	{
 		case 0:
 			sprintf(g_dasm_str, "cinv (illegal scope); (4)");
 			break;
 		case 1:
-			sprintf(g_dasm_str, "cinvl   %s, (A%d); (4)", cachetype[(g_cpu_ir>>6)&3], g_cpu_ir&7);
+			sprintf(g_dasm_str, "cinvl   %d, (A%d); (4)", (g_cpu_ir>>6)&3, g_cpu_ir&7);
 			break;
 		case 2:
-			sprintf(g_dasm_str, "cinvp   %s, (A%d); (4)", cachetype[(g_cpu_ir>>6)&3], g_cpu_ir&7);
+			sprintf(g_dasm_str, "cinvp   %d, (A%d); (4)", (g_cpu_ir>>6)&3, g_cpu_ir&7);
 			break;
 		case 3:
-			sprintf(g_dasm_str, "cinva   %s; (4)", cachetype[(g_cpu_ir>>6)&3]);
+			sprintf(g_dasm_str, "cinva   %d; (4)", (g_cpu_ir>>6)&3);
 			break;
 	}
 }
@@ -1586,8 +1580,6 @@ static void d68020_cptrapcc_32(void)
 
 static void d68040_cpush(void)
 {
-	static const char *cachetype[4] = { "nop", "data", "inst", "both" };
-
 	LIMIT_CPU_TYPES(M68040_PLUS);
 	switch((g_cpu_ir>>3)&3)
 	{
@@ -1595,13 +1587,13 @@ static void d68040_cpush(void)
 			sprintf(g_dasm_str, "cpush (illegal scope); (4)");
 			break;
 		case 1:
-			sprintf(g_dasm_str, "cpushl  %s, (A%d); (4)", cachetype[(g_cpu_ir>>6)&3], g_cpu_ir&7);
+			sprintf(g_dasm_str, "cpushl  %d, (A%d); (4)", (g_cpu_ir>>6)&3, g_cpu_ir&7);
 			break;
 		case 2:
-			sprintf(g_dasm_str, "cpushp  %s, (A%d); (4)", cachetype[(g_cpu_ir>>6)&3], g_cpu_ir&7);
+			sprintf(g_dasm_str, "cpushp  %d, (A%d); (4)", (g_cpu_ir>>6)&3, g_cpu_ir&7);
 			break;
 		case 3:
-			sprintf(g_dasm_str, "cpusha  %s; (4)", cachetype[(g_cpu_ir>>6)&3]);
+			sprintf(g_dasm_str, "cpusha  %d; (4)", (g_cpu_ir>>6)&3);
 			break;
 	}
 }
@@ -1727,7 +1719,7 @@ static void d68040_fpu(void)
 
 	char mnemonic[40];
 	UINT32 w2, src, dst_reg;
-	LIMIT_CPU_TYPES(M68020_PLUS);
+	LIMIT_CPU_TYPES(M68030_PLUS);
 	w2 = read_imm_16();
 
 	src = (w2 >> 10) & 0x7;
@@ -2135,52 +2127,20 @@ static void d68010_movec(void)
 			processor = "4+";
 			break;
 		case 0x004:
-			if(g_cpu_type & COLDFIRE)
-			{
-				reg_name = "ACR0";
-				processor = "CF";
-			}
-			else
-			{
-				reg_name = "ITT0";
-				processor = "4+";
-			}
+			reg_name = "ITT0";
+			processor = "4+";
 			break;
 		case 0x005:
-			if(g_cpu_type & COLDFIRE)
-			{
-				reg_name = "ACR1";
-				processor = "CF";
-			}
-			else
-			{
-				reg_name = "ITT1";
-				processor = "4+";
-			}
+			reg_name = "ITT1";
+			processor = "4+";
 			break;
 		case 0x006:
-			if(g_cpu_type & COLDFIRE)
-			{
-				reg_name = "ACR2";
-				processor = "CF";
-			}
-			else
-			{
-				reg_name = "DTT0";
-				processor = "4+";
-			}
+			reg_name = "DTT0";
+			processor = "4+";
 			break;
 		case 0x007:
-			if(g_cpu_type & COLDFIRE)
-			{
-				reg_name = "ACR3";
-				processor = "CF";
-			}
-			else
-			{
-				reg_name = "DTT1";
-				processor = "4+";
-			}
+			reg_name = "DTT1";
+			processor = "4+";
 			break;
 		case 0x805:
 			reg_name = "MMUSR";
@@ -2193,38 +2153,6 @@ static void d68010_movec(void)
 		case 0x807:
 			reg_name = "SRP";
 			processor = "4+";
-			break;
-		case 0xc00:
-			reg_name = "ROMBAR0";
-			processor = "CF";
-			break;
-		case 0xc01:
-			reg_name = "ROMBAR1";
-			processor = "CF";
-			break;
-		case 0xc04:
-			reg_name = "RAMBAR0";
-			processor = "CF";
-			break;
-		case 0xc05:
-			reg_name = "RAMBAR1";
-			processor = "CF";
-			break;
-		case 0xc0c:
-			reg_name = "MPCR";
-			processor = "CF";
-			break;
-		case 0xc0d:
-			reg_name = "EDRAMBAR";
-			processor = "CF";
-			break;
-		case 0xc0e:
-			reg_name = "SECMBAR";
-			processor = "CF";
-			break;
-		case 0xc0f:
-			reg_name = "MBAR";
-			processor = "CF";
 			break;
 		default:
 			reg_name = make_signed_hex_str_16(extension & 0xfff);
@@ -3822,12 +3750,6 @@ static unsigned int m68k_disassemble(char* str_buff, unsigned int pc, unsigned i
 		case M68K_CPU_TYPE_68LC040:
 			g_cpu_type = TYPE_68040;
 			break;
-		case M68K_CPU_TYPE_68340:
-			g_cpu_type = TYPE_68340;
-			break;
-		case M68K_CPU_TYPE_COLDFIRE:
-			g_cpu_type = TYPE_COLDFIRE;
-			break;
 		default:
 			return 0;
 	}
@@ -4019,8 +3941,6 @@ unsigned int m68k_is_valid_instruction(unsigned int instruction, unsigned int cp
 		case M68K_CPU_TYPE_68020:
 		case M68K_CPU_TYPE_68030:
 		case M68K_CPU_TYPE_68EC030:
-		case M68K_CPU_TYPE_68340:
-		case M68K_CPU_TYPE_COLDFIRE:
 			if(g_instruction_table[instruction] == d68040_cinv)
 				return 0;
 			if(g_instruction_table[instruction] == d68040_cpush)
@@ -4100,15 +4020,7 @@ CPU_DISASSEMBLE( m68040 )
 	return m68k_disassemble_raw(buffer, pc, oprom, opram, M68K_CPU_TYPE_68040);
 }
 
-CPU_DISASSEMBLE( m68340 )
-{
-	return m68k_disassemble_raw(buffer, pc, oprom, opram, M68K_CPU_TYPE_68340);
-}
-
-CPU_DISASSEMBLE( coldfire )
-{
-	return m68k_disassemble_raw(buffer, pc, oprom, opram, M68K_CPU_TYPE_COLDFIRE);
-}
+// f028 2215 0008
 
 /* ======================================================================== */
 /* ============================== END OF FILE ============================= */

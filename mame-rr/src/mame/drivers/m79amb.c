@@ -58,38 +58,39 @@ and two large (paddles pretending to be) guns.
 #include "includes/m79amb.h"
 #include "cpu/i8085/i8085.h"
 
-class m79amb_state : public driver_device
+class m79amb_state
 {
 public:
-	m79amb_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, m79amb_state(machine)); }
+
+	m79amb_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *        m_videoram;
-	UINT8 *        m_mask;
+	UINT8 *        videoram;
+	UINT8 *        mask;
 
 	/* misc */
-	UINT8 m_lut_gun1[0x100];
-	UINT8 m_lut_gun2[0x100];
+	UINT8 lut_gun1[0x100];
+	UINT8 lut_gun2[0x100];
 };
 
 
 static WRITE8_HANDLER( ramtek_videoram_w )
 {
-	m79amb_state *state = space->machine().driver_data<m79amb_state>();
-	state->m_videoram[offset] = data & ~*state->m_mask;
+	m79amb_state *state = (m79amb_state *)space->machine->driver_data;
+	state->videoram[offset] = data & ~*state->mask;
 }
 
-static SCREEN_UPDATE( ramtek )
+static VIDEO_UPDATE( ramtek )
 {
-	m79amb_state *state = screen->machine().driver_data<m79amb_state>();
+	m79amb_state *state = (m79amb_state *)screen->machine->driver_data;
 	offs_t offs;
 
 	for (offs = 0; offs < 0x2000; offs++)
 	{
 		int i;
 
-		UINT8 data = state->m_videoram[offs];
+		UINT8 data = state->videoram[offs];
 		int y = offs >> 5;
 		int x = (offs & 0x1f) << 3;
 
@@ -109,20 +110,20 @@ static SCREEN_UPDATE( ramtek )
 
 static READ8_HANDLER( gray5bit_controller0_r )
 {
-	m79amb_state *state = space->machine().driver_data<m79amb_state>();
-	UINT8 port_data = input_port_read(space->machine(), "8004");
-	UINT8 gun_pos = input_port_read(space->machine(), "GUN1");
+	m79amb_state *state = (m79amb_state *)space->machine->driver_data;
+	UINT8 port_data = input_port_read(space->machine, "8004");
+	UINT8 gun_pos = input_port_read(space->machine, "GUN1");
 
-	return (port_data & 0xe0) | state->m_lut_gun1[gun_pos];
+	return (port_data & 0xe0) | state->lut_gun1[gun_pos];
 }
 
 static READ8_HANDLER( gray5bit_controller1_r )
 {
-	m79amb_state *state = space->machine().driver_data<m79amb_state>();
-	UINT8 port_data = input_port_read(space->machine(), "8005");
-	UINT8 gun_pos = input_port_read(space->machine(), "GUN2");
+	m79amb_state *state = (m79amb_state *)space->machine->driver_data;
+	UINT8 port_data = input_port_read(space->machine, "8005");
+	UINT8 gun_pos = input_port_read(space->machine, "GUN2");
 
-	return (port_data & 0xe0) | state->m_lut_gun2[gun_pos];
+	return (port_data & 0xe0) | state->lut_gun2[gun_pos];
 }
 
 static WRITE8_HANDLER( m79amb_8002_w )
@@ -132,12 +133,12 @@ static WRITE8_HANDLER( m79amb_8002_w )
 	output_set_value("EXP_LAMP", data ? 1 : 0);
 }
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
-	AM_RANGE(0x4000, 0x5fff) AM_RAM_WRITE(ramtek_videoram_w) AM_BASE_MEMBER(m79amb_state, m_videoram)
+	AM_RANGE(0x4000, 0x5fff) AM_RAM_WRITE(ramtek_videoram_w) AM_BASE_MEMBER(m79amb_state, videoram)
 	AM_RANGE(0x6000, 0x63ff) AM_RAM					/* ?? */
 	AM_RANGE(0x8000, 0x8000) AM_READ_PORT("8000") AM_DEVWRITE("discrete", m79amb_8000_w)
-	AM_RANGE(0x8001, 0x8001) AM_WRITEONLY AM_BASE_MEMBER(m79amb_state, m_mask)
+	AM_RANGE(0x8001, 0x8001) AM_WRITEONLY AM_BASE_MEMBER(m79amb_state, mask)
 	AM_RANGE(0x8002, 0x8002) AM_READ_PORT("8002") AM_WRITE(m79amb_8002_w)
 	AM_RANGE(0x8003, 0x8003) AM_DEVWRITE("discrete", m79amb_8003_w)
 	AM_RANGE(0x8004, 0x8004) AM_READ(gray5bit_controller0_r)
@@ -200,33 +201,37 @@ INPUT_PORTS_END
 
 static INTERRUPT_GEN( m79amb_interrupt )
 {
-	device_set_input_line_and_vector(device, 0, HOLD_LINE, 0xcf);  /* RST 08h */
+	cpu_set_input_line_and_vector(device, 0, HOLD_LINE, 0xcf);  /* RST 08h */
 }
 
-static MACHINE_CONFIG_START( m79amb, m79amb_state )
+static MACHINE_DRIVER_START( m79amb )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(m79amb_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", I8080, XTAL_19_6608MHz / 10)
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", m79amb_interrupt)
+	MDRV_CPU_ADD("maincpu", I8080, XTAL_19_6608MHz / 10)
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", m79amb_interrupt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 4*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(ramtek)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 4*8, 32*8-1)
+
+	MDRV_VIDEO_UPDATE(ramtek)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(m79amb)
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(m79amb)
 
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 
@@ -287,8 +292,8 @@ static const UINT8 lut_pos[0x20] = {
 
 static DRIVER_INIT( m79amb )
 {
-	m79amb_state *state = machine.driver_data<m79amb_state>();
-	UINT8 *rom = machine.region("maincpu")->base();
+	m79amb_state *state = (m79amb_state *)machine->driver_data;
+	UINT8 *rom = memory_region(machine, "maincpu");
 	int i, j;
 
 	/* PROM data is active low */
@@ -303,7 +308,7 @@ static DRIVER_INIT( m79amb )
 		{
 			if (i <= lut_cross[j])
 			{
-				state->m_lut_gun1[i] = lut_pos[j];
+				state->lut_gun1[i] = lut_pos[j];
 				break;
 			}
 		}
@@ -313,7 +318,7 @@ static DRIVER_INIT( m79amb )
 		{
 			if (i >= (253 - lut_cross[j]))
 			{
-				state->m_lut_gun2[i] = lut_pos[j];
+				state->lut_gun2[i] = lut_pos[j];
 				break;
 			}
 		}

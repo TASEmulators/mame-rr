@@ -2,7 +2,7 @@
 //
 //  sdlsync.c - SDL core synchronization functions
 //
-//  Copyright (c) 1996-2011, Nicola Salmoria and the MAME Team.
+//  Copyright (c) 1996-2010, Nicola Salmoria and the MAME Team.
 //  Visit http://mamedev.org for licensing and usage restrictions.
 //
 //  SDLMAME by Olivier Galibert and R. Belmont
@@ -17,12 +17,6 @@
 
 #ifdef SDLMAME_MACOSX
 #include <mach/mach.h>
-#include <signal.h>
-#endif
-
-#if defined(SDLMAME_NETBSD) || defined(SDLMAME_OPENBSD)
-/* for SIGKILL */
-#include <signal.h>
 #endif
 
 // standard C headers
@@ -118,7 +112,7 @@ INT32 osd_scalable_lock_acquire(osd_scalable_lock *lock)
 		: [haslock] "+m"  (lock->slot[myslot].haslock)
 		, [tmp]     "=&r" (tmp)
 		:
-		: "cc"
+		: "%cc"
 	);
 #elif defined(__ppc__) || defined (__PPC__) || defined(__ppc64__) || defined(__PPC64__)
 	register INT32 tmp;
@@ -239,7 +233,7 @@ void osd_lock_acquire(osd_lock *lock)
 				: [spin]   "+c"  (spin)
 				, [tmp]    "=&r" (tmp)
 				: [holder] "m"   (lock->holder)
-				: "cc"
+				: "%cc"
 			);
 #elif defined(__ppc__) || defined(__PPC__)
 			__asm__ __volatile__ (
@@ -517,13 +511,4 @@ void osd_thread_wait_free(osd_thread *thread)
 {
 	pthread_join(thread->thread, NULL);
 	free(thread);
-}
-
-//============================================================
-//  osd_process_kill
-//============================================================
-
-void osd_process_kill(void)
-{
-	kill(getpid(), SIGKILL);
 }

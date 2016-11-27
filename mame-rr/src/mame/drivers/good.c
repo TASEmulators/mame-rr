@@ -35,51 +35,51 @@ voice.rom - VOICE ROM
 #include "sound/okim6295.h"
 
 
-class good_state : public driver_device
+class good_state
 {
 public:
-	good_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, good_state(machine)); }
+
+	good_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_bg_tilemapram;
-	UINT16 *  m_fg_tilemapram;
-	UINT16 *  m_sprites;
-//  UINT16 *  m_paletteram;   // currently this uses generic palette handling
+	UINT16 *  bg_tilemapram;
+	UINT16 *  fg_tilemapram;
+	UINT16 *  sprites;
+//  UINT16 *  paletteram;   // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
-	tilemap_t  *m_fg_tilemap;
+	tilemap_t  *bg_tilemap,*fg_tilemap;
 };
 
 
 static WRITE16_HANDLER( fg_tilemapram_w )
 {
-	good_state *state = space->machine().driver_data<good_state>();
-	COMBINE_DATA(&state->m_fg_tilemapram[offset]);
-	tilemap_mark_tile_dirty(state->m_fg_tilemap, offset / 2);
+	good_state *state = (good_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->fg_tilemapram[offset]);
+	tilemap_mark_tile_dirty(state->fg_tilemap, offset / 2);
 }
 
 static TILE_GET_INFO( get_fg_tile_info )
 {
-	good_state *state = machine.driver_data<good_state>();
-	int tileno = state->m_fg_tilemapram[tile_index * 2];
-	int attr = state->m_fg_tilemapram[tile_index * 2 + 1] & 0xf;
+	good_state *state = (good_state *)machine->driver_data;
+	int tileno = state->fg_tilemapram[tile_index * 2];
+	int attr = state->fg_tilemapram[tile_index * 2 + 1] & 0xf;
 	SET_TILE_INFO(0, tileno, attr, 0);
 }
 
 static WRITE16_HANDLER( bg_tilemapram_w )
 {
-	good_state *state = space->machine().driver_data<good_state>();
-	COMBINE_DATA(&state->m_bg_tilemapram[offset]);
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset / 2);
+	good_state *state = (good_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->bg_tilemapram[offset]);
+	tilemap_mark_tile_dirty(state->bg_tilemap, offset / 2);
 }
 
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	good_state *state = machine.driver_data<good_state>();
-	int tileno = state->m_bg_tilemapram[tile_index * 2];
-	int attr = state->m_bg_tilemapram[tile_index * 2 + 1] & 0xf;
+	good_state *state = (good_state *)machine->driver_data;
+	int tileno = state->bg_tilemapram[tile_index * 2];
+	int attr = state->bg_tilemapram[tile_index * 2 + 1] & 0xf;
 	SET_TILE_INFO(1, tileno, attr, 0);
 }
 
@@ -87,25 +87,25 @@ static TILE_GET_INFO( get_bg_tile_info )
 
 static VIDEO_START( good )
 {
-	good_state *state = machine.driver_data<good_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 16, 16, 32, 32);
-	state->m_fg_tilemap = tilemap_create(machine, get_fg_tile_info, tilemap_scan_rows, 16, 16, 32, 32);
-	tilemap_set_transparent_pen(state->m_fg_tilemap, 0xf);
+	good_state *state = (good_state *)machine->driver_data;
+	state->bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 16, 16, 32, 32);
+	state->fg_tilemap = tilemap_create(machine, get_fg_tile_info, tilemap_scan_rows, 16, 16, 32, 32);
+	tilemap_set_transparent_pen(state->fg_tilemap, 0xf);
 }
 
-static SCREEN_UPDATE( good )
+static VIDEO_UPDATE( good )
 {
-	good_state *state = screen->machine().driver_data<good_state>();
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
-	tilemap_draw(bitmap, cliprect, state->m_fg_tilemap, 0, 0);
+	good_state *state = (good_state *)screen->machine->driver_data;
+	tilemap_draw(bitmap, cliprect, state->bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, state->fg_tilemap, 0, 0);
 	return 0;
 }
 
-static ADDRESS_MAP_START( good_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( good_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x01ffff) AM_ROM
 
 	//AM_RANGE(0x270000, 0x270007) AM_RAM // scroll?
-	AM_RANGE(0x270000, 0x270001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)
+	AM_RANGE(0x270000, 0x270001) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0x00ff)
 
 	AM_RANGE(0x280000, 0x280001) AM_READ_PORT("IN0")
 	AM_RANGE(0x280002, 0x280003) AM_READ_PORT("IN1")
@@ -113,8 +113,8 @@ static ADDRESS_MAP_START( good_map, AS_PROGRAM, 16 )
 
 	AM_RANGE(0x800000, 0x8007ff) AM_RAM_WRITE(paletteram16_xRRRRRGGGGGBBBBB_word_w) AM_BASE_GENERIC(paletteram)
 
-	AM_RANGE(0x820000, 0x820fff) AM_RAM_WRITE(fg_tilemapram_w) AM_BASE_MEMBER(good_state, m_fg_tilemapram)
-	AM_RANGE(0x822000, 0x822fff) AM_RAM_WRITE(bg_tilemapram_w) AM_BASE_MEMBER(good_state, m_bg_tilemapram)
+	AM_RANGE(0x820000, 0x820fff) AM_RAM_WRITE(fg_tilemapram_w) AM_BASE_MEMBER(good_state, fg_tilemapram)
+	AM_RANGE(0x822000, 0x822fff) AM_RAM_WRITE(bg_tilemapram_w) AM_BASE_MEMBER(good_state, bg_tilemapram)
 
 	AM_RANGE(0xff0000, 0xffefff) AM_RAM
 ADDRESS_MAP_END
@@ -273,32 +273,33 @@ static GFXDECODE_START( good )
 GFXDECODE_END
 
 
-static MACHINE_CONFIG_START( good, good_state )
+static MACHINE_DRIVER_START( good )
+	MDRV_DRIVER_DATA(good_state)
 
-	MCFG_CPU_ADD("maincpu", M68000, 16000000 /2)
-	MCFG_CPU_PROGRAM_MAP(good_map)
-	MCFG_CPU_VBLANK_INT("screen", irq2_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 16000000 /2)
+	MDRV_CPU_PROGRAM_MAP(good_map)
+	MDRV_CPU_VBLANK_INT("screen", irq2_line_hold)
 
-	MCFG_GFXDECODE(good)
+	MDRV_GFXDECODE(good)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(1*16, 23*16-1, 0*16, 14*16-1)
-	MCFG_SCREEN_UPDATE(good)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(1*16, 23*16-1, 0*16, 14*16-1)
 
-	MCFG_PALETTE_LENGTH(0x400)
+	MDRV_PALETTE_LENGTH(0x400)
 
-	MCFG_VIDEO_START(good)
+	MDRV_VIDEO_START(good)
+	MDRV_VIDEO_UPDATE(good)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
+MACHINE_DRIVER_END
 
 
 ROM_START( good )

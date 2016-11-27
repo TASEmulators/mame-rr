@@ -26,22 +26,12 @@
 #include "includes/amiga.h"
 #include "machine/laserdsc.h"
 #include "machine/6526cia.h"
-#include "machine/nvram.h"
-#include "machine/amigafdc.h"
 
 
-class alg_state : public amiga_state
-{
-public:
-	alg_state(const machine_config &mconfig, device_type type, const char *tag)
-		: amiga_state(mconfig, type, tag) { }
-
-
-	device_t *m_laserdisc;
-	emu_timer *m_serial_timer;
-	UINT8 m_serial_timer_active;
-	UINT16 m_input_select;
-};
+static running_device *laserdisc;
+static emu_timer *serial_timer;
+static UINT8 serial_timer_active;
+static UINT16 input_select;
 
 static TIMER_CALLBACK( response_timer );
 
@@ -57,8 +47,8 @@ static int get_lightgun_pos(screen_device &screen, int player, int *x, int *y)
 {
 	const rectangle &visarea = screen.visible_area();
 
-	int xpos = input_port_read_safe(screen.machine(), (player == 0) ? "GUN1X" : "GUN2X", 0xffffffff);
-	int ypos = input_port_read_safe(screen.machine(), (player == 0) ? "GUN1Y" : "GUN2Y", 0xffffffff);
+	int xpos = input_port_read_safe(screen.machine, (player == 0) ? "GUN1X" : "GUN2X", 0xffffffff);
+	int ypos = input_port_read_safe(screen.machine, (player == 0) ? "GUN1Y" : "GUN2Y", 0xffffffff);
 
 	if (xpos == -1 || ypos == -1)
 		return FALSE;
@@ -83,7 +73,7 @@ static VIDEO_START( alg )
 
 	/* configure pen 4096 as transparent in the renderer and use it for the genlock color */
 	palette_set_color(machine, 4096, MAKE_ARGB(0,0,0,0));
-	amiga_set_genlock_color(machine, 4096);
+	amiga_set_genlock_color(4096);
 }
 
 
@@ -96,11 +86,10 @@ static VIDEO_START( alg )
 
 static MACHINE_START( alg )
 {
-	alg_state *state = machine.driver_data<alg_state>();
-	state->m_laserdisc = machine.device("laserdisc");
+	laserdisc = machine->device("laserdisc");
 
-	state->m_serial_timer = machine.scheduler().timer_alloc(FUNC(response_timer));
-	state->m_serial_timer_active = FALSE;
+	serial_timer = timer_alloc(machine, response_timer, NULL);
+	serial_timer_active = FALSE;
 }
 
 
@@ -119,50 +108,44 @@ static MACHINE_RESET( alg )
 
 static TIMER_CALLBACK( response_timer )
 {
-	alg_state *state = machine.driver_data<alg_state>();
-
 	/* if we still have data to send, do it now */
-	if (laserdisc_line_r(state->m_laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
+	if (laserdisc_line_r(laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
 	{
-		UINT8 data = laserdisc_data_r(state->m_laserdisc);
+		UINT8 data = laserdisc_data_r(laserdisc);
 		if (data != 0x0a)
 			mame_printf_debug("Sending serial data = %02X\n", data);
 		amiga_serial_in_w(machine, data);
 	}
 
 	/* if there's more to come, set another timer */
-	if (laserdisc_line_r(state->m_laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
-		state->m_serial_timer->adjust(amiga_get_serial_char_period(machine));
+	if (laserdisc_line_r(laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
+		timer_adjust_oneshot(serial_timer, amiga_get_serial_char_period(machine), 0);
 	else
-		state->m_serial_timer_active = FALSE;
+		serial_timer_active = FALSE;
 }
 
 
-static void vsync_callback(running_machine &machine)
+static void vsync_callback(running_machine *machine)
 {
-	alg_state *state = machine.driver_data<alg_state>();
-
 	/* if we have data available, set a timer to read it */
-	if (!state->m_serial_timer_active && laserdisc_line_r(state->m_laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
+	if (!serial_timer_active && laserdisc_line_r(laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
 	{
-		state->m_serial_timer->adjust(amiga_get_serial_char_period(machine));
-		state->m_serial_timer_active = TRUE;
+		timer_adjust_oneshot(serial_timer, amiga_get_serial_char_period(machine), 0);
+		serial_timer_active = TRUE;
 	}
 }
 
 
-static void serial_w(running_machine &machine, UINT16 data)
+static void serial_w(running_machine *machine, UINT16 data)
 {
-	alg_state *state = machine.driver_data<alg_state>();
-
 	/* write to the laserdisc player */
-	laserdisc_data_w(state->m_laserdisc, data & 0xff);
+	laserdisc_data_w(laserdisc, data & 0xff);
 
 	/* if we have data available, set a timer to read it */
-	if (!state->m_serial_timer_active && laserdisc_line_r(state->m_laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
+	if (!serial_timer_active && laserdisc_line_r(laserdisc, LASERDISC_LINE_DATA_AVAIL) == ASSERT_LINE)
 	{
-		state->m_serial_timer->adjust(amiga_get_serial_char_period(machine));
-		state->m_serial_timer_active = TRUE;
+		timer_adjust_oneshot(serial_timer, amiga_get_serial_char_period(machine), 0);
+		serial_timer_active = TRUE;
 	}
 }
 
@@ -174,42 +157,35 @@ static void serial_w(running_machine &machine, UINT16 data)
  *
  *************************************/
 
-static void alg_potgo_w(running_machine &machine, UINT16 data)
+static void alg_potgo_w(running_machine *machine, UINT16 data)
 {
-	alg_state *state = machine.driver_data<alg_state>();
-
 	/* bit 15 controls whether pin 9 is input/output */
 	/* bit 14 controls the value, which selects which player's controls to read */
-	state->m_input_select = (data & 0x8000) ? ((data >> 14) & 1) : 0;
+	input_select = (data & 0x8000) ? ((data >> 14) & 1) : 0;
 }
 
 
 static CUSTOM_INPUT( lightgun_pos_r )
 {
-	alg_state *state = field.machine().driver_data<alg_state>();
 	int x = 0, y = 0;
 
 	/* get the position based on the input select */
-	get_lightgun_pos(*field.machine().primary_screen, state->m_input_select, &x, &y);
+	get_lightgun_pos(*field->port->machine->primary_screen, input_select, &x, &y);
 	return (y << 8) | (x >> 2);
 }
 
 
 static CUSTOM_INPUT( lightgun_trigger_r )
 {
-	alg_state *state = field.machine().driver_data<alg_state>();
-
 	/* read the trigger control based on the input select */
-	return (input_port_read(field.machine(), "TRIGGERS") >> state->m_input_select) & 1;
+	return (input_port_read(field->port->machine, "TRIGGERS") >> input_select) & 1;
 }
 
 
 static CUSTOM_INPUT( lightgun_holster_r )
 {
-	alg_state *state = field.machine().driver_data<alg_state>();
-
 	/* read the holster control based on the input select */
-	return (input_port_read(field.machine(), "TRIGGERS") >> (2 + state->m_input_select)) & 1;
+	return (input_port_read(field->port->machine, "TRIGGERS") >> (2 + input_select)) & 1;
 }
 
 
@@ -222,31 +198,31 @@ static CUSTOM_INPUT( lightgun_holster_r )
 
 static WRITE8_DEVICE_HANDLER( alg_cia_0_porta_w )
 {
-	address_space *space = device->machine().device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(device->machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
 	/* switch banks as appropriate */
-	memory_set_bank(device->machine(), "bank1", data & 1);
+	memory_set_bank(device->machine, "bank1", data & 1);
 
 	/* swap the write handlers between ROM and bank 1 based on the bit */
 	if ((data & 1) == 0)
 		/* overlay disabled, map RAM on 0x000000 */
-		space->install_write_bank(0x000000, 0x07ffff, "bank1");
+		memory_install_write_bank(space, 0x000000, 0x07ffff, 0, 0, "bank1");
 
 	else
 		/* overlay enabled, map Amiga system ROM on 0x000000 */
-		space->unmap_write(0x000000, 0x07ffff);
+		memory_unmap_write(space, 0x000000, 0x07ffff, 0, 0);
 }
 
 
 static READ8_DEVICE_HANDLER( alg_cia_0_porta_r )
 {
-	return input_port_read(device->machine(), "FIRE") | 0x3f;
+	return input_port_read(device->machine, "FIRE") | 0x3f;
 }
 
 
 static READ8_DEVICE_HANDLER( alg_cia_0_portb_r )
 {
-	logerror("%s:alg_cia_0_portb_r\n", device->machine().describe_context());
+	logerror("%s:alg_cia_0_portb_r\n", cpuexec_describe_context(device->machine));
 	return 0xff;
 }
 
@@ -254,20 +230,20 @@ static READ8_DEVICE_HANDLER( alg_cia_0_portb_r )
 static WRITE8_DEVICE_HANDLER( alg_cia_0_portb_w )
 {
 	/* parallel port */
-	logerror("%s:alg_cia_0_portb_w(%02x)\n", device->machine().describe_context(), data);
+	logerror("%s:alg_cia_0_portb_w(%02x)\n", cpuexec_describe_context(device->machine), data);
 }
 
 
 static READ8_DEVICE_HANDLER( alg_cia_1_porta_r )
 {
-	logerror("%s:alg_cia_1_porta_r\n", device->machine().describe_context());
+	logerror("%s:alg_cia_1_porta_r\n", cpuexec_describe_context(device->machine));
 	return 0xff;
 }
 
 
 static WRITE8_DEVICE_HANDLER( alg_cia_1_porta_w )
 {
-	logerror("%s:alg_cia_1_porta_w(%02x)\n", device->machine().describe_context(), data);
+	logerror("%s:alg_cia_1_porta_w(%02x)\n", cpuexec_describe_context(device->machine), data);
 }
 
 
@@ -278,42 +254,42 @@ static WRITE8_DEVICE_HANDLER( alg_cia_1_porta_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map_r1, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map_r1, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
-	AM_RANGE(0x000000, 0x07ffff) AM_RAMBANK("bank1") AM_BASE_SIZE_MEMBER(alg_state, m_chip_ram, m_chip_ram_size)
+	AM_RANGE(0x000000, 0x07ffff) AM_RAMBANK("bank1") AM_BASE(&amiga_chip_ram)	AM_SIZE(&amiga_chip_ram_size)
 	AM_RANGE(0xbfd000, 0xbfefff) AM_READWRITE(amiga_cia_r, amiga_cia_w)
-	AM_RANGE(0xc00000, 0xdfffff) AM_READWRITE(amiga_custom_r, amiga_custom_w) AM_BASE_MEMBER(alg_state, m_custom_regs)
+	AM_RANGE(0xc00000, 0xdfffff) AM_READWRITE(amiga_custom_r, amiga_custom_w) AM_BASE(&amiga_custom_regs)
 	AM_RANGE(0xe80000, 0xe8ffff) AM_READWRITE(amiga_autoconfig_r, amiga_autoconfig_w)
 	AM_RANGE(0xfc0000, 0xffffff) AM_ROM AM_REGION("user1", 0)			/* System ROM */
 
 	AM_RANGE(0xf00000, 0xf1ffff) AM_ROM AM_REGION("user2", 0)			/* Custom ROM */
-	AM_RANGE(0xf54000, 0xf55fff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xf54000, 0xf55fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( main_map_r2, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map_r2, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
-	AM_RANGE(0x000000, 0x07ffff) AM_RAMBANK("bank1") AM_BASE_SIZE_MEMBER(alg_state, m_chip_ram, m_chip_ram_size)
+	AM_RANGE(0x000000, 0x07ffff) AM_RAMBANK("bank1") AM_BASE(&amiga_chip_ram)	AM_SIZE(&amiga_chip_ram_size)
 	AM_RANGE(0xbfd000, 0xbfefff) AM_READWRITE(amiga_cia_r, amiga_cia_w)
-	AM_RANGE(0xc00000, 0xdfffff) AM_READWRITE(amiga_custom_r, amiga_custom_w) AM_BASE_MEMBER(alg_state, m_custom_regs)
+	AM_RANGE(0xc00000, 0xdfffff) AM_READWRITE(amiga_custom_r, amiga_custom_w) AM_BASE(&amiga_custom_regs)
 	AM_RANGE(0xe80000, 0xe8ffff) AM_READWRITE(amiga_autoconfig_r, amiga_autoconfig_w)
 	AM_RANGE(0xfc0000, 0xffffff) AM_ROM AM_REGION("user1", 0)			/* System ROM */
 
 	AM_RANGE(0xf00000, 0xf3ffff) AM_ROM AM_REGION("user2", 0)			/* Custom ROM */
-	AM_RANGE(0xf7c000, 0xf7dfff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xf7c000, 0xf7dfff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( main_map_picmatic, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map_picmatic, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
-	AM_RANGE(0x000000, 0x07ffff) AM_RAMBANK("bank1") AM_BASE_SIZE_MEMBER(alg_state, m_chip_ram, m_chip_ram_size)
+	AM_RANGE(0x000000, 0x07ffff) AM_RAMBANK("bank1") AM_BASE(&amiga_chip_ram)	AM_SIZE(&amiga_chip_ram_size)
 	AM_RANGE(0xbfd000, 0xbfefff) AM_READWRITE(amiga_cia_r, amiga_cia_w)
-	AM_RANGE(0xc00000, 0xdfffff) AM_READWRITE(amiga_custom_r, amiga_custom_w) AM_BASE_MEMBER(alg_state, m_custom_regs)
+	AM_RANGE(0xc00000, 0xdfffff) AM_READWRITE(amiga_custom_r, amiga_custom_w) AM_BASE(&amiga_custom_regs)
 	AM_RANGE(0xe80000, 0xe8ffff) AM_READWRITE(amiga_autoconfig_r, amiga_autoconfig_w)
 	AM_RANGE(0xfc0000, 0xffffff) AM_ROM AM_REGION("user1", 0)			/* System ROM */
 
 	AM_RANGE(0xf00000, 0xf1ffff) AM_ROM AM_REGION("user2", 0)			/* Custom ROM */
-	AM_RANGE(0xf40000, 0xf41fff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xf40000, 0xf41fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 ADDRESS_MAP_END
 
 
@@ -427,71 +403,70 @@ static const mos6526_interface cia_1_intf =
 	DEVCB_NULL								/* port B */
 };
 
-static MACHINE_CONFIG_START( alg_r1, alg_state )
+static MACHINE_DRIVER_START( alg_r1 )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, AMIGA_68000_NTSC_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(main_map_r1)
+	MDRV_CPU_ADD("maincpu", M68000, AMIGA_68000_NTSC_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(main_map_r1)
 
-	MCFG_MACHINE_START(alg)
-	MCFG_MACHINE_RESET(alg)
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_START(alg)
+	MDRV_MACHINE_RESET(alg)
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-	MCFG_LASERDISC_ADD("laserdisc", SONY_LDP1450, "screen", "ldsound")
-	MCFG_LASERDISC_OVERLAY(amiga, 512*2, 262, BITMAP_FORMAT_INDEXED16)
-	MCFG_LASERDISC_OVERLAY_CLIP((129-8)*2, (449+8-1)*2, 44-8, 244+8-1)
+	MDRV_LASERDISC_ADD("laserdisc", SONY_LDP1450, "screen", "ldsound")
+	MDRV_LASERDISC_OVERLAY(amiga, 512*2, 262, BITMAP_FORMAT_INDEXED16)
+	MDRV_LASERDISC_OVERLAY_CLIP((129-8)*2, (449+8-1)*2, 44-8, 244+8-1)
 
-	/* video hardware */
-	MCFG_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(59.997)
-	MCFG_SCREEN_SIZE(512*2, 262)
-	MCFG_SCREEN_VISIBLE_AREA((129-8)*2, (449+8-1)*2, 44-8, 244+8-1)
+    /* video hardware */
+	MDRV_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(59.997)
+	MDRV_SCREEN_SIZE(512*2, 262)
+	MDRV_SCREEN_VISIBLE_AREA((129-8)*2, (449+8-1)*2, 44-8, 244+8-1)
 
-	MCFG_PALETTE_LENGTH(4097)
-	MCFG_PALETTE_INIT(amiga)
+	MDRV_PALETTE_LENGTH(4097)
+	MDRV_PALETTE_INIT(amiga)
 
-	MCFG_VIDEO_START(alg)
+	MDRV_VIDEO_START(alg)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("amiga", AMIGA, 3579545)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.25)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.25)
-	MCFG_SOUND_ROUTE(2, "rspeaker", 0.25)
-	MCFG_SOUND_ROUTE(3, "lspeaker", 0.25)
+	MDRV_SOUND_ADD("amiga", AMIGA, 3579545)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.25)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.25)
+	MDRV_SOUND_ROUTE(2, "rspeaker", 0.25)
+	MDRV_SOUND_ROUTE(3, "lspeaker", 0.25)
 
-	MCFG_SOUND_ADD("ldsound", LASERDISC_SOUND, 0)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("ldsound", LASERDISC, 0)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
 	/* cia */
-	MCFG_MOS8520_ADD("cia_0", AMIGA_68000_NTSC_CLOCK / 10, cia_0_intf)
-	MCFG_MOS8520_ADD("cia_1", AMIGA_68000_NTSC_CLOCK / 10, cia_1_intf)
-
-	/* fdc */
-	MCFG_AMIGA_FDC_ADD("fdc", AMIGA_68000_NTSC_CLOCK)
-MACHINE_CONFIG_END
+	MDRV_MOS8520_ADD("cia_0", AMIGA_68000_NTSC_CLOCK / 10, cia_0_intf)
+	MDRV_MOS8520_ADD("cia_1", AMIGA_68000_NTSC_CLOCK / 10, cia_1_intf)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( alg_r2, alg_r1 )
+static MACHINE_DRIVER_START( alg_r2 )
+	MDRV_IMPORT_FROM(alg_r1)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(main_map_r2)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(main_map_r2)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( picmatic, alg_r1 )
+static MACHINE_DRIVER_START( picmatic )
+	MDRV_IMPORT_FROM(alg_r1)
 
 	/* adjust for PAL specs */
-	MCFG_CPU_REPLACE("maincpu", M68000, AMIGA_68000_PAL_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(main_map_picmatic)
+	MDRV_CPU_REPLACE("maincpu", M68000, AMIGA_68000_PAL_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(main_map_picmatic)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_REFRESH_RATE(50)
-	MCFG_SCREEN_SIZE(512*2, 312)
-	MCFG_SCREEN_VISIBLE_AREA((129-8)*2, (449+8-1)*2, 44-8, 300+8-1)
-MACHINE_CONFIG_END
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_REFRESH_RATE(50)
+	MDRV_SCREEN_SIZE(512*2, 312)
+	MDRV_SCREEN_VISIBLE_AREA((129-8)*2, (449+8-1)*2, 44-8, 300+8-1)
+MACHINE_DRIVER_END
 
 
 
@@ -682,14 +657,13 @@ ROM_END
  *
  *************************************/
 
-static void alg_init(running_machine &machine)
+static void alg_init(running_machine *machine)
 {
-	alg_state *state = machine.driver_data<alg_state>();
 	static const amiga_machine_interface alg_intf =
 	{
 		ANGUS_CHIP_RAM_MASK,
 		NULL, NULL, alg_potgo_w,
-		serial_w,
+		NULL, NULL, serial_w,
 
 		vsync_callback,
 		NULL,
@@ -699,8 +673,8 @@ static void alg_init(running_machine &machine)
 	amiga_machine_config(machine, &alg_intf);
 
 	/* set up memory */
-	memory_configure_bank(machine, "bank1", 0, 1, state->m_chip_ram, 0);
-	memory_configure_bank(machine, "bank1", 1, 1, machine.region("user1")->base(), 0);
+	memory_configure_bank(machine, "bank1", 0, 1, amiga_chip_ram, 0);
+	memory_configure_bank(machine, "bank1", 1, 1, memory_region(machine, "user1"), 0);
 }
 
 
@@ -713,8 +687,8 @@ static void alg_init(running_machine &machine)
 
 static DRIVER_INIT( palr1 )
 {
-	UINT32 length = machine.region("user2")->bytes();
-	UINT8 *rom = machine.region("user2")->base();
+	UINT32 length = memory_region_length(machine, "user2");
+	UINT8 *rom = memory_region(machine, "user2");
 	UINT8 *original = auto_alloc_array(machine, UINT8, length);
 	UINT32 srcaddr;
 
@@ -733,8 +707,8 @@ static DRIVER_INIT( palr1 )
 
 static DRIVER_INIT( palr3 )
 {
-	UINT32 length = machine.region("user2")->bytes();
-	UINT8 *rom = machine.region("user2")->base();
+	UINT32 length = memory_region_length(machine, "user2");
+	UINT8 *rom = memory_region(machine, "user2");
 	UINT8 *original = auto_alloc_array(machine, UINT8, length);
 	UINT32 srcaddr;
 
@@ -752,8 +726,8 @@ static DRIVER_INIT( palr3 )
 
 static DRIVER_INIT( palr6 )
 {
-	UINT32 length = machine.region("user2")->bytes();
-	UINT8 *rom = machine.region("user2")->base();
+	UINT32 length = memory_region_length(machine, "user2");
+	UINT8 *rom = memory_region(machine, "user2");
 	UINT8 *original = auto_alloc_array(machine, UINT8, length);
 	UINT32 srcaddr;
 
@@ -774,7 +748,7 @@ static DRIVER_INIT( palr6 )
 static DRIVER_INIT( aplatoon )
 {
 	/* NOT DONE TODO FIGURE OUT THE RIGHT ORDER!!!! */
-	UINT8 *rom = machine.region("user2")->base();
+	UINT8 *rom = memory_region(machine, "user2");
 	UINT8 *decrypted = auto_alloc_array(machine, UINT8, 0x40000);
 	int i;
 

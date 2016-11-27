@@ -13,7 +13,6 @@
 
     Notes:
         * This hardware is a precursor to Phoenix
-        * Export license to Taito in 1980
 
           ----------------------------------
 
@@ -51,22 +50,22 @@ modified by Hau
 #include "cpu/i8085/i8085.h"
 #include "sound/samples.h"
 
-class safarir_state : public driver_device
+class safarir_state
 {
 public:
-	safarir_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, safarir_state(machine)); }
 
-	UINT8 *m_ram_1;
-	UINT8 *m_ram_2;
-	size_t m_ram_size;
-	UINT8 m_ram_bank;
-	tilemap_t *m_bg_tilemap;
-	tilemap_t *m_fg_tilemap;
-	UINT8 *m_bg_scroll;
-	UINT8 m_port_last;
-	UINT8 m_port_last2;
-	device_t *m_samples;
+	safarir_state(running_machine &machine) { }
+
+	UINT8 *ram_1, *ram_2;
+	size_t ram_size;
+	UINT8 ram_bank;
+	tilemap_t *bg_tilemap;
+	tilemap_t *fg_tilemap;
+	UINT8 *bg_scroll;
+	UINT8 port_last;
+	UINT8 port_last2;
+	running_device *samples;
 };
 
 
@@ -78,32 +77,32 @@ public:
 
 static WRITE8_HANDLER( ram_w )
 {
-	safarir_state *state = space->machine().driver_data<safarir_state>();
+	safarir_state *state = (safarir_state *)space->machine->driver_data;
 
-	if (state->m_ram_bank)
-		state->m_ram_2[offset] = data;
+	if (state->ram_bank)
+		state->ram_2[offset] = data;
 	else
-		state->m_ram_1[offset] = data;
+		state->ram_1[offset] = data;
 
-	tilemap_mark_tile_dirty((offset & 0x0400) ? state->m_bg_tilemap : state->m_fg_tilemap, offset & 0x03ff);
+	tilemap_mark_tile_dirty((offset & 0x0400) ? state->bg_tilemap : state->fg_tilemap, offset & 0x03ff);
 }
 
 
 static READ8_HANDLER( ram_r )
 {
-	safarir_state *state = space->machine().driver_data<safarir_state>();
+	safarir_state *state = (safarir_state *)space->machine->driver_data;
 
-	return state->m_ram_bank ? state->m_ram_2[offset] : state->m_ram_1[offset];
+	return state->ram_bank ? state->ram_2[offset] : state->ram_1[offset];
 }
 
 
 static WRITE8_HANDLER( ram_bank_w )
 {
-	safarir_state *state = space->machine().driver_data<safarir_state>();
+	safarir_state *state = (safarir_state *)space->machine->driver_data;
 
-	state->m_ram_bank = data & 0x01;
+	state->ram_bank = data & 0x01;
 
-	tilemap_mark_all_tiles_dirty_all(space->machine());
+	tilemap_mark_all_tiles_dirty_all(space->machine);
 }
 
 
@@ -136,7 +135,7 @@ static PALETTE_INIT( safarir )
 {
 	int i;
 
-	for (i = 0; i < machine.total_colors() / 2; i++)
+	for (i = 0; i < machine->total_colors() / 2; i++)
 	{
 		palette_set_color(machine, (i * 2) + 0, RGB_BLACK);
 		palette_set_color(machine, (i * 2) + 1, MAKE_RGB(pal1bit(i >> 2), pal1bit(i >> 1), pal1bit(i >> 0)));
@@ -146,7 +145,7 @@ static PALETTE_INIT( safarir )
 static TILE_GET_INFO( get_bg_tile_info )
 {
 	int color;
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	UINT8 code = ram_r(space,tile_index | 0x400);
 
 	if (code & 0x80)
@@ -168,7 +167,7 @@ static TILE_GET_INFO( get_bg_tile_info )
 static TILE_GET_INFO( get_fg_tile_info )
 {
 	int color, flags;
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
 	UINT8 code = ram_r(space,tile_index);
 
@@ -185,23 +184,23 @@ static TILE_GET_INFO( get_fg_tile_info )
 
 static VIDEO_START( safarir )
 {
-	safarir_state *state = machine.driver_data<safarir_state>();
+	safarir_state *state = (safarir_state *)machine->driver_data;
 
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
-	state->m_fg_tilemap = tilemap_create(machine, get_fg_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
+	state->bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
+	state->fg_tilemap = tilemap_create(machine, get_fg_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
 
-	tilemap_set_transparent_pen(state->m_fg_tilemap, 0);
+	tilemap_set_transparent_pen(state->fg_tilemap, 0);
 }
 
 
-static SCREEN_UPDATE( safarir )
+static VIDEO_UPDATE( safarir )
 {
-	safarir_state *state = screen->machine().driver_data<safarir_state>();
+	safarir_state *state = (safarir_state *)screen->machine->driver_data;
 
-	tilemap_set_scrollx(state->m_bg_tilemap, 0, *state->m_bg_scroll);
+	tilemap_set_scrollx(state->bg_tilemap, 0, *state->bg_scroll);
 
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
-	tilemap_draw(bitmap, cliprect, state->m_fg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, state->bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, state->fg_tilemap, 0, 0);
 
 	return 0;
 }
@@ -234,9 +233,9 @@ static SCREEN_UPDATE( safarir )
 
 static WRITE8_HANDLER( safarir_audio_w )
 {
-	safarir_state *state = space->machine().driver_data<safarir_state>();
-	device_t *samples = state->m_samples;
-	UINT8 rising_bits = data & ~state->m_port_last;
+	safarir_state *state = (safarir_state *)space->machine->driver_data;
+	running_device *samples = state->samples;
+	UINT8 rising_bits = data & ~state->port_last;
 
 	if (rising_bits == 0x12) sample_start(samples, CHANNEL_SOUND1, SAMPLE_SOUND1_1, 0);
 	if (rising_bits == 0x02) sample_start(samples, CHANNEL_SOUND1, SAMPLE_SOUND1_2, 0);
@@ -249,16 +248,16 @@ static WRITE8_HANDLER( safarir_audio_w )
 
 	if (data == 0x13)
 	{
-		if ((rising_bits == 0x13 && state->m_port_last != 0x04) || (rising_bits == 0x01 && state->m_port_last == 0x12))
+		if ((rising_bits == 0x13 && state->port_last != 0x04) || (rising_bits == 0x01 && state->port_last == 0x12))
 		{
 			sample_start(samples, CHANNEL_SOUND4, SAMPLE_SOUND7, 0);
 		}
-		else if (rising_bits == 0x03 && state->m_port_last2 == 0x15 && !sample_playing(samples, CHANNEL_SOUND4))
+		else if (rising_bits == 0x03 && state->port_last2 == 0x15 && !sample_playing(samples, CHANNEL_SOUND4))
 		{
 			sample_start(samples, CHANNEL_SOUND4, SAMPLE_SOUND4_1, 0);
 		}
 	}
-	if (data == 0x53 && state->m_port_last == 0x55) sample_start(samples, CHANNEL_SOUND4, SAMPLE_SOUND4_2, 0);
+	if (data == 0x53 && state->port_last == 0x55) sample_start(samples, CHANNEL_SOUND4, SAMPLE_SOUND4_2, 0);
 
 	if (data == 0x1f && rising_bits == 0x1f) sample_start(samples, CHANNEL_SOUND5, SAMPLE_SOUND5_1, 0);
 	if (data == 0x14 && (rising_bits == 0x14 || rising_bits == 0x04)) sample_start(samples, CHANNEL_SOUND5, SAMPLE_SOUND5_2, 0);
@@ -266,8 +265,8 @@ static WRITE8_HANDLER( safarir_audio_w )
 	if (data == 0x07 && rising_bits == 0x07 && !sample_playing(samples, CHANNEL_SOUND6))
 		sample_start(samples, CHANNEL_SOUND6, SAMPLE_SOUND8, 0);
 
-	state->m_port_last2 = state->m_port_last;
-	state->m_port_last = data;
+	state->port_last2 = state->port_last;
+	state->port_last = data;
 }
 
 
@@ -296,12 +295,12 @@ static const samples_interface safarir_samples_interface =
 };
 
 
-static MACHINE_CONFIG_FRAGMENT( safarir_audio )
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("samples", SAMPLES, 0)
-	MCFG_SOUND_CONFIG(safarir_samples_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( safarir_audio )
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("samples", SAMPLES, 0)
+	MDRV_SOUND_CONFIG(safarir_samples_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 
@@ -313,20 +312,20 @@ MACHINE_CONFIG_END
 
 static MACHINE_START( safarir )
 {
-	safarir_state *state = machine.driver_data<safarir_state>();
+	safarir_state *state = (safarir_state *)machine->driver_data;
 
-	state->m_ram_1 = auto_alloc_array(machine, UINT8, state->m_ram_size);
-	state->m_ram_2 = auto_alloc_array(machine, UINT8, state->m_ram_size);
-	state->m_port_last = 0;
-	state->m_port_last2 = 0;
-	state->m_samples = machine.device("samples");
+	state->ram_1 = auto_alloc_array(machine, UINT8, state->ram_size);
+	state->ram_2 = auto_alloc_array(machine, UINT8, state->ram_size);
+	state->port_last = 0;
+	state->port_last2 = 0;
+	state->samples = machine->device("samples");
 
 	/* setup for save states */
-	state->save_pointer(NAME(state->m_ram_1), state->m_ram_size);
-	state->save_pointer(NAME(state->m_ram_2), state->m_ram_size);
-	state->save_item(NAME(state->m_ram_bank));
-	state->save_item(NAME(state->m_port_last));
-	state->save_item(NAME(state->m_port_last2));
+	state_save_register_global_pointer(machine, state->ram_1, state->ram_size);
+	state_save_register_global_pointer(machine, state->ram_2, state->ram_size);
+	state_save_register_global(machine, state->ram_bank);
+	state_save_register_global(machine, state->port_last);
+	state_save_register_global(machine, state->port_last2);
 }
 
 
@@ -337,11 +336,11 @@ static MACHINE_START( safarir )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x17ff) AM_ROM
-	AM_RANGE(0x2000, 0x27ff) AM_READWRITE(ram_r, ram_w) AM_SIZE_MEMBER(safarir_state,m_ram_size)
+	AM_RANGE(0x2000, 0x27ff) AM_READWRITE(ram_r, ram_w) AM_SIZE_MEMBER(safarir_state,ram_size)
 	AM_RANGE(0x2800, 0x2800) AM_MIRROR(0x03ff) AM_READNOP AM_WRITE(ram_bank_w)
-	AM_RANGE(0x2c00, 0x2cff) AM_MIRROR(0x03ff) AM_READNOP AM_WRITEONLY AM_BASE_MEMBER(safarir_state,m_bg_scroll)
+	AM_RANGE(0x2c00, 0x2cff) AM_MIRROR(0x03ff) AM_READNOP AM_WRITEONLY AM_BASE_MEMBER(safarir_state,bg_scroll)
 	AM_RANGE(0x3000, 0x30ff) AM_MIRROR(0x03ff) AM_WRITE(safarir_audio_w)	/* goes to SN76477 */
 	AM_RANGE(0x3400, 0x3400) AM_MIRROR(0x03ff) AM_WRITENOP	/* cleared at the beginning */
 	AM_RANGE(0x3800, 0x38ff) AM_MIRROR(0x03ff) AM_READ_PORT("INPUTS") AM_WRITENOP
@@ -397,30 +396,32 @@ INPUT_PORTS_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( safarir, safarir_state )
+static MACHINE_DRIVER_START( safarir )
+
+	MDRV_DRIVER_DATA( safarir_state )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", I8080A, XTAL_18MHz/12)	/* 1.5 MHz ? */
-	MCFG_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_ADD("maincpu", I8085A, 18000000/8)	/* 2.25 MHz ? */
+	MDRV_CPU_PROGRAM_MAP(main_map)
 
-	MCFG_MACHINE_START(safarir)
+	MDRV_MACHINE_START(safarir)
 
 	/* video hardware */
-	MCFG_VIDEO_START(safarir)
-	MCFG_PALETTE_INIT(safarir)
-	MCFG_PALETTE_LENGTH(2*8)
-	MCFG_GFXDECODE(safarir)
+	MDRV_VIDEO_START(safarir)
+	MDRV_VIDEO_UPDATE(safarir)
+	MDRV_PALETTE_INIT(safarir)
+	MDRV_PALETTE_LENGTH(2*8)
+	MDRV_GFXDECODE(safarir)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 26*8-1)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE(safarir)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 26*8-1)
+	MDRV_SCREEN_REFRESH_RATE(60)
 
 	/* audio hardware */
-	MCFG_FRAGMENT_ADD(safarir_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(safarir_audio)
+MACHINE_DRIVER_END
 
 
 

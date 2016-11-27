@@ -6,11 +6,12 @@
 
 /*----------- driver state -----------*/
 
-class _n64_state : public driver_device
+class _n64_state
 {
 public:
-	_n64_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, _n64_state(machine)); }
+
+	_n64_state(running_machine &machine) { }
 
 	/* video-related */
 	N64::RDP::Processor m_rdp;
@@ -18,8 +19,12 @@ public:
 
 /*----------- defined in video/n64.c -----------*/
 
+extern int fb_width;
+extern int fb_height;
+
 extern VIDEO_START( n64 );
-extern SCREEN_UPDATE( n64 );
+extern VIDEO_UPDATE( n64 );
+extern void rdp_process_list(running_machine *machine);
 
 #define DACRATE_NTSC	(48681812)
 #define DACRATE_PAL	(49656530)
@@ -69,9 +74,9 @@ extern UINT32 n64_vi_vstart;
 extern UINT32 n64_vi_xscale;
 extern UINT32 n64_vi_yscale;
 
-extern void dp_full_sync(running_machine &machine);
-extern void signal_rcp_interrupt(running_machine &machine, int interrupt);
-extern void clear_rcp_interrupt(running_machine &machine, int interrupt);
+extern void dp_full_sync(running_machine *machine);
+extern void signal_rcp_interrupt(running_machine *machine, int interrupt);
+extern void clear_rcp_interrupt(running_machine *machine, int interrupt);
 
 
 /* read/write handlers for the N64 subsystems */

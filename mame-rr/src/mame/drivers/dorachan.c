@@ -10,26 +10,28 @@ Todo:
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "deprecat.h"
 
 
 #define NUM_PENS	(8)
 
 
-class dorachan_state : public driver_device
+class dorachan_state
 {
 public:
-	dorachan_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, dorachan_state(machine)); }
+
+	dorachan_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	size_t   m_videoram_size;
+	UINT8 *  videoram;
+	size_t   videoram_size;
 
 	/* video-related */
-	UINT8    m_flip_screen;
+	UINT8    flip_screen;
 
 	/* devices */
-	device_t *m_main_cpu;
+	running_device *main_cpu;
 };
 
 
@@ -41,17 +43,17 @@ public:
 
 static CUSTOM_INPUT( dorachan_protection_r )
 {
-	dorachan_state *state = field.machine().driver_data<dorachan_state>();
+	dorachan_state *state = (dorachan_state *)field->port->machine->driver_data;
 	UINT8 ret = 0;
 
-	switch (cpu_get_previouspc(state->m_main_cpu))
+	switch (cpu_get_previouspc(state->main_cpu))
 	{
 	case 0x70ce: ret = 0xf2; break;
 	case 0x72a2: ret = 0xd5; break;
 	case 0x72b5: ret = 0xcb; break;
 
 	default:
-		mame_printf_debug("unhandled $2400 read @ %x\n", cpu_get_previouspc(state->m_main_cpu));
+		mame_printf_debug("unhandled $2400 read @ %x\n", cpu_get_previouspc(state->main_cpu));
 		break;
 	}
 
@@ -77,18 +79,18 @@ static void get_pens(pen_t *pens)
 }
 
 
-static SCREEN_UPDATE( dorachan )
+static VIDEO_UPDATE( dorachan )
 {
-	dorachan_state *state = screen->machine().driver_data<dorachan_state>();
+	dorachan_state *state = (dorachan_state *)screen->machine->driver_data;
 	pen_t pens[NUM_PENS];
 	offs_t offs;
 	const UINT8 *color_map_base;
 
 	get_pens(pens);
 
-	color_map_base = screen->machine().region("proms")->base();
+	color_map_base = memory_region(screen->machine, "proms");
 
-	for (offs = 0; offs < state->m_videoram_size; offs++)
+	for (offs = 0; offs < state->videoram_size; offs++)
 	{
 		int i;
 		UINT8 fore_color;
@@ -99,9 +101,9 @@ static SCREEN_UPDATE( dorachan )
 		/* the need for +1 is extremely unusual, but definetely correct */
 		offs_t color_address = ((((offs << 2) & 0x03e0) | (offs >> 8)) + 1) & 0x03ff;
 
-		UINT8 data = state->m_videoram[offs];
+		UINT8 data = state->videoram[offs];
 
-		if (state->m_flip_screen)
+		if (state->flip_screen)
 			fore_color = (color_map_base[color_address] >> 3) & 0x07;
 		else
 			fore_color = (color_map_base[color_address] >> 0) & 0x07;
@@ -122,17 +124,17 @@ static SCREEN_UPDATE( dorachan )
 
 static WRITE8_HANDLER(dorachan_ctrl_w)
 {
-	dorachan_state *state = space->machine().driver_data<dorachan_state>();
-	state->m_flip_screen = (data >> 6) & 0x01;
+	dorachan_state *state = (dorachan_state *)space->machine->driver_data;
+	state->flip_screen = (data >> 6) & 0x01;
 }
 
 
 static CUSTOM_INPUT( dorachan_v128_r )
 {
-	dorachan_state *state = field.machine().driver_data<dorachan_state>();
+	dorachan_state *state = (dorachan_state *)field->port->machine->driver_data;
 
 	/* to avoid resetting (when player 2 starts) bit 0 need to be inverted when screen is flipped */
-	return ((field.machine().primary_screen->vpos() >> 7) & 0x01) ^ state->m_flip_screen;
+	return ((field->port->machine->primary_screen->vpos() >> 7) & 0x01) ^ state->flip_screen;
 }
 
 
@@ -143,7 +145,7 @@ static CUSTOM_INPUT( dorachan_v128_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( dorachan_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dorachan_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x17ff) AM_ROM
 	AM_RANGE(0x1800, 0x1fff) AM_RAM
 	AM_RANGE(0x2000, 0x23ff) AM_ROM
@@ -151,7 +153,7 @@ static ADDRESS_MAP_START( dorachan_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x2800, 0x2800) AM_MIRROR(0x03ff) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x2c00, 0x2c00) AM_MIRROR(0x03ff) AM_READ_PORT("JOY")
 	AM_RANGE(0x3800, 0x3800) AM_MIRROR(0x03ff) AM_READ_PORT("V128")
-	AM_RANGE(0x4000, 0x5fff) AM_RAM AM_BASE_SIZE_MEMBER(dorachan_state, m_videoram, m_videoram_size)
+	AM_RANGE(0x4000, 0x5fff) AM_RAM AM_BASE_SIZE_MEMBER(dorachan_state, videoram, videoram_size)
 	AM_RANGE(0x6000, 0x77ff) AM_ROM
 ADDRESS_MAP_END
 
@@ -163,7 +165,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( dorachan_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( dorachan_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x01, 0x01) AM_WRITENOP
 	AM_RANGE(0x02, 0x02) AM_WRITENOP
@@ -223,40 +225,44 @@ INPUT_PORTS_END
 
 static MACHINE_START( dorachan )
 {
-	dorachan_state *state = machine.driver_data<dorachan_state>();
+	dorachan_state *state = (dorachan_state *)machine->driver_data;
 
-	state->m_main_cpu = machine.device("maincpu");
+	state->main_cpu = machine->device("maincpu");
 
-	state->save_item(NAME(state->m_flip_screen));
+	state_save_register_global(machine, state->flip_screen);
 }
 
 static MACHINE_RESET( dorachan )
 {
-	dorachan_state *state = machine.driver_data<dorachan_state>();
+	dorachan_state *state = (dorachan_state *)machine->driver_data;
 
-	state->m_flip_screen = 0;
+	state->flip_screen = 0;
 }
 
-static MACHINE_CONFIG_START( dorachan, dorachan_state )
+static MACHINE_DRIVER_START( dorachan )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(dorachan_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 2000000)
-	MCFG_CPU_PROGRAM_MAP(dorachan_map)
-	MCFG_CPU_IO_MAP(dorachan_io_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,2*60)
+	MDRV_CPU_ADD("maincpu", Z80, 2000000)
+	MDRV_CPU_PROGRAM_MAP(dorachan_map)
+	MDRV_CPU_IO_MAP(dorachan_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
 
-	MCFG_MACHINE_START(dorachan)
-	MCFG_MACHINE_RESET(dorachan)
+	MDRV_MACHINE_START(dorachan)
+	MDRV_MACHINE_RESET(dorachan)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE(dorachan)
+	MDRV_VIDEO_UPDATE(dorachan)
 
-MACHINE_CONFIG_END
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 1*8, 31*8-1)
+	MDRV_SCREEN_REFRESH_RATE(60)
+
+MACHINE_DRIVER_END
 
 
 

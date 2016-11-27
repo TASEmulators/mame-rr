@@ -4,26 +4,26 @@
 
 *************************************************************************/
 
-class skyfox_state : public driver_device
+class skyfox_state
 {
 public:
-	skyfox_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, skyfox_state(machine)); }
+
+	skyfox_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_spriteram;
-	size_t     m_spriteram_size;
+	UINT8 *    spriteram;
+	size_t     spriteram_size;
 
 	/* video-related */
-	UINT8      m_vreg[8];
-	int        m_bg_pos;
-	int        m_bg_ctrl;
+	UINT8      vreg[8];
+	int        bg_pos, bg_ctrl;
 
 	/* misc */
-	int        m_palette_selected;
+	int        palette_selected;
 
 	/* devices */
-	device_t *m_maincpu;
+	running_device *maincpu;
 };
 
 /*----------- defined in video/skyfox.c -----------*/
@@ -32,5 +32,5 @@ WRITE8_HANDLER( skyfox_vregs_w );
 
 PALETTE_INIT( skyfox );
 
-SCREEN_UPDATE( skyfox );
+VIDEO_UPDATE( skyfox );
 

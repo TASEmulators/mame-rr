@@ -280,7 +280,7 @@ astring *astring_cpych(astring *dst, const char *src, int count)
 		return dst;
 
 	/* copy the raw data and NULL-terminate */
-	if ((count > 0) && (dst->text != src))
+	if (count > 0)
 		memcpy(dst->text, src, count);
 	dst->text[count] = 0;
 	return dst;

@@ -1,4 +1,4 @@
- /*************************************
+/*************************************
  *
  *  Input Ports
  *  Galaxian-derived games
@@ -1537,38 +1537,38 @@ static INPUT_PORTS_START( thepitm )
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_COCKTAIL
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_COCKTAIL
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_COCKTAIL
-	PORT_DIPNAME( 0x40, 0x00, DEF_STR( Unknown ) ) // turning both of these on boots with 9 credits?
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+    PORT_DIPNAME( 0x40, 0x00, DEF_STR( Unknown ) ) // turning both of these on boots with 9 credits?
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x40, DEF_STR( On ) )
+    PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN2")
-	PORT_DIPNAME( 0x01, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Flip_Screen ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
+    PORT_DIPNAME( 0x01, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x01, DEF_STR( On ) )
+    PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x02, DEF_STR( On ) )
+    PORT_DIPNAME( 0x04, 0x00, DEF_STR( Flip_Screen ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x04, DEF_STR( On ) )
 	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x10, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+    PORT_DIPNAME( 0x10, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x10, DEF_STR( On ) )
+    PORT_DIPNAME( 0x20, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x20, DEF_STR( On ) )
+    PORT_DIPNAME( 0x40, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x40, DEF_STR( On ) )
+    PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 INPUT_PORTS_END
 
 /*************************************
@@ -2169,9 +2169,9 @@ static INPUT_PORTS_START( aracnis )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_8WAY
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_8WAY
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_8WAY
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_BUTTON2 )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_8WAY
 
@@ -2179,21 +2179,21 @@ static INPUT_PORTS_START( aracnis )
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start 1 / P1 Button 1")		/* also P1 Button 1 */
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_START2 ) PORT_NAME("Start 2 / P1 Button 2")		/* also P1 Button 2 */
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_8WAY
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 
 	PORT_START("IN2")      /* 0xb001 */
@@ -2203,49 +2203,49 @@ static INPUT_PORTS_START( aracnis )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_3C ) )
 	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN3")      /* 0xb002 */
-	PORT_DIPNAME( 0x01, 0x01, "0xb002" )
-	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x01, 0x01, "0xb002" )
+    PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+    PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
 
@@ -2306,10 +2306,10 @@ static INPUT_PORTS_START( scobra )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 )
 
 	PORT_START("IN1")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Allow_Continue ) ) PORT_DIPLOCATION("H2:2")
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x01, "4 Times" )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Lives ) ) PORT_DIPLOCATION("H2:1")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x00, "3" )
 	PORT_DIPSETTING(    0x02, "4" )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_COCKTAIL
@@ -2321,12 +2321,12 @@ static INPUT_PORTS_START( scobra )
 
 	PORT_START("IN2")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN )  PORT_8WAY PORT_COCKTAIL
-	PORT_DIPNAME( 0x06, 0x02, DEF_STR( Coinage ) ) PORT_DIPLOCATION("H2:4,5") /* see notes */
+	PORT_DIPNAME( 0x06, 0x02, DEF_STR( Coinage ) )                    /* see notes */
 	PORT_DIPSETTING(    0x04, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x06, DEF_STR( 4C_3C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x00, "99 Credits" )
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Cabinet ) ) PORT_DIPLOCATION("H2:3")
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Cocktail ) )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_UP )    PORT_8WAY
@@ -2343,10 +2343,10 @@ static INPUT_PORTS_START( scobras )
 	PORT_INCLUDE(scobra)
 
 	PORT_MODIFY("IN1")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Allow_Continue ) ) PORT_DIPLOCATION("H2:2")
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x01, "255 Times" )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Lives ) ) PORT_DIPLOCATION("H2:1")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x00, "3" )
 	PORT_DIPSETTING(    0x02, "5" )
 INPUT_PORTS_END
@@ -2354,25 +2354,26 @@ INPUT_PORTS_END
 
 static CUSTOM_INPUT( moonwar_dial_r )
 {
-	galaxian_state *state = field.machine().driver_data<galaxian_state>();
 	static const char *const dialname[2] = { "P1_DIAL", "P2_DIAL" };
-	int p = (~state->m_moonwar_port_select >> 4) & 1;
+	int p = (~moonwar_port_select >> 4) & 1;
 
 	// see http://www.cityofberwyn.com/schematics/stern/MoonWar_opto.tiff for schematic
 	// I.e. a 74ls161 counts from 0 to 15 which is the absolute number of bars passed on the quadrature
 
-	signed char dialread = input_port_read(field.machine(), dialname[p]);
+	static int counter_74ls161[2] = {0, 0};
+	static int direction[2] = {0, 0};
+	signed char dialread = input_port_read(field->port->machine, dialname[p]);
 
 	UINT8 ret;
 
-	if (dialread < 0) state->m_direction[p] = 0x00;
-	else if (dialread > 0) state->m_direction[p] = 0x10;
+	if (dialread < 0) direction[p] = 0x00;
+	else if (dialread > 0) direction[p] = 0x10;
 
-	state->m_counter_74ls161[p] += abs(dialread);
-	state->m_counter_74ls161[p] &= 0xf;
+	counter_74ls161[p] += abs(dialread);
+	counter_74ls161[p] &= 0xf;
 
-	ret = state->m_counter_74ls161[p] | state->m_direction[p];
-	//fprintf(stderr, "dialread1: %02x, counter_74ls161: %02x, spinner ret is %02x\n", dialread, state->m_counter_74ls161[p], ret);
+	ret = counter_74ls161[p] | direction[p];
+	//fprintf(stderr, "dialread1: %02x, counter_74ls161: %02x, spinner ret is %02x\n", dialread, counter_74ls161[p], ret);
 
 	return ret;
 }
@@ -2594,61 +2595,6 @@ static INPUT_PORTS_START( anteater )
 INPUT_PORTS_END
 
 
-static INPUT_PORTS_START( anteateruk )
-	PORT_START("IN0")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_4WAY PORT_COCKTAIL
-	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON1 )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_4WAY
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN2 )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 )
-
-	PORT_START("IN1")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Cabinet ) )
-	PORT_DIPSETTING(    0x01, DEF_STR( Upright ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) )
-	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_COCKTAIL
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_START1 )
-
-	PORT_START("IN2")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_4WAY PORT_COCKTAIL
-	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Coinage ) )
-	PORT_DIPSETTING(    0x02, "A 1/1  B 1/5" )
-	PORT_DIPSETTING(    0x00, "A 2/1  B 1/3" )
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Lives ) )
-	PORT_DIPSETTING(    0x0c, "3" )
-	PORT_DIPSETTING(    0x08, "4" )
-	PORT_DIPSETTING(    0x04, "5" )
-	PORT_DIPSETTING(    0x00, "6" )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_4WAY
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_4WAY
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-
-	PORT_START("IN3")	/* need for some PPI accesses */
-	PORT_BIT( 0xff, 0x00, IPT_UNUSED )
-INPUT_PORTS_END
-
-
 /* verified from Z80 code */
 static INPUT_PORTS_START( calipso )
 	PORT_START("IN0")
@@ -2706,7 +2652,7 @@ static INPUT_PORTS_START( losttomb )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 )
 
 	PORT_START("IN1")
-	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) ) PORT_DIPLOCATION("H2:1,2")
+	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x01, "3" )
 	PORT_DIPSETTING(    0x02, "5" )
 	PORT_DIPSETTING(    0x03, DEF_STR( Free_Play ) )                  /* see notes */
@@ -2720,12 +2666,12 @@ static INPUT_PORTS_START( losttomb )
 
 	PORT_START("IN2")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_DIPNAME( 0x06, 0x02, DEF_STR( Coinage ) ) PORT_DIPLOCATION("H2:4,5")
+	PORT_DIPNAME( 0x06, 0x02, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(    0x02, "A 1/1  B 1/1" )
 	PORT_DIPSETTING(    0x00, "A 1/2  B 2/1" )
 	PORT_DIPSETTING(    0x04, "A 1/3  B 3/1" )
 	PORT_DIPSETTING(    0x06, "A 1/4  B 4/1" )
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("H2:3") /* see notes */
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) )                /* see notes */
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 	PORT_BIT( 0xf0, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -3599,48 +3545,48 @@ ROM_END
 
 ROM_START( zigzag )
 	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "zz_d1.7l",    0x0000, 0x1000, CRC(8cc08d81) SHA1(be671192ef06dc3ed6963dc39e6bdce3275300e9) )
-	ROM_LOAD( "zz_d2.7k",    0x1000, 0x1000, CRC(326d8d45) SHA1(563b9fc64c34e36cfadffb107ce30d3a04d62d9c) )
-	ROM_LOAD( "zz_d4.7f",    0x2000, 0x1000, CRC(a94ed92a) SHA1(d56f32fc2b3f0f7affe658b7726682c60d09bc16) )
-	ROM_LOAD( "zz_d3.7h",    0x3000, 0x1000, CRC(ce5e7a00) SHA1(93c47d22698a016cb0f0b654ade9ccab0cd1c88b) )
+	ROM_LOAD( "zz_d1.bin",    0x0000, 0x1000, CRC(8cc08d81) SHA1(be671192ef06dc3ed6963dc39e6bdce3275300e9) )
+	ROM_LOAD( "zz_d2.bin",    0x1000, 0x1000, CRC(326d8d45) SHA1(563b9fc64c34e36cfadffb107ce30d3a04d62d9c) )
+	ROM_LOAD( "zz_d4.bin",    0x2000, 0x1000, CRC(a94ed92a) SHA1(d56f32fc2b3f0f7affe658b7726682c60d09bc16) )
+	ROM_LOAD( "zz_d3.bin",    0x3000, 0x1000, CRC(ce5e7a00) SHA1(93c47d22698a016cb0f0b654ade9ccab0cd1c88b) )
 
 	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "zz_6.1h",     0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
-	ROM_IGNORE(                      0x0800 )
-	ROM_LOAD( "zz_5.1k",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
-	ROM_IGNORE(                      0x0800 )
+	ROM_LOAD( "zz_6_h1.bin",  0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
+	ROM_IGNORE(                       0x0800 )
+	ROM_LOAD( "zz_5.bin",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
+	ROM_IGNORE(                       0x0800 )
 
 	ROM_REGION( 0x1000, "gfx2", 0 )
-	ROM_LOAD( "zz_6.1h",     0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
-	ROM_CONTINUE(            0x0000, 0x0800 )
-	ROM_LOAD( "zz_5.1k",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
-	ROM_CONTINUE(            0x0800, 0x0800 )
+	ROM_LOAD( "zz_6_h1.bin",  0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
+	ROM_CONTINUE(             0x0000, 0x0800 )
+	ROM_LOAD( "zz_5.bin",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
+	ROM_CONTINUE(             0x0800, 0x0800 )
 
 	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "zzbpr_e9.bin",0x0000, 0x0020, CRC(aa486dd0) SHA1(b845b52715bf6361ceee8c1ac541733963bd47af) )
+	ROM_LOAD( "zzbp_e9.bin",  0x0000, 0x0020, CRC(aa486dd0) SHA1(b845b52715bf6361ceee8c1ac541733963bd47af) )
 ROM_END
 
 ROM_START( zigzag2 )
 	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "z1.7l",       0x0000, 0x1000, CRC(4c28349a) SHA1(646134ce506deaee88cc2ec5a973f8fedaddb66b) )
-	ROM_LOAD( "zz_d2.7k",    0x1000, 0x1000, CRC(326d8d45) SHA1(563b9fc64c34e36cfadffb107ce30d3a04d62d9c) )
-	ROM_LOAD( "zz_d4.7f",    0x2000, 0x1000, CRC(a94ed92a) SHA1(d56f32fc2b3f0f7affe658b7726682c60d09bc16) )
-	ROM_LOAD( "zz_d3.7h",    0x3000, 0x1000, CRC(ce5e7a00) SHA1(93c47d22698a016cb0f0b654ade9ccab0cd1c88b) )
+	ROM_LOAD( "z1",           0x0000, 0x1000, CRC(4c28349a) SHA1(646134ce506deaee88cc2ec5a973f8fedaddb66b) )
+	ROM_LOAD( "zz_d2.bin",    0x1000, 0x1000, CRC(326d8d45) SHA1(563b9fc64c34e36cfadffb107ce30d3a04d62d9c) )
+	ROM_LOAD( "zz_d4.bin",    0x2000, 0x1000, CRC(a94ed92a) SHA1(d56f32fc2b3f0f7affe658b7726682c60d09bc16) )
+	ROM_LOAD( "zz_d3.bin",    0x3000, 0x1000, CRC(ce5e7a00) SHA1(93c47d22698a016cb0f0b654ade9ccab0cd1c88b) )
 
 	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "zz_6.1h",     0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
-	ROM_IGNORE(                      0x0800 )
-	ROM_LOAD( "zz_5.1k",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
-	ROM_IGNORE(                      0x0800 )
+	ROM_LOAD( "zz_6_h1.bin",  0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
+	ROM_IGNORE(                       0x0800 )
+	ROM_LOAD( "zz_5.bin",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
+	ROM_IGNORE(                       0x0800 )
 
 	ROM_REGION( 0x1000, "gfx2", 0 )
-	ROM_LOAD( "zz_6.1h",     0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
-	ROM_CONTINUE(            0x0000, 0x0800 )
-	ROM_LOAD( "zz_5.1k",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
-	ROM_CONTINUE(            0x0800, 0x0800 )
+	ROM_LOAD( "zz_6_h1.bin",  0x0000, 0x0800, CRC(780c162a) SHA1(b0cac68258281917bcada52ce26e0ce38721d633) )
+	ROM_CONTINUE(             0x0000, 0x0800 )
+	ROM_LOAD( "zz_5.bin",     0x0800, 0x0800, CRC(f3cdfec5) SHA1(798d631c72d8e6b2e372b4b3ab0c10d8365a1359) )
+	ROM_CONTINUE(             0x0800, 0x0800 )
 
 	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "zzbpr_e9.bin",0x0000, 0x0020, CRC(aa486dd0) SHA1(b845b52715bf6361ceee8c1ac541733963bd47af) )
+	ROM_LOAD( "zzbp_e9.bin",  0x0000, 0x0020, CRC(aa486dd0) SHA1(b845b52715bf6361ceee8c1ac541733963bd47af) )
 ROM_END
 
 
@@ -3693,45 +3639,6 @@ ROM_START( streakng )
 
 	ROM_REGION( 0x0020, "proms", 0 )
 	ROM_LOAD( "sk.bpr",       0x0000, 0x0020, CRC(bce79607) SHA1(49d60fde149240bcd025f721b0fbbbdbc549a42f) )
-ROM_END
-
-/*
-sk2          [1/2]      st3.BIN                 IDENTICAL
-sk3          [1/2]      5st.BIN                 IDENTICAL
-sk6          [1/2]      9.BIN                   IDENTICAL
-sk5          [1/2]      11.BIN                  IDENTICAL
-sk1          [2/2]      st2.BIN                 IDENTICAL
-sk2          [2/2]      st4.BIN                 IDENTICAL
-sk3          [2/2]      6st.BIN                 IDENTICAL
-sk4          [2/2]      8st.BIN                 IDENTICAL
-sk5          [2/2]      12.BIN                  IDENTICAL
-sk6          [2/2]      10.BIN                  IDENTICAL
-sk1          [1/2]      st1.BIN                 99.951172%
-sk4          [1/2]      7st.BIN                 99.951172%
-sk.bpr                                          NO MATCH
-*/
-
-ROM_START( streaknga )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "st1.bin",  0x0000, 0x0800, CRC(c827e124) SHA1(85d84bb678cb80e7ca4a591b6c30a247e9aac213) )
-	ROM_LOAD( "st2.bin",  0x0800, 0x0800, CRC(b01d4f8f) SHA1(1116374b5e90c7e525319c92d6dd9ba6641ca231) )
-	ROM_LOAD( "st3.bin",  0x1000, 0x0800, CRC(c7a9c493) SHA1(58c25bdf68807ecfe6fcaf90137a5f8701696d1d) )
-	ROM_LOAD( "st4.bin",  0x1800, 0x0800, CRC(12487c75) SHA1(12796dab558ab13b42ee87181d60c3fa290c64e4) )
-	ROM_LOAD( "5st.bin",  0x2000, 0x0800, CRC(f9f9e2be) SHA1(3efa850361137f50a42de9dcd868519fbc4680b4) )
-	ROM_LOAD( "6st.bin",  0x2800, 0x0800, CRC(c22fe6c2) SHA1(fb8bf579f6bd413ae5ef49facf1d21125da52833) )
-	ROM_LOAD( "7st.bin",  0x3000, 0x0800, CRC(9cd7869a) SHA1(5edccf4a1dff184ebbec8748216353805abff29d) )
-	ROM_LOAD( "8st.bin",  0x3800, 0x0800, CRC(5e750ad3) SHA1(55f77564a9bb07d66c2f13ee1a4ff39c8029a383) )
-
-	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "11.bin",   0x0000, 0x0800, CRC(cddd8924) SHA1(340ed1d4da62388d49838db25f09a569a0e17dee) )
-	ROM_LOAD( "12.bin",   0x0800, 0x0800, CRC(10cda095) SHA1(488def62d52296c7482b349c1aeaeaa1d45bad77) )
-
-	ROM_REGION( 0x1000, "gfx2", 0 )
-	ROM_LOAD( "9.bin",    0x0000, 0x0800, CRC(6a2a8a0f) SHA1(1822c2f4c48740fee2d4e048410db5e846c8a2db) )
-	ROM_LOAD( "10.bin",   0x0800, 0x0800, CRC(3563dfbe) SHA1(9056b618e19a40cc96d90f393c1c40a573497ca7) )
-
-	ROM_REGION( 0x0020, "proms", 0 )	/* from parent set */
-	ROM_LOAD( "sk.bpr",   0x0000, 0x0020, BAD_DUMP CRC(bce79607) SHA1(49d60fde149240bcd025f721b0fbbbdbc549a42f) )
 ROM_END
 
 ROM_START( pacmanbl ) /* Artic Multi-System */
@@ -4164,7 +4071,7 @@ ROM_START( mooncrs2 )
 	ROM_LOAD( "mmi6331.6l", 0x0000, 0x0020, CRC(6a0c7d87) SHA1(140335d85c67c75b65689d4e76d29863c209cf32) ) /* Compatible with 82s123 prom */
 ROM_END
 
-ROM_START( mooncrs3 ) /* Bootleg by Jeutel, very similar to Moon Cresta (bootleg set 2) */
+ROM_START( mooncrs3 ) /* Bootleg by Jeutel, very simular to Moon Cresta (bootleg set 2) */
 	ROM_REGION( 0x8000, "maincpu", 0 )
 	ROM_LOAD( "b1.7f",  0x0000, 0x0800, CRC(0b28cd8a) SHA1(a1aa0ec63e1dddf4263aa39f6a5fda93108b6e98) )
 	ROM_CONTINUE(       0x2000, 0x0800 )
@@ -4341,28 +4248,6 @@ ROM_START( smooncrs )
 	ROM_LOAD( "mmi6331.6l", 0x0000, 0x0020, CRC(6a0c7d87) SHA1(140335d85c67c75b65689d4e76d29863c209cf32) ) /* Compatible with 82s123 prom */
 ROM_END
 
-ROM_START( sstarcrs )
-	ROM_REGION( 0x8000, "maincpu", 0 )
-	ROM_LOAD( "ss1",          0x0000, 0x0800, CRC(2ff72897) SHA1(c34c149ee32dd3318a04eda8928f0cd5f997d184) )
-	ROM_LOAD( "ss2",          0x0800, 0x0800, CRC(565e7880) SHA1(cd8d1154c2e970e863bd489856819cd34848570b) )
-	ROM_LOAD( "ss3",          0x1000, 0x0800, CRC(a1939def) SHA1(c9be93d325dde496d89e0735ec4e7abca932c0f6) )
-	ROM_LOAD( "ss4",          0x1800, 0x0800, CRC(a332e012) SHA1(7b32001fe342dcae2bce1c39dd1e75c6b5806199) )
-	ROM_LOAD( "ss5",          0x2000, 0x0800, CRC(b9e58453) SHA1(60890208a5dee6e5e52e4ffafcb3501de080adf8) )
-	ROM_LOAD( "ss6",          0x2800, 0x0800, CRC(7cbb5bc8) SHA1(5158d798e9b4649636f9fecf29738f271a3edef2) )
-	ROM_LOAD( "ss7",          0x3000, 0x0800, CRC(57713b91) SHA1(ba01ed3f047ebbd0f9e6956e649bec0e8b730a45) )
-	ROM_LOAD( "ss8",          0x3800, 0x0800, CRC(c857e898) SHA1(a596abe4971e65785945a844a783be2dbca559bc) )
-
-	ROM_REGION( 0x2000, "gfx1", 0 )
-	ROM_LOAD( "ss10",         0x0000, 0x0800, CRC(2a95b8ea) SHA1(b2f7f2d4aca55b8cbbb907c990b27c06b7b2d77b) )
-	ROM_LOAD( "ss12",         0x0800, 0x0800, CRC(b92c4c30) SHA1(4abc4c759e401be4edcce4f3f2d7b2b3f1827a99) )
-	ROM_LOAD( "ss9",          0x1000, 0x0800, CRC(3661e084) SHA1(bb5b8b7c9c61a0379a3f1eec02d61bbb385cd3e9) )
-	ROM_LOAD( "ss11",         0x1800, 0x0800, CRC(95613048) SHA1(b9ba1ca11ef3154a800a90adaa8c491bb944a3a2) )
-
-	ROM_REGION( 0x0020, "proms", 0 )
-	// not present in this set
-	ROM_LOAD( "mmi6331.6l", 0x0000, 0x0020, CRC(6a0c7d87) SHA1(140335d85c67c75b65689d4e76d29863c209cf32) ) /* Compatible with 82s123 prom */
-ROM_END
-
 ROM_START( mooncmw )
 	ROM_REGION( 0x8000, "maincpu", 0 )
 	ROM_LOAD( "60.1x",      0x0000, 0x0800, CRC(322859e6) SHA1(292dccb66c38c8de837ec3ac10928d092494958e) )
@@ -4375,16 +4260,8 @@ ROM_START( mooncmw )
 	ROM_LOAD( "67.8x",      0x3800, 0x0800, CRC(66da55d5) SHA1(39e2f6107e77ee97860147f64b9673cd9a2ae612) )
 
 	ROM_REGION( 0x2000, "gfx1", 0 )
-	ROM_LOAD( "68.1h",      0x0000, 0x0800, CRC(78663d86) SHA1(8648a3e60259404a05ad58b1641190e5b33a24eb) )
-	ROM_CONTINUE(			0x0800, 0x0200 )
-	ROM_CONTINUE(			0x0c00, 0x0200 )
-	ROM_CONTINUE(			0x0a00, 0x0200 )
-	ROM_CONTINUE(			0x0e00, 0x0200 )
-	ROM_LOAD( "69.1k",      0x1000, 0x0800, CRC(162c50d3) SHA1(67d9c87782cf29c443590d7ad687fbeaa6218346) )
-	ROM_CONTINUE(			0x1800, 0x0200 )
-	ROM_CONTINUE(			0x1c00, 0x0200 )
-	ROM_CONTINUE(			0x1a00, 0x0200 )
-	ROM_CONTINUE(			0x1e00, 0x0200 )
+	ROM_LOAD( "68.1h",      0x0000, 0x1000, CRC(78663d86) SHA1(8648a3e60259404a05ad58b1641190e5b33a24eb) )
+	ROM_LOAD( "69.1k",      0x1000, 0x1000, CRC(162c50d3) SHA1(67d9c87782cf29c443590d7ad687fbeaa6218346) )
 
 	ROM_REGION( 0x0020, "proms", 0 )
 	ROM_LOAD( "prom-sn74s288n-71.6l", 0x0000, 0x0020, CRC(6a0c7d87) SHA1(140335d85c67c75b65689d4e76d29863c209cf32) ) /* Compatible with 82s123 prom */
@@ -4425,15 +4302,9 @@ ROM_START( spcdraga )
 
 	ROM_REGION( 0x2000, "gfx1", 0 )
 	ROM_LOAD( "a2.7a",  0x0000, 0x0800, CRC(38b042dd) SHA1(bd452dae4cbc22a900cf783f84d1f9d8cb1218f9) )
-	ROM_LOAD( "a4.7a",  0x0800, 0x0200, CRC(5a4b17ea) SHA1(8a879dc34fdecc8a121c4a87abb981212fb05945) )
-	ROM_CONTINUE(		0x0c00, 0x0200 )
-	ROM_CONTINUE(		0x0a00, 0x0200 )
-	ROM_CONTINUE(		0x0e00, 0x0200 )
+	ROM_LOAD( "a4.7a",  0x0800, 0x0800, CRC(5a4b17ea) SHA1(8a879dc34fdecc8a121c4a87abb981212fb05945) )
 	ROM_LOAD( "a1.9a",  0x1000, 0x0800, CRC(24441ab3) SHA1(8c9d2bd062cb2360f3dd3df2d7d212e9485f91ad) )
-	ROM_LOAD( "a3.9a",  0x1800, 0x0200, CRC(e0edccbd) SHA1(0839a4c9b6e863d12253ae8e1732e80e08702228) )
-	ROM_CONTINUE(		0x1c00, 0x0200 )
-	ROM_CONTINUE(		0x1a00, 0x0200 )
-	ROM_CONTINUE(		0x1e00, 0x0200 )
+	ROM_LOAD( "a3.9a",  0x1800, 0x0800, CRC(e0edccbd) SHA1(0839a4c9b6e863d12253ae8e1732e80e08702228) )
 
 	ROM_REGION( 0x0020, "proms", 0 )
 	// not present in this set
@@ -4474,15 +4345,9 @@ ROM_START( mooncrgx )
 
 	ROM_REGION( 0x2000, "gfx1", 0 )
 	ROM_LOAD( "1h_1_10.bin",  0x0000, 0x0800, CRC(528da705) SHA1(d726ee18b79774c982f88afb2a508eb5d5783193) )
-	ROM_LOAD( "12.chr",       0x0800, 0x0200, CRC(5a4b17ea) SHA1(8a879dc34fdecc8a121c4a87abb981212fb05945) )
-	ROM_CONTINUE(			  0x0c00, 0x0200 )
-	ROM_CONTINUE(			  0x0a00, 0x0200 )
-	ROM_CONTINUE(			  0x0e00, 0x0200 )
+	ROM_LOAD( "12.chr",       0x0800, 0x0800, CRC(5a4b17ea) SHA1(8a879dc34fdecc8a121c4a87abb981212fb05945) )
 	ROM_LOAD( "9.chr",        0x1000, 0x0800, CRC(70df525c) SHA1(f771293494a2234bf80f206ecf1e88773322e503) )
-	ROM_LOAD( "11.chr",       0x1800, 0x0200, CRC(e0edccbd) SHA1(0839a4c9b6e863d12253ae8e1732e80e08702228) )
-	ROM_CONTINUE(			  0x1c00, 0x0200 )
-	ROM_CONTINUE(			  0x1a00, 0x0200 )
-	ROM_CONTINUE(			  0x1e00, 0x0200 )
+	ROM_LOAD( "11.chr",       0x1800, 0x0800, CRC(e0edccbd) SHA1(0839a4c9b6e863d12253ae8e1732e80e08702228) )
 
 	ROM_REGION( 0x0020, "proms", 0 )
 	ROM_LOAD( "l06_prom.bin", 0x0000, 0x0020, CRC(6a0c7d87) SHA1(140335d85c67c75b65689d4e76d29863c209cf32) )
@@ -4568,7 +4433,7 @@ on the sunny morning of 2/03/10
 http://www.andys-arcade.com
 
 *************************************************
-**Do not separate this text file from the roms.**
+**Do not seperate this text file from the roms.**
 *************************************************
 
 Nichibutsu Moon Quasar pcb largely unhacked, but
@@ -4794,30 +4659,6 @@ ROM_START( mshuttle )
 	ROM_LOAD( "my06",         0x1000, 0x1000, CRC(466415f2) SHA1(a05f8238cdcebe926a564ef6268b3cd677987fa2) )
 ROM_END
 
-ROM_START( mshuttle2 )
-	ROM_REGION( 2*0x10000, "maincpu", 0 )	/* 64k for code + 64k for decrypted opcodes */
-	ROM_LOAD( "my05",         0x0000, 0x1000, CRC(83574af1) SHA1(d69c2a0538a49d6c72c3346ac4e3959d91da6c98) )
-	ROM_LOAD( "my04",         0x1000, 0x1000, CRC(1cfae2c8) SHA1(6c7eeee70e91b8498c41525dcc60f8086cff8da7) )
-	ROM_LOAD( "my03",         0x2000, 0x1000, CRC(c8b8a368) SHA1(140ba60f55285d1e9f7a262634f5ce5c3470ab71) )
-	ROM_LOAD( "my02",         0x3000, 0x1000, CRC(9804061c) SHA1(d5147e827c5a851f6baadea4a0a3b1deb19dda16) )
-	ROM_LOAD( "my01",         0x4000, 0x1000, CRC(ca746a61) SHA1(259b1556b0646bf0108b1e3ffbd77bf7238350b0) )
-
-	ROM_REGION( 0x4000, "gfx1", 0 )
-	ROM_LOAD( "my09",         0x0000, 0x1000, CRC(3601b380) SHA1(c0b9d1801f58a16449708d514d2fd88e34af340b) )
-	ROM_LOAD( "my11",         0x1000, 0x0800, CRC(d860e6ce) SHA1(2912d13bf69496f8f18358a36366a1f60afd0070) )
-	ROM_LOAD( "my08",         0x2000, 0x1000, CRC(992b06cd) SHA1(8645ccad8169601bbe25b9f2b17b99004c0a584f) )
-	ROM_LOAD( "my10",         0x3000, 0x0800, CRC(d860e6ce) SHA1(2912d13bf69496f8f18358a36366a1f60afd0070) )
-
-	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "mscprom1.bin", 0x0000, 0x0020, CRC(ea0d1af0) SHA1(cb59e04c02307dfe847e3170cf0a7f62829b6094) )
-
-	ROM_REGION( 0x2000, "samples", 0 )	/* samples */
-	ROM_LOAD( "my07",         0x0000, 0x1000, CRC(522a2920) SHA1(a64d821a8ff6bd6e2b0bdb1e632181e65a97363b) )
-	ROM_LOAD( "my06",         0x1000, 0x1000, CRC(6d2dd711) SHA1(82e7c7b10258f651943173c968c7fa2bdf937ca9) )
-ROM_END
-
-
-
 ROM_START( mshuttlej )
 	ROM_REGION( 2*0x10000, "maincpu", 0 )	/* 64k for code + 64k for decrypted opcodes */
 	ROM_LOAD( "mcs.5",        0x0000, 0x1000, CRC(a5a292b4) SHA1(b4e9d969c762f4114eba88051917df122fc7181f) )
@@ -4838,7 +4679,7 @@ ROM_START( mshuttlej )
 
 	ROM_REGION( 0x2000, "samples", 0 )	/* samples */
 	ROM_LOAD( "my07",         0x0000, 0x1000, CRC(522a2920) SHA1(a64d821a8ff6bd6e2b0bdb1e632181e65a97363b) )
-	ROM_LOAD( "my06",         0x1000, 0x1000, CRC(6d2dd711) SHA1(82e7c7b10258f651943173c968c7fa2bdf937ca9) )
+	ROM_LOAD( "my06.4r",      0x1000, 0x1000, CRC(4162be4d) SHA1(84fa8651796e498a37893ea90ef51b274c70e568) )
 ROM_END
 
 ROM_START( mshuttlej2 )
@@ -4874,7 +4715,7 @@ ROM_START( kingball )
 	ROM_REGION( 0x10000, "audiocpu", 0 )	/* 64k for sound code */
 	ROM_LOAD( "kbe1.ic4",     0x0000, 0x0800, CRC(5be2c80a) SHA1(f719a80357bed3d66bce40569690f419740148c5) )
 	ROM_LOAD( "kbe2.ic5",     0x0800, 0x0800, CRC(bb59e965) SHA1(830e0c415f051e932d76df604025e4e33118a799) )
-	ROM_LOAD( "kbe3.ic6",     0x1000, 0x0800, BAD_DUMP CRC(1c94dd31) SHA1(14ab59b8eee741eb1f10ae99ddb99bf7c2dab957) ) // 2nd half missing ("bye bye" voice cut off)
+	ROM_LOAD( "kbe3.ic6",     0x1000, 0x0800, CRC(1c94dd31) SHA1(14ab59b8eee741eb1f10ae99ddb99bf7c2dab957) )
 	ROM_LOAD( "kbe2.ic7",     0x1800, 0x0800, CRC(bb59e965) SHA1(830e0c415f051e932d76df604025e4e33118a799) )
 
 	ROM_REGION( 0x2000, "gfx1", 0 )
@@ -4988,7 +4829,7 @@ ROM_START( froggermc )
 	ROM_LOAD( "epr-1035.43",  0x1000, 0x0800, CRC(14e74148) SHA1(0023394e971f191c41ff20b47835f1dafb924d15) )
 
 	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "epr-1037.1h",  0x0000, 0x0800, CRC(05f7d883) SHA1(78831fd287da18928651a8adb7e578d291493eff) )
+	ROM_LOAD( "frogger.607",  0x0000, 0x0800, CRC(05f7d883) SHA1(78831fd287da18928651a8adb7e578d291493eff) ) /* We need the correct Sega "EPR" label for this one */
 	ROM_LOAD( "epr-1036.1k",  0x0800, 0x0800, CRC(658745f8) SHA1(e4e5c3e011c8a7233a36d29e10e08905873500aa) )
 
 	ROM_REGION( 0x0020, "proms", 0 )
@@ -5115,31 +4956,8 @@ ROM_START( 600 )
 	ROM_LOAD( "turtles.clr",  0x0000, 0x0020, CRC(f3ef02dd) SHA1(09fd795170d7d30f101d579f57553da5ff3800ab) )
 ROM_END
 
-/* Amidar (c) Konami 1982. Original Konami pcb.
-   Soundboard silkscreened: Konami KT-4108-1B
-   CPU Board Silkscreened: Konami KT4108-2 */
 
 ROM_START( amidar )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "1.2c",  0x0000, 0x1000, CRC(621b74de) SHA1(f064eccfb7da18119ed3088a5f939085eb446c90) )
-	ROM_LOAD( "2.2e",  0x1000, 0x1000, CRC(38538b98) SHA1(12b2a0c09926d006781bee5d450bc0c391cc1fb5) )
-	ROM_LOAD( "3.2f",  0x2000, 0x1000, CRC(099ecb24) SHA1(e83f049b25aba481e09606db3158726145ebd656) )
-	ROM_LOAD( "4.2h",  0x3000, 0x1000, CRC(ba149a93) SHA1(9ef1d27f0780612be0ea2be94c3a2c781a4924c8) )
-	ROM_LOAD( "5.2j",  0x4000, 0x1000, CRC(eecc1abf) SHA1(1530b374d15e0d05c8eb988cc1cbab48b0be211c) )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "s1.5c",  0x0000, 0x1000, CRC(8ca7b750) SHA1(4f4c2915503b85abe141d717fd254ee10c9da99e) )
-	ROM_LOAD( "s2.5d",  0x1000, 0x1000, CRC(9b5bdc0a) SHA1(84d953618c8bf510d23b42232a856ac55f1baff5) )
-
-	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "c2.5f",  0x0000, 0x0800, CRC(2cfe5ede) SHA1(0d86a78008ac8653c17fff5be5ebdf1f0a9d31eb) )
-	ROM_LOAD( "c2.5d",  0x0800, 0x0800, CRC(57c4fd0d) SHA1(8764deec9fbff4220d61df621b12fc36c3702601) )
-
-	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "amidar.clr",   0x0000, 0x0020, CRC(f940dcc3) SHA1(1015e56f37c244a850a8f4bf0e36668f047fd46d) )
-ROM_END
-
-ROM_START( amidar1 )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "amidar.2c",    0x0000, 0x1000, CRC(c294bf27) SHA1(399325bf1559e8cdbddf7cfbf0dc739f9ed72ef0) )
 	ROM_LOAD( "amidar.2e",    0x1000, 0x1000, CRC(e6e96826) SHA1(e9c4f8c594640424b456505e676352a98b758c03) )
@@ -5259,6 +5077,7 @@ ROM_START( amidars )
 	ROM_LOAD( "amidar.clr",   0x0000, 0x0020, CRC(f940dcc3) SHA1(1015e56f37c244a850a8f4bf0e36668f047fd46d) )
 ROM_END
 
+
 ROM_START( theend )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "ic13_1t.bin",  0x0000, 0x0800, CRC(93e555ba) SHA1(f684927cecabfbd7544f7549a6152c0a6a436019) )
@@ -5296,23 +5115,6 @@ ROM_START( theends )
 	ROM_REGION( 0x1000, "gfx1", 0 )
 	ROM_LOAD( "ic30",         0x0000, 0x0800, CRC(527fd384) SHA1(92a384899d5acd2c689f637da16a0e2d11a9d9c6) )
 	ROM_LOAD( "ic31",         0x0800, 0x0800, CRC(af6d09b6) SHA1(f3ad51dc88aa58fd39195ead978b039e0b0b585c) )
-
-	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "6331-1j.86",   0x0000, 0x0020, CRC(24652bc4) SHA1(d89575f3749c75dc963317fe451ffeffd9856e4d) )
-ROM_END
-
-ROM_START( theendb )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "0p.t.o.10l",   0x0000, 0x1000, CRC(46712d43) SHA1(e1b84494b530dd96d8a51a3f8bd7d7d3ba7560a9) )
-	ROM_LOAD( "1p.t.o.9l",    0x1000, 0x1000, CRC(10256742) SHA1(3748bf82e410ba763cc10a546b566f1d9efb8307) )
-	ROM_LOAD( "2p.t.o.8l",    0x2000, 0x1000, CRC(5ee6660a) SHA1(092d5da074c15743e619e3d9e0b5f5bd16ea7159) )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "0s.t.o.3b",    0x0000, 0x1000, CRC(cdc9da78) SHA1(b52d5b67b8e0dfb76216d7b3e6e51a027ef4b20e) )
-
-	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "ic30",         0x0000, 0x0800, CRC(527fd384) SHA1(92a384899d5acd2c689f637da16a0e2d11a9d9c6) ) // 0gc.t.o.5h
-	ROM_LOAD( "ic31",         0x0800, 0x0800, CRC(af6d09b6) SHA1(f3ad51dc88aa58fd39195ead978b039e0b0b585c) ) // 1gc.t.o.3h
 
 	ROM_REGION( 0x0020, "proms", 0 )
 	ROM_LOAD( "6331-1j.86",   0x0000, 0x0020, CRC(24652bc4) SHA1(d89575f3749c75dc963317fe451ffeffd9856e4d) )
@@ -5390,31 +5192,6 @@ ROM_START( scramblebf )
 	ROM_REGION( 0x0020, "proms", 0 ) // should be different on this bootleg..
 	ROM_LOAD( "c01s.6e",    0x0000, 0x0020, BAD_DUMP CRC(4e3caeab) SHA1(a25083c3e36d28afdefe4af6e6d4f3155e303625) )
 ROM_END
-
-ROM_START( scramblebb )	// no PCB, just eproms...
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "1",      0x0000, 0x0800, CRC(8ba174c4) SHA1(9ff48669054e4f55a19cb2d317a9d7a5e400e86c) )
-	ROM_LOAD( "2",      0x0800, 0x0800, CRC(43cb40a4) SHA1(4e500f63a06865a5fd9a7d920eb866ea610a4d92) )
-	ROM_LOAD( "3",      0x1000, 0x0800, CRC(eec265ee) SHA1(29b6cf6b93220414eb58cddeba591dc8813c4935) )
-	ROM_LOAD( "4",      0x1800, 0x0800, CRC(dd380a22) SHA1(125e713a58cc5f2c1e38f67dad29f8c985ce5a8b) )
-	ROM_LOAD( "5",      0x2000, 0x0800, CRC(92980e72) SHA1(7e0605b461ace534f8f91028bb82968ecd907ca1) )
-	ROM_LOAD( "6",      0x2800, 0x0800, CRC(9fd96374) SHA1(c8456dd8a012353a023a2d3fa5d508e49c36ace8) )
-	ROM_LOAD( "7",      0x3000, 0x0800, CRC(88ac07a0) SHA1(c57061db5984b472039356bf84a050b5b66e3813) )
-	ROM_LOAD( "8",      0x3800, 0x0800, CRC(75232e09) SHA1(b0da201bf05c63031cdbe9f7059e3c710557f33d) )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "ot1.5c",  0x0000, 0x0800, BAD_DUMP CRC(bcd297f0) SHA1(8ed78487d76fd0a917ab7b258937a46e2cd9800c) )	// need proper dump
-	ROM_LOAD( "ot2.5d",  0x0800, 0x0800, BAD_DUMP CRC(de7912da) SHA1(8558b4eff5d7e63029b325edef9914feda5834c3) )	// need proper dump
-	ROM_LOAD( "ot3.5e",  0x1000, 0x0800, BAD_DUMP CRC(ba2fa933) SHA1(1f976d8595706730e29f93027e7ab4620075c078) )	// need proper dump
-
-	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "9",      0x0000, 0x0800, CRC(4708845b) SHA1(a8b1ad19a95a9d35050a2ab7194cc96fc5afcdc9) )
-	ROM_LOAD( "10",     0x0800, 0x0800, CRC(11fd2887) SHA1(69844e48bb4d372cac7ae83c953df573c7ecbb7f) )
-
-	ROM_REGION( 0x0020, "proms", 0 ) // should be different on this bootleg..
-	ROM_LOAD( "c01s.6e", 0x0000, 0x0020, BAD_DUMP CRC(4e3caeab) SHA1(a25083c3e36d28afdefe4af6e6d4f3155e303625) )	// need proper dump
-ROM_END
-
 ROM_START( strfbomb )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "1.2c",         0x0000, 0x0800, CRC(b102aaa0) SHA1(00560da7a2ded6afcdc1d46e12cc3c795654639a) )
@@ -5968,50 +5745,6 @@ ROM_START( anteater )
 ROM_END
 
 
-ROM_START( anteateruk )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "ant1.bin",     0x0000, 0x0400, CRC(69debc90) SHA1(2ad4c86a1cbaf86d0b76bb07b885f61bc6604009) )
-	ROM_CONTINUE(             0x4600, 0x0a00 )
-	ROM_CONTINUE(             0x6400, 0x1200 )
-	ROM_LOAD( "ant2.bin",     0x7600, 0x0500, CRC(ab352805) SHA1(858928f2b57c324a7942c13e0e6a7717a36f6ffc) )
-	ROM_CONTINUE(             0x8300, 0x1600 )
-	ROM_CONTINUE(             0xa300, 0x0500 )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "ra4-5c",       0x0000, 0x0800, CRC(87300b4f) SHA1(b81b685ac1d353ff1cd40b876a7478b87b85e7a9) )
-	ROM_LOAD( "ra4-5d",       0x0800, 0x0800, CRC(af4e5ffe) SHA1(62717a233cf9f58267af4a9e1c80479b373ab317) )
-
-	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "gfx_1.bin",    0x0000, 0x0800, CRC(1e2824b1) SHA1(9527937db618505181f4d5a22bc532977a767232) )
-	ROM_LOAD( "gfx_2.bin",    0x0800, 0x0800, CRC(784319b3) SHA1(0c3612a428d0906b07b35782cc0f84fda13aab73) )
-
-	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "colr6f.cpu",   0x0000, 0x0020, CRC(fce333c7) SHA1(f63a214dc47c5e7c80db000b0b6a261ca8da6629) )
-ROM_END
-
-
-ROM_START( anteaterg )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "prg_2.bin",    0x0000, 0x0400, CRC(2ba793a8) SHA1(a97c96dcd55804d3b41856ece6477ec1c1e45892) )
-	ROM_CONTINUE(             0x4600, 0x0a00 )
-	ROM_CONTINUE(             0x6400, 0x1200 )
-	ROM_LOAD( "prg_1.bin",    0x7600, 0x0500, CRC(7a798af5) SHA1(b4c8672c92b207a7a334dd3b78e57537b7d99b71) )
-	ROM_CONTINUE(             0x8300, 0x1600 )
-	ROM_CONTINUE(             0xa300, 0x0500 )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "ra4-5c",       0x0000, 0x0800, CRC(87300b4f) SHA1(b81b685ac1d353ff1cd40b876a7478b87b85e7a9) )
-	ROM_LOAD( "ra4-5d",       0x0800, 0x0800, CRC(af4e5ffe) SHA1(62717a233cf9f58267af4a9e1c80479b373ab317) )
-
-	ROM_REGION( 0x1000, "gfx1", 0 )
-	ROM_LOAD( "gfx_1.bin",    0x0000, 0x0800, CRC(1e2824b1) SHA1(9527937db618505181f4d5a22bc532977a767232) )
-	ROM_LOAD( "gfx_2.bin",    0x0800, 0x0800, CRC(784319b3) SHA1(0c3612a428d0906b07b35782cc0f84fda13aab73) )
-
-	ROM_REGION( 0x0020, "proms", 0 )
-	ROM_LOAD( "colr6f.cpu",   0x0000, 0x0020, CRC(fce333c7) SHA1(f63a214dc47c5e7c80db000b0b6a261ca8da6629) )
-ROM_END
-
-
 ROM_START( calipso )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "calipso.2c",   0x0000, 0x1000, CRC(0fcb703c) SHA1(2bb096f114911973afdf3088c860c9566df06f60) )
@@ -6192,12 +5925,11 @@ GAME( 1980, gteikob2, uniwars,  galaxian, gteikob2, pisces,   ROT90,  "bootleg",
 GAME( 1980, spacbatt, uniwars,  galaxian, spacbatt, pisces,   ROT90,  "bootleg", "Space Battle (bootleg set 1)", GAME_SUPPORTS_SAVE )
 GAME( 1980, spacbat2, uniwars,  galaxian, spacbatt, pisces,   ROT90,  "bootleg", "Space Battle (bootleg set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1980, spacempr, uniwars,  galaxian, spacbatt, pisces,   ROT90,  "bootleg", "Space Empire (bootleg)", GAME_SUPPORTS_SAVE )
-GAME( 1980, skyraidr, uniwars,  galaxian, superg,   pisces,   ROT90,  "bootleg", "Sky Raider (Uniwars bootleg)", GAME_SUPPORTS_SAVE )
+GAME( 1980, skyraidr, uniwars,  galaxian, superg,   pisces,   ROT90,  "bootleg", "Sky Raiders", GAME_SUPPORTS_SAVE )
 
 
 /* Artic Multi-System games - separate tile/sprite ROMs */
-GAME( 1980, streakng, 0,        pacmanbl, streakng, galaxian, ROT90,  "Shoei", "Streaking (set 1)", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )
-GAME( 1980, streaknga,streakng, pacmanbl, streakng, galaxian, ROT90,  "Shoei", "Streaking (set 2)", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )
+GAME( 1981, streakng, 0,        pacmanbl, streakng, galaxian, ROT90,  "Shoei", "Streaking", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )
 GAME( 1981, pacmanbl, puckman,  pacmanbl, pacmanbl, pacmanbl, ROT270, "bootleg", "Pac-Man (Galaxian hardware, set 1)", GAME_SUPPORTS_SAVE )
 GAME( 1981, pacmanbla,puckman,  pacmanbl, pacmanbl, pacmanbl, ROT270, "bootleg", "Pac-Man (Galaxian hardware, set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1981, phoenxp2, phoenix,  galaxian, phoenxp2, batman2,  ROT270, "bootleg", "Phoenix Part 2", GAME_SUPPORTS_SAVE )
@@ -6238,12 +5970,11 @@ GAME( 1980, mooncrsb, mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "bootleg",
 GAME( 1980, mooncrs2, mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "bootleg", "Moon Cresta (bootleg set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1980, mooncrs3, mooncrst, mooncrst, mooncrst, mooncrsu, ROT90,  "bootleg (Jeutel)", "Moon Cresta (bootleg set 3)", GAME_SUPPORTS_SAVE ) /* Jeutel bootleg, similar to bootleg set 2 */
 GAME( 1980, fantazia, mooncrst, mooncrst, fantazia, mooncrsu, ROT90,  "bootleg? (Subelectro)", "Fantazia (bootleg?)", GAME_SUPPORTS_SAVE )
-GAME( 1980, eagle,    mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "Nichibutsu (Centuri license)", "Eagle (set 1)", GAME_SUPPORTS_SAVE ) // or bootleg?
-GAME( 1980, eagle2,   mooncrst, mooncrst, eagle2,   mooncrsu, ROT90,  "Nichibutsu (Centuri license)", "Eagle (set 2)", GAME_SUPPORTS_SAVE ) // "
-GAME( 1980, eagle3,   mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "Nichibutsu (Centuri license)", "Eagle (set 3)", GAME_SUPPORTS_SAVE ) // "
+GAME( 1980, eagle,    mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "Nichibutsu (Centuri license?)", "Eagle (set 1)", GAME_SUPPORTS_SAVE ) // or bootleg?
+GAME( 1980, eagle2,   mooncrst, mooncrst, eagle2,   mooncrsu, ROT90,  "Nichibutsu (Centuri license?)", "Eagle (set 2)", GAME_SUPPORTS_SAVE ) // "
+GAME( 1980, eagle3,   mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "Nichibutsu (Centuri license?)", "Eagle (set 3)", GAME_SUPPORTS_SAVE ) // "
 GAME( 1981?,spctbird, mooncrst, mooncrst, eagle2,   mooncrsu, ROT90,  "bootleg? (Fortrek)", "Space Thunderbird", GAME_SUPPORTS_SAVE )
 GAME( 1980?,smooncrs, mooncrst, mooncrst, smooncrs, mooncrsu, ROT90,  "Nichibutsu (Gremlin license)", "Super Moon Cresta", GAME_SUPPORTS_SAVE )
-GAME( 1980?,sstarcrs, mooncrst, mooncrst, mooncrsg, mooncrsu, ROT90,  "Nichibutsu (Taito do Brasil license)", "Super Star Crest", GAME_SUPPORTS_SAVE )
 GAME( 198?, mooncmw,  mooncrst, mooncrst, mooncrsa, mooncrsu, ROT90,  "bootleg", "Moon War (Moon Cresta bootleg)", GAME_SUPPORTS_SAVE )
 // The boards were marked 'Space Dragon' although this doesn't appear in the games.
 GAME( 1980, spcdrag,  mooncrst, mooncrst, smooncrs, mooncrsu, ROT90,  "bootleg", "Space Dragon (Moon Cresta bootleg, set 1)", GAME_SUPPORTS_SAVE )
@@ -6274,7 +6005,6 @@ GAME( 1983, dingoe,   dingo,    checkman, dingo,    dingoe,   ROT90,  "Ashby Com
 
 /* Crazy Climber sound plus AY8910 instead of galaxian sound, plus INT instead of NMI */
 GAME( 1981, mshuttle,  0,        mshuttle, mshuttle, mshuttle, ROT0,   "Nichibutsu", "Moon Shuttle (US?)", GAME_SUPPORTS_SAVE )
-GAME( 1981, mshuttle2, mshuttle, mshuttle, mshuttle, mshuttle, ROT0,   "Nichibutsu", "Moon Shuttle (US? set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1981, mshuttlej, mshuttle, mshuttle, mshuttle, mshuttlj, ROT0,   "Nichibutsu", "Moon Shuttle (Japan)", GAME_SUPPORTS_SAVE )
 GAME( 1981, mshuttlej2,mshuttle, mshuttle, mshuttle, mshuttlj, ROT0,   "Nichibutsu", "Moon Shuttle (Japan set 2)", GAME_SUPPORTS_SAVE )
 
@@ -6293,9 +6023,9 @@ GAME( 1980, kingballj,kingball, kingball, kingball, kingball, ROT90,  "Namco", "
 
 /* Frogger based hardware: 2nd Z80, AY-8910A, 2 8255 PPI for I/O, custom background */
 GAME( 1981, frogger,  0,        frogger,  frogger,  frogger,  ROT90,  "Konami", "Frogger", GAME_SUPPORTS_SAVE )
-GAME( 1981, froggers1,frogger,  frogger,  frogger,  frogger,  ROT90,  "Konami (Sega license)", "Frogger (Sega set 1)", GAME_SUPPORTS_SAVE )
-GAME( 1981, froggers2,frogger,  frogger,  frogger,  frogger,  ROT90,  "Konami (Sega license)", "Frogger (Sega set 2)", GAME_SUPPORTS_SAVE )
-GAME( 1981, froggermc,frogger,  froggrmc, froggrmc, froggrmc, ROT90,  "Konami (Sega license)", "Frogger (Moon Cresta hardware)", GAME_SUPPORTS_SAVE )
+GAME( 1981, froggers1, frogger, frogger,  frogger,  frogger,  ROT90,  "Konami (Sega license)", "Frogger (Sega set 1)", GAME_SUPPORTS_SAVE )
+GAME( 1981, froggers2, frogger, frogger,  frogger,  frogger,  ROT90,  "Konami (Sega license)", "Frogger (Sega set 2)", GAME_SUPPORTS_SAVE )
+GAME( 1981, froggermc, frogger, froggrmc, froggrmc, froggrmc, ROT90,  "Konami (Sega license)", "Frogger (Moon Cresta hardware)", GAME_SUPPORTS_SAVE )
 GAME( 1981, froggers, frogger,  froggers, frogger,  froggers, ROT90,  "bootleg", "Frog", GAME_SUPPORTS_SAVE )
 GAME( 1981, frogf,    frogger,  frogf,    frogger,  froggers, ROT90,  "bootleg (Falcon)", "Frog (Falcon bootleg)", GAME_SUPPORTS_SAVE )
 GAME( 1981, frogg,    frogger,  galaxian, frogg,    frogg,    ROT90,  "bootleg", "Frog (Galaxian hardware)", GAME_SUPPORTS_SAVE )
@@ -6311,11 +6041,10 @@ GAME( 1981, turtles,  0,        turtles,  turtles,  turtles,  ROT90,  "Konami (S
 GAME( 1981, turpin,   turtles,  turtles,  turpin,   turtles,  ROT90,  "Konami (Sega license)", "Turpin", GAME_SUPPORTS_SAVE )
 GAME( 1981, 600,      turtles,  turtles,  turtles,  turtles,  ROT90,  "Konami", "600", GAME_SUPPORTS_SAVE )
 
-GAME( 1982, amidar,   0,        turtles,  amidaru,  turtles,  ROT90,  "Konami", "Amidar", GAME_SUPPORTS_SAVE )
-GAME( 1981, amidar1,  amidar,   turtles,  amidar,   turtles,  ROT90,  "Konami", "Amidar (older)", GAME_SUPPORTS_SAVE )
+GAME( 1981, amidar,   0,        turtles,  amidar,   turtles,  ROT90,  "Konami", "Amidar", GAME_SUPPORTS_SAVE )
 GAME( 1982, amidaru,  amidar,   turtles,  amidaru,  turtles,  ROT90,  "Konami (Stern Electronics license)", "Amidar (Stern Electronics)", GAME_SUPPORTS_SAVE )
 GAME( 1982, amidaro,  amidar,   turtles,  amidaro,  turtles,  ROT90,  "Konami (Olympia license)", "Amidar (Olympia)", GAME_SUPPORTS_SAVE )
-GAME( 1982, amidarb,  amidar,   turtles,  amidaru,  turtles,  ROT90,  "bootleg", "Amidar (bootleg)", GAME_SUPPORTS_SAVE ) /* similar to Amigo bootleg */
+GAME( 1982, amidarb,  amidar,   turtles,  amidaru,  turtles,  ROT90,  "bootleg", "Amidar (bootleg)", GAME_SUPPORTS_SAVE ) /* Simular to Amigo bootleg */
 GAME( 1982, amigo,    amidar,   turtles,  amidaru,  turtles,  ROT90,  "bootleg", "Amigo", GAME_SUPPORTS_SAVE )
 GAME( 1982, amidars,  amidar,   scramble, amidars,  scramble, ROT90,  "Konami", "Amidar (Scramble hardware)", GAME_SUPPORTS_SAVE )
 
@@ -6323,14 +6052,12 @@ GAME( 1982, amidars,  amidar,   scramble, amidars,  scramble, ROT90,  "Konami", 
 /* The End/Scramble based hardware */
 GAME( 1980, theend,   0,        theend,   theend,   theend,   ROT90,  "Konami", "The End", GAME_SUPPORTS_SAVE )
 GAME( 1980, theends,  theend,   theend,   theend,   theend,   ROT90,  "Konami (Stern Electronics license)", "The End (Stern Electronics)", GAME_SUPPORTS_SAVE )
-GAME( 1980, theendb,  theend,   theend,   theend,   theend,   ROT90,  "bootleg?", "The End (bootleg?)", GAME_NOT_WORKING | GAME_SUPPORTS_SAVE )
 
 GAME( 1981, scramble, 0,        scramble, scramble, scramble, ROT90,  "Konami", "Scramble", GAME_SUPPORTS_SAVE )
 GAME( 1981, scrambles,scramble, scramble, scramble, scramble, ROT90,  "Konami (Stern Electronics license)", "Scramble (Stern Electronics)", GAME_SUPPORTS_SAVE )
 GAME( 1981, strfbomb, scramble, scramble, strfbomb, scramble, ROT90,  "bootleg? (Omni)", "Strafe Bomb", GAME_SUPPORTS_SAVE )
 GAME( 1981, explorer, scramble, explorer, explorer, explorer, ROT90,  "bootleg", "Explorer", GAME_SUPPORTS_SAVE )
 GAME( 1981, scramblebf,scramble,scramble, scramble, scramble, ROT90,  "bootleg (Karateko)", "Scramble (Karateko, French bootleg)", GAME_SUPPORTS_SAVE )
-GAME( 1981, scramblebb,scramble,scramble, scramble, scramble, ROT90,  "bootleg?", "Scramble (bootleg?)", GAME_SUPPORTS_SAVE )
 
 GAME( 1981, atlantis, 0,        theend,   atlantis, atlantis, ROT90,  "Comsoft", "Battle of Atlantis (set 1)", GAME_SUPPORTS_SAVE )
 GAME( 1981, atlantis2,atlantis, theend,   atlantis, atlantis, ROT90,  "Comsoft", "Battle of Atlantis (set 2)", GAME_SUPPORTS_SAVE )
@@ -6339,8 +6066,8 @@ GAME( 1981, atlantis2,atlantis, theend,   atlantis, atlantis, ROT90,  "Comsoft",
 GAME( 1982, scorpion, 0,		scorpion, scorpion, scorpion, ROT90,  "Zaccaria", "Scorpion (set 1)", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE)
 GAME( 1982, scorpiona,scorpion, scorpion, scorpion, scorpion, ROT90,  "Zaccaria", "Scorpion (set 2)", GAME_NOT_WORKING | GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE)
 GAME( 1982, scorpionb,scorpion, scorpion, scorpion, scorpion, ROT90,  "Zaccaria", "Scorpion (set 3)", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE)
-GAME( 19??, scorpionmc,scorpion,mooncrst, scorpnmc, scorpnmc, ROT90,  "bootleg? (Dorneer)", "Scorpion (Moon Cresta hardware)", GAME_SUPPORTS_SAVE )
-GAME( 19??, aracnis,   scorpion,mooncrst, aracnis,  scorpnmc, ROT90,  "bootleg",  "Aracnis (bootleg of Scorpion on Moon Cresta hardware)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 19??, scorpionmc,scorpion, mooncrst, scorpnmc, scorpnmc, ROT90, "bootleg? (Dorneer)", "Scorpion (Moon Cresta hardware)", GAME_SUPPORTS_SAVE )
+GAME( 19??, aracnis,   scorpion, mooncrst, aracnis,  scorpnmc, ROT90, "bootleg",  "Aracnis (bootleg of Scorpion on Moon Cresta hardware)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
 
 /* SF-X hardware; based on Scramble with extra Z80 and 8255 driving a DAC-based sample player */
 GAME( 1983, sfx,      0,        sfx,      sfx,      sfx,      ORIENTATION_FLIP_X, "Nichibutsu", "SF-X", GAME_SUPPORTS_SAVE )
@@ -6348,12 +6075,7 @@ GAME( 1983, skelagon, sfx,      sfx,      sfx,      sfx,      ORIENTATION_FLIP_X
 GAME( 1982, monsterz, 0,        sfx,      sfx,      sfx,      ORIENTATION_FLIP_X, "Nihon Game", "Monster Zero", GAME_UNEMULATED_PROTECTION | GAME_IMPERFECT_SOUND | GAME_NOT_WORKING )
 
 
-/*
-    Super Cobra
-
-    CPU/Video Board: A969
-    Sound Board:     A970
-*/
+/* scobra */
 GAME( 1981, scobra,    0,        scobra,   scobra,    scobra,   ROT90,  "Konami", "Super Cobra", GAME_SUPPORTS_SAVE )
 GAME( 1981, scobrase,  scobra,   scobra,   scobra,    scobra,   ROT90,  "Konami (Sega license)", "Super Cobra (Sega)", GAME_SUPPORTS_SAVE )
 GAME( 1981, scobras,   scobra,   scobra,   scobras,   scobra,   ROT90,  "Konami (Stern Electronics license)", "Super Cobra (Stern Electronics)", GAME_SUPPORTS_SAVE )
@@ -6368,24 +6090,10 @@ GAME( 1981, armorcar2, armorcar, scobra,   armorcar2, scobra,   ROT90,  "Stern E
 
 GAME( 1982, tazmania,  0,        scobra,   tazmania,  scobra,   ROT90,  "Stern Electronics", "Tazz-Mania (set 1)", GAME_SUPPORTS_SAVE )
 
-/*
-    Anteater (sold as conversion kit)
+GAME( 1982, anteater,  0,        anteater, anteater,  anteater, ROT90,  "Stern Electronics (Tago license)", "Anteater", GAME_SUPPORTS_SAVE )
 
-    CPU/Video Board: A969 (Has various wire mods)
-    Sound Board:     A970
-*/
-GAME( 1982, anteater,  0,        anteater,  anteater,  anteater,  ROT90,  "Tago Electronics", "Anteater", GAME_SUPPORTS_SAVE )
-GAME( 1982, anteateruk,anteater, anteateruk,anteateruk,anteateruk,ROT90,  "Tago Electronics (Free Enterprise Games license", "The Anteater (UK)", GAME_SUPPORTS_SAVE ) // distributed in 1983
-GAME( 1982, anteaterg, anteater, anteaterg, anteateruk,anteateruk,ROT90,  "Tago Electronics (TV-Tuning license from Free Enterprise Games)", "Ameisenbaer (German)", GAME_SUPPORTS_SAVE )
+GAME( 1982, calipso,   0,        scobra,   calipso,   calipso,  ROT90,  "Stern Electronics (Tago license)", "Calipso", GAME_SUPPORTS_SAVE )
 
-GAME( 1982, calipso,   0,        scobra,    calipso,   calipso,   ROT90,  "Tago Electronics", "Calipso",  GAME_SUPPORTS_SAVE )
-
-/*
-    Lost Tomb
-
-    CPU/Video Board: A969 (Has various wire mods)
-    Sound Board:     A2048
-*/
 GAME( 1982, losttomb,  0,        scobra,   losttomb,  losttomb, ROT90,  "Stern Electronics", "Lost Tomb (easy)", GAME_SUPPORTS_SAVE )
 GAME( 1982, losttombh, losttomb, scobra,   losttomb,  losttomb, ROT90,  "Stern Electronics", "Lost Tomb (hard)", GAME_SUPPORTS_SAVE )
 
@@ -6429,7 +6137,7 @@ GAME( 1985, superbon,  0,        scobra,   superbon,  superbon, ROT90,  "Signatr
 //GAME( 1984, mrkougar, 0,        theend  /*mrkougar*/, mrkougar, mrkougar,     ROT90, "ATW", "Mr. Kougar", GAME_SUPPORTS_SAVE )
 //GAME( 1983, mrkougr2, mrkougar, theend  /*mrkougar*/, mrkougar, mrkougar,     ROT90, "ATW", "Mr. Kougar (earlier)", GAME_SUPPORTS_SAVE )
 //GAME( 1983, mrkougb,  mrkougar, theend  /*mrkougb*/,  mrkougar, mrkougb,      ROT90, "bootleg", "Mr. Kougar (bootleg)", GAME_SUPPORTS_SAVE )
-//GAME( 1983, mrkougb2, mrkougar, theend  /*mrkougb*/,  mrkougar, mrkougb,      ROT90, "bootleg", "Mr. Kougar (bootleg set 2)", GAME_SUPPORTS_SAVE )
+//GAME( 1983, mrkougb2, mrkougar, theend  /*mrkougb*/,  mrkougar, mrkougb,      ROT90, "bootleg", "Mr. Kougar (bootleg Set 2)", GAME_SUPPORTS_SAVE )
 //GAME( 1982, hotshock, 0,        theend  /*hotshock*/, hotshock, hotshock,     ROT90, "E.G. Felaco", "Hot Shocker", GAME_SUPPORTS_SAVE )
 //GAME( 1982, conquer,  0,        theend  /*hotshock*/, hotshock, 0,            ROT90, "<unknown>", "Conquer", GAME_NOT_WORKING | GAME_SUPPORTS_SAVE)
 //GAME( 1983, hunchbks, hunchbak, theend  /*hunchbks*/, hunchbks, scramble_ppi, ROT90, "Century Electronics", "Hunchback (Scramble hardware)", GAME_SUPPORTS_SAVE )
@@ -6444,6 +6152,8 @@ GAME( 1985, superbon,  0,        scobra,   superbon,  superbon, ROT90,  "Signatr
 //GAME( 1981, stratgys, stratgyx, scobra/*stratgyx*/, stratgyx, stratgyx,     ROT0,   "Konami (Stern Electronics license)", "Strategy X (Stern Electronics)", GAME_SUPPORTS_SAVE )
 //GAME( 1982, darkplnt, 0,        scobra/*darkplnt*/, darkplnt, darkplnt,     ROT180, "Stern Electronics", "Dark Planet", GAME_SUPPORTS_SAVE )
 //GAME( 1982, tazmani2, tazmania, scobra/*type2*/,    tazmania, tazmani2,     ROT90,  "Stern Electronics", "Tazz-Mania (set 2)", GAME_SUPPORTS_SAVE )
+//GAME( 1983, anteatg,  anteater, scobra/*anteatg*/,  anteatg,  scramble_ppi, ROT90,  "TV-Tuning (F.E.G. license)", "Ameisenbaer (German)", GAME_SUPPORTS_SAVE )
+//GAME( 1983, anteatgb, anteater, scobra/*anteatgb*/, anteatgb, scramble_ppi, ROT90,  "Free Enterprise Games", "The Anteater (UK)", GAME_SUPPORTS_SAVE )
 //GAME( 1982, rescue,   0,        scobra/*rescue*/,   rescue,   rescue,       ROT90,  "Stern Electronics", "Rescue", GAME_SUPPORTS_SAVE )
 //GAME( 1982, aponow,   rescue,   scobra/*rescue*/,   rescue,   rescue,       ROT90,  "bootleg", "Apocaljpse Now", GAME_SUPPORTS_SAVE )
 //GAME( 1983, minefld,  0,        scobra/*minefld*/,  minefld,  minefld,      ROT90,  "Stern Electronics", "Minefield", GAME_SUPPORTS_SAVE )

@@ -15,26 +15,27 @@
 #define ORBIT_WARNING_EN      NODE_06
 #define ORBIT_NOISE_EN        NODE_07
 
-class orbit_state : public driver_device
+class orbit_state
 {
 public:
-	orbit_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, orbit_state(machine)); }
+
+	orbit_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_playfield_ram;
-	UINT8 *    m_sprite_ram;
+	UINT8 *    playfield_ram;
+	UINT8 *    sprite_ram;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
-	int        m_flip_screen;
+	tilemap_t  *bg_tilemap;
+	int        flip_screen;
 
 	/* misc */
-	UINT8      m_misc_flags;
+	UINT8      misc_flags;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_discrete;
+	running_device *maincpu;
+	running_device *discrete;
 };
 
 
@@ -50,6 +51,6 @@ DISCRETE_SOUND_EXTERN( orbit );
 /*----------- defined in video/orbit.c -----------*/
 
 VIDEO_START( orbit );
-SCREEN_UPDATE( orbit );
+VIDEO_UPDATE( orbit );
 
-WRITE8_HANDLER( orbit_playfield_w );
+extern WRITE8_HANDLER( orbit_playfield_w );

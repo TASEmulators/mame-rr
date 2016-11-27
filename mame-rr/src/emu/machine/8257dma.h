@@ -30,117 +30,46 @@
 
 ***************************************************************************/
 
-#pragma once
-
 #ifndef __I8257__
 #define __I8257__
 
-#include "emu.h"
-
+#include "devlegcy.h"
 
 
 /***************************************************************************
-    DEVICE CONFIGURATION MACROS
+    MACROS / CONSTANTS
 ***************************************************************************/
 
-#define MCFG_I8257_ADD(_tag, _clock, _config) \
-	MCFG_DEVICE_ADD(_tag, I8257, _clock) \
-	MCFG_DEVICE_CONFIG(_config)
+DECLARE_LEGACY_DEVICE(I8257, i8257);
+
+#define MDRV_I8257_ADD(_tag, _clock, _config) \
+	MDRV_DEVICE_ADD(_tag, I8257, _clock) \
+	MDRV_DEVICE_CONFIG(_config)
 
 #define I8257_INTERFACE(_name) \
 	const i8257_interface (_name) =
 
 #define I8257_NUM_CHANNELS		(4)
 
-
 /***************************************************************************
     TYPE DEFINITIONS
 ***************************************************************************/
 
-
-// ======================> i8257_interface
-
-struct i8257_interface
+typedef struct _i8257_interface i8257_interface;
+struct _i8257_interface
 {
-	devcb_write_line	m_out_hrq_cb;
-	devcb_write_line	m_out_tc_cb;
-	devcb_write_line	m_out_mark_cb;
+	devcb_write_line	out_hrq_func;
+	devcb_write_line	out_tc_func;
+	devcb_write_line	out_mark_func;
 
 	/* accessors to main memory */
-	devcb_read8			m_in_memr_cb; // TODO m_in_memr_cb[I8257_NUM_CHANNELS];
-	devcb_write8		m_out_memw_cb; // TODO m_out_memw_cb[I8257_NUM_CHANNELS];
+	devcb_read8			in_memr_func;
+	devcb_write8		out_memw_func;
 
 	/* channel accesors */
-	devcb_read8			m_in_ior_cb[I8257_NUM_CHANNELS];
-	devcb_write8		m_out_iow_cb[I8257_NUM_CHANNELS];
+	devcb_read8			in_ior_func[I8257_NUM_CHANNELS];
+	devcb_write8		out_iow_func[I8257_NUM_CHANNELS];
 };
-
-
-
-// ======================> i8257_device
-
-class i8257_device :  public device_t,
-                      public i8257_interface
-{
-public:
-    // construction/destruction
-    i8257_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock);
-
-	/* register access */
-	UINT8 i8257_r(UINT32 offset);
-	void i8257_w(UINT32 offset, UINT8 data);
-
-	/* data request */
-	void i8257_drq_w(int channel, int state);
-
-protected:
-    // device-level overrides
-    virtual void device_config_complete();
-    virtual void device_start();
-    virtual void device_reset();
-	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr);
-
-private:
-	static const device_timer_id TIMER_OPERATION = 0;
-	static const device_timer_id TIMER_MSBFLIP = 1;
-	static const device_timer_id TIMER_DRQ_SYNC = 2;
-
-	int i8257_do_operation(int channel);
-	void i8257_update_status();
-	void i8257_prepare_msb_flip();
-
-	devcb_resolved_write_line	m_out_hrq_func;
-	devcb_resolved_write_line	m_out_tc_func;
-	devcb_resolved_write_line	m_out_mark_func;
-	devcb_resolved_read8		m_in_memr_func;
-	devcb_resolved_write8		m_out_memw_func;
-	devcb_resolved_read8		m_in_ior_func[I8257_NUM_CHANNELS];
-	devcb_resolved_write8		m_out_iow_func[I8257_NUM_CHANNELS];
-
-	emu_timer *m_timer;
-	emu_timer *m_msbflip_timer;
-
-	UINT16 m_registers[I8257_NUM_CHANNELS*2];
-
-	UINT16 m_address[I8257_NUM_CHANNELS];
-	UINT16 m_count[I8257_NUM_CHANNELS];
-	UINT8  m_rwmode[I8257_NUM_CHANNELS];
-
-	UINT8 m_mode;
-	UINT8 m_rr;
-
-	UINT8 m_msb;
-	UINT8 m_drq;
-
-	/* bits  0- 3 :  Terminal count for channels 0-3 */
-	UINT8 m_status;
-};
-
-
-// device type definition
-extern const device_type I8257;
-
-
 
 /***************************************************************************
     PROTOTYPES

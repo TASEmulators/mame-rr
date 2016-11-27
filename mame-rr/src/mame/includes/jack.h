@@ -4,32 +4,33 @@
 
 *************************************************************************/
 
-class jack_state : public driver_device
+class jack_state
 {
 public:
-	jack_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, jack_state(machine)); }
+
+	jack_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
-	UINT8 *    m_spriteram;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
+	UINT8 *    spriteram;
 //  UINT8 *    paletteram;  // currently this uses generic palette handling
-	size_t     m_spriteram_size;
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
+	tilemap_t    *bg_tilemap;
 
 	/* misc */
-	int m_timer_rate;
-	int m_joinem_snd_bit;
-	int m_question_address;
-	int m_question_rom;
-	int m_remap_address[16];
+	int timer_rate;
+	int joinem_snd_bit;
+	int question_address;
+	int question_rom;
+	int remap_address[16];
 
 
 	/* devices */
-	cpu_device *m_audiocpu;
+	cpu_device *audiocpu;
 };
 
 
@@ -42,8 +43,8 @@ READ8_HANDLER( jack_flipscreen_r );
 WRITE8_HANDLER( jack_flipscreen_w );
 
 VIDEO_START( jack );
-SCREEN_UPDATE( jack );
+VIDEO_UPDATE( jack );
 
 PALETTE_INIT( joinem );
 VIDEO_START( joinem );
-SCREEN_UPDATE( joinem );
+VIDEO_UPDATE( joinem );

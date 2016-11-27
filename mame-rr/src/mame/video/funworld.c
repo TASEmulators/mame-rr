@@ -8,60 +8,58 @@
 
   Games running on this hardware:
 
-  * Jolly Card (Austrian),                            TAB Austria,        1985.
-  * Jolly Card (3x3 deal),                            TAB Austria,        1985.
+  * Jolly Card (austrian),                            TAB-Austria,        1985.
+  * Jolly Card (3x3 deal),                            TAB-Austria,        1985.
   * Jolly Card Professional 2.0 (MZS Tech),           MZS Tech,           1993.
   * Jolly Card Professional 2.0 (Spale Soft),         Spale Soft,         2000.
   * Jolly Card (Evona Electronic),                    Evona Electronic    1998.
-  * Jolly Card (Croatian, set 1),                     TAB Austria,        1985.
-  * Jolly Card (Croatian, set 2),                     Soft Design,        1993.
-  * Jolly Card (Italian, blue TAB board, encrypted),  bootleg,            199?.
-  * Jolly Card (Italian, encrypted bootleg),          bootleg,            1990.
+  * Jolly Card (croatian, set 1),                     TAB-Austria,        1985.
+  * Jolly Card (croatian, set 2),                     Soft Design,        1993.
+  * Jolly Card (italian, blue TAB board, encrypted),  bootleg,            199?.
+  * Jolly Card (italian, encrypted bootleg),          bootleg,            1990.
   * Super Joly 2000 - 3x,                             M.P.                1985.
-  * Jolly Card (Austrian, Funworld, bootleg),         Inter Games,        1986.
-  * Big Deal (Hungarian, set 1),                      Funworld,           1986.
-  * Big Deal (Hungarian, set 2),                      Funworld,           1986.
-  * Jolly Card (Austrian, Funworld),                  Funworld,           1986.
-  * Cuore 1 (Italian),                                C.M.C.,             1996.
-  * Elephant Family (Italian, new),                   C.M.C.,             1997.
-  * Elephant Family (Italian, old),                   C.M.C.,             1996.
-  * Pool 10 (Italian, set 1),                         C.M.C.,             1996.
-  * Pool 10 (Italian, set 2),                         C.M.C.,             1996.
-  * Pool 10 (Italian, set 3),                         C.M.C.,             1996.
-  * Pool 10 (Italian, set 4),                         C.M.C.,             1997.
-  * Tortuga Family (Italian),                         C.M.C.,             1997.
-  * Pot Game (Italian),                               C.M.C.,             1996.
-  * Bottle 10 (Italian, set 1),                       C.M.C.,             1996.
-  * Bottle 10 (Italian, set 2),                       C.M.C.,             1996.
-  * Royal Card (Austrian, set 1),                     TAB Austria,        1991.
-  * Royal Card (Austrian, set 2),                     TAB Austria,        1991.
-  * Royal Card (Austrian/Polish, set 3),              TAB Austria,        1991.
-  * Royal Card (Austrian, set 4),                     TAB Austria,        1991.
-  * Royal Card (Austrian, set 5),                     TAB Austria,        1991.
-  * Royal Card (Austrian, set 6),                     TAB Austria,        1991.
-  * Royal Card (TAB original),                        TAB Austria,        1991.
-  * Royal Card (Slovak, encrypted),                   Evona Electronic,   1991.
+  * Jolly Card (austrian, Funworld, bootleg),         Inter Games,        1986.
+  * Big Deal (hungarian, set 1),                      Funworld,           1986.
+  * Big Deal (hungarian, set 2),                      Funworld,           1986.
+  * Jolly Card (austrian, Funworld),                  Funworld,           1986.
+  * Cuore 1 (italian),                                C.M.C.,             1996.
+  * Elephant Family (italian, new),                   C.M.C.,             1997.
+  * Elephant Family (italian, old),                   C.M.C.,             1996.
+  * Pool 10 (italian, set 1),                         C.M.C.,             1996.
+  * Pool 10 (italian, set 2),                         C.M.C.,             1996.
+  * Pool 10 (italian, set 3),                         C.M.C.,             1996.
+  * Pool 10 (italian, set 4),                         C.M.C.,             1997.
+  * Tortuga Family (italian),                         C.M.C.,             1997.
+  * Pot Game (italian),                               C.M.C.,             1996.
+  * Bottle 10 (italian, set 1),                       C.M.C.,             1996.
+  * Bottle 10 (italian, set 2),                       C.M.C.,             1996.
+  * Royal Card (austrian, set 1),                     TAB-Austria,        1991.
+  * Royal Card (austrian, set 2),                     TAB-Austria,        1991.
+  * Royal Card (austrian/polish, set 3),              TAB-Austria,        1991.
+  * Royal Card (austrian, set 4),                     TAB-Austria,        1991.
+  * Royal Card (austrian, set 5),                     TAB-Austria,        1991.
+  * Royal Card (austrian, set 6),                     TAB-Austria,        1991.
+  * Royal Card (slovak, encrypted),                   Evona Electronic,   1991.
   * Royal Card Professional 2.0,                      Digital Dreams,     1993.
-  * Lucky Lady (3x3 deal),                            TAB Austria,        1991.
-  * Lucky Lady (4x1 aces),                            TAB Austria,        1991.
-  * Magic Card II (Bulgarian),                        Impera,             1996.
-  * Magic Card II (Green TAB or Impera board),        Impera,             1996.
-  * Magic Card II (Blue TAB board, encrypted),        Impera,             1996.
-  * Royal Vegas Joker Card (Slow deal),               Funworld,           1993.
-  * Royal Vegas Joker Card (Fast deal),               Soft Design,        1993.
-  * Royal Vegas Joker Card (Fast deal, english gfx),  Soft Design,        1993.
-  * Royal Vegas Joker Card (Fast deal, Mile),         Mile,               1993.
+  * Lucky Lady (3x3 deal),                            TAB-Austria,        1991.
+  * Lucky Lady (4x1 aces),                            TAB-Austria,        1991.
+  * Magic Card II (bulgarian),                        Impera,             1996.
+  * Magic Card II (green TAB or Impera board),        Impera,             1996.
+  * Magic Card II (blue TAB board, encrypted),        Impera,             1996.
+  * Royal Vegas Joker Card (slow deal),               Funworld,           1993.
+  * Royal Vegas Joker Card (fast deal),               Soft Design,        1993.
+  * Royal Vegas Joker Card (fast deal, english gfx),  Soft Design,        1993.
+  * Royal Vegas Joker Card (fast deal, Mile),         Mile,               1993.
   * Jolly Joker (98bet, set 1).                       Impera,             198?.
   * Jolly Joker (98bet, set 2).                       Impera,             198?.
   * Jolly Joker (40bet, croatian hack),               Impera,             198?.
   * Multi Win (Ver.0167, encrypted),                  Funworld,           1992.
   * Joker Card (Ver.A267BC, encrypted),               Vesely Svet,        1993.
-  * Mongolfier New (Italian),                         bootleg,            199?.
-  * Soccer New (Italian),                             bootleg,            199?.
-  * Saloon (French, encrypted),                       unknown,            199?.
-  * Fun World Quiz (Austrian),                        Funworld,           198?.
-  * Witch Royal (Export version 2.1),                 Video Klein,        199?.
-  * Novo Play Multi Card / Club Card,                 Admiral/Novomatic,  1986.
+  * Mongolfier New (italian),                         bootleg,            199?.
+  * Soccer New (italian),                             bootleg,            199?.
+  * Saloon (french, encrypted),                       unknown,            199?.
+  * Fun World Quiz (austrian),                        Funworld,           198?.
+
 
 ***********************************************************************************
 
@@ -102,7 +100,10 @@
 
 #include "emu.h"
 #include "video/resnet.h"
-#include "includes/funworld.h"
+
+static tilemap_t *bg_tilemap;
+UINT8 *funworld_colorram;
+UINT8 *funworld_videoram;
 
 
 PALETTE_INIT(funworld)
@@ -118,7 +119,7 @@ PALETTE_INIT(funworld)
 			2,	resistances_g,	weights_g,	100,	0);
 
 
-	for (i = 0; i < machine.total_colors(); i++)
+	for (i = 0; i < machine->total_colors(); i++)
 	{
 		int bit0, bit1, bit2, r, g, b;
 
@@ -144,16 +145,14 @@ PALETTE_INIT(funworld)
 
 WRITE8_HANDLER( funworld_videoram_w )
 {
-	funworld_state *state = space->machine().driver_data<funworld_state>();
-	state->m_videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	funworld_videoram[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap, offset);
 }
 
 WRITE8_HANDLER( funworld_colorram_w )
 {
-	funworld_state *state = space->machine().driver_data<funworld_state>();
-	state->m_colorram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	funworld_colorram[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap, offset);
 }
 
 
@@ -167,16 +166,15 @@ WRITE8_HANDLER( funworld_colorram_w )
 
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	funworld_state *state = machine.driver_data<funworld_state>();
 /*  - bits -
     7654 3210
     xxxx ----   tiles color.
     ---- xxxx   unused.
 */
 	int offs = tile_index;
-	int attr = state->m_videoram[offs] + (state->m_colorram[offs] << 8);
+	int attr = funworld_videoram[offs] + (funworld_colorram[offs] << 8);
 	int code = attr & 0xfff;
-	int color = state->m_colorram[offs] >> 4;	// 4 bits for color.
+	int color = funworld_colorram[offs] >> 4;	// 4 bits for color.
 
 	SET_TILE_INFO(0, code, color, 0);
 }
@@ -184,20 +182,17 @@ static TILE_GET_INFO( get_bg_tile_info )
 
 VIDEO_START(funworld)
 {
-	funworld_state *state = machine.driver_data<funworld_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 4, 8, 96, 29);
+	bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 4, 8, 96, 29);
 }
 
 VIDEO_START(magicrd2)
 {
-	funworld_state *state = machine.driver_data<funworld_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 4, 8, 112, 34);
+	bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 4, 8, 112, 34);
 }
 
 
-SCREEN_UPDATE(funworld)
+VIDEO_UPDATE(funworld)
 {
-	funworld_state *state = screen->machine().driver_data<funworld_state>();
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, bg_tilemap, 0, 0);
 	return 0;
 }

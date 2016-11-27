@@ -4,20 +4,21 @@
 
 *************************************************************************/
 
-class gumbo_state : public driver_device
+class gumbo_state
 {
 public:
-	gumbo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, gumbo_state(machine)); }
+
+	gumbo_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_bg_videoram;
-	UINT16 *    m_fg_videoram;
+	UINT16 *    bg_videoram;
+	UINT16 *    fg_videoram;
 //  UINT16 *    paletteram; // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	tilemap_t    *m_fg_tilemap;
+	tilemap_t    *bg_tilemap;
+	tilemap_t    *fg_tilemap;
 };
 
 
@@ -27,4 +28,4 @@ WRITE16_HANDLER( gumbo_bg_videoram_w );
 WRITE16_HANDLER( gumbo_fg_videoram_w );
 
 VIDEO_START( gumbo );
-SCREEN_UPDATE( gumbo );
+VIDEO_UPDATE( gumbo );

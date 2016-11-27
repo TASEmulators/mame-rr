@@ -4,46 +4,44 @@
 
 *************************************************************************/
 
-class moo_state : public driver_device
+class moo_state
 {
 public:
-	moo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, moo_state(machine)); }
+
+	moo_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_workram;
-	UINT16 *    m_spriteram;
-//  UINT16 *    m_paletteram;    // currently this uses generic palette handling
+	UINT16 *    workram;
+	UINT16 *    spriteram;
+//  UINT16 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int         m_sprite_colorbase;
-	int         m_layer_colorbase[4];
-	int         m_layerpri[3];
-	int         m_alpha_enabled;
+	int         sprite_colorbase;
+	int         layer_colorbase[4], layerpri[3];
+	int         alpha_enabled;
 
 	/* misc */
-	int         m_game_type;
-	UINT16      m_protram[16];
-	UINT16      m_cur_control2;
+	int         game_type;
+	UINT16      protram[16];
+	UINT16      cur_control2;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k054539;
-	device_t *m_k053246;
-	device_t *m_k053251;
-	device_t *m_k056832;
-	device_t *m_k054338;
-
-    emu_timer *m_dmaend_timer;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k054539;
+	running_device *k053246;
+	running_device *k053251;
+	running_device *k056832;
+	running_device *k054338;
 };
 
 
 
 /*----------- defined in video/moo.c -----------*/
 
-extern void moo_tile_callback(running_machine &machine, int layer, int *code, int *color, int *flags);
-extern void moo_sprite_callback(running_machine &machine, int *code, int *color, int *priority_mask);
+extern void moo_tile_callback(running_machine *machine, int layer, int *code, int *color, int *flags);
+extern void moo_sprite_callback(running_machine *machine, int *code, int *color, int *priority_mask);
 
 VIDEO_START(moo);
-SCREEN_UPDATE(moo);
+VIDEO_UPDATE(moo);

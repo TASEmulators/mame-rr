@@ -43,7 +43,6 @@
 #include "emu.h"
 
 #include "video/konicdev.h"
-#include "machine/k053252.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/z80/z80.h"
 #include "machine/eeprom.h"
@@ -67,26 +66,26 @@ static const eeprom_interface eeprom_intf =
 
 static READ16_HANDLER( rng_sysregs_r )
 {
-	rungun_state *state = space->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)space->machine->driver_data;
 	UINT16 data = 0;
 
 	switch (offset)
 	{
 		case 0x00/2:
-			if (input_port_read(space->machine(), "DSW") & 0x20)
-				return (input_port_read(space->machine(), "P1") | input_port_read(space->machine(), "P3") << 8);
+			if (input_port_read(space->machine, "DSW") & 0x20)
+				return (input_port_read(space->machine, "P1") | input_port_read(space->machine, "P3") << 8);
 			else
 			{
-				data = input_port_read(space->machine(), "P1") & input_port_read(space->machine(), "P3");
+				data = input_port_read(space->machine, "P1") & input_port_read(space->machine, "P3");
 				return (data << 8 | data);
 			}
 
 		case 0x02/2:
-			if (input_port_read(space->machine(), "DSW") & 0x20)
-				return (input_port_read(space->machine(), "P2") | input_port_read(space->machine(), "P4") << 8);
+			if (input_port_read(space->machine, "DSW") & 0x20)
+				return (input_port_read(space->machine, "P2") | input_port_read(space->machine, "P4") << 8);
 			else
 			{
-				data = input_port_read(space->machine(), "P2") & input_port_read(space->machine(), "P4");
+				data = input_port_read(space->machine, "P2") & input_port_read(space->machine, "P4");
 				return (data << 8 | data);
 			}
 
@@ -96,24 +95,24 @@ static READ16_HANDLER( rng_sysregs_r )
                 bit8 : freeze
                 bit9 : joysticks layout(auto detect???)
             */
-			return input_port_read(space->machine(), "SYSTEM");
+			return input_port_read(space->machine, "SYSTEM");
 
 		case 0x06/2:
 			if (ACCESSING_BITS_0_7)
 			{
-				data = input_port_read(space->machine(), "DSW");
+				data = input_port_read(space->machine, "DSW");
 			}
-			return ((state->m_sysreg[0x06 / 2] & 0xff00) | data);
+			return ((state->sysreg[0x06 / 2] & 0xff00) | data);
 	}
 
-	return state->m_sysreg[offset];
+	return state->sysreg[offset];
 }
 
 static WRITE16_HANDLER( rng_sysregs_w )
 {
-	rungun_state *state = space->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)space->machine->driver_data;
 
-	COMBINE_DATA(state->m_sysreg + offset);
+	COMBINE_DATA(state->sysreg + offset);
 
 	switch (offset)
 	{
@@ -127,10 +126,10 @@ static WRITE16_HANDLER( rng_sysregs_w )
                 bit10 : IRQ5 ACK
             */
 			if (ACCESSING_BITS_0_7)
-				input_port_write(space->machine(), "EEPROMOUT", data, 0xff);
+				input_port_write(space->machine, "EEPROMOUT", data, 0xff);
 
 			if (!(data & 0x40))
-				device_set_input_line(state->m_maincpu, M68K_IRQ_5, CLEAR_LINE);
+				cpu_set_input_line(state->maincpu, M68K_IRQ_5, CLEAR_LINE);
 		break;
 
 		case 0x0c/2:
@@ -140,7 +139,7 @@ static WRITE16_HANDLER( rng_sysregs_w )
                 bit 2 : OBJCHA
                 bit 3 : enable IRQ 5
             */
-			k053246_set_objcha_line(state->m_k055673, (data & 0x04) ? ASSERT_LINE : CLEAR_LINE);
+			k053246_set_objcha_line(state->k055673, (data & 0x04) ? ASSERT_LINE : CLEAR_LINE);
 		break;
 	}
 }
@@ -159,37 +158,37 @@ static WRITE16_HANDLER( sound_cmd2_w )
 
 static WRITE16_HANDLER( sound_irq_w )
 {
-	rungun_state *state = space->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
-		device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+		cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
 static READ16_HANDLER( sound_status_msb_r )
 {
-	rungun_state *state = space->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
-		return(state->m_sound_status << 8);
+		return(state->sound_status << 8);
 
 	return 0;
 }
 
 static INTERRUPT_GEN(rng_interrupt)
 {
-	rungun_state *state = device->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)device->machine->driver_data;
 
-	if (state->m_sysreg[0x0c / 2] & 0x09)
-		device_set_input_line(device, M68K_IRQ_5, ASSERT_LINE);
+	if (state->sysreg[0x0c / 2] & 0x09)
+		cpu_set_input_line(device, M68K_IRQ_5, ASSERT_LINE);
 }
 
-static ADDRESS_MAP_START( rungun_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( rungun_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x2fffff) AM_ROM											// main program + data
 	AM_RANGE(0x300000, 0x3007ff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x380000, 0x39ffff) AM_RAM											// work RAM
 	AM_RANGE(0x400000, 0x43ffff) AM_READNOP	// AM_READ( K053936_0_rom_r )       // '936 ROM readback window
-	AM_RANGE(0x480000, 0x48001f) AM_READWRITE(rng_sysregs_r, rng_sysregs_w) AM_BASE_MEMBER(rungun_state, m_sysreg)
-	AM_RANGE(0x4c0000, 0x4c001f) AM_DEVREADWRITE8("k053252", k053252_r, k053252_w,0x00ff)						// CCU (for scanline and vblank polling)
+	AM_RANGE(0x480000, 0x48001f) AM_READWRITE(rng_sysregs_r, rng_sysregs_w) AM_BASE_MEMBER(rungun_state, sysreg)
+	AM_RANGE(0x4c0000, 0x4c001f) AM_DEVREAD("k053252", k053252_word_r)						// CCU (for scanline and vblank polling)
 	AM_RANGE(0x540000, 0x540001) AM_WRITE(sound_irq_w)
 	AM_RANGE(0x58000c, 0x58000d) AM_WRITE(sound_cmd1_w)
 	AM_RANGE(0x58000e, 0x58000f) AM_WRITE(sound_cmd2_w)
@@ -201,7 +200,7 @@ static ADDRESS_MAP_START( rungun_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x601000, 0x601fff) AM_RAM											// communication? second monitor buffer?
 	AM_RANGE(0x640000, 0x640007) AM_DEVWRITE("k055673", k053246_word_w)						// '246A registers
 	AM_RANGE(0x680000, 0x68001f) AM_DEVWRITE("k053936", k053936_ctrl_w)			// '936 registers
-	AM_RANGE(0x6c0000, 0x6cffff) AM_RAM_WRITE(rng_936_videoram_w) AM_BASE_MEMBER(rungun_state, m_936_videoram)	// PSAC2 ('936) RAM (34v + 35v)
+	AM_RANGE(0x6c0000, 0x6cffff) AM_RAM_WRITE(rng_936_videoram_w) AM_BASE_MEMBER(rungun_state, _936_videoram)	// PSAC2 ('936) RAM (34v + 35v)
 	AM_RANGE(0x700000, 0x7007ff) AM_DEVREADWRITE("k053936", k053936_linectrl_r, k053936_linectrl_w)			// PSAC "Line RAM"
 	AM_RANGE(0x740000, 0x741fff) AM_READWRITE(rng_ttl_ram_r, rng_ttl_ram_w)		// text plane RAM
 	AM_RANGE(0x7c0000, 0x7c0001) AM_WRITENOP									// watchdog
@@ -216,35 +215,35 @@ ADDRESS_MAP_END
 
 static WRITE8_HANDLER( sound_status_w )
 {
-	rungun_state *state = space->machine().driver_data<rungun_state>();
-	state->m_sound_status = data;
+	rungun_state *state = (rungun_state *)space->machine->driver_data;
+	state->sound_status = data;
 }
 
 static WRITE8_HANDLER( z80ctrl_w )
 {
-	rungun_state *state = space->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)space->machine->driver_data;
 
-	state->m_z80_control = data;
+	state->z80_control = data;
 
-	memory_set_bank(space->machine(), "bank2", data & 0x07);
+	memory_set_bank(space->machine, "bank2", data & 0x07);
 
 	if (data & 0x10)
-		device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, CLEAR_LINE);
+		cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, CLEAR_LINE);
 }
 
 static INTERRUPT_GEN(audio_interrupt)
 {
-	rungun_state *state = device->machine().driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)device->machine->driver_data;
 
-	if (state->m_z80_control & 0x80)
+	if (state->z80_control & 0x80)
 		return;
 
-	device_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
+	cpu_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 /* sound (this should be split into audio/xexex.c or pregx.c or so someday) */
 
-static ADDRESS_MAP_START( rungun_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rungun_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank2")
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
@@ -278,7 +277,7 @@ static INPUT_PORTS_START( rng )
 	PORT_BIT( 0x0800, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("DSW")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SPECIAL )	/* EEPROM ready (always 1) */
 	PORT_SERVICE_NO_TOGGLE( 0x08, IP_ACTIVE_LOW )
 	PORT_DIPNAME( 0x10, 0x00, "Monitors" )
@@ -298,9 +297,9 @@ static INPUT_PORTS_START( rng )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START( "EEPROMOUT" )
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, write_bit)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_cs_line)
-	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_clock_line)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_write_bit)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_cs_line)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_clock_line)
 
 	PORT_START("P1")
 	KONAMI8_B123_START(1)
@@ -359,102 +358,96 @@ static const k053247_interface rng_k055673_intf =
 	rng_sprite_callback
 };
 
-static const k053252_interface rng_k053252_intf =
-{
-	"screen",
-	DEVCB_NULL,
-	DEVCB_NULL,
-	DEVCB_NULL,
-	DEVCB_NULL,
-	9*8, 24
-};
 
 static MACHINE_START( rng )
 {
-	rungun_state *state = machine.driver_data<rungun_state>();
-	UINT8 *ROM = machine.region("soundcpu")->base();
+	rungun_state *state = (rungun_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "soundcpu");
 
 	memory_configure_bank(machine, "bank2", 0, 8, &ROM[0x10000], 0x4000);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("soundcpu");
-	state->m_k053936 = machine.device("k053936");
-	state->m_k055673 = machine.device("k055673");
-	state->m_k053252 = machine.device("k053252");
-	state->m_k054539_1 = machine.device("k054539_1");
-	state->m_k054539_2 = machine.device("k054539_2");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("soundcpu");
+	state->k053936 = machine->device("k053936");
+	state->k055673 = machine->device("k055673");
+	state->k053252 = machine->device("k053252");
+	state->k054539_1 = machine->device("k054539_1");
+	state->k054539_2 = machine->device("k054539_2");
 
-	state->save_item(NAME(state->m_z80_control));
-	state->save_item(NAME(state->m_sound_status));
-	state->save_item(NAME(state->m_sysreg));
-	state->save_item(NAME(state->m_ttl_vram));
+	state_save_register_global(machine, state->z80_control);
+	state_save_register_global(machine, state->sound_status);
+	state_save_register_global_array(machine, state->sysreg);
+	state_save_register_global_array(machine, state->ttl_vram);
 }
 
 static MACHINE_RESET( rng )
 {
-	rungun_state *state = machine.driver_data<rungun_state>();
+	rungun_state *state = (rungun_state *)machine->driver_data;
 
-	k054539_init_flags(machine.device("k054539_1"), K054539_REVERSE_STEREO);
+	k054539_init_flags(machine->device("k054539_1"), K054539_REVERSE_STEREO);
 
-	memset(state->m_sysreg, 0, 0x20);
-	memset(state->m_ttl_vram, 0, 0x1000);
+	memset(state->sysreg, 0, 0x20);
+	memset(state->ttl_vram, 0, 0x1000);
 
-	state->m_z80_control = 0;
-	state->m_sound_status = 0;
+	state->z80_control = 0;
+	state->sound_status = 0;
 }
 
-static MACHINE_CONFIG_START( rng, rungun_state )
+static MACHINE_DRIVER_START( rng )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(rungun_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 16000000)
-	MCFG_CPU_PROGRAM_MAP(rungun_map)
-	MCFG_CPU_VBLANK_INT("screen", rng_interrupt)
+	MDRV_CPU_ADD("maincpu", M68000, 16000000)
+	MDRV_CPU_PROGRAM_MAP(rungun_map)
+	MDRV_CPU_VBLANK_INT("screen", rng_interrupt)
 
-	MCFG_CPU_ADD("soundcpu", Z80, 10000000) // 8Mhz (10Mhz is much safer in self-test due to heavy sync)
-	MCFG_CPU_PROGRAM_MAP(rungun_sound_map)
-	MCFG_CPU_PERIODIC_INT(audio_interrupt, 480)
+	MDRV_CPU_ADD("soundcpu", Z80, 10000000) // 8Mhz (10Mhz is much safer in self-test due to heavy sync)
+	MDRV_CPU_PROGRAM_MAP(rungun_sound_map)
+	MDRV_CPU_PERIODIC_INT(audio_interrupt, 480)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) // higher if sound stutters
+	MDRV_QUANTUM_TIME(HZ(6000)) // higher if sound stutters
 
-	MCFG_GFXDECODE(rungun)
+	MDRV_GFXDECODE(rungun)
 
-	MCFG_MACHINE_START(rng)
-	MCFG_MACHINE_RESET(rng)
+	MDRV_MACHINE_START(rng)
+	MDRV_MACHINE_RESET(rng)
 
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS | VIDEO_HAS_HIGHLIGHTS | VIDEO_UPDATE_BEFORE_VBLANK)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS | VIDEO_HAS_HIGHLIGHTS | VIDEO_UPDATE_BEFORE_VBLANK)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(88, 88+384-1, 24, 24+224-1)
-	MCFG_SCREEN_UPDATE(rng)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(88, 88+384-1, 24, 24+224-1)
 
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(rng)
+	MDRV_VIDEO_START(rng)
+	MDRV_VIDEO_UPDATE(rng)
 
-	MCFG_K053936_ADD("k053936", rng_k053936_intf)
-	MCFG_K055673_ADD("k055673", rng_k055673_intf)
-	MCFG_K053252_ADD("k053252", 16000000/2, rng_k053252_intf)
+	MDRV_K053936_ADD("k053936", rng_k053936_intf)
+	MDRV_K055673_ADD("k055673", rng_k055673_intf)
+	MDRV_K053252_ADD("k053252")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("k054539_1", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("k054539_1", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
-	MCFG_SOUND_ADD("k054539_2", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("k054539_2", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 ROM_START( rungun )

@@ -106,27 +106,13 @@ Sound processor - 6502
 #include "sound/ay8910.h"
 #include "machine/laserdsc.h"
 
+static UINT8 vram_bank;
+static running_device *laserdisc;
+static UINT8 laserdisc_data;
 
-class deco_ld_state : public driver_device
+static VIDEO_UPDATE( rblaster )
 {
-public:
-	deco_ld_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_videoram;
-	UINT8 m_vram_bank;
-	device_t *m_laserdisc;
-	UINT8 m_laserdisc_data;
-	int m_nmimask;
-};
-
-
-
-static SCREEN_UPDATE( rblaster )
-{
-	deco_ld_state *state = screen->machine().driver_data<deco_ld_state>();
-	UINT8 *videoram = state->m_videoram;
-	const gfx_element *gfx = screen->machine().gfx[0];
+	const gfx_element *gfx = screen->machine->gfx[0];
 	int count = 0x0000;
 
 	int y,x;
@@ -135,8 +121,8 @@ static SCREEN_UPDATE( rblaster )
 	{
 		for (x=0;x<32;x++)
 		{
-			int tile = videoram[count];
-			int colour = (state->m_vram_bank & 0x7);
+			int tile = screen->machine->generic.videoram.u8[count];
+			int colour = (vram_bank & 0x7);
 			drawgfx_opaque(bitmap,cliprect,gfx,tile,colour,0,0,x*8,y*8);
 
 			count++;
@@ -150,37 +136,34 @@ static SCREEN_UPDATE( rblaster )
 static WRITE8_HANDLER( rblaster_sound_w )
 {
 	soundlatch_w(space,0,data);
-	device_set_input_line(space->machine().cpu[1], 0, HOLD_LINE);
+	cpu_set_input_line(space->machine->cpu[1], 0, HOLD_LINE);
 }
 #endif
 
 static WRITE8_HANDLER( rblaster_vram_bank_w )
 {
-	deco_ld_state *state = space->machine().driver_data<deco_ld_state>();
-	state->m_vram_bank = data;
+	vram_bank = data;
 }
 
 static READ8_HANDLER( laserdisc_r )
 {
-	deco_ld_state *state = space->machine().driver_data<deco_ld_state>();
-	UINT8 result = laserdisc_data_r(state->m_laserdisc);
-//  mame_printf_debug("laserdisc_r = %02X\n", result);
+	UINT8 result = laserdisc_data_r(laserdisc);
+	mame_printf_debug("laserdisc_r = %02X\n", result);
 	return result;
 }
 
 
 static WRITE8_HANDLER( laserdisc_w )
 {
-	deco_ld_state *state = space->machine().driver_data<deco_ld_state>();
-	state->m_laserdisc_data = data;
+	laserdisc_data = data;
 }
 
 static READ8_HANDLER( test_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
-static ADDRESS_MAP_START( begas_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( begas_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_RAM
 //  AM_RANGE(0x1000, 0x1007) AM_NOP
 	AM_RANGE(0x1000, 0x1000) AM_READ(test_r)
@@ -194,12 +177,12 @@ static ADDRESS_MAP_START( begas_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1007, 0x1007) AM_READWRITE(laserdisc_r,laserdisc_w) // ld data
 	AM_RANGE(0x1800, 0x1fff) AM_RAM_WRITE(paletteram_RRRGGGBB_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x2000, 0x27ff) AM_RAM
-	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_BASE_MEMBER(deco_ld_state, m_videoram)
+	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_BASE_GENERIC(videoram)
 	AM_RANGE(0x3000, 0x3fff) AM_RAM
 	AM_RANGE(0x4000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cobra_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cobra_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_RAM
 	AM_RANGE(0x1000, 0x1000) AM_READ_PORT("IN1")
 	AM_RANGE(0x1001, 0x1001) AM_READ(test_r)//_PORT("IN2")
@@ -213,12 +196,12 @@ static ADDRESS_MAP_START( cobra_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1800, 0x1fff) AM_RAM_WRITE(paletteram_RRRGGGBB_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x2000, 0x2fff) AM_RAM
 	AM_RANGE(0x3000, 0x37ff) AM_RAM //vram attr?
-	AM_RANGE(0x3800, 0x3fff) AM_RAM AM_BASE_MEMBER(deco_ld_state, m_videoram)
+	AM_RANGE(0x3800, 0x3fff) AM_RAM AM_BASE_GENERIC(videoram)
 	AM_RANGE(0x4000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( rblaster_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rblaster_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_RAM
 //  AM_RANGE(0x1000, 0x1007) AM_NOP
 	AM_RANGE(0x1001, 0x1001) AM_WRITENOP //???
@@ -227,29 +210,20 @@ static ADDRESS_MAP_START( rblaster_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1006, 0x1006) AM_NOP //ld status / command
 	AM_RANGE(0x1007, 0x1007) AM_READWRITE(laserdisc_r,laserdisc_w) // ld data
 	AM_RANGE(0x1800, 0x1fff) AM_RAM_WRITE(paletteram_RRRGGGBB_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_BASE_MEMBER(deco_ld_state, m_videoram)
+	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_BASE_GENERIC(videoram)
 	AM_RANGE(0x3000, 0x3fff) AM_RAM
 	AM_RANGE(0xc000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
 /* sound arrangement is pratically identical to Zero Target. */
+static int nmimask;
 
-#ifdef UNUSED_FUNCTION
-static WRITE8_HANDLER( nmimask_w )
-{
-	deco_ld_state *state = space->machine().driver_data<deco_ld_state>();
-	state->m_nmimask = data & 0x80;
-}
-#endif
+//static WRITE8_HANDLER( nmimask_w ) { nmimask = data & 0x80; }
 
-static INTERRUPT_GEN ( sound_interrupt )
-{
-	deco_ld_state *state = device->machine().driver_data<deco_ld_state>();
-	if (!state->m_nmimask) device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
-}
+static INTERRUPT_GEN ( sound_interrupt ) { if (!nmimask) cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE); }
 
 
-static ADDRESS_MAP_START( rblaster_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rblaster_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x01ff) AM_RAM
 	AM_RANGE(0x2000, 0x2000) AM_DEVWRITE("ay1", ay8910_data_w)
 	AM_RANGE(0x4000, 0x4000) AM_DEVWRITE("ay1", ay8910_address_w)
@@ -261,7 +235,7 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( cobra )
 	PORT_START("IN0")
-	PORT_DIPNAME( 0x01, 0x00, "SYS0" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -285,7 +259,7 @@ static INPUT_PORTS_START( cobra )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_VBLANK )
 
 	PORT_START("IN1")
-	PORT_DIPNAME( 0x01, 0x00, "SYS1" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -311,7 +285,7 @@ static INPUT_PORTS_START( cobra )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN2")
-	PORT_DIPNAME( 0x01, 0x00, "SYS2" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -337,7 +311,7 @@ static INPUT_PORTS_START( cobra )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN3")
-	PORT_DIPNAME( 0x01, 0x00, "SYS3" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -363,7 +337,7 @@ static INPUT_PORTS_START( cobra )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN4")
-	PORT_DIPNAME( 0x01, 0x00, "SYS4" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -389,7 +363,7 @@ static INPUT_PORTS_START( cobra )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN5")
-	PORT_DIPNAME( 0x01, 0x00, "SYS5" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -417,7 +391,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( rblaster )
 	PORT_START("IN0")
-	PORT_DIPNAME( 0x01, 0x00, "SYS0" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -441,7 +415,7 @@ static INPUT_PORTS_START( rblaster )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_VBLANK )
 
 	PORT_START("IN1")
-	PORT_DIPNAME( 0x01, 0x00, "SYS1" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -467,7 +441,7 @@ static INPUT_PORTS_START( rblaster )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("IN2")
-	PORT_DIPNAME( 0x01, 0x00, "SYS2" )
+	PORT_DIPNAME( 0x01, 0x00, "SYSA" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Unknown ) )
@@ -510,56 +484,57 @@ GFXDECODE_END
 
 static MACHINE_START( rblaster )
 {
-	deco_ld_state *state = machine.driver_data<deco_ld_state>();
-	state->m_laserdisc = machine.device("laserdisc");
+	laserdisc = machine->device("laserdisc");
 }
 
-static MACHINE_CONFIG_START( rblaster, deco_ld_state )
+static MACHINE_DRIVER_START( rblaster )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu",M6502,8000000/2)
-	MCFG_CPU_PROGRAM_MAP(rblaster_map)
-//  MCFG_CPU_VBLANK_INT("screen",irq0_line_hold)
-	MCFG_CPU_VBLANK_INT("screen",nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu",M6502,8000000/2)
+	MDRV_CPU_PROGRAM_MAP(rblaster_map)
+//  MDRV_CPU_VBLANK_INT("screen",irq0_line_hold)
+	MDRV_CPU_VBLANK_INT("screen",nmi_line_pulse)
 
-	MCFG_CPU_ADD("audiocpu",M6502,8000000/2)
-	MCFG_CPU_PROGRAM_MAP(rblaster_sound_map)
-//  MCFG_CPU_VBLANK_INT("screen",irq0_line_hold) //test
-	MCFG_CPU_PERIODIC_INT(sound_interrupt, 640)
+	MDRV_CPU_ADD("audiocpu",M6502,8000000/2)
+	MDRV_CPU_PROGRAM_MAP(rblaster_sound_map)
+//  MDRV_CPU_VBLANK_INT("screen",irq0_line_hold) //test
+	MDRV_CPU_PERIODIC_INT(sound_interrupt, 640)
 
-	MCFG_LASERDISC_ADD("laserdisc", PIONEER_LDV1000, "screen", "ldsound") //Sony LDP-1000A, is it truly compatible with the Pioneer?
-	MCFG_LASERDISC_OVERLAY(rblaster, 256, 256, BITMAP_FORMAT_INDEXED16)
+	MDRV_LASERDISC_ADD("laserdisc", PIONEER_LDV1000, "screen", "ldsound") //Sony LDP-1000A, is it truly compatible with the Pioneer?
+	MDRV_LASERDISC_OVERLAY(rblaster, 256, 256, BITMAP_FORMAT_INDEXED16)
 
 	/* video hardware */
-	MCFG_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
-	MCFG_GFXDECODE(rblaster)
-	MCFG_PALETTE_LENGTH(512)
-	MCFG_MACHINE_START(rblaster)
+	MDRV_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
+	MDRV_GFXDECODE(rblaster)
+	MDRV_PALETTE_LENGTH(512)
+	MDRV_MACHINE_START(rblaster)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-	MCFG_SOUND_ADD("ay1", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SOUND_ADD("ay1", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
+	MDRV_SOUND_ADD("ay2", AY8910, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
 
-	MCFG_SOUND_ADD("ldsound", LASERDISC_SOUND, 0)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ldsound", LASERDISC, 0)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( begas, rblaster )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(begas_map)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( begas )
+	MDRV_IMPORT_FROM( rblaster )
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(begas_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( cobra, rblaster )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(cobra_map)
+static MACHINE_DRIVER_START( cobra )
+	MDRV_IMPORT_FROM( rblaster )
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(cobra_map)
 
-	MCFG_DEVICE_REMOVE("audiocpu")
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("audiocpu")
+MACHINE_DRIVER_END
 
 /***************************************************************************
 

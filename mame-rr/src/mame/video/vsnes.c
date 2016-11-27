@@ -14,14 +14,14 @@ PALETTE_INIT( vsdual )
 	ppu2c0x_init_palette_rgb(machine, 8*4*16 );
 }
 
-static void ppu_irq_1( device_t *device, int *ppu_regs )
+static void ppu_irq_1( running_device *device, int *ppu_regs )
 {
-	cputag_set_input_line(device->machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE );
+	cputag_set_input_line(device->machine, "maincpu", INPUT_LINE_NMI, PULSE_LINE );
 }
 
-static void ppu_irq_2( device_t *device, int *ppu_regs )
+static void ppu_irq_2( running_device *device, int *ppu_regs )
 {
-	cputag_set_input_line(device->machine(), "sub", INPUT_LINE_NMI, PULSE_LINE );
+	cputag_set_input_line(device->machine, "sub", INPUT_LINE_NMI, PULSE_LINE );
 }
 
 /* our ppu interface                                            */
@@ -55,16 +55,24 @@ VIDEO_START( vsdual )
   Display refresh
 
 ***************************************************************************/
-SCREEN_UPDATE( vsnes )
+VIDEO_UPDATE( vsnes )
 {
 	/* render the ppu */
-	ppu2c0x_render( screen->machine().device("ppu1"), bitmap, 0, 0, 0, 0 );
+	ppu2c0x_render( screen->machine->device("ppu1"), bitmap, 0, 0, 0, 0 );
 	return 0;
 }
 
 
-SCREEN_UPDATE( vsnes_bottom )
+VIDEO_UPDATE( vsdual )
 {
-	ppu2c0x_render(screen->machine().device("ppu2"), bitmap, 0, 0, 0, 0);
+	running_device *top_screen = screen->machine->device("top");
+	running_device *bottom_screen = screen->machine->device("bottom");
+
+	/* render the ppu's */
+	if (screen == top_screen)
+		ppu2c0x_render(screen->machine->device("ppu1"), bitmap, 0, 0, 0, 0);
+	else if (screen == bottom_screen)
+		ppu2c0x_render(screen->machine->device("ppu2"), bitmap, 0, 0, 0, 0);
+
 	return 0;
 }

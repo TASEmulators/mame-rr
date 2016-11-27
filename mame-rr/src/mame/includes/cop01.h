@@ -4,30 +4,29 @@
 
 *************************************************************************/
 
-class cop01_state : public driver_device
+class cop01_state
 {
 public:
-	cop01_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, cop01_state(machine)); }
+
+	cop01_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *        m_bgvideoram;
-	UINT8 *        m_fgvideoram;
-	UINT8 *        m_spriteram;
-	size_t         m_spriteram_size;
+	UINT8 *        bgvideoram;
+	UINT8 *        fgvideoram;
+	UINT8 *        spriteram;
+	size_t         spriteram_size;
 
 	/* video-related */
-	tilemap_t        *m_bg_tilemap;
-	tilemap_t        *m_fg_tilemap;
-	UINT8          m_vreg[4];
+	tilemap_t        *bg_tilemap, *fg_tilemap;
+	UINT8          vreg[4];
 
 	/* sound-related */
-	int            m_pulse;
-	int            m_timer;	// kludge for ym3526 in mightguy
+	int            pulse;
+	int            timer;	// kludge for ym3526 in mightguy
 
 	/* devices */
-	cpu_device *m_maincpu;
-	cpu_device *m_audiocpu;
+	cpu_device *audiocpu;
 };
 
 
@@ -37,7 +36,7 @@ public:
 
 PALETTE_INIT( cop01 );
 VIDEO_START( cop01 );
-SCREEN_UPDATE( cop01 );
+VIDEO_UPDATE( cop01 );
 
 WRITE8_HANDLER( cop01_background_w );
 WRITE8_HANDLER( cop01_foreground_w );

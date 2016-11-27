@@ -4,36 +4,35 @@
 
 *************************************************************************/
 
-class rungun_state : public driver_device
+class rungun_state
 {
 public:
-	rungun_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, rungun_state(machine)); }
+
+	rungun_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_936_videoram;
-//  UINT16 *    m_paletteram;    // currently this uses generic palette handling
+	UINT16 *    _936_videoram;
+//  UINT16 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t   *m_ttl_tilemap;
-	tilemap_t   *m_936_tilemap;
-	UINT16      m_ttl_vram[0x1000];
-	int         m_ttl_gfx_index;
-	int         m_sprite_colorbase;
+	tilemap_t   *ttl_tilemap, *_936_tilemap;
+	UINT16      ttl_vram[0x1000];
+	int         ttl_gfx_index, sprite_colorbase;
 
 	/* misc */
-	UINT16      m_sysreg[0x20];
-	int         m_z80_control;
-	int         m_sound_status;
+	UINT16      sysreg[0x20];
+	int         z80_control;
+	int         sound_status;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k054539_1;
-	device_t *m_k054539_2;
-	device_t *m_k053936;
-	device_t *m_k055673;
-	device_t *m_k053252;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k054539_1;
+	running_device *k054539_2;
+	running_device *k053936;
+	running_device *k055673;
+	running_device *k053252;
 };
 
 
@@ -41,11 +40,11 @@ public:
 
 /*----------- defined in video/rungun.c -----------*/
 
-extern void rng_sprite_callback(running_machine &machine, int *code, int *color, int *priority_mask);
+extern void rng_sprite_callback(running_machine *machine, int *code, int *color, int *priority_mask);
 
 READ16_HANDLER( rng_ttl_ram_r );
 WRITE16_HANDLER( rng_ttl_ram_w );
 WRITE16_HANDLER( rng_936_videoram_w );
 
 VIDEO_START( rng );
-SCREEN_UPDATE( rng );
+VIDEO_UPDATE( rng );

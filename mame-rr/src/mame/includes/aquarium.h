@@ -1,31 +1,30 @@
 
 
 
-class aquarium_state : public driver_device
+class aquarium_state
 {
 public:
-	aquarium_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, aquarium_state(machine)); }
+
+	aquarium_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_scroll;
-	UINT16 *  m_txt_videoram;
-	UINT16 *  m_mid_videoram;
-	UINT16 *  m_bak_videoram;
-	UINT16 *  m_spriteram;
-//  UINT16 *  m_paletteram;   // currently this uses generic palette handling
-	size_t    m_spriteram_size;
+	UINT16 *  scroll;
+	UINT16 *  txt_videoram;
+	UINT16 *  mid_videoram;
+	UINT16 *  bak_videoram;
+	UINT16 *  spriteram;
+//  UINT16 *  paletteram;   // currently this uses generic palette handling
+	size_t    spriteram_size;
 
 	/* video-related */
-	tilemap_t  *m_txt_tilemap;
-	tilemap_t  *m_mid_tilemap;
-	tilemap_t  *m_bak_tilemap;
+	tilemap_t  *txt_tilemap, *mid_tilemap, *bak_tilemap;
 
 	/* misc */
-	int m_aquarium_snd_ack;
+	int aquarium_snd_ack;
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -36,4 +35,4 @@ WRITE16_HANDLER( aquarium_mid_videoram_w );
 WRITE16_HANDLER( aquarium_bak_videoram_w );
 
 VIDEO_START(aquarium);
-SCREEN_UPDATE(aquarium);
+VIDEO_UPDATE(aquarium);

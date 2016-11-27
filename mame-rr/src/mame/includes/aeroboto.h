@@ -4,47 +4,45 @@
 
 ***************************************************************************/
 
-class aeroboto_state : public driver_device
+class aeroboto_state
 {
 public:
-	aeroboto_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, aeroboto_state(machine)); }
+
+	aeroboto_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_mainram;
-	UINT8 * m_spriteram;
-	UINT8 * m_videoram;
-	UINT8 * m_hscroll;
-	UINT8 * m_vscroll;
-	UINT8 * m_tilecolor;
-	UINT8 * m_starx;
-	UINT8 * m_stary;
-	UINT8 * m_bgcolor;
-	size_t  m_spriteram_size;
+	UINT8 * mainram;
+	UINT8 * spriteram;
+	UINT8 * videoram;
+	UINT8 * hscroll;
+	UINT8 * vscroll;
+	UINT8 * tilecolor;
+	UINT8 * starx;
+	UINT8 * stary;
+	UINT8 * bgcolor;
+	size_t  spriteram_size;
 
 	/* stars layout */
-	UINT8 * m_stars_rom;
-	int     m_stars_length;
+	UINT8 * stars_rom;
+	int     stars_length;
 
 	/* video-related */
-	tilemap_t *m_bg_tilemap;
-	int     m_charbank;
-	int     m_starsoff;
-	int     m_sx;
-	int     m_sy;
-	UINT8   m_ox;
-	UINT8   m_oy;
+	tilemap_t *bg_tilemap;
+	int     charbank, starsoff;
+	int     sx, sy;
+	UINT8   ox, oy;
 
 	/* misc */
-	int m_count;
-	int m_disable_irq;
+	int count;
+	int disable_irq;
 };
 
 
 /*----------- defined in video/aeroboto.c -----------*/
 
 VIDEO_START( aeroboto );
-SCREEN_UPDATE( aeroboto );
+VIDEO_UPDATE( aeroboto );
 
 READ8_HANDLER( aeroboto_in0_r );
 WRITE8_HANDLER( aeroboto_3000_w );

@@ -6,7 +6,6 @@
 
 #include "emu.h"
 #include "machine/atarigen.h"
-#include "video/atarimo.h"
 #include "includes/blstroid.h"
 
 
@@ -19,8 +18,8 @@
 
 static TILE_GET_INFO( get_playfield_tile_info )
 {
-	blstroid_state *state = machine.driver_data<blstroid_state>();
-	UINT16 data = state->m_playfield[tile_index];
+	blstroid_state *state = (blstroid_state *)machine->driver_data;
+	UINT16 data = state->atarigen.playfield[tile_index];
 	int code = data & 0x1fff;
 	int color = (data >> 13) & 0x07;
 	SET_TILE_INFO(0, code, color, 0);
@@ -72,10 +71,10 @@ VIDEO_START( blstroid )
 		0,					/* resulting value to indicate "special" */
 		0					/* callback routine for special entries */
 	};
-	blstroid_state *state = machine.driver_data<blstroid_state>();
+	blstroid_state *state = (blstroid_state *)machine->driver_data;
 
 	/* initialize the playfield */
-	state->m_playfield_tilemap = tilemap_create(machine, get_playfield_tile_info, tilemap_scan_rows,  16,8, 64,64);
+	state->atarigen.playfield_tilemap = tilemap_create(machine, get_playfield_tile_info, tilemap_scan_rows,  16,8, 64,64);
 
 	/* initialize the motion objects */
 	atarimo_init(machine, 0, &modesc);
@@ -91,7 +90,7 @@ VIDEO_START( blstroid )
 
 static TIMER_CALLBACK( irq_off )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
 	/* clear the interrupt */
 	atarigen_scanline_int_ack_w(space, 0, 0, 0xffff);
@@ -101,19 +100,19 @@ static TIMER_CALLBACK( irq_off )
 static TIMER_CALLBACK( irq_on )
 {
 	/* generate the interrupt */
-	atarigen_scanline_int_gen(machine.device("maincpu"));
+	atarigen_scanline_int_gen(machine->device("maincpu"));
 	atarigen_update_interrupts(machine);
 }
 
 
 void blstroid_scanline_update(screen_device &screen, int scanline)
 {
-	blstroid_state *state = screen.machine().driver_data<blstroid_state>();
+	blstroid_state *state = (blstroid_state *)screen.machine->driver_data;
 	int offset = (scanline / 8) * 64 + 40;
 
 	/* check for interrupts */
 	if (offset < 0x1000)
-		if (state->m_playfield[offset] & 0x8000)
+		if (state->atarigen.playfield[offset] & 0x8000)
 		{
 			int width, vpos;
 			attotime period_on;
@@ -131,8 +130,8 @@ void blstroid_scanline_update(screen_device &screen, int scanline)
 			period_on  = screen.time_until_pos(vpos + 7, width * 0.9);
 			period_off = screen.time_until_pos(vpos + 8, width * 0.9);
 
-			screen.machine().scheduler().timer_set(period_on, FUNC(irq_on));
-			screen.machine().scheduler().timer_set(period_off, FUNC(irq_off));
+			timer_set(screen.machine, period_on, NULL,  0, irq_on);
+			timer_set(screen.machine, period_off, NULL, 0, irq_off);
 		}
 }
 
@@ -144,15 +143,15 @@ void blstroid_scanline_update(screen_device &screen, int scanline)
  *
  *************************************/
 
-SCREEN_UPDATE( blstroid )
+VIDEO_UPDATE( blstroid )
 {
-	blstroid_state *state = screen->machine().driver_data<blstroid_state>();
+	blstroid_state *state = (blstroid_state *)screen->machine->driver_data;
 	atarimo_rect_list rectlist;
 	bitmap_t *mobitmap;
 	int x, y, r;
 
 	/* draw the playfield */
-	tilemap_draw(bitmap, cliprect, state->m_playfield_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, state->atarigen.playfield_tilemap, 0, 0);
 
 	/* draw and merge the MO */
 	mobitmap = atarimo_render(0, cliprect, &rectlist);
@@ -169,7 +168,7 @@ SCREEN_UPDATE( blstroid )
                         priority address = HPPPMMMM
                     */
 					int priaddr = ((pf[x] & 8) << 4) | (pf[x] & 0x70) | ((mo[x] & 0xf0) >> 4);
-					if (state->m_priorityram[priaddr] & 1)
+					if (state->priorityram[priaddr] & 1)
 						pf[x] = mo[x];
 
 					/* erase behind ourselves */

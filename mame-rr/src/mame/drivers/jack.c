@@ -56,19 +56,19 @@ The 2 ay-8910 read ports are responsible for reading the sound commands.
 
 static READ8_DEVICE_HANDLER( timer_r )
 {
-	jack_state *state = device->machine().driver_data<jack_state>();
+	jack_state *state = (jack_state *)device->machine->driver_data;
 
 	/* wrong! there should be no need for timer_rate, the same function */
 	/* should work for both games */
-	return state->m_audiocpu->total_cycles() / state->m_timer_rate;
+	return state->audiocpu->total_cycles() / state->timer_rate;
 }
 
 
 static WRITE8_HANDLER( jack_sh_command_w )
 {
-	jack_state *state = space->machine().driver_data<jack_state>();
+	jack_state *state = (jack_state *)space->machine->driver_data;
 	soundlatch_w(space, 0, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
 
@@ -76,17 +76,17 @@ static WRITE8_HANDLER( jack_sh_command_w )
 
 static WRITE8_HANDLER( joinem_misc_w )
 {
-	jack_state *state = space->machine().driver_data<jack_state>();
-	flip_screen_set(space->machine(), data & 0x80);
-	state->m_joinem_snd_bit = data & 1;
+	jack_state *state = (jack_state *)space->machine->driver_data;
+	flip_screen_set(space->machine, data & 0x80);
+	state->joinem_snd_bit = data & 1;
 }
 
 static CUSTOM_INPUT( sound_check_r )
 {
-	jack_state *state = field.machine().driver_data<jack_state>();
+	jack_state *state = (jack_state *)field->port->machine->driver_data;
 	UINT8 ret = 0;
 
-	if ((input_port_read(field.machine(), "IN2") & 0x80) && !state->m_joinem_snd_bit)
+	if ((input_port_read(field->port->machine, "IN2") & 0x80) && !state->joinem_snd_bit)
 		ret = 1;
 
 	return ret;
@@ -98,32 +98,32 @@ static CUSTOM_INPUT( sound_check_r )
 
 static READ8_HANDLER( striv_question_r )
 {
-	jack_state *state = space->machine().driver_data<jack_state>();
+	jack_state *state = (jack_state *)space->machine->driver_data;
 
 	// Set-up the remap table for every 16 bytes
 	if ((offset & 0xc00) == 0x800)
 	{
-		state->m_remap_address[offset & 0x0f] = (offset & 0xf0) >> 4;
+		state->remap_address[offset & 0x0f] = (offset & 0xf0) >> 4;
 	}
 	// Select which rom to read and the high 5 bits of address
 	else if ((offset & 0xc00) == 0xc00)
 	{
-		state->m_question_rom = offset & 7;
-		state->m_question_address = (offset & 0xf8) << 7;
+		state->question_rom = offset & 7;
+		state->question_address = (offset & 0xf8) << 7;
 	}
 	// Read the actual byte from question roms
 	else
 	{
-		UINT8 *ROM = space->machine().region("user1")->base();
+		UINT8 *ROM = memory_region(space->machine, "user1");
 		int real_address;
 
-		real_address = state->m_question_address | (offset & 0x3f0) | state->m_remap_address[offset & 0x0f];
+		real_address = state->question_address | (offset & 0x3f0) | state->remap_address[offset & 0x0f];
 
 		// Check if it wants to read from the upper 8 roms or not
 		if (offset & 0x400)
-			real_address |= 0x8000 * (state->m_question_rom + 8);
+			real_address |= 0x8000 * (state->question_rom + 8);
 		else
-			real_address |= 0x8000 * state->m_question_rom;
+			real_address |= 0x8000 * state->question_rom;
 
 		return ROM[real_address];
 	}
@@ -137,10 +137,10 @@ static READ8_HANDLER( striv_question_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( jack_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( jack_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x5fff) AM_RAM
-	AM_RANGE(0xb000, 0xb07f) AM_RAM AM_BASE_SIZE_MEMBER(jack_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xb000, 0xb07f) AM_RAM AM_BASE_SIZE_MEMBER(jack_state, spriteram, spriteram_size)
 	AM_RANGE(0xb400, 0xb400) AM_WRITE(jack_sh_command_w)
 	AM_RANGE(0xb500, 0xb500) AM_READ_PORT("DSW1")
 	AM_RANGE(0xb501, 0xb501) AM_READ_PORT("DSW2")
@@ -150,15 +150,15 @@ static ADDRESS_MAP_START( jack_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xb505, 0xb505) AM_READ_PORT("IN3")
 	AM_RANGE(0xb506, 0xb507) AM_READWRITE(jack_flipscreen_r, jack_flipscreen_w)
 	AM_RANGE(0xb600, 0xb61f) AM_WRITE(jack_paletteram_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0xb800, 0xbbff) AM_RAM_WRITE(jack_videoram_w) AM_BASE_MEMBER(jack_state, m_videoram)
-	AM_RANGE(0xbc00, 0xbfff) AM_RAM_WRITE(jack_colorram_w) AM_BASE_MEMBER(jack_state, m_colorram)
+	AM_RANGE(0xb800, 0xbbff) AM_RAM_WRITE(jack_videoram_w) AM_BASE_MEMBER(jack_state, videoram)
+	AM_RANGE(0xbc00, 0xbfff) AM_RAM_WRITE(jack_colorram_w) AM_BASE_MEMBER(jack_state, colorram)
 	AM_RANGE(0xc000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( joinem_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( joinem_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
-	AM_RANGE(0xb000, 0xb0ff) AM_RAM AM_BASE_SIZE_MEMBER(jack_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xb000, 0xb0ff) AM_RAM AM_BASE_SIZE_MEMBER(jack_state, spriteram, spriteram_size)
 	AM_RANGE(0xb400, 0xb400) AM_WRITE(jack_sh_command_w)
 	AM_RANGE(0xb500, 0xb500) AM_READ_PORT("DSW1")
 	AM_RANGE(0xb501, 0xb501) AM_READ_PORT("DSW2")
@@ -167,18 +167,18 @@ static ADDRESS_MAP_START( joinem_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xb504, 0xb504) AM_READ_PORT("IN2")
 	AM_RANGE(0xb506, 0xb507) AM_READWRITE(jack_flipscreen_r, jack_flipscreen_w)
 	AM_RANGE(0xb700, 0xb700) AM_WRITE(joinem_misc_w)
-	AM_RANGE(0xb800, 0xbbff) AM_RAM_WRITE(jack_videoram_w) AM_BASE_MEMBER(jack_state, m_videoram)
-	AM_RANGE(0xbc00, 0xbfff) AM_RAM_WRITE(jack_colorram_w) AM_BASE_MEMBER(jack_state, m_colorram)
+	AM_RANGE(0xb800, 0xbbff) AM_RAM_WRITE(jack_videoram_w) AM_BASE_MEMBER(jack_state, videoram)
+	AM_RANGE(0xbc00, 0xbfff) AM_RAM_WRITE(jack_colorram_w) AM_BASE_MEMBER(jack_state, colorram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_RAM
 	AM_RANGE(0x6000, 0x6fff) AM_WRITENOP  /* R/C filter ??? */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x40, 0x40) AM_DEVREADWRITE("aysnd", ay8910_r, ay8910_data_w)
 	AM_RANGE(0x80, 0x80) AM_DEVWRITE("aysnd", ay8910_address_w)
@@ -752,7 +752,7 @@ static const gfx_layout charlayout =
 	8,8,	/* 8*8 characters */
 	RGN_FRAC(1,2),	/* 1024 characters */
 	2,	/* 2 bits per pixel */
-	{ RGN_FRAC(0,2), RGN_FRAC(1,2) },	/* the two bitplanes are separated */
+	{ RGN_FRAC(0,2), RGN_FRAC(1,2) },	/* the two bitplanes are seperated */
 	{ 0, 1, 2, 3, 4, 5, 6, 7 },
 	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8 },
 	8*8	/* every char takes 16 bytes */
@@ -794,119 +794,125 @@ static const ay8910_interface ay8910_config =
 
 static MACHINE_START( jack )
 {
-	jack_state *state = machine.driver_data<jack_state>();
+	jack_state *state = (jack_state *)machine->driver_data;
 
-	state->m_audiocpu = machine.device<cpu_device>("audiocpu");
+	state->audiocpu = machine->device<cpu_device>("audiocpu");
 
-	state->save_item(NAME(state->m_joinem_snd_bit));
-	state->save_item(NAME(state->m_question_address));
-	state->save_item(NAME(state->m_question_rom));
-	state->save_item(NAME(state->m_remap_address));
+	state_save_register_global(machine, state->joinem_snd_bit);
+	state_save_register_global(machine, state->question_address);
+	state_save_register_global(machine, state->question_rom);
+	state_save_register_global_array(machine, state->remap_address);
 }
 
 static MACHINE_RESET( jack )
 {
-	jack_state *state = machine.driver_data<jack_state>();
+	jack_state *state = (jack_state *)machine->driver_data;
 	int i;
 
-	state->m_joinem_snd_bit = 0;
-	state->m_question_address = 0;
-	state->m_question_rom = 0;
+	state->joinem_snd_bit = 0;
+	state->question_address = 0;
+	state->question_rom = 0;
 
 	for (i = 0; i < 16; i++)
-		state->m_remap_address[i] = 0;
+		state->remap_address[i] = 0;
 }
 
-static MACHINE_CONFIG_START( jack, jack_state )
+static MACHINE_DRIVER_START( jack )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(jack_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 18000000/6)	/* 3 MHz */
-	MCFG_CPU_PROGRAM_MAP(jack_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold) /* jack needs 1 or its too fast */
+	MDRV_CPU_ADD("maincpu", Z80, 18000000/6)	/* 3 MHz */
+	MDRV_CPU_PROGRAM_MAP(jack_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold) /* jack needs 1 or its too fast */
 
-	MCFG_CPU_ADD("audiocpu", Z80,18000000/12)	/* 1.5 MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_io_map)
+	MDRV_CPU_ADD("audiocpu", Z80,18000000/12)	/* 1.5 MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_io_map)
 
-	MCFG_MACHINE_START(jack)
-	MCFG_MACHINE_RESET(jack)
+	MDRV_MACHINE_START(jack)
+	MDRV_MACHINE_RESET(jack)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(jack)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(jack)
-	MCFG_PALETTE_LENGTH(32)
+	MDRV_GFXDECODE(jack)
+	MDRV_PALETTE_LENGTH(32)
 
-	MCFG_VIDEO_START(jack)
+	MDRV_VIDEO_START(jack)
+	MDRV_VIDEO_UPDATE(jack)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 18000000/12)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 18000000/12)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( tripool, jack )
+static MACHINE_DRIVER_START( tripool )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,2*60) /* tripool needs 2 or the palette is broken */
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(jack)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2) /* tripool needs 2 or the palette is broken */
+MACHINE_DRIVER_END
 
 static INTERRUPT_GEN( joinem_interrupts )
 {
 	if (cpu_getiloops(device) > 0)
-		device_set_input_line(device, 0, HOLD_LINE);
+		cpu_set_input_line(device, 0, HOLD_LINE);
 	else
 	{
-		if (!(input_port_read(device->machine(), "IN2") & 0x80)) /* TODO: remove me */
-			device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+		if (!(input_port_read(device->machine, "IN2") & 0x80))
+			cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 	}
 }
 
-static MACHINE_CONFIG_DERIVED( joinem, jack )
+static MACHINE_DRIVER_START( joinem )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(joinem_map)
-	MCFG_CPU_VBLANK_INT_HACK(joinem_interrupts,3)
+	MDRV_IMPORT_FROM(jack)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(joinem_map)
+	MDRV_CPU_VBLANK_INT_HACK(joinem_interrupts,3)
 
-	MCFG_GFXDECODE(joinem)
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_GFXDECODE(joinem)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(joinem)
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
 
-	MCFG_PALETTE_INIT(joinem)
-	MCFG_VIDEO_START(joinem)
-MACHINE_CONFIG_END
+	MDRV_PALETTE_INIT(joinem)
+	MDRV_VIDEO_START(joinem)
+	MDRV_VIDEO_UPDATE(joinem)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( loverboy, jack )
+static MACHINE_DRIVER_START( loverboy )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(joinem_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_IMPORT_FROM(jack)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(joinem_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_GFXDECODE(joinem)
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_GFXDECODE(joinem)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(joinem)
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
 
-	MCFG_PALETTE_INIT(joinem)
-	MCFG_VIDEO_START(joinem)
-MACHINE_CONFIG_END
+	MDRV_PALETTE_INIT(joinem)
+	MDRV_VIDEO_START(joinem)
+	MDRV_VIDEO_UPDATE(joinem)
+MACHINE_DRIVER_END
 
 /*************************************
  *
@@ -1303,15 +1309,15 @@ ROM_END
  *
  *************************************/
 
-static void treahunt_decode( running_machine &machine )
+static void treahunt_decode( running_machine *machine )
 {
 	int A;
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	UINT8 *rom = machine.region("maincpu")->base();
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	UINT8 *rom = memory_region(machine, "maincpu");
 	UINT8 *decrypt = auto_alloc_array(machine, UINT8, 0x4000);
 	int data;
 
-	space->set_decrypted_region(0x0000, 0x3fff, decrypt);
+	memory_set_decrypted_region(space, 0x0000, 0x3fff, decrypt);
 
 	/* Thanks to Mike Balfour for helping out with the decryption */
 	for (A = 0; A < 0x4000; A++)
@@ -1350,50 +1356,44 @@ static void treahunt_decode( running_machine &machine )
 
 static DRIVER_INIT( jack )
 {
-	jack_state *state = machine.driver_data<jack_state>();
-	state->m_timer_rate = 128;
+	jack_state *state = (jack_state *)machine->driver_data;
+	state->timer_rate = 128;
 }
 
 static DRIVER_INIT( treahunt )
 {
-	jack_state *state = machine.driver_data<jack_state>();
-	state->m_timer_rate = 128;
+	jack_state *state = (jack_state *)machine->driver_data;
+	state->timer_rate = 128;
 	treahunt_decode(machine);
 }
 
 static DRIVER_INIT( zzyzzyxx )
 {
-	jack_state *state = machine.driver_data<jack_state>();
-	state->m_timer_rate = 16;
+	jack_state *state = (jack_state *)machine->driver_data;
+	state->timer_rate = 16;
 }
 
 static DRIVER_INIT( loverboy )
 {
-	jack_state *state = machine.driver_data<jack_state>();
+	jack_state *state = (jack_state *)machine->driver_data;
 
 	/* this doesn't make sense.. the startup code, and irq0 have jumps to 0..
        I replace the startup jump with another jump to what appears to be
        the start of the game code.
 
-       ToDo: Figure out what's really going on
-       EDIT: this is fun, it's in im0 and trips ei ... my best guess is that
-       there's a protection device enabled at 0xf000-0xf001-0xf002-0xf008 that
-       sends a custom irq (either ld hl,$019d or jp $019d). After the initial
-       code, the protection device is disabled or changes behaviour via
-       writes at 0xf000 and 0xf008. -AS
-       */
-	UINT8 *ROM = machine.region("maincpu")->base();
+       ToDo: Figure out what's really going on */
+	UINT8 *ROM = memory_region(machine, "maincpu");
 	ROM[0x13] = 0x01;
 	ROM[0x12] = 0x9d;
 
-	state->m_timer_rate = 16;
+	state->timer_rate = 16;
 }
 
 
 static DRIVER_INIT( striv )
 {
-	jack_state *state = machine.driver_data<jack_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	jack_state *state = (jack_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 	UINT8 data;
 	int A;
 
@@ -1420,12 +1420,12 @@ static DRIVER_INIT( striv )
 	}
 
 	// Set-up the weirdest questions read ever done
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0xc000, 0xcfff, FUNC(striv_question_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xc000, 0xcfff, 0, 0, striv_question_r);
 
 	// Nop out unused sprites writes
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->nop_write(0xb000, 0xb0ff);
+	memory_nop_write(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xb000, 0xb0ff, 0, 0);
 
-	state->m_timer_rate = 128;
+	state->timer_rate = 128;
 }
 
 /*************************************

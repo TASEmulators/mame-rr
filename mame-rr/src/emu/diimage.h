@@ -46,6 +46,8 @@
 #ifndef __DIIMAGE_H__
 #define __DIIMAGE_H__
 
+#include "pool.h"
+
 //**************************************************************************
 //  TYPE DEFINITIONS
 //**************************************************************************
@@ -111,10 +113,9 @@ typedef int (*device_image_load_func)(device_image_interface &image);
 typedef int (*device_image_create_func)(device_image_interface &image, int format_type, option_resolution *format_options);
 typedef void (*device_image_unload_func)(device_image_interface &image);
 typedef void (*device_image_display_func)(device_image_interface &image);
-typedef void (*device_image_partialhash_func)(hash_collection &, const unsigned char *, unsigned long, const char *);
+typedef void (*device_image_partialhash_func)(char *, const unsigned char *, unsigned long, unsigned int);
 typedef void (*device_image_get_devices_func)(device_image_interface &device);
 typedef bool (*device_image_softlist_load_func)(device_image_interface &image, char *swlist, char *swname, rom_entry *start_entry);
-typedef void (*device_image_display_info_func)(device_image_interface &image);
 
 //**************************************************************************
 //  MACROS
@@ -137,14 +138,51 @@ typedef void (*device_image_display_info_func)(device_image_interface &image);
 #define DEVICE_IMAGE_DISPLAY_NAME(name)     device_image_display_func##name
 #define DEVICE_IMAGE_DISPLAY(name)          void DEVICE_IMAGE_DISPLAY_NAME(name)(device_image_interface &image)
 
-#define DEVICE_IMAGE_DISPLAY_INFO_NAME(name)     device_image_display_info_func##name
-#define DEVICE_IMAGE_DISPLAY_INFO(name)          void DEVICE_IMAGE_DISPLAY_INFO_NAME(name)(device_image_interface &image)
-
 #define DEVICE_IMAGE_GET_DEVICES_NAME(name) device_image_get_devices_##name
 #define DEVICE_IMAGE_GET_DEVICES(name)      void DEVICE_IMAGE_GET_DEVICES_NAME(name)(device_image_interface &image)
 
 #define DEVICE_IMAGE_SOFTLIST_LOAD_NAME(name)        device_softlist_load_##name
 #define DEVICE_IMAGE_SOFTLIST_LOAD(name)             bool DEVICE_IMAGE_SOFTLIST_LOAD_NAME(name)(device_image_interface &image, char *swlist, char *swname, rom_entry *start_entry)
+
+// ======================> device_config_image_interface
+
+// class representing interface-specific configuration image
+class device_config_image_interface : public device_config_interface
+{
+	friend class device_image_interface;
+public:
+	// construction/destruction
+	device_config_image_interface(const machine_config &mconfig, device_config &device);
+	virtual ~device_config_image_interface();
+
+	// public accessors... for now
+	virtual iodevice_t image_type()  const = 0;
+	virtual const char *image_type_name()  const = 0;
+	virtual iodevice_t image_type_direct() const = 0;
+	virtual bool is_readable()  const = 0;
+	virtual bool is_writeable() const = 0;
+	virtual bool is_creatable() const = 0;
+	virtual bool must_be_loaded() const = 0;
+	virtual bool is_reset_on_load() const = 0;
+	virtual bool has_partial_hash() const = 0;
+	virtual const char *image_interface() const = 0;
+	virtual const char *file_extensions() const = 0;
+	virtual const char *instance_name() const = 0;
+	virtual const char *brief_instance_name() const = 0;
+	virtual bool uses_file_extension(const char *file_extension) const = 0;
+	virtual const option_guide *create_option_guide() const = 0;
+	virtual image_device_format *formatlist() const = 0;
+
+	static const char *device_typename(iodevice_t type);
+	static const char *device_brieftypename(iodevice_t type);
+	static iodevice_t device_typeid(const char *name);
+
+	virtual device_image_partialhash_func get_partial_hash() const = 0;
+	virtual void device_compute_hash(char *dest, const void *data, size_t length, unsigned int functions) const;
+protected:
+	static const image_device_type_info *find_device_type(iodevice_t type);
+	static const image_device_type_info m_device_info_array[];
+};
 
 
 
@@ -153,55 +191,47 @@ typedef void (*device_image_display_info_func)(device_image_interface &image);
 // class representing interface-specific live image
 class device_image_interface : public device_interface
 {
+	friend class device_config_image_interface;
 public:
 	// construction/destruction
-	device_image_interface(const machine_config &mconfig, device_t &device);
+	device_image_interface(running_machine &machine, const device_config &config, device_t &device);
 	virtual ~device_image_interface();
 
-	static const char *device_typename(iodevice_t type);
-	static const char *device_brieftypename(iodevice_t type);
-	static iodevice_t device_typeid(const char *name);
+	virtual bool load(const char *path) = 0;
+	virtual bool finish_load() = 0;
+	virtual void unload() = 0;
+	virtual bool load_software(char *swlist, char *swname, rom_entry *entry) = 0;
 
-	virtual void device_compute_hash(hash_collection &hashes, const void *data, size_t length, const char *types) const;
+	virtual int call_load() = 0;
+	virtual bool call_softlist_load(char *swlist, char *swname, rom_entry *start_entry) = 0;
+	virtual int call_create(int format_type, option_resolution *format_options) = 0;
+	virtual void call_unload() = 0;
+	virtual void call_display() = 0;
+	virtual device_image_partialhash_func get_partial_hash() = 0;
+	virtual void call_get_devices() = 0;
+	virtual void *get_device_specific_call() = 0;
 
-	virtual bool call_load() { return FALSE; }
-	virtual bool call_softlist_load(char *swlist, char *swname, rom_entry *start_entry) { return FALSE; }
-	virtual bool call_create(int format_type, option_resolution *format_options) { return FALSE; }
-	virtual void call_unload() { }
-	virtual void call_display() { }
-	virtual void call_display_info() { }
-	virtual void call_get_devices() { }
-	virtual void *get_device_specific_call() { return NULL; }
-	virtual device_image_partialhash_func get_partial_hash() const { return NULL; }
-	virtual iodevice_t image_type()  const = 0;
-	virtual bool is_readable()  const = 0;
-	virtual bool is_writeable() const = 0;
-	virtual bool is_creatable() const = 0;
-	virtual bool must_be_loaded() const = 0;
-	virtual bool is_reset_on_load() const = 0;
-	virtual const char *image_interface() const { return NULL; }
-	virtual const char *file_extensions() const = 0;
-	virtual const option_guide *create_option_guide() const = 0;
+	virtual const image_device_format *device_get_indexed_creatable_format(int index);
+	virtual const image_device_format *device_get_named_creatable_format(const char *format_name);
+	const option_guide *device_get_creation_option_guide() { return m_image_config.create_option_guide(); }
+	const image_device_format *device_get_creatable_formats() { return m_image_config.formatlist(); }
 
-	const image_device_format *device_get_indexed_creatable_format(int index);
-	const image_device_format *device_get_named_creatable_format(const char *format_name);
-	const option_guide *device_get_creation_option_guide() { return create_option_guide(); }
-	const image_device_format *device_get_creatable_formats() { return formatlist(); }
+	virtual bool create(const char *path, const image_device_format *create_format, option_resolution *create_args) = 0;
 
 	const char *error();
 	void seterror(image_error_t err, const char *message);
 	void message(const char *format, ...);
 
-	bool exists() { return m_image_name; }
-	const char *filename() { if (!m_image_name) return NULL; else return m_image_name; }
-	const char *basename() { if (!m_basename) return NULL; else return m_basename; }
-	const char *basename_noext()  { if (!m_basename_noext) return NULL; else return m_basename_noext; }
-	const char *filetype()  { if (!m_filetype) return NULL; else return m_filetype; }
+	bool exists() { return m_name.len() != 0; }
+	const char *filename() { if (m_name.len()==0) return NULL; else return m_name; }
+	const char *basename() { if (m_basename.len()==0) return NULL; else return m_basename; }
+	const char *basename_noext()  { if (m_basename_noext.len()==0) return NULL; else return m_basename_noext; }
+	const char *filetype()  { if (m_filetype.len()==0) return NULL; else return m_filetype; }
 	core_file *image_core_file() { return m_file; }
 	UINT64 length() { check_for_file(); return core_fsize(m_file); }
-	bool is_readonly() { return m_readonly; }
+	bool is_writable() { return m_writeable; }
 	bool has_been_created() { return m_created; }
-	void make_readonly() { m_readonly = true; }
+	void make_readonly() { m_writeable = 0; }
 	UINT32 fread(void *buffer, UINT32 length) { check_for_file(); return core_fread(m_file, buffer, length); }
 	UINT32 fwrite(const void *buffer, UINT32 length) { check_for_file(); return core_fwrite(m_file, buffer, length); }
 	int fseek(INT64 offset, int whence) { check_for_file(); return core_fseek(m_file, offset, whence); }
@@ -211,50 +241,36 @@ public:
 	int image_feof() { check_for_file(); return core_feof(m_file); }
 	void *ptr() {check_for_file(); return (void *) core_fbuffer(m_file); }
 	// configuration access
+	const device_config_image_interface &image_config() const { return m_image_config; }
+
 	void set_init_phase() { m_init_phase = TRUE; }
 
 	const char* longname() { return m_longname; }
 	const char* manufacturer() { return m_manufacturer; }
 	const char* year() { return m_year; }
-	UINT32 supported() { return m_supported; }
+	const char* playable() { return m_playable; }
+	const char* pcb() { return m_pcb; }
+	const char* extrainfo() { return m_extrainfo; }
 
 	const software_info *software_entry() { return m_software_info_ptr; }
-	const software_part *part_entry() { return m_software_part_ptr; }
 
-	void set_working_directory(const char *working_directory) { m_working_directory = working_directory; }
-	const char * working_directory();
+	virtual void set_working_directory(const char *working_directory) { m_working_directory = working_directory; }
+	virtual const char * working_directory();
 
 	UINT8 *get_software_region(const char *tag);
 	UINT32 get_software_region_length(const char *tag);
 	const char *get_feature(const char *feature_name);
 
+	void *image_malloc(size_t size);
+	char *image_strdup(const char *src);
+	void *image_realloc(void *ptr, size_t size);
+	void image_freeptr(void *ptr);
+
 	UINT32 crc();
-	hash_collection& hash() { return m_hash; }
 
 	void battery_load(void *buffer, int length, int fill);
 	void battery_save(const void *buffer, int length);
-
-	const char *image_type_name()  const { return device_typename(image_type()); }
-
-
-
-	const char *instance_name() const { return m_instance_name; }
-	const char *brief_instance_name() const { return m_brief_instance_name; }
-	bool uses_file_extension(const char *file_extension) const;
-	image_device_format *formatlist() const { return m_formatlist; }
-
-	bool load(const char *path);
-	bool finish_load();
-	void unload();
-	bool create(const char *path, const image_device_format *create_format, option_resolution *create_args);
-	bool load_software(char *swlist, char *swname, rom_entry *entry);
 protected:
-	bool load_internal(const char *path, bool is_create, int create_format, option_resolution *create_args);
-	void determine_open_plan(int is_create, UINT32 *open_plan);
-	image_error_t load_image_by_path(UINT32 open_flags, const char *path);
-	void clear();
-	bool is_loaded();
-
 	image_error_t set_image_filename(const char *filename);
 
 	void clear_error();
@@ -265,14 +281,12 @@ protected:
 	bool try_change_working_directory(const char *subdir);
 
 	int read_hash_config(const char *sysname);
-	void run_hash(void (*partialhash)(hash_collection &, const unsigned char *, unsigned long, const char *), hash_collection &hashes, const char *types);
+	void run_hash(void (*partialhash)(char *, const unsigned char *, unsigned long, unsigned int), char *dest, unsigned int hash_functions);
 	void image_checkhash();
-	void update_names();
 	// derived class overrides
 
 	// configuration
-	static const image_device_type_info *find_device_type(iodevice_t type);
-	static const image_device_type_info m_device_info_array[];
+	const device_config_image_interface &m_image_config;	// reference to our device_config_execute_interface
 
     /* error related info */
     image_error_t m_err;
@@ -280,8 +294,8 @@ protected:
 
     /* variables that are only non-zero when an image is mounted */
 	core_file *m_file;
-	emu_file *m_mame_file;
-	astring m_image_name;
+	mame_file *m_mame_file;
+	astring m_name;
 	astring m_basename;
 	astring m_basename_noext;
 	astring m_filetype;
@@ -298,27 +312,22 @@ protected:
 	astring m_longname;
 	astring m_manufacturer;
 	astring m_year;
-	UINT32  m_supported;
+	astring m_playable;
+    astring m_pcb;
+    astring m_extrainfo;
 
     /* flags */
-    bool m_readonly;
+    bool m_writeable;
     bool m_created;
 	bool m_init_phase;
-	bool m_from_swlist;
 
     /* special - used when creating */
     int m_create_format;
     option_resolution *m_create_args;
 
-	hash_collection m_hash;
+	object_pool *m_mempool;
 
-	astring m_brief_instance_name;
-	astring m_instance_name;
-
-    /* creation info */
-    image_device_format *m_formatlist;
-
-	bool m_is_loading;
+	astring m_hash;
 };
 
 

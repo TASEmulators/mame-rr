@@ -65,17 +65,15 @@
 #include "emu.h"
 #include "cpu/s2650/s2650.h"
 #include "sound/sn76477.h"
-#include "sound/s2636.h"
 #include "video/s2636.h"
 #include "video/saa5050.h"
-#include "machine/nvram.h"
 #include "includes/malzak.h"
 
 
 static READ8_HANDLER( fake_VRLE_r )
 {
-	malzak_state *state = space->machine().driver_data<malzak_state>();
-	return (s2636_work_ram_r(state->m_s2636_0, 0xcb) & 0x3f) + (space->machine().primary_screen->vblank() * 0x40);
+	malzak_state *state = (malzak_state *)space->machine->driver_data;
+	return (s2636_work_ram_r(state->s2636_0, 0xcb) & 0x3f) + (space->machine->primary_screen->vblank() * 0x40);
 }
 
 static READ8_HANDLER( s2636_portA_r )
@@ -83,7 +81,7 @@ static READ8_HANDLER( s2636_portA_r )
 	// POT switch position, read from port A of the first S2636
 	// Not sure of the correct values to return, but these should
 	// do based on the game code.
-	switch (input_port_read(space->machine(), "POT"))
+	switch (input_port_read(space->machine, "POT"))
 	{
 		case 0:  // Normal play
 			return 0xf0;
@@ -98,7 +96,7 @@ static READ8_HANDLER( s2636_portA_r )
 	}
 }
 
-static ADDRESS_MAP_START( malzak_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( malzak_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0x7fff)
 	AM_RANGE(0x0000, 0x0bff) AM_ROM
 	AM_RANGE(0x0c00, 0x0fff) AM_ROMBANK("bank1")
@@ -118,7 +116,7 @@ static ADDRESS_MAP_START( malzak_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( malzak2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( malzak2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0x7fff)
 	AM_RANGE(0x0000, 0x0bff) AM_ROM
 	AM_RANGE(0x0c00, 0x0fff) AM_ROMBANK("bank1")
@@ -131,7 +129,7 @@ static ADDRESS_MAP_START( malzak2_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1400, 0x14ff) AM_MIRROR(0x6000) AM_DEVREADWRITE("s2636_0", s2636_work_ram_r, s2636_work_ram_w)
 	AM_RANGE(0x1500, 0x15ff) AM_MIRROR(0x6000) AM_DEVREADWRITE("s2636_1", s2636_work_ram_r, s2636_work_ram_w)
 	AM_RANGE(0x1600, 0x16ff) AM_MIRROR(0x6000) AM_RAM_WRITE(malzak_playfield_w)
-	AM_RANGE(0x1700, 0x17ff) AM_MIRROR(0x6000) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x1700, 0x17ff) AM_MIRROR(0x6000) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x1800, 0x1fff) AM_MIRROR(0x6000) AM_DEVREADWRITE("saa5050", saa5050_videoram_r, saa5050_videoram_w)
 	AM_RANGE(0x2000, 0x2fff) AM_ROM
 	AM_RANGE(0x4000, 0x4fff) AM_ROM
@@ -153,37 +151,37 @@ static WRITE8_HANDLER( port40_w )
 //  Bits 1-3 are all set high upon death, until the game continues
 //  Bit 6 is used only in Malzak II, and is set high after checking
 //        the selected version
-//  logerror("S2650 [0x%04x]: port 0x40 write: 0x%02x\n", cpu_get_pc(space->machine().device("maincpu")), data);
-	memory_set_bank(space->machine(), "bank1", (data & 0x40) >> 6);
+//  logerror("S2650 [0x%04x]: port 0x40 write: 0x%02x\n", cpu_get_pc(space->machine->device("maincpu")), data);
+	memory_set_bank(space->machine, "bank1", (data & 0x40) >> 6);
 }
 
 static WRITE8_HANDLER( port60_w )
 {
-	malzak_state *state = space->machine().driver_data<malzak_state>();
-	state->m_malzak_x = data;
+	malzak_state *state = (malzak_state *)space->machine->driver_data;
+	state->malzak_x = data;
 	//  logerror("I/O: port 0x60 write 0x%02x\n", data);
 }
 
 static WRITE8_HANDLER( portc0_w )
 {
-	malzak_state *state = space->machine().driver_data<malzak_state>();
-	state->m_malzak_y = data;
+	malzak_state *state = (malzak_state *)space->machine->driver_data;
+	state->malzak_y = data;
 	//  logerror("I/O: port 0xc0 write 0x%02x\n", data);
 }
 
 static READ8_HANDLER( collision_r )
 {
-	malzak_state *state = space->machine().driver_data<malzak_state>();
+	malzak_state *state = (malzak_state *)space->machine->driver_data;
 
 	// High 4 bits seem to refer to the row affected.
-	if(++state->m_collision_counter > 15)
-		state->m_collision_counter = 0;
+	if(++state->collision_counter > 15)
+		state->collision_counter = 0;
 
 	//  logerror("I/O port 0x00 read\n");
-	return 0xd0 + state->m_collision_counter;
+	return 0xd0 + state->collision_counter;
 }
 
-static ADDRESS_MAP_START( malzak_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( malzak_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0x00) AM_READ(collision_r) // returns where a collision can occur.
 	AM_RANGE(0x40, 0x40) AM_WRITE(port40_w)  // possibly sound codes for dual SN76477s
 	AM_RANGE(0x60, 0x60) AM_WRITE(port60_w)  // possibly playfield scroll X offset
@@ -349,16 +347,14 @@ static const s2636_interface malzac_s2636_0_config =
 {
 	"screen",
 	0x100,
-	0, -16,	/* -8, -16 */
-	"s2636snd_0"
+	0, -16	/* -8, -16 */
 };
 
 static const s2636_interface malzac_s2636_1_config =
 {
 	"screen",
 	0x100,
-	0, -16,	/* -9, -16 */
-	"s2636snd_1"
+	0, -16	/* -9, -16 */
 };
 
 static const saa5050_interface malzac_saa5050_intf =
@@ -372,82 +368,80 @@ static const saa5050_interface malzac_saa5050_intf =
 
 static MACHINE_START( malzak )
 {
-	malzak_state *state = machine.driver_data<malzak_state>();
+	malzak_state *state = (malzak_state *)machine->driver_data;
 
-	memory_configure_bank(machine, "bank1", 0, 2, machine.region("user2")->base(), 0x400);
+	memory_configure_bank(machine, "bank1", 0, 2, memory_region(machine, "user2"), 0x400);
 
-	state->m_s2636_0 = machine.device("s2636_0");
-	state->m_s2636_1 = machine.device("s2636_1");
-	state->m_saa5050 = machine.device("saa5050");
+	state->s2636_0 = machine->device("s2636_0");
+	state->s2636_1 = machine->device("s2636_1");
+	state->saa5050 = machine->device("saa5050");
 
-	state->save_item(NAME(state->m_playfield_code));
-	state->save_item(NAME(state->m_malzak_x));
-	state->save_item(NAME(state->m_malzak_y));
+	state_save_register_global_array(machine, state->playfield_code);
+	state_save_register_global(machine, state->malzak_x);
+	state_save_register_global(machine, state->malzak_y);
 }
 
 static MACHINE_RESET( malzak )
 {
-	malzak_state *state = machine.driver_data<malzak_state>();
+	malzak_state *state = (malzak_state *)machine->driver_data;
 
-	memset(state->m_playfield_code, 0, 256);
+	memset(state->playfield_code, 0, 256);
 
-	state->m_malzak_x = 0;
-	state->m_malzak_y = 0;
+	state->malzak_x = 0;
+	state->malzak_y = 0;
 }
 
-static MACHINE_CONFIG_START( malzak, malzak_state )
+static MACHINE_DRIVER_START( malzak )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(malzak_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", S2650, 3800000/4)
-	MCFG_CPU_PROGRAM_MAP(malzak_map)
-	MCFG_CPU_IO_MAP(malzak_io_map)
+	MDRV_CPU_ADD("maincpu", S2650, 3800000/4)
+	MDRV_CPU_PROGRAM_MAP(malzak_map)
+	MDRV_CPU_IO_MAP(malzak_io_map)
 
-	MCFG_MACHINE_START(malzak)
-	MCFG_MACHINE_RESET(malzak)
+	MDRV_MACHINE_START(malzak)
+	MDRV_MACHINE_RESET(malzak)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(50)
-	//MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(SAA5050_VBLANK))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(480, 512)	/* vert size is a guess */
-	MCFG_SCREEN_VISIBLE_AREA(0, 479, 0, 479)
-	MCFG_SCREEN_UPDATE(malzak)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(50)
+	//MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(SAA5050_VBLANK))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(240, 256)	/* vert size is a guess */
+	MDRV_SCREEN_VISIBLE_AREA(0, 239, 0, 239)
 
-	MCFG_GFXDECODE(malzak)
-	MCFG_PALETTE_LENGTH(128)
-	MCFG_PALETTE_INIT(malzak)
+	MDRV_GFXDECODE(malzak)
+	MDRV_PALETTE_LENGTH(128)
+	MDRV_PALETTE_INIT(malzak)
 
-	MCFG_S2636_ADD("s2636_0", malzac_s2636_0_config)
-	MCFG_S2636_ADD("s2636_1", malzac_s2636_1_config)
+	MDRV_S2636_ADD("s2636_0", malzac_s2636_0_config)
+	MDRV_S2636_ADD("s2636_1", malzac_s2636_1_config)
 
-	MCFG_SAA5050_ADD("saa5050", malzac_saa5050_intf)
+	MDRV_SAA5050_ADD("saa5050", malzac_saa5050_intf)
+	MDRV_VIDEO_UPDATE(malzak)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76477, 0)
-	MCFG_SOUND_CONFIG(sn76477_intf)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("sn1", SN76477, 0)
+	MDRV_SOUND_CONFIG(sn76477_intf)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("sn2", SN76477, 0)
-	MCFG_SOUND_CONFIG(sn76477_intf)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("sn2", SN76477, 0)
+	MDRV_SOUND_CONFIG(sn76477_intf)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
-	MCFG_SOUND_ADD("s2636snd_0", S2636_SOUND, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+static MACHINE_DRIVER_START( malzak2 )
+	MDRV_IMPORT_FROM( malzak )
 
-	MCFG_SOUND_ADD("s2636snd_1", S2636_SOUND, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY( "maincpu" )
+	MDRV_CPU_PROGRAM_MAP(malzak2_map)
 
-static MACHINE_CONFIG_DERIVED( malzak2, malzak )
-
-	MCFG_CPU_MODIFY( "maincpu" )
-	MCFG_CPU_PROGRAM_MAP(malzak2_map)
-
-	MCFG_NVRAM_ADD_0FILL("nvram")
-MACHINE_CONFIG_END
+	MDRV_NVRAM_HANDLER( generic_0fill )
+MACHINE_DRIVER_END
 
 ROM_START( malzak )
 	ROM_REGION( 0x8000, "maincpu", 0 )
@@ -495,5 +489,5 @@ ROM_START( malzak2 )
 ROM_END
 
 
-GAME( 19??, malzak,   0,       malzak,  malzak,  0,        ROT0, "Kitronix", "Malzak", GAME_NOT_WORKING | GAME_IMPERFECT_SOUND | GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
-GAME( 19??, malzak2, malzak,   malzak2, malzak2, 0,        ROT0, "Kitronix", "Malzak II", GAME_NOT_WORKING | GAME_IMPERFECT_SOUND | GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
+GAME( 19??, malzak,   0,       malzak,  malzak,  0,        ROT0, "Kitronix", "Malzak", GAME_NOT_WORKING | GAME_NO_SOUND | GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
+GAME( 19??, malzak2, malzak,   malzak2, malzak2, 0,        ROT0, "Kitronix", "Malzak II", GAME_NOT_WORKING | GAME_NO_SOUND | GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )

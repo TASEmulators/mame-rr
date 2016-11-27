@@ -52,15 +52,15 @@ class debug_view_memory_source : public debug_view_source
 {
 	friend class debug_view_memory;
 
-	debug_view_memory_source(const char *name, address_space &space);
-	debug_view_memory_source(const char *name, const memory_region &region);
+	debug_view_memory_source(const char *name, const address_space &space);
+	debug_view_memory_source(const char *name, const region_info &region);
 	debug_view_memory_source(const char *name, void *base, int element_size, int num_elements);
 
 public:
-	address_space *space() const { return m_space; }
+	const address_space *space() const { return m_space; }
 
 private:
-	address_space *m_space;				// address space we reference (if any)
+	const address_space *m_space;				// address space we reference (if any)
 	device_memory_interface *m_memintf;			// pointer to the memory interface of the device
 	void *				m_base;					// pointer to memory base
 	offs_t				m_length;				// length of memory

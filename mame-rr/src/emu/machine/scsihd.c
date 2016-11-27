@@ -7,7 +7,10 @@
 #include "emu.h"
 #include "scsidev.h"
 #include "harddisk.h"
-#include "imagedev/harddriv.h"
+
+#ifdef MESS
+#include "devices/harddriv.h"
+#endif
 #include "scsihd.h"
 
 typedef struct
@@ -15,7 +18,6 @@ typedef struct
 	UINT32 lba;
 	UINT32 blocks;
 	hard_disk_file *disk;
-	bool is_file;
 } SCSIHd;
 
 
@@ -245,7 +247,7 @@ static void scsihd_write_data( SCSIInstance *scsiInstance, UINT8 *data, int data
 
 static void scsihd_alloc_instance( SCSIInstance *scsiInstance, const char *diskregion )
 {
-	running_machine &machine = scsiInstance->machine();
+	running_machine *machine = scsiInstance->machine;
 	SCSIHd *our_this = (SCSIHd *)SCSIThis( &SCSIClassHARDDISK, scsiInstance );
 
 	our_this->lba = 0;
@@ -254,13 +256,12 @@ static void scsihd_alloc_instance( SCSIInstance *scsiInstance, const char *diskr
 	state_save_register_item( machine, "scsihd", diskregion, 0, our_this->lba );
 	state_save_register_item( machine, "scsihd", diskregion, 0, our_this->blocks );
 
-	if (machine.device( diskregion )) {
-		our_this->is_file = TRUE;
-		our_this->disk = machine.device<harddisk_image_device>(diskregion)->get_hard_disk_file();
-	} else {
-		our_this->is_file = FALSE;
-		our_this->disk = hard_disk_open(get_disk_handle( machine, diskregion ));
-	}
+#ifdef MESS
+	/* TODO: get rid of this ifdef MESS section */
+	our_this->disk = mess_hd_get_hard_disk_file( machine->device( diskregion ) );
+#else
+	our_this->disk = hard_disk_open(get_disk_handle( machine, diskregion ));
+#endif
 
 	if (!our_this->disk)
 	{
@@ -270,13 +271,14 @@ static void scsihd_alloc_instance( SCSIInstance *scsiInstance, const char *diskr
 
 static void scsihd_delete_instance( SCSIInstance *scsiInstance )
 {
+#ifndef MESS
 	SCSIHd *our_this = (SCSIHd *)SCSIThis( &SCSIClassHARDDISK, scsiInstance );
-	if (!our_this->is_file) {
-		if( our_this->disk )
-		{
-			hard_disk_close( our_this->disk );
-		}
+
+	if( our_this->disk )
+	{
+		hard_disk_close( our_this->disk );
 	}
+#endif
 }
 
 static void scsihd_get_device( SCSIInstance *scsiInstance, hard_disk_file **disk )

@@ -174,23 +174,23 @@ static WRITE8_HANDLER(mcu_sim_w);
 
 static MACHINE_START( kangaroo )
 {
-	memory_configure_bank(machine, "bank1", 0, 2, machine.region("gfx1")->base(), 0x2000);
+	memory_configure_bank(machine, "bank1", 0, 2, memory_region(machine, "gfx1"), 0x2000);
 }
 
 
 static MACHINE_START( kangaroo_mcu )
 {
-	kangaroo_state *state = machine.driver_data<kangaroo_state>();
+	kangaroo_state *state = (kangaroo_state *)machine->driver_data;
 
 	MACHINE_START_CALL(kangaroo);
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0xef00, 0xefff, FUNC(mcu_sim_r), FUNC(mcu_sim_w));
-	state->save_item(NAME(state->m_clock));
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xef00, 0xefff, 0, 0, mcu_sim_r, mcu_sim_w);
+	state_save_register_global(machine, state->clock);
 }
 
 
 static MACHINE_RESET( kangaroo )
 {
-	kangaroo_state *state = machine.driver_data<kangaroo_state>();
+	kangaroo_state *state = (kangaroo_state *)machine->driver_data;
 
 	/* I think there is a bug in the startup checks of the game. At the very */
 	/* beginning, during the RAM check, it goes one byte too far, and ends up */
@@ -205,7 +205,7 @@ static MACHINE_RESET( kangaroo )
 	/* properly starts. */
 	cputag_set_input_line(machine, "maincpu", INPUT_LINE_NMI, PULSE_LINE);
 
-	state->m_clock = 0;
+	state->clock = 0;
 }
 
 
@@ -222,8 +222,8 @@ static MACHINE_RESET( kangaroo )
 
 static READ8_HANDLER( mcu_sim_r )
 {
-	kangaroo_state *state = space->machine().driver_data<kangaroo_state>();
-	return ++state->m_clock & 0x0f;
+	kangaroo_state *state = (kangaroo_state *)space->machine->driver_data;
+	return ++state->clock & 0x0f;
 }
 
 static WRITE8_HANDLER( mcu_sim_w )
@@ -240,8 +240,8 @@ static WRITE8_HANDLER( mcu_sim_w )
 
 static WRITE8_HANDLER( kangaroo_coin_counter_w )
 {
-	coin_counter_w(space->machine(), 0, data & 1);
-	coin_counter_w(space->machine(), 1, data & 2);
+	coin_counter_w(space->machine, 0, data & 1);
+	coin_counter_w(space->machine, 1, data & 2);
 }
 
 
@@ -252,13 +252,13 @@ static WRITE8_HANDLER( kangaroo_coin_counter_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_WRITE(kangaroo_videoram_w)
 	AM_RANGE(0xc000, 0xdfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xe000, 0xe3ff) AM_RAM
 	AM_RANGE(0xe400, 0xe400) AM_MIRROR(0x03ff) AM_READ_PORT("DSW0")
-	AM_RANGE(0xe800, 0xe80a) AM_MIRROR(0x03f0) AM_WRITE(kangaroo_video_control_w) AM_BASE_MEMBER(kangaroo_state, m_video_control)
+	AM_RANGE(0xe800, 0xe80a) AM_MIRROR(0x03f0) AM_WRITE(kangaroo_video_control_w) AM_BASE_MEMBER(kangaroo_state, video_control)
 	AM_RANGE(0xec00, 0xec00) AM_MIRROR(0x00ff) AM_READ_PORT("IN0") AM_WRITE(soundlatch_w)
 	AM_RANGE(0xed00, 0xed00) AM_MIRROR(0x00ff) AM_READ_PORT("IN1") AM_WRITE(kangaroo_coin_counter_w)
 	AM_RANGE(0xee00, 0xee00) AM_MIRROR(0x00ff) AM_READ_PORT("IN2")
@@ -272,7 +272,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x0c00) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_MIRROR(0x0fff) AM_READ(soundlatch_r)
@@ -282,7 +282,7 @@ ADDRESS_MAP_END
 
 
 /* yes, this is identical */
-static ADDRESS_MAP_START( sound_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_portmap, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x0c00) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_MIRROR(0x0fff) AM_READ(soundlatch_r)
@@ -427,45 +427,49 @@ INPUT_PORTS_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( nomcu, kangaroo_state )
+static MACHINE_DRIVER_START( nomcu )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(kangaroo_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/4)
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/4)
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, MASTER_CLOCK/8)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_portmap)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("audiocpu", Z80, MASTER_CLOCK/8)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_portmap)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_START(kangaroo)
-	MCFG_MACHINE_RESET(kangaroo)
+	MDRV_MACHINE_START(kangaroo)
+	MDRV_MACHINE_RESET(kangaroo)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_SCANLINE)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_SCANLINE)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK, 320*2, 0*2, 256*2, 260, 8, 248)
-	MCFG_SCREEN_UPDATE(kangaroo)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_RAW_PARAMS(MASTER_CLOCK, 320*2, 0*2, 256*2, 260, 8, 248)
 
-	MCFG_VIDEO_START(kangaroo)
+	MDRV_VIDEO_START(kangaroo)
+	MDRV_VIDEO_UPDATE(kangaroo)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("aysnd", AY8910, MASTER_CLOCK/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("aysnd", AY8910, MASTER_CLOCK/8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( mcu, nomcu )
+static MACHINE_DRIVER_START( mcu )
+	MDRV_IMPORT_FROM(nomcu)
 
-	MCFG_MACHINE_START(kangaroo_mcu)
+	MDRV_MACHINE_START(kangaroo_mcu)
 
-	MCFG_CPU_ADD("mcu", MB8841, MASTER_CLOCK/4/2)
-	MCFG_DEVICE_DISABLE()
-MACHINE_CONFIG_END
+	MDRV_CPU_ADD("mcu", MB8841, MASTER_CLOCK/4/2)
+	MDRV_DEVICE_DISABLE()
+MACHINE_DRIVER_END
 
 
 

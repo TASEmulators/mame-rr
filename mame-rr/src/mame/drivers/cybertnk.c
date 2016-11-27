@@ -1,16 +1,17 @@
 /*******************************************************************************************
 
-Cyber Tank HW (c) 1987/1988 Coreland Technology
+Cyber Tank HW (c) 1987 Coreland Technology
 
 preliminary driver by Angelo Salese
 
 Maybe it has some correlation with WEC Le Mans HW? (supposely that was originally done by Coreland too)
 
 TODO:
-- improve sprite emulation
+- sprite emulation (very likely that it can do zooming);
 - road emulation;
 - tilemap scrolling /-color banking;
 - inputs doesn't work in-game?
+- dual screen output.
 
 ============================================================================================
 
@@ -44,6 +45,23 @@ Master reads at 0x00005E3C
 
 It is tested as every odd byte from 0x100021 to 0x1003e8,
 and cleared as every odd byte from 0x100021 up to 0x100fff)
+
+- Missing ROM data
+IC03 and IC04 are missing from the set.
+These look like "logical" ICs rather that physical ones.
+The main program code is dumped as 2x128k files p1a and p2a.
+The checksum routine does 4x64k checks, going by the routine.
+IC01 is the first half of p1a, IC02 is the first half of p2a,
+IC03 is the second half of p1a and IC04 is the second half of p2a.
+
+IC01 FEFF bytes @ 0x00200 code at 0x000019FE CHKSUM A5 (00200 offset is just after where the checksum is recorded)
+IC02 FEFF bytes @ 0x00201 code at 0x00001A24 CHKSUM 87
+IC03 FFFF bytes @ 0x20000 code at 0x00001A46 CHKSUM 61
+IC04 FFFF bytes @ 0x20001 code at 0x00001A6A CHKSUM E0
+
+Unfortunately the second half of p1a and p2a are empty, all 0xff.
+No other ROMs in the entire set match the checksums used in the POST.
+I am guessing they are bad dumps.
 
 - Unmapped reads/writes
 CPU1 reads at 0x07fff8 and 0x07fffa are the slave reading validation values
@@ -162,36 +180,18 @@ lev 7 : 0x7c : 0000 07e0 - input device clear?
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "cpu/m68000/m68000.h"
+#include "deprecat.h"
 #include "sound/8950intf.h"
-#include "rendlay.h"
 
+static tilemap_t *tx_tilemap;
+static UINT16 *tx_vram,*bg_vram,*fg_vram,*spr_ram;
+static UINT16 *io_ram;
 
-class cybertnk_state : public driver_device
-{
-public:
-	cybertnk_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	tilemap_t *m_tx_tilemap;
-	UINT16 *m_tx_vram;
-	UINT16 *m_bg_vram;
-	UINT16 *m_fg_vram;
-	UINT16 *m_spr_ram;
-	UINT16 *m_io_ram;
-	UINT16 *m_roadram;
-	int m_test_x;
-	int m_test_y;
-	int m_start_offs;
-	int m_color_pen;
-};
-
-
-#define LOG_UNKNOWN_WRITE logerror("unknown io write CPU '%s':%08x  0x%08x 0x%04x & 0x%04x\n", space->device().tag(), cpu_get_pc(&space->device()), offset*2, data, mem_mask);
+#define LOG_UNKNOWN_WRITE logerror("unknown io write CPU '%s':%08x  0x%08x 0x%04x & 0x%04x\n", space->cpu->tag(), cpu_get_pc(space->cpu), offset*2, data, mem_mask);
 
 static TILE_GET_INFO( get_tx_tile_info )
 {
-	cybertnk_state *state = machine.driver_data<cybertnk_state>();
-	int code = state->m_tx_vram[tile_index];
+	int code = tx_vram[tile_index];
 	SET_TILE_INFO(
 			0,
 			code & 0x1fff,
@@ -201,64 +201,17 @@ static TILE_GET_INFO( get_tx_tile_info )
 
 static VIDEO_START( cybertnk )
 {
-	cybertnk_state *state = machine.driver_data<cybertnk_state>();
-	state->m_tx_tilemap = tilemap_create(machine, get_tx_tile_info,tilemap_scan_rows,8,8,128,32);
-	tilemap_set_transparent_pen(state->m_tx_tilemap,0);
+	tx_tilemap = tilemap_create(machine, get_tx_tile_info,tilemap_scan_rows,8,8,128,32);
+	tilemap_set_transparent_pen(tx_tilemap,0);
 }
 
-static void draw_pixel( bitmap_t* bitmap, const rectangle *cliprect, int y, int x, int pen)
+static VIDEO_UPDATE( cybertnk )
 {
-	if (x>cliprect->max_x) return;
-	if (x<cliprect->min_x) return;
-	if (y>cliprect->max_y) return;
-	if (y<cliprect->min_y) return;
-
-	*BITMAP_ADDR16(bitmap, y, x) = pen;
-}
-
-static SCREEN_UPDATE( cybertnk )
-{
-	cybertnk_state *state = screen->machine().driver_data<cybertnk_state>();
-	device_t *left_screen  = screen->machine().device("lscreen");
-	device_t *right_screen = screen->machine().device("rscreen");
-	int screen_shift = 0;
-
-	if (screen==left_screen)
-	{
-		screen_shift = 0;
-
-	}
-	else if (screen==right_screen)
-	{
-		screen_shift = -256;
-	}
-
-	tilemap_set_scrolldx(state->m_tx_tilemap, screen_shift, screen_shift);
-
-
-	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
-
-	{
-		int i;
-		const gfx_element *gfx = screen->machine().gfx[3];
-
-
-		for (i=0;i<0x1000/4;i+=4)
-		{
-			UINT16 param1 = state->m_roadram[i+2];
-			UINT16 param2 = state->m_roadram[i+0];
-
-			drawgfx_transpen(bitmap,cliprect,gfx,param1,0x23,0,0,-param2+screen_shift,i/4,0);
-
-
-		}
-
-	}
-
+	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 
 	{
 		int count,x,y;
-		const gfx_element *gfx = screen->machine().gfx[2];
+		const gfx_element *gfx = screen->machine->gfx[2];
 
 		count = 0;
 
@@ -266,10 +219,10 @@ static SCREEN_UPDATE( cybertnk )
 		{
 			for (x=0;x<128;x++)
 			{
-				UINT16 tile = state->m_bg_vram[count] & 0x1fff;
-				UINT16 color = (state->m_fg_vram[count] & 0xe000) >> 13;
+				UINT16 tile = bg_vram[count] & 0x1fff;
+				UINT16 color = (fg_vram[count] & 0xe000) >> 13;
 
-				drawgfx_transpen(bitmap,cliprect,gfx,tile,color+0x194,0,0,(x*8)+screen_shift,(y*8),0);
+				drawgfx_transpen(bitmap,cliprect,gfx,tile,color+0x194,0,0,x*8,(y*8),0);
 
 				count++;
 
@@ -279,7 +232,7 @@ static SCREEN_UPDATE( cybertnk )
 
 	{
 		int count,x,y;
-		const gfx_element *gfx = screen->machine().gfx[1];
+		const gfx_element *gfx = screen->machine->gfx[1];
 
 		count = 0;
 
@@ -287,10 +240,10 @@ static SCREEN_UPDATE( cybertnk )
 		{
 			for (x=0;x<128;x++)
 			{
-				UINT16 tile = state->m_fg_vram[count] & 0x1fff;
-				UINT16 color = (state->m_fg_vram[count] & 0xe000) >> 13;
+				UINT16 tile = fg_vram[count] & 0x1fff;
+				UINT16 color = (fg_vram[count] & 0xe000) >> 13;
 
-				drawgfx_transpen(bitmap,cliprect,gfx,tile,color+0x1c0,0,0,(x*8)+screen_shift,(y*8),0);
+				drawgfx_transpen(bitmap,cliprect,gfx,tile,color+0x1c0,0,0,x*8,(y*8),0);
 
 				count++;
 
@@ -301,27 +254,27 @@ static SCREEN_UPDATE( cybertnk )
 	/* non-tile based spriteram (BARE-BONES, looks pretty complex) */
 	if(1)
 	{
-		const UINT8 *blit_ram = screen->machine().region("spr_gfx")->base();
+		const UINT8 *blit_ram = memory_region(screen->machine,"spr_gfx");
 		int offs,x,y,z,xsize,ysize,yi,xi,col_bank,fx,zoom;
 		UINT32 spr_offs,spr_offs_helper;
 		int xf,yf,xz,yz;
 
 		for(offs=0;offs<0x1000/2;offs+=8)
 		{
-			z = (state->m_spr_ram[offs+(0x6/2)] & 0xffff);
-			if(z == 0xffff || state->m_spr_ram[offs+(0x0/2)] == 0x0000) //TODO: check the correct bit
+			z = (spr_ram[offs+(0x6/2)] & 0xffff);
+			if(z == 0xffff || spr_ram[offs+(0x0/2)] == 0x0000) //TODO: check the correct bit
 				continue;
-			x = (state->m_spr_ram[offs+(0xa/2)] & 0x3ff);
-			y = (state->m_spr_ram[offs+(0x4/2)] & 0xff);
-			if(state->m_spr_ram[offs+(0x4/2)] & 0x100)
+			x = (spr_ram[offs+(0xa/2)] & 0x3ff);
+			y = (spr_ram[offs+(0x4/2)] & 0xff);
+			if(spr_ram[offs+(0x4/2)] & 0x100)
 				y = 0x100 - y;
-			spr_offs = (((state->m_spr_ram[offs+(0x0/2)] & 7) << 16) | (state->m_spr_ram[offs+(0x2/2)])) << 2;
-			xsize = ((state->m_spr_ram[offs+(0xc/2)] & 0x000f)+1) << 3;
-			ysize = (state->m_spr_ram[offs+(0x8/2)] & 0x00ff)+1;
-			fx = (state->m_spr_ram[offs+(0xa/2)] & 0x8000) >> 15;
-			zoom = (state->m_spr_ram[offs+(0xc/2)] & 0xff00) >> 8;
+			spr_offs = (((spr_ram[offs+(0x0/2)] & 7) << 16) | (spr_ram[offs+(0x2/2)])) << 2;
+			xsize = ((spr_ram[offs+(0xc/2)] & 0x000f)+1) << 3;
+			ysize = (spr_ram[offs+(0x8/2)] & 0x00ff)+1;
+			fx = (spr_ram[offs+(0xa/2)] & 0x8000) >> 15;
+			zoom = (spr_ram[offs+(0xc/2)] & 0xff00) >> 8;
 
-			col_bank = (state->m_spr_ram[offs+(0x0/2)] & 0xff00) >> 8;
+			col_bank = (spr_ram[offs+(0x0/2)] & 0xff00) >> 8;
 
 			xf = 0;
 			yf = 0;
@@ -354,11 +307,13 @@ static SCREEN_UPDATE( cybertnk )
 							dot|= col_bank<<4;
 							if(fx)
 							{
-								draw_pixel(bitmap, cliprect, y+yz, x+xsize-(xz)+screen_shift, screen->machine().pens[dot]);
+								if(((x+xsize-(xz)) < screen->visible_area().max_x) && ((y+yi) < screen->visible_area().max_y))
+									*BITMAP_ADDR16(bitmap, y+yz, x+xsize-(xz)) = screen->machine->pens[dot];
 							}
 							else
 							{
-								draw_pixel(bitmap, cliprect, y+yz, x+xz+screen_shift, screen->machine().pens[dot]);
+								if(((x+xz) < screen->visible_area().max_x) && ((y+yi) < screen->visible_area().max_y))
+									*BITMAP_ADDR16(bitmap, y+yz, x+xz) = screen->machine->pens[dot];
 							}
 						}
 						xf+=zoom;
@@ -386,11 +341,13 @@ static SCREEN_UPDATE( cybertnk )
 							dot|= col_bank<<4;
 							if(fx)
 							{
-								draw_pixel(bitmap, cliprect, y+yz, x+xsize-(xz)+screen_shift, screen->machine().pens[dot]);
+								if(((x+xsize-(xz)) < screen->visible_area().max_x) && ((y+yi) < screen->visible_area().max_y))
+									*BITMAP_ADDR16(bitmap, y+yz, x+xsize-(xz)) = screen->machine->pens[dot];
 							}
 							else
 							{
-								draw_pixel(bitmap, cliprect, y+yz, x+xz+screen_shift, screen->machine().pens[dot]);
+								if(((x+x_dec+xi) < screen->visible_area().max_x) && ((y+yi) < screen->visible_area().max_y))
+									*BITMAP_ADDR16(bitmap, y+yz, x+xz) = screen->machine->pens[dot];
 							}
 						}
 						xf+=zoom;
@@ -422,139 +379,139 @@ static SCREEN_UPDATE( cybertnk )
 		}
 	}
 
-	tilemap_draw(bitmap,cliprect,state->m_tx_tilemap,0,0);
+	tilemap_draw(bitmap,cliprect,tx_tilemap,0,0);
 
 
 //0x62 0x9a 1c2d0
 //0x62 0x9a 1e1e4
 //0x20 0x9c 2011c
-	if (screen==left_screen)
+
+if(0) //sprite gfx debug viewer
+{
+	int x,y,count;
+	static int test_x, test_y, start_offs,color_pen;
+	const UINT8 *blit_ram = memory_region(screen->machine,"spr_gfx");
+
+	if(input_code_pressed(screen->machine, KEYCODE_Z))
+		test_x++;
+
+	if(input_code_pressed(screen->machine, KEYCODE_X))
+		test_x--;
+
+	if(input_code_pressed(screen->machine, KEYCODE_A))
+		test_y++;
+
+	if(input_code_pressed(screen->machine, KEYCODE_S))
+		test_y--;
+
+	if(input_code_pressed(screen->machine, KEYCODE_Q))
+		start_offs+=0x200;
+
+	if(input_code_pressed(screen->machine, KEYCODE_W))
+		start_offs-=0x200;
+
+	if(input_code_pressed_once(screen->machine, KEYCODE_T))
+		start_offs+=0x20000;
+
+	if(input_code_pressed_once(screen->machine, KEYCODE_Y))
+		start_offs-=0x20000;
+
+	if(input_code_pressed(screen->machine, KEYCODE_E))
+		start_offs+=4;
+
+	if(input_code_pressed(screen->machine, KEYCODE_R))
+		start_offs-=4;
+
+	if(input_code_pressed(screen->machine, KEYCODE_D))
+		color_pen++;
+
+	if(input_code_pressed(screen->machine, KEYCODE_F))
+		color_pen--;
+
+	popmessage("%02x %02x %04x %02x",test_x,test_y,start_offs,color_pen);
+
+	bitmap_fill(bitmap,cliprect,get_black_pen(screen->machine));
+
+	count = (start_offs);
+
+	for(y=0;y<test_y;y++)
 	{
-		if(0) //sprite gfx debug viewer
+		for(x=0;x<test_x;x+=8)
 		{
-			int x,y,count;
-			const UINT8 *blit_ram = screen->machine().region("spr_gfx")->base();
+			UINT32 color;
+			UINT8 dot;
 
-			if(screen->machine().input().code_pressed(KEYCODE_Z))
-			state->m_test_x++;
+			color = ((blit_ram[count+0] & 0xff) << 24);
+			color|= ((blit_ram[count+1] & 0xff) << 16);
+			color|= ((blit_ram[count+2] & 0xff) << 8);
+			color|= ((blit_ram[count+3] & 0xff) << 0);
 
-			if(screen->machine().input().code_pressed(KEYCODE_X))
-			state->m_test_x--;
+			dot = (color & 0xf0000000) >> 28;
+			*BITMAP_ADDR16(bitmap, y, x+0) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed(KEYCODE_A))
-			state->m_test_y++;
+			dot = (color & 0x0f000000) >> 24;
+			*BITMAP_ADDR16(bitmap, y, x+4) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed(KEYCODE_S))
-			state->m_test_y--;
+			dot = (color & 0x00f00000) >> 20;
+			*BITMAP_ADDR16(bitmap, y, x+1) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed(KEYCODE_Q))
-			state->m_start_offs+=0x200;
+			dot = (color & 0x000f0000) >> 16;
+			*BITMAP_ADDR16(bitmap, y, x+5) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed(KEYCODE_W))
-			state->m_start_offs-=0x200;
+			dot = (color & 0x0000f000) >> 12;
+			*BITMAP_ADDR16(bitmap, y, x+2) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed_once(KEYCODE_T))
-			state->m_start_offs+=0x20000;
+			dot = (color & 0x00000f00) >> 8;
+			*BITMAP_ADDR16(bitmap, y, x+6) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed_once(KEYCODE_Y))
-			state->m_start_offs-=0x20000;
+			dot = (color & 0x000000f0) >> 4;
+			*BITMAP_ADDR16(bitmap, y, x+3) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed(KEYCODE_E))
-			state->m_start_offs+=4;
+			dot = (color & 0x0000000f) >> 0;
+			*BITMAP_ADDR16(bitmap, y, x+7) = screen->machine->pens[dot+(color_pen<<4)];
 
-			if(screen->machine().input().code_pressed(KEYCODE_R))
-			state->m_start_offs-=4;
-
-			if(screen->machine().input().code_pressed(KEYCODE_D))
-			state->m_color_pen++;
-
-			if(screen->machine().input().code_pressed(KEYCODE_F))
-			state->m_color_pen--;
-
-			popmessage("%02x %02x %04x %02x",state->m_test_x,state->m_test_y,state->m_start_offs,state->m_color_pen);
-
-			bitmap_fill(bitmap,cliprect,get_black_pen(screen->machine()));
-
-			count = (state->m_start_offs);
-
-			for(y=0;y<state->m_test_y;y++)
-			{
-				for(x=0;x<state->m_test_x;x+=8)
-				{
-					UINT32 color;
-					UINT8 dot;
-
-					color = ((blit_ram[count+0] & 0xff) << 24);
-					color|= ((blit_ram[count+1] & 0xff) << 16);
-					color|= ((blit_ram[count+2] & 0xff) << 8);
-					color|= ((blit_ram[count+3] & 0xff) << 0);
-
-					dot = (color & 0xf0000000) >> 28;
-					*BITMAP_ADDR16(bitmap, y, x+0) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x0f000000) >> 24;
-					*BITMAP_ADDR16(bitmap, y, x+4) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x00f00000) >> 20;
-					*BITMAP_ADDR16(bitmap, y, x+1) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x000f0000) >> 16;
-					*BITMAP_ADDR16(bitmap, y, x+5) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x0000f000) >> 12;
-					*BITMAP_ADDR16(bitmap, y, x+2) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x00000f00) >> 8;
-					*BITMAP_ADDR16(bitmap, y, x+6) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x000000f0) >> 4;
-					*BITMAP_ADDR16(bitmap, y, x+3) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					dot = (color & 0x0000000f) >> 0;
-					*BITMAP_ADDR16(bitmap, y, x+7) = screen->machine().pens[dot+(state->m_color_pen<<4)];
-
-					count+=4;
-				}
-			}
+			count+=4;
 		}
 	}
-
+}
 
 	return 0;
 }
 
+static DRIVER_INIT( cybertnk )
+{
+
+}
 
 static WRITE16_HANDLER( tx_vram_w )
 {
-	cybertnk_state *state = space->machine().driver_data<cybertnk_state>();
-	COMBINE_DATA(&state->m_tx_vram[offset]);
-	tilemap_mark_tile_dirty(state->m_tx_tilemap,offset);
+	COMBINE_DATA(&tx_vram[offset]);
+	tilemap_mark_tile_dirty(tx_tilemap,offset);
 }
 
 static READ16_HANDLER( io_r )
 {
-	cybertnk_state *state = space->machine().driver_data<cybertnk_state>();
 	switch( offset )
 	{
 		case 2/2:
-			return input_port_read(space->machine(), "DSW1");
+			return input_port_read(space->machine, "DSW1");
 
 		// 0x00110007 is controller device select
 		// 0x001100D5 is controller data
 		// 0x00110004 low is controller data ready
 		case 4/2:
-			switch( (state->m_io_ram[6/2]) & 0xff )
+			switch( (io_ram[6/2]) & 0xff )
 			{
 				case 0:
-					state->m_io_ram[0xd4/2] = input_port_read(space->machine(), "TRAVERSE");
+					io_ram[0xd4/2] = input_port_read(space->machine, "TRAVERSE");
 					break;
 
 				case 0x20:
-					state->m_io_ram[0xd4/2] = input_port_read(space->machine(), "ELEVATE");
+					io_ram[0xd4/2] = input_port_read(space->machine, "ELEVATE");
 					break;
 
 				case 0x40:
-					state->m_io_ram[0xd4/2] = input_port_read(space->machine(), "ACCEL");
+					io_ram[0xd4/2] = input_port_read(space->machine, "ACCEL");
 					break;
 
 				case 0x42:
@@ -562,11 +519,11 @@ static READ16_HANDLER( io_r )
 					// controller return value is stored in $42(a6)
 					// but I don't see it referenced again.
 					//popmessage("unknown controller device 0x42");
-					state->m_io_ram[0xd4/2] = 0;
+					io_ram[0xd4/2] = 0;
 					break;
 
 				case 0x60:
-					state->m_io_ram[0xd4/2] = input_port_read(space->machine(), "HANDLE");
+					io_ram[0xd4/2] = input_port_read(space->machine, "HANDLE");
 					break;
 
 				//default:
@@ -575,36 +532,35 @@ static READ16_HANDLER( io_r )
 			return 0;
 
 		case 6/2:
-			return input_port_read(space->machine(), "IN0"); // high half
+			return input_port_read(space->machine, "IN0"); // high half
 
 		case 8/2:
-			return input_port_read(space->machine(), "IN0"); // low half
+			return input_port_read(space->machine, "IN0"); // low half
 
 		case 0xa/2:
-			return input_port_read(space->machine(), "DSW2");
+			return input_port_read(space->machine, "DSW2");
 
 		case 0xd4/2:
-			return state->m_io_ram[offset]; // controller data
+			return io_ram[offset]; // controller data
 
 		default:
 		{
 			//popmessage("unknown io read 0x%08x", offset);
-			return state->m_io_ram[offset];
+			return io_ram[offset];
 		}
 	}
 }
 
 static WRITE16_HANDLER( io_w )
 {
-	cybertnk_state *state = space->machine().driver_data<cybertnk_state>();
-	COMBINE_DATA(&state->m_io_ram[offset]);
+	COMBINE_DATA(&io_ram[offset]);
 
 	switch( offset )
 	{
 		case 0/2:
 			// sound data
 			if (ACCESSING_BITS_0_7)
-				cputag_set_input_line(space->machine(), "audiocpu", 0, HOLD_LINE);
+				cputag_set_input_line(space->machine, "audiocpu", 0, HOLD_LINE);
 			else
 				LOG_UNKNOWN_WRITE
 			break;
@@ -658,7 +614,7 @@ static WRITE16_HANDLER( io_w )
 		case 0x80/2:
 		case 0x82/2:
 		case 0x84/2:
-			popmessage("%02x %02x %02x %02x %02x %02x %02x",state->m_io_ram[0x40/2],state->m_io_ram[0x42/2],state->m_io_ram[0x44/2],state->m_io_ram[0x46/2],state->m_io_ram[0x48/2],state->m_io_ram[0x4a/2],state->m_io_ram[0x4c/2]);
+			popmessage("%02x %02x %02x %02x %02x %02x %02x",io_ram[0x40/2],io_ram[0x42/2],io_ram[0x44/2],io_ram[0x46/2],io_ram[0x48/2],io_ram[0x4a/2],io_ram[0x4c/2]);
 			break;
 
 		default:
@@ -669,31 +625,30 @@ static WRITE16_HANDLER( io_w )
 
 static READ8_HANDLER( soundport_r )
 {
-	cybertnk_state *state = space->machine().driver_data<cybertnk_state>();
-	return state->m_io_ram[0] & 0xff;
+	return io_ram[0] & 0xff;
 }
 
-static ADDRESS_MAP_START( master_mem, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( master_mem, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x080000, 0x087fff) AM_RAM /*Work RAM*/
-	AM_RANGE(0x0a0000, 0x0a0fff) AM_RAM AM_BASE_MEMBER(cybertnk_state, m_spr_ram) // non-tile based sprite ram
-	AM_RANGE(0x0c0000, 0x0c1fff) AM_RAM_WRITE(tx_vram_w) AM_BASE_MEMBER(cybertnk_state, m_tx_vram)
-	AM_RANGE(0x0c4000, 0x0c5fff) AM_RAM AM_BASE_MEMBER(cybertnk_state, m_bg_vram)
-	AM_RANGE(0x0c8000, 0x0c9fff) AM_RAM AM_BASE_MEMBER(cybertnk_state, m_fg_vram)
+	AM_RANGE(0x0a0000, 0x0a0fff) AM_RAM AM_BASE(&spr_ram) // non-tile based sprite ram
+	AM_RANGE(0x0c0000, 0x0c1fff) AM_RAM_WRITE(tx_vram_w) AM_BASE(&tx_vram)
+	AM_RANGE(0x0c4000, 0x0c5fff) AM_RAM AM_BASE(&bg_vram)
+	AM_RANGE(0x0c8000, 0x0c9fff) AM_RAM AM_BASE(&fg_vram)
 	AM_RANGE(0x0e0000, 0x0e0fff) AM_RAM AM_SHARE("sharedram")
 	AM_RANGE(0x100000, 0x107fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x110000, 0x1101ff) AM_READWRITE(io_r,io_w) AM_BASE_MEMBER(cybertnk_state, m_io_ram)
+	AM_RANGE(0x110000, 0x1101ff) AM_READWRITE(io_r,io_w) AM_BASE(&io_ram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_mem, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( slave_mem, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x01ffff) AM_ROM
 	AM_RANGE(0x080000, 0x083fff) AM_RAM /*Work RAM*/
-	AM_RANGE(0x0c0000, 0x0c0fff) AM_RAM AM_BASE_MEMBER(cybertnk_state, m_roadram)
+	AM_RANGE(0x0c0000, 0x0c0fff) AM_RAM
 	AM_RANGE(0x100000, 0x100fff) AM_RAM AM_SHARE("sharedram")
 	AM_RANGE(0x140000, 0x140003) AM_NOP /*Watchdog? Written during loops and interrupts*/
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_mem, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_mem, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff ) AM_ROM
 	AM_RANGE(0x8000, 0x9fff ) AM_RAM
 	AM_RANGE(0xa001, 0xa001 ) AM_READ(soundport_r)
@@ -735,85 +690,57 @@ static INPUT_PORTS_START( cybertnk )
 
 
 	PORT_START("DSW1")
-	PORT_DIPNAME( 0x0001, 0x0000, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x0001, 0x0001, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:8")
 	PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0002, 0x0000, DEF_STR( Demo_Sounds ) )		PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x0002, 0x0002, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:7")
 	PORT_DIPSETTING(      0x0002, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x000c, 0x0004, DEF_STR( Difficulty ) )		PORT_DIPLOCATION("SW2:6,5")
-	PORT_DIPSETTING(      0x000c, DEF_STR( Very_Easy ) )
-	PORT_DIPSETTING(      0x0004, DEF_STR( Easy ) )
-	PORT_DIPSETTING(      0x0008, DEF_STR( Hard ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( Very_Hard ) )
-/*
-+----------------+----------------------------+----------------------------+
-|Difficulty Level|        Single Play         |          Pair Play         |
-+----------------+----------------------------+----------------------------+
-|                |  One Tank is increased at  |  One tank is increased at  |
-|  Very Easy     |  every 500K.               |  500K and 1,500K, and      |
-|                |                            |  every 1,000K thereafter.  |
-+----------------+----------------------------+----------------------------+
-|                |  One Tank is increased at  |  One tank is increased at  |
-|    Easy        |  500K and 1,500K, and      |  500K and 2,000K, and      |
-|                |  every 1,000K thereafter.  |  every 1,000K thereafter.  |
-+----------------+----------------------------+----------------------------+
-|                |  One Tank is increased at  |  One tank is increased at  |
-|    Hard        |  500K and 2,000K, and      |  500K and 2,500K, and      |
-|                |  every 1,000K thereafter.  |  every 1,000K thereafter.  |
-+----------------+----------------------------+----------------------------+
-|                |  One Tank is increased at  |  One tank is increased at  |
-|  Very Hard     |  500K and 2,500K, and      |  500K and 3,000K, and      |
-|                |  every 1,000K thereafter.  |  every 1,000K thereafter.  |
-+----------------+----------------------------+----------------------------+
-*/
-	PORT_DIPNAME( 0x0010, 0x0000, "Coin B Value" )			PORT_DIPLOCATION("SW2:4")
-	PORT_DIPSETTING(      0x0010, "Set by Dipswitches" )
-	PORT_DIPSETTING(      0x0000, "Same Value as Coin A" )
-	PORT_DIPNAME( 0x0020, 0x0020, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW2:3") /* Manual states "Off Not Use" */
+	PORT_DIPNAME( 0x0004, 0x0004, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPSETTING(      0x0004, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0008, 0x0008, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:5")
+	PORT_DIPSETTING(      0x0008, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0010, 0x0010, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:4")
+	PORT_DIPSETTING(      0x0010, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0020, 0x0020, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:3")
 	PORT_DIPSETTING(      0x0020, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_SERVICE_DIPLOC(  0x0040, IP_ACTIVE_LOW, "SW2:2" )		/* Manual states "Off Not Use" */
-	PORT_DIPNAME( 0x0080, 0x0080, "2 Credits to Start" )		PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x0040, 0x0040, DEF_STR( Test ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0080, 0x0080, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW2:1")
 	PORT_DIPSETTING(      0x0080, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )			/* 2 credits to start single player, 3 credits to start Pair Play, 1 credit to continue (or add 2nd player) */
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
 
-	PORT_DIPNAME( 0x0f00, 0x0f00, DEF_STR( Coin_A ) )	PORT_DIPLOCATION("SW1:8,7,6,5")
-	PORT_DIPSETTING(      0x0200, DEF_STR( 4C_1C ) )
-	PORT_DIPSETTING(      0x0500, DEF_STR( 3C_1C ) )
-	PORT_DIPSETTING(      0x0800, DEF_STR( 2C_1C ) )
-	PORT_DIPSETTING(      0x0400, DEF_STR( 3C_2C ) )
-	PORT_DIPSETTING(      0x0100, DEF_STR( 4C_3C ) )
-	PORT_DIPSETTING(      0x0f00, DEF_STR( 1C_1C ) )
-	PORT_DIPSETTING(      0x0300, DEF_STR( 3C_4C ) )
-	PORT_DIPSETTING(      0x0700, DEF_STR( 2C_3C ) )
-	PORT_DIPSETTING(      0x0e00, DEF_STR( 1C_2C ) )
-	PORT_DIPSETTING(      0x0600, DEF_STR( 2C_5C ) )
-	PORT_DIPSETTING(      0x0d00, DEF_STR( 1C_3C ) )
-	PORT_DIPSETTING(      0x0c00, DEF_STR( 1C_4C ) )
-	PORT_DIPSETTING(      0x0b00, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(      0x0a00, DEF_STR( 1C_6C ) )
-	PORT_DIPSETTING(      0x0900, DEF_STR( 1C_7C ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( Free_Play ) )
-	PORT_DIPNAME( 0xf000, 0xf000, DEF_STR( Coin_B ) )	PORT_DIPLOCATION("SW1:4,3,2,1")
-	PORT_DIPSETTING(      0x2000, DEF_STR( 4C_1C ) )
-	PORT_DIPSETTING(      0x5000, DEF_STR( 3C_1C ) )
-	PORT_DIPSETTING(      0x8000, DEF_STR( 2C_1C ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( 5C_3C ) )
-	PORT_DIPSETTING(      0x4000, DEF_STR( 3C_2C ) )
-	PORT_DIPSETTING(      0x1000, DEF_STR( 4C_3C ) )
-	PORT_DIPSETTING(      0xf000, DEF_STR( 1C_1C ) )
-	PORT_DIPSETTING(      0x3000, DEF_STR( 3C_4C ) )
-	PORT_DIPSETTING(      0x7000, DEF_STR( 2C_3C ) )
-	PORT_DIPSETTING(      0xe000, DEF_STR( 1C_2C ) )
-	PORT_DIPSETTING(      0x6000, DEF_STR( 2C_5C ) )
-	PORT_DIPSETTING(      0xd000, DEF_STR( 1C_3C ) )
-	PORT_DIPSETTING(      0xc000, DEF_STR( 1C_4C ) )
-	PORT_DIPSETTING(      0xb000, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(      0xa000, DEF_STR( 1C_6C ) )
-	PORT_DIPSETTING(      0x9000, DEF_STR( 1C_7C ) )
+	PORT_DIPNAME( 0x0100, 0x0100, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:8")
+	PORT_DIPSETTING(      0x0100, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0200, 0x0200, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:7")
+	PORT_DIPSETTING(      0x0200, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0400, 0x0400, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:6")
+	PORT_DIPSETTING(      0x0400, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x0800, 0x0800, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:5")
+	PORT_DIPSETTING(      0x0800, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x1000, 0x1000, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:4")
+	PORT_DIPSETTING(      0x1000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x2000, 0x2000, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:3")
+	PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x4000, 0x4000, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:2")
+	PORT_DIPSETTING(      0x4000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_DIPNAME( 0x8000, 0x8000, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW1:1")
+	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
+	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
 
-	PORT_START("DSW2")	/* Manual states "Not Use" */
+	PORT_START("DSW2")
 	PORT_DIPNAME( 0x0001, 0x0001, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SW3:8")
 	PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
@@ -853,13 +780,10 @@ static const gfx_layout tile_8x8x4 =
     8*8
 };
 
-static GFXLAYOUT_RAW( roadlayout, 4, 1024, 1, 1024*4, 1024*4 ) // could be wrong.. needs to be 512 wide, might not be 8bpp
-
 static GFXDECODE_START( cybertnk )
 	GFXDECODE_ENTRY( "gfx1", 0, tile_8x8x4,     0x1400, 16 ) /*Pal offset???*/
 	GFXDECODE_ENTRY( "gfx2", 0, tile_8x8x4,     0,      0x400 )
 	GFXDECODE_ENTRY( "gfx3", 0, tile_8x8x4,     0,      0x400 )
-	GFXDECODE_ENTRY( "road_data", 0, roadlayout,     0,      0x400 )
 GFXDECODE_END
 
 #if 0
@@ -867,8 +791,8 @@ static INTERRUPT_GEN( master_irq )
 {
 	switch(cpu_getiloops(device))
 	{
-		case 0: device_set_input_line(device,1,HOLD_LINE); break;
-		case 1: device_set_input_line(device,3,HOLD_LINE); break;
+		case 0: cpu_set_input_line(device,1,HOLD_LINE); break;
+		case 1: cpu_set_input_line(device,3,HOLD_LINE); break;
 	}
 }
 
@@ -876,8 +800,8 @@ static INTERRUPT_GEN( slave_irq )
 {
 	switch(cpu_getiloops(device))
 	{
-		case 0: device_set_input_line(device,3,HOLD_LINE); break;
-		case 1: device_set_input_line(device,1,HOLD_LINE); break;
+		case 0: cpu_set_input_line(device,3,HOLD_LINE); break;
+		case 1: cpu_set_input_line(device,1,HOLD_LINE); break;
 	}
 }
 #endif
@@ -886,57 +810,49 @@ static const y8950_interface y8950_config = {
 	0 /* TODO */
 };
 
-static MACHINE_CONFIG_START( cybertnk, cybertnk_state )
-	MCFG_CPU_ADD("maincpu", M68000,20000000/2)
-	MCFG_CPU_PROGRAM_MAP(master_mem)
-	MCFG_CPU_VBLANK_INT("lscreen", irq1_line_hold)
+static MACHINE_DRIVER_START( cybertnk )
+	MDRV_CPU_ADD("maincpu", M68000,20000000/2)
+	MDRV_CPU_PROGRAM_MAP(master_mem)
+//  MDRV_CPU_VBLANK_INT_HACK(master_irq,2)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_CPU_ADD("slave", M68000,20000000/2)
-	MCFG_CPU_PROGRAM_MAP(slave_mem)
-	MCFG_CPU_VBLANK_INT("lscreen", irq3_line_hold)
+	MDRV_CPU_ADD("slave", M68000,20000000/2)
+	MDRV_CPU_PROGRAM_MAP(slave_mem)
+//  MDRV_CPU_VBLANK_INT_HACK(slave_irq,2)
+	MDRV_CPU_VBLANK_INT("screen", irq3_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,3579500)
-	MCFG_CPU_PROGRAM_MAP(sound_mem)
+	MDRV_CPU_ADD("audiocpu", Z80,3579500)
+	MDRV_CPU_PROGRAM_MAP(sound_mem)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))//arbitrary value,needed to get the communication to work
+	MDRV_QUANTUM_TIME(HZ(6000))//arbitrary value,needed to get the communication to work
 
 	/* video hardware */
-	MCFG_DEFAULT_LAYOUT(layout_dualhsxs)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 32*8-1)
 
-	MCFG_SCREEN_ADD("lscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(cybertnk)
+	MDRV_GFXDECODE(cybertnk)
+	MDRV_PALETTE_LENGTH(0x4000)
 
-	MCFG_SCREEN_ADD("rscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(cybertnk)
-
-	MCFG_GFXDECODE(cybertnk)
-	MCFG_PALETTE_LENGTH(0x4000)
-
-	MCFG_VIDEO_START(cybertnk)
+	MDRV_VIDEO_START(cybertnk)
+	MDRV_VIDEO_UPDATE(cybertnk)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ym1", Y8950, 3579500)
-	MCFG_SOUND_CONFIG(y8950_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("ym1", Y8950, 3579500)
+	MDRV_SOUND_CONFIG(y8950_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
 
-	MCFG_SOUND_ADD("ym2", Y8950, 3579500)
-	MCFG_SOUND_CONFIG(y8950_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", Y8950, 3579500)
+	MDRV_SOUND_CONFIG(y8950_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -1001,9 +917,9 @@ ROM_START( cybertnk )
 	ROM_LOAD32_BYTE( "c15.117", 0x000003, 0x20000, CRC(f163d768) SHA1(e54e31a6f956f7de52b59bcdd0cd4ac1662b5664) )
 	ROM_LOAD32_BYTE( "c16.116", 0x000002, 0x20000, CRC(5e5017c4) SHA1(586cd729630f00cbaf10d1036edebed1672bc532) )
 
-	ROM_REGION( 0x40000, "road_data", 0 )
-	ROM_LOAD16_BYTE( "road_chl" , 0x000001, 0x20000, CRC(862b109c) SHA1(9f81918362218ddc0a6bf0a5317c5150e514b699) )
-	ROM_LOAD16_BYTE( "road_chh" , 0x000000, 0x20000, CRC(9dedc988) SHA1(10bae1be0e35320872d4994f7e882cd1de988c90) )
+	ROM_REGION( 0x200000, "road_data", 0 )
+	ROM_LOAD16_BYTE( "road_chl" , 0x000000, 0x20000, CRC(862b109c) SHA1(9f81918362218ddc0a6bf0a5317c5150e514b699) )
+	ROM_LOAD16_BYTE( "road_chh" , 0x000001, 0x20000, CRC(9dedc988) SHA1(10bae1be0e35320872d4994f7e882cd1de988c90) )
 
 	/*The following ROM regions aren't checked yet*/
 	ROM_REGION( 0x30000, "user3", 0 )
@@ -1023,20 +939,5 @@ ROM_START( cybertnk )
 	ROM_LOAD( "ic29", 0x0240, 0x0020, CRC(95b32c0f) SHA1(5a19f441ced983bacbf3bc1aaee94ca768166447) )
 	ROM_LOAD( "ic30", 0x0260, 0x0020, CRC(2bb6033f) SHA1(eb994108734d7d04f8e293eca21bb3051a63cfe9) )
 ROM_END
-
-DRIVER_INIT( cybertnk )
-{
-	/* make the gfx decode easier by swapping bits around */
-/*
-    UINT8* road_data;
-    int i;
-
-    road_data = machine.region("road_data")->base();
-    for (i=0;i < 0x40000;i++)
-    {
-        road_data[i] = BITSWAP8(road_data[i],3,2,1,0,7,6,5,4);
-    }
-*/
-}
 
 GAME( 1988, cybertnk,  0,       cybertnk,  cybertnk,  cybertnk, ROT0, "Coreland", "Cyber Tank (v1.04)", GAME_NOT_WORKING )

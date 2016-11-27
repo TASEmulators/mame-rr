@@ -5,23 +5,24 @@
 #include "sound/dac.h"
 #include "includes/konamipt.h"
 
-class mogura_state : public driver_device
+class mogura_state
 {
 public:
-	mogura_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mogura_state(machine)); }
+
+	mogura_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *   m_tileram;
-	UINT8 *   m_gfxram;
+	UINT8 *   tileram;
+	UINT8 *   gfxram;
 
 	/* video-related */
-	tilemap_t *m_tilemap;
+	tilemap_t *tilemap;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_dac1;
-	device_t *m_dac2;
+	running_device *maincpu;
+	running_device *dac1;
+	running_device *dac2;
 };
 
 
@@ -59,9 +60,9 @@ static PALETTE_INIT( mogura )
 
 static TILE_GET_INFO( get_mogura_tile_info )
 {
-	mogura_state *state = machine.driver_data<mogura_state>();
-	int code = state->m_tileram[tile_index];
-	int attr = state->m_tileram[tile_index + 0x800];
+	mogura_state *state = (mogura_state *)machine->driver_data;
+	int code = state->tileram[tile_index];
+	int attr = state->tileram[tile_index + 0x800];
 
 	SET_TILE_INFO(
 			0,
@@ -73,14 +74,14 @@ static TILE_GET_INFO( get_mogura_tile_info )
 
 static VIDEO_START( mogura )
 {
-	mogura_state *state = machine.driver_data<mogura_state>();
-	gfx_element_set_source(machine.gfx[0], state->m_gfxram);
-	state->m_tilemap = tilemap_create(machine, get_mogura_tile_info, tilemap_scan_rows, 8, 8, 64, 32);
+	mogura_state *state = (mogura_state *)machine->driver_data;
+	gfx_element_set_source(machine->gfx[0], state->gfxram);
+	state->tilemap = tilemap_create(machine, get_mogura_tile_info, tilemap_scan_rows, 8, 8, 64, 32);
 }
 
-static SCREEN_UPDATE( mogura )
+static VIDEO_UPDATE( mogura )
 {
-	mogura_state *state = screen->machine().driver_data<mogura_state>();
+	mogura_state *state = (mogura_state *)screen->machine->driver_data;
 	const rectangle &visarea = screen->visible_area();
 
 	/* tilemap layout is a bit strange ... */
@@ -89,51 +90,51 @@ static SCREEN_UPDATE( mogura )
 	clip.max_x = 256 - 1;
 	clip.min_y = visarea.min_y;
 	clip.max_y = visarea.max_y;
-	tilemap_set_scrollx(state->m_tilemap, 0, 256);
-	tilemap_draw(bitmap, &clip, state->m_tilemap, 0, 0);
+	tilemap_set_scrollx(state->tilemap, 0, 256);
+	tilemap_draw(bitmap, &clip, state->tilemap, 0, 0);
 
 	clip.min_x = 256;
 	clip.max_x = 512 - 1;
 	clip.min_y = visarea.min_y;
 	clip.max_y = visarea.max_y;
-	tilemap_set_scrollx(state->m_tilemap, 0, -128);
-	tilemap_draw(bitmap, &clip, state->m_tilemap, 0, 0);
+	tilemap_set_scrollx(state->tilemap, 0, -128);
+	tilemap_draw(bitmap, &clip, state->tilemap, 0, 0);
 
 	return 0;
 }
 
 static WRITE8_HANDLER( mogura_tileram_w )
 {
-	mogura_state *state = space->machine().driver_data<mogura_state>();
-	state->m_tileram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_tilemap, offset & 0x7ff);
+	mogura_state *state = (mogura_state *)space->machine->driver_data;
+	state->tileram[offset] = data;
+	tilemap_mark_tile_dirty(state->tilemap, offset & 0x7ff);
 }
 
 static WRITE8_HANDLER(mogura_dac_w)
 {
-	mogura_state *state = space->machine().driver_data<mogura_state>();
-	dac_data_w(state->m_dac1, data & 0xf0);	/* left */
-	dac_data_w(state->m_dac2, (data & 0x0f) << 4);	/* right */
+	mogura_state *state = (mogura_state *)space->machine->driver_data;
+	dac_data_w(state->dac1, data & 0xf0);	/* left */
+	dac_data_w(state->dac2, (data & 0x0f) << 4);	/* right */
 }
 
 
 static WRITE8_HANDLER ( mogura_gfxram_w )
 {
-	mogura_state *state = space->machine().driver_data<mogura_state>();
-	state->m_gfxram[offset] = data ;
+	mogura_state *state = (mogura_state *)space->machine->driver_data;
+	state->gfxram[offset] = data ;
 
-	gfx_element_mark_dirty(space->machine().gfx[0], offset / 16);
+	gfx_element_mark_dirty(space->machine->gfx[0], offset / 16);
 }
 
 
-static ADDRESS_MAP_START( mogura_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mogura_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM // main ram
-	AM_RANGE(0xe000, 0xefff) AM_RAM_WRITE(mogura_gfxram_w) AM_BASE_MEMBER(mogura_state, m_gfxram) // ram based characters
-	AM_RANGE(0xf000, 0xffff) AM_RAM_WRITE(mogura_tileram_w) AM_BASE_MEMBER(mogura_state, m_tileram) // tilemap
+	AM_RANGE(0xe000, 0xefff) AM_RAM_WRITE(mogura_gfxram_w) AM_BASE_MEMBER(mogura_state, gfxram) // ram based characters
+	AM_RANGE(0xf000, 0xffff) AM_RAM_WRITE(mogura_tileram_w) AM_BASE_MEMBER(mogura_state, tileram) // tilemap
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mogura_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mogura_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_WRITENOP	// ??
 	AM_RANGE(0x08, 0x08) AM_READ_PORT("SYSTEM")
@@ -192,48 +193,51 @@ GFXDECODE_END
 
 static MACHINE_START( mogura )
 {
-	mogura_state *state = machine.driver_data<mogura_state>();
+	mogura_state *state = (mogura_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_dac1 = machine.device("dac1");
-	state->m_dac2 = machine.device("dac2");
+	state->maincpu = machine->device("maincpu");
+	state->dac1 = machine->device("dac1");
+	state->dac2 = machine->device("dac2");
 }
 
-static MACHINE_CONFIG_START( mogura, mogura_state )
+static MACHINE_DRIVER_START( mogura )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mogura_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,3000000)		 /* 3 MHz */
-	MCFG_CPU_PROGRAM_MAP(mogura_map)
-	MCFG_CPU_IO_MAP(mogura_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,3000000)		 /* 3 MHz */
+	MDRV_CPU_PROGRAM_MAP(mogura_map)
+	MDRV_CPU_IO_MAP(mogura_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_START(mogura)
+	MDRV_MACHINE_START(mogura)
 
-	MCFG_GFXDECODE(mogura)
+	MDRV_GFXDECODE(mogura)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60) // ?
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(mogura)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60) // ?
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 512)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 0, 256-1)
 
-	MCFG_PALETTE_LENGTH(32)
+	MDRV_PALETTE_LENGTH(32)
 
-	MCFG_PALETTE_INIT(mogura)
-	MCFG_VIDEO_START(mogura)
+	MDRV_PALETTE_INIT(mogura)
+	MDRV_VIDEO_START(mogura)
+	MDRV_VIDEO_UPDATE(mogura)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("dac1", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
+	MDRV_SOUND_ADD("dac1", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
 
-	MCFG_SOUND_ADD("dac2", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac2", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
+MACHINE_DRIVER_END
 
 ROM_START( mogura )
 	ROM_REGION( 0x10000, "maincpu", 0 )

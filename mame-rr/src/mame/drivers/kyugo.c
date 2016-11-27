@@ -23,6 +23,7 @@
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "deprecat.h"
 #include "sound/ay8910.h"
 #include "includes/kyugo.h"
 
@@ -35,8 +36,8 @@
 
 static WRITE8_HANDLER( kyugo_sub_cpu_control_w )
 {
-	kyugo_state *state = space->machine().driver_data<kyugo_state>();
-	device_set_input_line(state->m_subcpu, INPUT_LINE_HALT, data ? CLEAR_LINE : ASSERT_LINE);
+	kyugo_state *state = (kyugo_state *)space->machine->driver_data;
+	cpu_set_input_line(state->subcpu, INPUT_LINE_HALT, data ? CLEAR_LINE : ASSERT_LINE);
 }
 
 
@@ -46,17 +47,17 @@ static WRITE8_HANDLER( kyugo_sub_cpu_control_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
-	AM_RANGE(0x8000, 0x87ff) AM_RAM_WRITE(kyugo_bgvideoram_w) AM_BASE_MEMBER(kyugo_state, m_bgvideoram)
-	AM_RANGE(0x8800, 0x8fff) AM_RAM_WRITE(kyugo_bgattribram_w) AM_BASE_MEMBER(kyugo_state, m_bgattribram)
-	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(kyugo_fgvideoram_w) AM_BASE_MEMBER(kyugo_state, m_fgvideoram)
-	AM_RANGE(0x9800, 0x9fff) AM_RAM_READ(kyugo_spriteram_2_r) AM_BASE_MEMBER(kyugo_state, m_spriteram_2)
-	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(kyugo_state, m_spriteram_1)
+	AM_RANGE(0x8000, 0x87ff) AM_RAM_WRITE(kyugo_bgvideoram_w) AM_BASE_MEMBER(kyugo_state, bgvideoram)
+	AM_RANGE(0x8800, 0x8fff) AM_RAM_WRITE(kyugo_bgattribram_w) AM_BASE_MEMBER(kyugo_state, bgattribram)
+	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(kyugo_fgvideoram_w) AM_BASE_MEMBER(kyugo_state, fgvideoram)
+	AM_RANGE(0x9800, 0x9fff) AM_RAM_READ(kyugo_spriteram_2_r) AM_BASE_MEMBER(kyugo_state, spriteram_2)
+	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(kyugo_state, spriteram_1)
 	AM_RANGE(0xa800, 0xa800) AM_WRITE(kyugo_scroll_x_lo_w)
 	AM_RANGE(0xb000, 0xb000) AM_WRITE(kyugo_gfxctrl_w)
 	AM_RANGE(0xb800, 0xb800) AM_WRITE(kyugo_scroll_y_w)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(kyugo_state, m_shared_ram)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(kyugo_state, shared_ram)
 ADDRESS_MAP_END
 
 
@@ -68,7 +69,7 @@ ADDRESS_MAP_END
  *************************************/
 
 #define Main_PortMap( name, base )										\
-static ADDRESS_MAP_START( name##_portmap, AS_IO, 8 )			\
+static ADDRESS_MAP_START( name##_portmap, ADDRESS_SPACE_IO, 8 )			\
 	ADDRESS_MAP_GLOBAL_MASK(0xff)									\
 	AM_RANGE(base+0, base+0) AM_WRITE(interrupt_enable_w)				\
 	AM_RANGE(base+1, base+1) AM_WRITE(kyugo_flipscreen_w)				\
@@ -89,7 +90,7 @@ Main_PortMap( srdmissn, 0x08 )
  *************************************/
 
 #define Sub_MemMap( name, rom_end, shared, in0, in1, in2 )					\
-static ADDRESS_MAP_START( name##_sub_map, AS_PROGRAM, 8 )		\
+static ADDRESS_MAP_START( name##_sub_map, ADDRESS_SPACE_PROGRAM, 8 )		\
 	AM_RANGE(0x0000, rom_end) AM_ROM										\
 	AM_RANGE(shared, shared+0x7ff) AM_RAM AM_SHARE("share1")						\
 	AM_RANGE(in0, in0) AM_READ_PORT("SYSTEM")								\
@@ -112,7 +113,7 @@ Sub_MemMap( flashgala,0x7fff, 0xe000, 0xc040, 0xc080, 0xc0c0 )
  *************************************/
 
 #define Sub_PortMap( name, ay0_base, ay1_base )											\
-static ADDRESS_MAP_START( name##_sub_portmap, AS_IO, 8 )						\
+static ADDRESS_MAP_START( name##_sub_portmap, ADDRESS_SPACE_IO, 8 )						\
 	ADDRESS_MAP_GLOBAL_MASK(0xff)														\
 	AM_RANGE(ay0_base+0, ay0_base+1) AM_DEVWRITE("ay1", ay8910_address_data_w)	\
 	AM_RANGE(ay0_base+2, ay0_base+2) AM_DEVREAD("ay1", ay8910_r)					\
@@ -448,124 +449,132 @@ static const ay8910_interface ay8910_config =
 
 static MACHINE_START( kyugo )
 {
-	kyugo_state *state = machine.driver_data<kyugo_state>();
+	kyugo_state *state = (kyugo_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_subcpu = machine.device("sub");
+	state->maincpu = machine->device("maincpu");
+	state->subcpu = machine->device("sub");
 
-	state->save_item(NAME(state->m_scroll_x_lo));
-	state->save_item(NAME(state->m_scroll_x_hi));
-	state->save_item(NAME(state->m_scroll_y));
-	state->save_item(NAME(state->m_bgpalbank));
-	state->save_item(NAME(state->m_fgcolor));
-	state->save_item(NAME(state->m_flipscreen));
+	state_save_register_global(machine, state->scroll_x_lo);
+	state_save_register_global(machine, state->scroll_x_hi);
+	state_save_register_global(machine, state->scroll_y);
+	state_save_register_global(machine, state->bgpalbank);
+	state_save_register_global(machine, state->fgcolor);
+	state_save_register_global(machine, state->flipscreen);
 }
 
 static MACHINE_RESET( kyugo )
 {
-	kyugo_state *state = machine.driver_data<kyugo_state>();
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	kyugo_state *state = (kyugo_state *)machine->driver_data;
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	// must start with interrupts and sub CPU disabled
-	cpu_interrupt_enable(machine.device("maincpu"), 0);
+	cpu_interrupt_enable(machine->device("maincpu"), 0);
 	kyugo_sub_cpu_control_w(space, 0, 0);
 
-	state->m_scroll_x_lo = 0;
-	state->m_scroll_x_hi = 0;
-	state->m_scroll_y = 0;
-	state->m_bgpalbank = 0;
-	state->m_fgcolor = 0;
-	state->m_flipscreen = 0;
+	state->scroll_x_lo = 0;
+	state->scroll_x_hi = 0;
+	state->scroll_y = 0;
+	state->bgpalbank = 0;
+	state->fgcolor = 0;
+	state->flipscreen = 0;
 }
 
 
-static MACHINE_CONFIG_START( gyrodine, kyugo_state )
+static MACHINE_DRIVER_START( gyrodine )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(kyugo_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_18_432MHz/6)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_IO_MAP(gyrodine_portmap)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_18_432MHz/6)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_IO_MAP(gyrodine_portmap)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_CPU_ADD("sub", Z80, XTAL_18_432MHz/6)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(gyrodine_sub_map)
-	MCFG_CPU_IO_MAP(gyrodine_sub_portmap)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,4*60)
+	MDRV_CPU_ADD("sub", Z80, XTAL_18_432MHz/6)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(gyrodine_sub_map)
+	MDRV_CPU_IO_MAP(gyrodine_sub_portmap)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,4)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
+	MDRV_QUANTUM_TIME(HZ(6000))
 
-	MCFG_MACHINE_START(kyugo)
-	MCFG_MACHINE_RESET(kyugo)
+	MDRV_MACHINE_START(kyugo)
+	MDRV_MACHINE_RESET(kyugo)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(kyugo)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(kyugo)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(kyugo)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(kyugo)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(kyugo)
+	MDRV_VIDEO_UPDATE(kyugo)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, XTAL_18_432MHz/12)  /* verified on pcb */
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("ay1", AY8910, XTAL_18_432MHz/12)  /* verified on pcb */
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ay2", AY8910, XTAL_18_432MHz/12)  /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, XTAL_18_432MHz/12)  /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( repulse, gyrodine )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("sub")
-	MCFG_CPU_PROGRAM_MAP(repulse_sub_map)
-	MCFG_CPU_IO_MAP(repulse_sub_portmap)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( srdmissn, gyrodine )
+static MACHINE_DRIVER_START( repulse )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_IO_MAP(srdmissn_portmap)
+	MDRV_IMPORT_FROM(gyrodine)
+	MDRV_CPU_MODIFY("sub")
+	MDRV_CPU_PROGRAM_MAP(repulse_sub_map)
+	MDRV_CPU_IO_MAP(repulse_sub_portmap)
+MACHINE_DRIVER_END
 
-	MCFG_CPU_MODIFY("sub")
-	MCFG_CPU_PROGRAM_MAP(srdmissn_sub_map)
-	MCFG_CPU_IO_MAP(srdmissn_sub_portmap)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( flashgal, repulse )
+static MACHINE_DRIVER_START( srdmissn )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_IO_MAP(flashgal_portmap)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(gyrodine)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_IO_MAP(srdmissn_portmap)
 
-static MACHINE_CONFIG_DERIVED( flashgala, gyrodine )
+	MDRV_CPU_MODIFY("sub")
+	MDRV_CPU_PROGRAM_MAP(srdmissn_sub_map)
+	MDRV_CPU_IO_MAP(srdmissn_sub_portmap)
+MACHINE_DRIVER_END
 
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_IO_MAP(flashgala_portmap)
-
-	MCFG_CPU_MODIFY("sub")
-	MCFG_CPU_PROGRAM_MAP(flashgala_sub_map)
-	MCFG_CPU_IO_MAP(flashgala_sub_portmap)
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( legend, gyrodine )
+static MACHINE_DRIVER_START( flashgal )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("sub")
-	MCFG_CPU_PROGRAM_MAP(legend_sub_map)
-	MCFG_CPU_IO_MAP(srdmissn_sub_portmap)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(repulse)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_IO_MAP(flashgal_portmap)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( flashgala )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(gyrodine)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_IO_MAP(flashgala_portmap)
+
+	MDRV_CPU_MODIFY("sub")
+	MDRV_CPU_PROGRAM_MAP(flashgala_sub_map)
+	MDRV_CPU_IO_MAP(flashgala_sub_portmap)
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( legend )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(gyrodine)
+	MDRV_CPU_MODIFY("sub")
+	MDRV_CPU_PROGRAM_MAP(legend_sub_map)
+	MDRV_CPU_IO_MAP(srdmissn_sub_portmap)
+MACHINE_DRIVER_END
 
 
 /*************************************
@@ -1277,51 +1286,6 @@ ROM_START( legend )
 	ROM_LOAD( "epl12p6.9j", 0x0200, 0x0034, CRC(dcae870d) SHA1(2224724a3faf0608083f5d6ff76712adc7616a54) )
 ROM_END
 
-ROM_START( legendb )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "06.s02",    0x0000, 0x2000, CRC(227f3e88) SHA1(d31da7fe685f3249af6f42940d22d17399b9582c) )
-	ROM_LOAD( "07.s03",    0x2000, 0x2000, CRC(9352e9dc) SHA1(ad7e0edce658bc6c0069025512ea4a2050a61533) )
-	ROM_LOAD( "08.s04",    0x4000, 0x2000, CRC(41cee2b2) SHA1(166c0581aa83ba67f1912ebed80c1f02bd843ab6) )
-	ROM_LOAD( "05.n03",    0x6000, 0x2000, CRC(d8fd4e37) SHA1(7c9d2d48a57a4d75682e0f910151a5c0e3229413) )
-
-	ROM_REGION( 0x10000, "sub", 0 )
-	ROM_LOAD( "02.s07",    0x0000, 0x2000, CRC(abfe5eb4) SHA1(fbeb5ee14aaebb6321fe97fe523f08833fad9c7c) )
-	ROM_LOAD( "03.s08",    0x2000, 0x2000, CRC(7e7b9ba9) SHA1(897779129108b0f3936234ea797d47cf46cb7a16) )
-	ROM_LOAD( "04.s09",    0x4000, 0x2000, CRC(0dd50aa7) SHA1(001ba0d5e0b50fb030a95fdbeba40005ffc5c182) )
-	ROM_LOAD( "01.n07",    0x6000, 0x2000, CRC(13915a53) SHA1(25ba3babc8eb0df413bdfe7dbcd8642e4c658120) )
-
-	ROM_REGION(  0x1000, "gfx1", 0 )	/* fg tiles */
-	ROM_LOAD( "15.b05",    0x0000, 0x1000, CRC(6c879f76) SHA1(9da84446e463264ed86e912589d826d86c27bf59) )
-
-	ROM_REGION(  0x6000, "gfx2", 0 )	/* bg tiles */
-	ROM_LOAD( "18.j09",   0x0000, 0x2000, CRC(3bdcd028) SHA1(2fb2ecc5333e50834badb4b00093ca8e9a64bce4) )
-	ROM_LOAD( "17.j10",   0x2000, 0x2000, CRC(105c5b53) SHA1(269da6bdef55024e593ea0178597e37ff2fefc10) )
-	ROM_LOAD( "16.j11",   0x4000, 0x2000, CRC(b9ca4efd) SHA1(680c3ca88c65c1643ae82945b937d34579c0efeb) )
-
-	ROM_REGION( 0x18000, "gfx3", 0 )	/* sprites */
-	ROM_LOAD( "14.b06",   0x00000, 0x4000, CRC(1689f21c) SHA1(fafb13dc8ca27a7506065bbf08102afc6d722843) )
-	ROM_LOAD( "13.b07",   0x04000, 0x4000, CRC(f527c909) SHA1(40f44828502018c73283965eb7a2a68ed25ebfe5) )
-	ROM_LOAD( "12.b08",   0x08000, 0x4000, CRC(8d618629) SHA1(3cc49fd8066464ee940de010da3f33ed8573df3d) )
-	ROM_LOAD( "11.b09",   0x0c000, 0x4000, CRC(7d7e2d55) SHA1(efd4817a0f5e14cb5a3d0c1f69e6ad408a813202) )
-	ROM_LOAD( "10.b10",   0x10000, 0x4000, CRC(f12232fe) SHA1(2d8accc10f0703eeb075c4053d4165b90552e6a7) )
-	ROM_LOAD( "09.b11",   0x14000, 0x4000, CRC(8c09243d) SHA1(8f0f68921f8ab6c016b7481714febb68abb7ce79) )
-
-	ROM_REGION( 0x0340, "proms", 0 )
-	ROM_LOAD( "82s129.1j",   0x0000, 0x0100, CRC(40590ac0) SHA1(30a8e24e34c4ee0a7df91c0633becfce1c8d856c) ) /* red */
-	ROM_LOAD( "82s129.1h",   0x0100, 0x0100, CRC(e542b363) SHA1(6775209b9a4aaf374878c06cf4dc693b921abd87) ) /* green */
-	ROM_LOAD( "82s129.1f",   0x0200, 0x0100, CRC(75536fc8) SHA1(e713efafcdc7f2a595444af75d2083eb3e38a480) ) /* blue */
-	ROM_LOAD( "82s123.5j",   0x0300, 0x0020, CRC(c98f0651) SHA1(4f1b95213c28ad017c8d6542e8d522e4d69f91e3) ) /* char lookup table */
-	ROM_LOAD( "m1.2c",       0x0320, 0x0020, CRC(83a39201) SHA1(4fdc722c9e20ee152c890342ef0dce18e35e2ef8) ) /* timing? not used */
-
-	ROM_REGION( 0x0300, "plds", 0 )
-	ROM_LOAD( "epl10p8.2j", 0x0000, 0x002c, CRC(8abc03bf) SHA1(05a7085583f76cb46ec623adfc1e0dd35c6a36e6) )
-	ROM_LOAD( "epl12p6.9k", 0x0100, 0x0034, CRC(9b0bd6f8) SHA1(9dceb37245969537301b1f3c74f2c4ee088faa93) )
-	ROM_LOAD( "epl12p6.9j", 0x0200, 0x0034, CRC(dcae870d) SHA1(2224724a3faf0608083f5d6ff76712adc7616a54) )
-ROM_END
-
-
-
-
 
 /*************************************
  *
@@ -1332,19 +1296,19 @@ ROM_END
 static DRIVER_INIT( gyrodine )
 {
 	/* add watchdog */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0xe000, 0xe000, FUNC(watchdog_reset_w));
+	memory_install_write8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe000, 0xe000, 0, 0, watchdog_reset_w);
 }
 
 
 static DRIVER_INIT( srdmissn )
 {
-	kyugo_state *state = machine.driver_data<kyugo_state>();
+	kyugo_state *state = (kyugo_state *)machine->driver_data;
 
 	/* shared RAM is mapped at 0xe000 as well  */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_ram(0xe000, 0xe7ff, state->m_shared_ram);
+	memory_install_ram(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe000, 0xe7ff, 0, 0, state->shared_ram);
 
 	/* extra RAM on sub CPU  */
-	machine.device("sub")->memory().space(AS_PROGRAM)->install_ram(0x8800, 0x8fff);
+	memory_install_ram(cputag_get_address_space(machine, "sub", ADDRESS_SPACE_PROGRAM), 0x8800, 0x8fff, 0, 0, NULL);
 }
 
 
@@ -1367,8 +1331,7 @@ GAME( 1985, flashgal,  0,        flashgal, flashgal, 0,        ROT0,  "Sega", "F
 GAME( 1985, flashgala, flashgal, flashgala,flashgal, 0,        ROT0,  "Sega", "Flashgal (set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1986, srdmissn,  0,        srdmissn, srdmissn, srdmissn, ROT90, "Taito Corporation", "S.R.D. Mission", GAME_SUPPORTS_SAVE )
 GAME( 1986, fx,        srdmissn, srdmissn, srdmissn, srdmissn, ROT90, "bootleg", "F-X", GAME_SUPPORTS_SAVE )
-GAME( 1986, legend,    0,        legend,   legend,   srdmissn, ROT0,  "Sega / Coreland", "Legend", GAME_SUPPORTS_SAVE ) // no copyright (maybe also a bootleg?)
-GAME( 1986, legendb,   legend,   legend,   legend,   srdmissn, ROT0,  "bootleg", "Legion (bootleg of Legend)", GAME_SUPPORTS_SAVE ) // no copyright
+GAME( 1986, legend,    0,        legend,   legend,   srdmissn, ROT0,  "Sega / Coreland", "Legend", GAME_SUPPORTS_SAVE )
 GAME( 1987, airwolf,   0,        srdmissn, airwolf,  srdmissn, ROT0,  "Kyugo", "Airwolf", GAME_SUPPORTS_SAVE )
 GAME( 1987, airwolfa,  airwolf,  srdmissn, airwolf,  srdmissn, ROT0,  "Kyugo (UA Theatre license)", "Airwolf (US)", GAME_SUPPORTS_SAVE )
 GAME( 1987, skywolf,   airwolf,  srdmissn, skywolf,  srdmissn, ROT0,  "bootleg", "Sky Wolf (set 1)", GAME_SUPPORTS_SAVE )

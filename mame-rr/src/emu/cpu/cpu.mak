@@ -33,31 +33,39 @@ DRCOBJ = \
 	$(CPUOBJ)/drccache.o \
 	$(CPUOBJ)/drcfe.o \
 	$(CPUOBJ)/drcuml.o \
-	$(CPUOBJ)/uml.o \
-	$(CPUOBJ)/i386/i386dasm.o \
-	$(CPUOBJ)/x86log.o \
-	$(CPUOBJ)/drcbex86.o \
-	$(CPUOBJ)/drcbex64.o \
 
 DRCDEPS = \
-	$(CPUSRC)/drcbec.h \
 	$(CPUSRC)/drcbeut.h \
 	$(CPUSRC)/drccache.h \
 	$(CPUSRC)/drcfe.h \
 	$(CPUSRC)/drcuml.h \
 	$(CPUSRC)/drcumlsh.h \
-	$(CPUSRC)/uml.h \
-	$(CPUSRC)/drcbex86.h \
-	$(CPUSRC)/drcbex64.h \
-	$(CPUSRC)/x86emit.h \
 
 # fixme - need to make this work for other target architectures (PPC)
 
 ifndef FORCE_DRC_C_BACKEND
 ifeq ($(PTR64),1)
-DEFS += -DNATIVE_DRC=drcbe_x64
+
+DRCOBJ += \
+	$(CPUOBJ)/drcbex64.o \
+	$(CPUOBJ)/x86log.o $(CPUOBJ)/i386/i386dasm.o
+
+DRCDEPS += \
+	$(CPUSRC)/x86emit.h
+
+DEFS += -DNATIVE_DRC=drcbe_x64_be_interface
+
 else
-DEFS += -DNATIVE_DRC=drcbe_x86
+
+DRCOBJ += \
+	$(CPUOBJ)/drcbex86.o \
+	$(CPUOBJ)/x86log.o $(CPUOBJ)/i386/i386dasm.o
+
+DRCDEPS += \
+	$(CPUSRC)/x86emit.h
+
+DEFS += -DNATIVE_DRC=drcbe_x86_be_interface
+
 endif
 endif
 
@@ -176,20 +184,6 @@ $(CPUOBJ)/apexc/apexc.o:	$(CPUSRC)/apexc/apexc.c \
 
 
 #-------------------------------------------------
-# AT&T DSP16A
-#-------------------------------------------------
-
-ifneq ($(filter DSP16A,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/dsp16
-CPUOBJS += $(CPUOBJ)/dsp16/dsp16.o
-DASMOBJS += $(CPUOBJ)/dsp16/dsp16dis.o
-endif
-
-$(CPUOBJ)/dsp16/dsp16.o:	$(CPUSRC)/dsp16/dsp16.c \
-							$(CPUSRC)/dsp16/dsp16.h
-
-
-#-------------------------------------------------
 # AT&T DSP32C
 #-------------------------------------------------
 
@@ -282,17 +276,17 @@ $(CPUOBJ)/esrip/esrip.o:	$(CPUSRC)/esrip/esrip.c \
 
 
 #-------------------------------------------------
-# RCA COSMAC
+# RCA CDP1802
 #-------------------------------------------------
 
-ifneq ($(filter COSMAC,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/cosmac
-CPUOBJS += $(CPUOBJ)/cosmac/cosmac.o
-DASMOBJS += $(CPUOBJ)/cosmac/cosdasm.o
+ifneq ($(filter CDP1802,$(CPUS)),)
+OBJDIRS += $(CPUOBJ)/cdp1802
+CPUOBJS += $(CPUOBJ)/cdp1802/cdp1802.o
+DASMOBJS += $(CPUOBJ)/cdp1802/1802dasm.o
 endif
 
-$(CPUOBJ)/cosmac/cosmac.o:	$(CPUSRC)/cosmac/cosmac.c \
-							$(CPUSRC)/cosmac/cosmac.h
+$(CPUOBJ)/cdp1802/cdp1802.o:	$(CPUSRC)/cdp1802/cdp1802.c \
+								$(CPUSRC)/cdp1802/cdp1802.h
 
 
 
@@ -439,7 +433,7 @@ $(CPUOBJ)/hd6309/hd6309.o:	$(CPUSRC)/hd6309/hd6309.c \
 
 ifneq ($(filter H83002,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/h83002
-CPUOBJS += $(CPUOBJ)/h83002/h8_16.o $(CPUOBJ)/h83002/h8periph.o $(CPUOBJ)/h83002/h8speriph.o
+CPUOBJS += $(CPUOBJ)/h83002/h8_16.o $(CPUOBJ)/h83002/h8periph.o
 DASMOBJS += $(CPUOBJ)/h83002/h8disasm.o
 endif
 
@@ -451,12 +445,7 @@ $(CPUOBJ)/h83002/h8_16.o:		$(CPUSRC)/h83002/h8_16.c \
 $(CPUOBJ)/h83002/h8disasm.o:	$(CPUSRC)/h83002/h8disasm.c
 
 $(CPUOBJ)/h83002/h8periph.o:	$(CPUSRC)/h83002/h8periph.c \
-								$(CPUSRC)/h83002/h8priv.h \
-								$(CPUSRC)/h83002/h8.h
-
-$(CPUOBJ)/h83002/h8speriph.o:	$(CPUSRC)/h83002/h8speriph.c \
-								$(CPUSRC)/h83002/h8priv.h \
-								$(CPUSRC)/h83002/h8.h
+								$(CPUSRC)/h83002/h8priv.h
 
 
 #-------------------------------------------------
@@ -465,7 +454,7 @@ $(CPUOBJ)/h83002/h8speriph.o:	$(CPUSRC)/h83002/h8speriph.c \
 
 ifneq ($(filter H83334,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/h83002
-CPUOBJS += $(CPUOBJ)/h83002/h8_8.o $(CPUOBJ)/h83002/h8periph.o $(CPUOBJ)/h83002/h8speriph.o
+CPUOBJS += $(CPUOBJ)/h83002/h8_8.o $(CPUOBJ)/h83002/h8periph.o
 DASMOBJS += $(CPUOBJ)/h83002/h8disasm.o
 endif
 
@@ -477,27 +466,7 @@ $(CPUOBJ)/h83002/h8_8.o:		$(CPUSRC)/h83002/h8_8.c \
 $(CPUOBJ)/h83002/h8disasm.o:	$(CPUSRC)/h83002/h8disasm.c
 
 $(CPUOBJ)/h83002/h8periph.o:	$(CPUSRC)/h83002/h8periph.c \
-								$(CPUSRC)/h83002/h8priv.h \
-								$(CPUSRC)/h83002/h8.h
-
-$(CPUOBJ)/h83002/h8speriph.o:	$(CPUSRC)/h83002/h8speriph.c \
-								$(CPUSRC)/h83002/h8priv.h \
-								$(CPUSRC)/h83002/h8.h
-
-#-------------------------------------------------
-# Hitachi HCD62121
-#-------------------------------------------------
-
-ifneq ($(filter HCD62121,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/hcd62121
-CPUOBJS += $(CPUOBJ)/hcd62121/hcd62121.o
-DASMOBJS += $(CPUOBJ)/hcd62121/hcd62121d.o
-endif
-
-$(CPUOBJ)/hcd62121/hcd62121.o:	$(CPUSRC)/hcd62121/hcd62121.c \
-							$(CPUSRC)/hcd62121/hcd62121.h \
-							$(CPUSRC)/hcd62121/hcd62121_ops.h
-
+								$(CPUSRC)/h83002/h8priv.h
 
 #-------------------------------------------------
 # Hitachi SH1/SH2
@@ -519,8 +488,7 @@ $(CPUOBJ)/sh2/sh2comn.o:  $(CPUSRC)/sh2/sh2comn.c \
 
 $(CPUOBJ)/sh2/sh2drc.o:	$(CPUSRC)/sh2/sh2drc.c \
 			$(CPUSRC)/sh2/sh2.h \
-			$(CPUSRC)/sh2/sh2comn.h \
-			$(DRCDEPS)
+			$(CPUSRC)/sh2/sh2comn.h
 
 $(CPUOBJ)/sh2/sh2fe.o:	$(CPUSRC)/sh2/sh2fe.c \
 			$(CPUSRC)/sh2/sh2.h \
@@ -532,43 +500,19 @@ $(CPUOBJ)/sh2/sh2fe.o:	$(CPUSRC)/sh2/sh2fe.c \
 
 ifneq ($(filter SH4,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/sh4
-CPUOBJS += $(CPUOBJ)/sh4/sh4.o $(CPUOBJ)/sh4/sh4comn.o $(CPUOBJ)/sh4/sh3comn.o $(CPUOBJ)/sh4/sh4tmu.o $(CPUOBJ)/sh4/sh4dmac.o
+CPUOBJS += $(CPUOBJ)/sh4/sh4.o $(CPUOBJ)/sh4/sh4comn.o
 DASMOBJS += $(CPUOBJ)/sh4/sh4dasm.o
 endif
 
 $(CPUOBJ)/sh4/sh4.o:	$(CPUSRC)/sh4/sh4.c \
 			$(CPUSRC)/sh4/sh4.h \
 			$(CPUSRC)/sh4/sh4regs.h \
-			$(CPUSRC)/sh4/sh4comn.h \
-			$(CPUSRC)/sh4/sh3comn.h
+			$(CPUSRC)/sh4/sh4comn.h
 
 $(CPUOBJ)/sh4/sh4comn.o:  $(CPUSRC)/sh4/sh4comn.c \
 			$(CPUSRC)/sh4/sh4comn.h \
 			$(CPUSRC)/sh4/sh4regs.h \
 			$(CPUSRC)/sh4/sh4.h
-
-$(CPUOBJ)/sh4/sh3comn.o:  $(CPUSRC)/sh4/sh3comn.c \
-			$(CPUSRC)/sh4/sh3comn.h \
-
-$(CPUOBJ)/sh4/sh4tmu.o: $(CPUSRC)/sh4/sh4tmu.c \
-			$(CPUSRC)/sh4/sh4tmu.h \
-			$(CPUSRC)/sh4/sh3comn.c \
-			$(CPUSRC)/sh4/sh3comn.h \
-			$(CPUSRC)/sh4/sh4.c \
-			$(CPUSRC)/sh4/sh4.h \
-			$(CPUSRC)/sh4/sh4regs.h \
-			$(CPUSRC)/sh4/sh4comn.h \
-			$(CPUSRC)/sh4/sh3comn.h
-
-$(CPUOBJ)/sh4/sh4dmac.o: $(CPUSRC)/sh4/sh4dmac.c \
-			$(CPUSRC)/sh4/sh4dmac.h \
-			$(CPUSRC)/sh4/sh3comn.c \
-			$(CPUSRC)/sh4/sh3comn.h \
-			$(CPUSRC)/sh4/sh4.c \
-			$(CPUSRC)/sh4/sh4.h \
-			$(CPUSRC)/sh4/sh4regs.h \
-			$(CPUSRC)/sh4/sh4comn.h \
-			$(CPUSRC)/sh4/sh3comn.h
 
 #-------------------------------------------------
 # Hudsonsoft 6280
@@ -714,6 +658,7 @@ I86DEPS = \
 
 $(CPUOBJ)/i86/i86.o:	$(CPUSRC)/i86/i86.c \
 						$(CPUSRC)/i86/i86.h \
+						$(CPUSRC)/i86/i86mem.c \
 						$(CPUSRC)/i86/i86time.c \
 						$(CPUSRC)/i86/instr86.c \
 						$(CPUSRC)/i86/instr186.c \
@@ -721,11 +666,11 @@ $(CPUOBJ)/i86/i86.o:	$(CPUSRC)/i86/i86.c \
 
 $(CPUOBJ)/i86/i286.o:	$(CPUSRC)/i86/i286.c \
 						$(CPUSRC)/i86/i286.h \
+						$(CPUSRC)/i86/i86mem.c \
 						$(CPUSRC)/i86/i86time.c \
 						$(CPUSRC)/i86/instr86.c \
 						$(CPUSRC)/i86/instr186.c \
 						$(CPUSRC)/i86/instr286.c \
-						$(CPUSRC)/i86/modrm286.h \
 						$(I86DEPS)
 
 $(CPUOBJ)/i386/i386.o:	$(CPUSRC)/i386/i386.c \
@@ -882,21 +827,21 @@ $(CPUOBJ)/pic16c62x/pic16c62x.o:	$(CPUSRC)/pic16c62x/pic16c62x.c \
 #-------------------------------------------------
 # MIPS R3000 (MIPS I/II) series
 # MIPS R4000 (MIPS III/IV) series
+# Sony PlayStation CPU (R3000-based + GTE)
 #-------------------------------------------------
 
 ifneq ($(filter MIPS,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/mips
 CPUOBJS += $(CPUOBJ)/mips/r3000.o
-CPUOBJS += $(CPUOBJ)/mips/mips3com.o $(CPUOBJ)/mips/mips3.o $(CPUOBJ)/mips/mips3fe.o $(CPUOBJ)/mips/mips3drc.o $(DRCOBJ)
+CPUOBJS += $(CPUOBJ)/mips/mips3com.o $(CPUOBJ)/mips/mips3fe.o $(CPUOBJ)/mips/mips3drc.o $(DRCOBJ)
+CPUOBJS += $(CPUOBJ)/mips/psx.o
 DASMOBJS += $(CPUOBJ)/mips/r3kdasm.o
 DASMOBJS += $(CPUOBJ)/mips/mips3dsm.o
+DASMOBJS += $(CPUOBJ)/mips/psxdasm.o
 endif
 
 $(CPUOBJ)/mips/r3000.o:	$(CPUSRC)/mips/r3000.c \
 			$(CPUSRC)/mips/r3000.h
-
-$(CPUOBJ)/mips/mips3.o:	$(CPUSRC)/mips/mips3.h $(CPUSRC)/mips/mips3com.h \
-				$(CPUSRC)/mips/mips3.c
 
 $(CPUOBJ)/mips/mips3com.o:	$(CPUSRC)/mips/mips3.h \
 				$(CPUSRC)/mips/mips3com.h
@@ -911,38 +856,9 @@ $(CPUOBJ)/mips/mips3drc.o:	$(CPUSRC)/mips/mips3drc.c \
 				$(CPUSRC)/mips/mips3fe.h \
 				$(DRCDEPS)
 
+$(CPUOBJ)/mips/psx.o:	$(CPUSRC)/mips/psx.c \
+			$(CPUSRC)/mips/psx.h
 
-
-#-------------------------------------------------
-# Sony PlayStation CPU (R3000-based + GTE)
-#-------------------------------------------------
-
-ifneq ($(filter PSX,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/psx
-CPUOBJS += $(CPUOBJ)/psx/psx.o $(CPUOBJ)/psx/gte.o $(CPUOBJ)/psx/dma.o $(CPUOBJ)/psx/irq.o $(CPUOBJ)/psx/mdec.o $(CPUOBJ)/psx/rcnt.o $(CPUOBJ)/psx/sio.o
-DASMOBJS += $(CPUOBJ)/psx/psxdasm.o
-endif
-
-$(CPUOBJ)/psx/psx.o:	$(CPUSRC)/psx/psx.c \
-			$(CPUSRC)/psx/psx.h \
-			$(CPUSRC)/psx/dma.h \
-			$(CPUSRC)/psx/gte.h \
-			$(CPUSRC)/psx/mdec.h \
-			$(CPUSRC)/psx/rcnt.h \
-			$(CPUSRC)/psx/sio.h
-
-$(CPUOBJ)/psx/dma.o:	$(CPUSRC)/psx/dma.c \
-			$(CPUSRC)/psx/dma.h
-
-$(CPUOBJ)/psx/gte.o:	$(CPUSRC)/psx/gte.c \
-			$(CPUSRC)/psx/gte.h
-
-$(CPUOBJ)/psx/mdec.o:	$(CPUSRC)/psx/mdec.c \
-			$(CPUSRC)/psx/dma.h \
-			$(CPUSRC)/psx/mdec.h
-
-$(CPUOBJ)/psx/sio.o:	$(CPUSRC)/psx/sio.c \
-			$(CPUSRC)/psx/sio.h
 
 
 #-------------------------------------------------
@@ -1107,7 +1023,7 @@ $(CPUOBJ)/m68000/%.o: $(CPUSRC)/m68000/%.c | $(OSPREBUILD)
 # when we compile generated files we need to include stuff from the src directory
 $(CPUOBJ)/m68000/%.o: $(CPUOBJ)/m68000/%.c | $(OSPREBUILD)
 	@echo Compiling $<...
-	$(CC) $(CDEFS) $(CFLAGS) -I$(CPUSRC)/m68000 -I$(CPUOBJ)/m68000 -c $< -o $@
+	$(CC) $(CDEFS) $(CFLAGS) -I$(CPUSRC)/m68000 -c $< -o $@
 
 # rule to generate the C files
 $(CPUOBJ)/m68000/m68kops.c: $(M68KMAKE) $(CPUSRC)/m68000/m68k_in.c
@@ -1137,44 +1053,15 @@ $(CPUOBJ)/m68000/m68kcpu.o: 	$(CPUOBJ)/m68000/m68kops.c \
 ifneq ($(filter DSP56156,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/dsp56k
 CPUOBJS += $(CPUOBJ)/dsp56k/dsp56k.o
-CPUOBJS += $(CPUOBJ)/dsp56k/dsp56mem.o
-CPUOBJS += $(CPUOBJ)/dsp56k/dsp56pcu.o
 DASMOBJS += $(CPUOBJ)/dsp56k/dsp56dsm.o
-DASMOBJS += $(CPUOBJ)/dsp56k/opcode.o
-DASMOBJS += $(CPUOBJ)/dsp56k/inst.o
-DASMOBJS += $(CPUOBJ)/dsp56k/pmove.o
-DASMOBJS += $(CPUOBJ)/dsp56k/tables.o
 endif
 
-$(CPUOBJ)/dsp56k/dsp56mem.o:	$(CPUSRC)/dsp56k/dsp56mem.c \
-								$(CPUSRC)/dsp56k/dsp56mem.h
-
-$(CPUOBJ)/dsp56k/dsp56pcu.o:	$(CPUSRC)/dsp56k/dsp56pcu.c \
-								$(CPUSRC)/dsp56k/dsp56pcu.h
-
 $(CPUOBJ)/dsp56k/dsp56k.o:	$(CPUSRC)/dsp56k/dsp56k.c \
+							$(CPUSRC)/dsp56k/dsp56ops.c \
+							$(CPUSRC)/dsp56k/dsp56mem.c \
+							$(CPUSRC)/dsp56k/dsp56pcu.c \
 							$(CPUSRC)/dsp56k/dsp56k.h
 
-$(CPUOBJ)/dsp56k/opcode.o:	$(CPUSRC)/dsp56k/opcode.c \
-							$(CPUSRC)/dsp56k/opcode.h
-
-$(CPUOBJ)/dsp56k/inst.o:	$(CPUSRC)/dsp56k/inst.c \
-							$(CPUSRC)/dsp56k/inst.h
-
-$(CPUOBJ)/dsp56k/pmove.o:	$(CPUSRC)/dsp56k/pmove.c \
-							$(CPUSRC)/dsp56k/pmove.h
-
-$(CPUOBJ)/dsp56k/tables.o:	$(CPUSRC)/dsp56k/tables.c \
-							$(CPUSRC)/dsp56k/tables.h
-
-$(CPUOBJ)/dsp56k/dsp56dsm.o:	$(CPUSRC)/dsp56k/opcode.c \
-								$(CPUSRC)/dsp56k/opcode.h \
-								$(CPUSRC)/dsp56k/inst.c \
-    							$(CPUSRC)/dsp56k/inst.h \
-								$(CPUSRC)/dsp56k/pmove.c \
-								$(CPUSRC)/dsp56k/pmove.h \
-								$(CPUSRC)/dsp56k/tables.c \
-								$(CPUSRC)/dsp56k/tables.h
 
 
 #-------------------------------------------------
@@ -1232,8 +1119,6 @@ $(CPUOBJ)/powerpc/ppcdrc.o:	$(CPUSRC)/powerpc/ppcdrc.c \
 ifneq ($(filter NEC,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/nec
 CPUOBJS += $(CPUOBJ)/nec/nec.o
-CPUOBJS += $(CPUOBJ)/nec/v25.o
-CPUOBJS += $(CPUOBJ)/nec/v25sfr.o
 DASMOBJS += $(CPUOBJ)/nec/necdasm.o
 endif
 
@@ -1246,25 +1131,10 @@ endif
 $(CPUOBJ)/nec/nec.o:	$(CPUSRC)/nec/nec.c \
 						$(CPUSRC)/nec/nec.h \
 						$(CPUSRC)/nec/necea.h \
-						$(CPUSRC)/nec/necinstr.c \
+						$(CPUSRC)/nec/nechost.h \
 						$(CPUSRC)/nec/necinstr.h \
-						$(CPUSRC)/nec/necmacro.h \
 						$(CPUSRC)/nec/necmodrm.h \
 						$(CPUSRC)/nec/necpriv.h
-
-$(CPUOBJ)/nec/v25.o:	$(CPUSRC)/nec/v25.c \
-						$(CPUSRC)/nec/nec.h \
-						$(CPUSRC)/nec/necea.h \
-						$(CPUSRC)/nec/necinstr.c \
-						$(CPUSRC)/nec/v25instr.c \
-						$(CPUSRC)/nec/v25instr.h \
-						$(CPUSRC)/nec/necmacro.h \
-						$(CPUSRC)/nec/necmodrm.h \
-						$(CPUSRC)/nec/v25priv.h
-
-$(CPUOBJ)/nec/v25sfr.o:	$(CPUSRC)/nec/v25sfr.c \
-						$(CPUSRC)/nec/nec.h \
-						$(CPUSRC)/nec/v25priv.h
 
 $(CPUOBJ)/v30mz/v30mz.o:	$(CPUSRC)/v30mz/v30mz.c \
 							$(CPUSRC)/v30mz/v30mz.h \
@@ -1300,6 +1170,7 @@ $(CPUOBJ)/v60/v60.o:	$(CPUSRC)/v60/am.c \
 						$(CPUSRC)/v60/optable.c \
 						$(CPUSRC)/v60/v60.c \
 						$(CPUSRC)/v60/v60.h \
+						$(CPUSRC)/v60/v60mem.c \
 						$(CPUSRC)/v60/v60d.c
 
 
@@ -1317,19 +1188,6 @@ endif
 $(CPUOBJ)/v810/v810.o:	$(CPUSRC)/v810/v810.c \
 						$(CPUSRC)/v810/v810.h
 
-
-#-------------------------------------------------
-# NEC uPD7725
-#-------------------------------------------------
-
-ifneq ($(filter UPD7725,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/upd7725
-CPUOBJS += $(CPUOBJ)/upd7725/upd7725.o
-DASMOBJS += $(CPUOBJ)/upd7725/dasm7725.o
-endif
-
-$(CPUOBJ)/upd7725/upd7725.o:	$(CPUSRC)/upd7725/upd7725.c \
-								$(CPUSRC)/upd7725/upd7725.h
 
 
 #-------------------------------------------------
@@ -1691,19 +1549,13 @@ $(CPUOBJ)/tms32051/tms32051.o:	$(CPUSRC)/tms32051/tms32051.c \
 
 ifneq ($(filter TMS57002,$(CPUS)),)
 OBJDIRS += $(CPUOBJ)/tms57002
-CPUOBJS += $(CPUOBJ)/tms57002/tms57002.o $(CPUOBJ)/tms57002/tms57kdec.o
+CPUOBJS += $(CPUOBJ)/tms57002/tms57002.o
 DASMOBJS += $(CPUOBJ)/tms57002/57002dsm.o
 TMSMAKE += $(BUILDOUT)/tmsmake$(BUILD_EXE)
 endif
 
 $(CPUOBJ)/tms57002/tms57002.o:	$(CPUSRC)/tms57002/tms57002.c \
 								$(CPUSRC)/tms57002/tms57002.h \
-								$(CPUSRC)/tms57002/tms57kpr.h \
-								$(CPUOBJ)/tms57002/tms57002.inc
-
-$(CPUOBJ)/tms57002/tms57kdec.o:	$(CPUSRC)/tms57002/tms57kdec.c \
-								$(CPUSRC)/tms57002/tms57002.h \
-								$(CPUSRC)/tms57002/tms57kpr.h \
 								$(CPUOBJ)/tms57002/tms57002.inc
 
 $(CPUOBJ)/tms57002/57002dsm.o:	$(CPUSRC)/tms57002/57002dsm.c \
@@ -1861,29 +1713,3 @@ endif
 
 $(CPUOBJ)/superfx/superfx.o:$(CPUSRC)/superfx/superfx.c \
 							$(CPUSRC)/superfx/superfx.h
-
-#-------------------------------------------------
-# Rockwell PPS-4
-#-------------------------------------------------
-
-ifneq ($(filter PPS4,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/pps4
-CPUOBJS += $(CPUOBJ)/pps4/pps4.o
-DASMOBJS += $(CPUOBJ)/pps4/pps4dasm.o
-endif
-
-$(CPUOBJ)/pps4/pps4.o:	$(CPUSRC)/pps4/pps4.c \
-							$(CPUSRC)/pps4/pps4.h
-
-#-------------------------------------------------
-# Hitachi HD61700
-#-------------------------------------------------
-
-ifneq ($(filter HD61700,$(CPUS)),)
-OBJDIRS += $(CPUOBJ)/hd61700
-CPUOBJS += $(CPUOBJ)/hd61700/hd61700.o
-DASMOBJS += $(CPUOBJ)/hd61700/hd61700d.o
-endif
-
-$(CPUOBJ)/hd61700/hd61700.o:	$(CPUSRC)/hd61700/hd61700.c \
-								$(CPUSRC)/hd61700/hd61700.h

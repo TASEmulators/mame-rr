@@ -124,8 +124,25 @@ Stephh's notes (based on the games Z80 code and some tests) :
 #include "cpu/z80/z80.h"
 #include "sound/3812intf.h"
 #include "sound/sp0256.h"
-#include "includes/sauro.h"
-#include "machine/nvram.h"
+
+extern UINT8 *tecfri_videoram;
+extern UINT8 *tecfri_colorram;
+extern UINT8 *tecfri_videoram2;
+extern UINT8 *tecfri_colorram2;
+
+WRITE8_HANDLER( tecfri_videoram_w );
+WRITE8_HANDLER( tecfri_colorram_w );
+WRITE8_HANDLER( tecfri_videoram2_w );
+WRITE8_HANDLER( tecfri_colorram2_w );
+WRITE8_HANDLER( tecfri_scroll_bg_w );
+WRITE8_HANDLER( sauro_scroll_fg_w );
+WRITE8_HANDLER( sauro_palette_bank_w );
+
+VIDEO_START( sauro );
+VIDEO_START( trckydoc );
+
+VIDEO_UPDATE( sauro );
+VIDEO_UPDATE( trckydoc );
 
 
 static WRITE8_HANDLER( sauro_sound_command_w )
@@ -143,19 +160,19 @@ static READ8_HANDLER( sauro_sound_command_r )
 
 static WRITE8_HANDLER( sauro_coin1_w )
 {
-	coin_counter_w(space->machine(), 0, data);
-	coin_counter_w(space->machine(), 0, 0); // to get the coin counter working in sauro, as it doesn't write 0
+	coin_counter_w(space->machine, 0, data);
+	coin_counter_w(space->machine, 0, 0); // to get the coin counter working in sauro, as it doesn't write 0
 }
 
 static WRITE8_HANDLER( sauro_coin2_w )
 {
-	coin_counter_w(space->machine(), 1, data);
-	coin_counter_w(space->machine(), 1, 0); // to get the coin counter working in sauro, as it doesn't write 0
+	coin_counter_w(space->machine, 1, data);
+	coin_counter_w(space->machine, 1, 0); // to get the coin counter working in sauro, as it doesn't write 0
 }
 
 static WRITE8_HANDLER( flip_screen_w )
 {
-	flip_screen_set(space->machine(), data);
+	flip_screen_set(space->machine, data);
 }
 
 static WRITE8_DEVICE_HANDLER( adpcm_w )
@@ -163,17 +180,17 @@ static WRITE8_DEVICE_HANDLER( adpcm_w )
 	sp0256_ALD_w(device, 0, data);
 }
 
-static ADDRESS_MAP_START( sauro_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sauro_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xdfff) AM_ROM
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0xe800, 0xebff) AM_RAM AM_BASE_SIZE_MEMBER(sauro_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0xf000, 0xf3ff) AM_RAM_WRITE(tecfri_videoram_w) AM_BASE_MEMBER(sauro_state, m_videoram)
-	AM_RANGE(0xf400, 0xf7ff) AM_RAM_WRITE(tecfri_colorram_w) AM_BASE_MEMBER(sauro_state, m_colorram)
-	AM_RANGE(0xf800, 0xfbff) AM_RAM_WRITE(tecfri_videoram2_w) AM_BASE_MEMBER(sauro_state, m_videoram2)
-	AM_RANGE(0xfc00, 0xffff) AM_RAM_WRITE(tecfri_colorram2_w) AM_BASE_MEMBER(sauro_state, m_colorram2)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0xe800, 0xebff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
+	AM_RANGE(0xf000, 0xf3ff) AM_RAM_WRITE(tecfri_videoram_w) AM_BASE(&tecfri_videoram)
+	AM_RANGE(0xf400, 0xf7ff) AM_RAM_WRITE(tecfri_colorram_w) AM_BASE(&tecfri_colorram)
+	AM_RANGE(0xf800, 0xfbff) AM_RAM_WRITE(tecfri_videoram2_w) AM_BASE(&tecfri_videoram2)
+	AM_RANGE(0xfc00, 0xffff) AM_RAM_WRITE(tecfri_colorram2_w) AM_BASE(&tecfri_colorram2)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sauro_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sauro_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("DSW1")
 	AM_RANGE(0x20, 0x20) AM_READ_PORT("DSW2")
@@ -198,7 +215,7 @@ static ADDRESS_MAP_START( sauro_io_map, AS_IO, 8 )
 	AM_RANGE(0xe0, 0xe0) AM_WRITE(watchdog_reset_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sauro_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sauro_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0xc000, 0xc001) AM_DEVWRITE("ymsnd", ym3812_w)
@@ -209,12 +226,12 @@ static ADDRESS_MAP_START( sauro_sound_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( trckydoc_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( trckydoc_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xdfff) AM_ROM
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0xe800, 0xebff) AM_RAM AM_MIRROR(0x400) AM_BASE_SIZE_MEMBER(sauro_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0xf000, 0xf3ff) AM_RAM_WRITE(tecfri_videoram_w) AM_BASE_MEMBER(sauro_state, m_videoram)
-	AM_RANGE(0xf400, 0xf7ff) AM_RAM_WRITE(tecfri_colorram_w) AM_BASE_MEMBER(sauro_state, m_colorram)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0xe800, 0xebff) AM_RAM AM_MIRROR(0x400) AM_BASE_SIZE_GENERIC(spriteram)
+	AM_RANGE(0xf000, 0xf3ff) AM_RAM_WRITE(tecfri_videoram_w) AM_BASE(&tecfri_videoram)
+	AM_RANGE(0xf400, 0xf7ff) AM_RAM_WRITE(tecfri_colorram_w) AM_BASE(&tecfri_colorram)
 	AM_RANGE(0xf800, 0xf800) AM_READ_PORT("DSW1")
 	AM_RANGE(0xf808, 0xf808) AM_READ_PORT("DSW2")
 	AM_RANGE(0xf810, 0xf810) AM_READ_PORT("P1")
@@ -368,69 +385,68 @@ GFXDECODE_END
 
 static INTERRUPT_GEN( sauro_interrupt )
 {
-	device_set_input_line(device, 0, HOLD_LINE);
+	cpu_set_input_line(device, 0, HOLD_LINE);
 }
 
-static MACHINE_CONFIG_START( tecfri, sauro_state )
-
+static MACHINE_DRIVER_START( tecfri )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_20MHz/4)       /* verified on pcb */
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_20MHz/4)       /* verified on pcb */
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_1fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(55.72)   /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(5000))  // frames per second, vblank duration (otherwise sprites lag)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32 * 8, 32 * 8)
-	MCFG_SCREEN_VISIBLE_AREA(1 * 8, 31 * 8 - 1, 2 * 8, 30 * 8 - 1)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(55.72)   /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(5000))  // frames per second, vblank duration (otherwise sprites lag)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32 * 8, 32 * 8)
+	MDRV_SCREEN_VISIBLE_AREA(1 * 8, 31 * 8 - 1, 2 * 8, 30 * 8 - 1)
 
-	MCFG_PALETTE_LENGTH(1024)
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_PALETTE_LENGTH(1024)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM3812, XTAL_20MHz/8)       /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM3812, XTAL_20MHz/8)       /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( trckydoc, tecfri )
+static MACHINE_DRIVER_START( trckydoc )
+	MDRV_IMPORT_FROM(tecfri)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(trckydoc_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(trckydoc_map)
 
-	MCFG_GFXDECODE(trckydoc)
+	MDRV_GFXDECODE(trckydoc)
 
-	MCFG_VIDEO_START(trckydoc)
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE(trckydoc)
+	MDRV_VIDEO_START(trckydoc)
+	MDRV_VIDEO_UPDATE(trckydoc)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( sauro, tecfri )
+static MACHINE_DRIVER_START( sauro )
+	MDRV_IMPORT_FROM(tecfri)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(sauro_map)
-	MCFG_CPU_IO_MAP(sauro_io_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(sauro_map)
+	MDRV_CPU_IO_MAP(sauro_io_map)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	// 4 MHz?
-	MCFG_CPU_PROGRAM_MAP(sauro_sound_map)
-	MCFG_CPU_PERIODIC_INT(sauro_interrupt, 8*60) // ?
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	// 4 MHz?
+	MDRV_CPU_PROGRAM_MAP(sauro_sound_map)
+	MDRV_CPU_PERIODIC_INT(sauro_interrupt, 8*60) // ?
 
-	MCFG_GFXDECODE(sauro)
+	MDRV_GFXDECODE(sauro)
 
-	MCFG_VIDEO_START(sauro)
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE(sauro)
+	MDRV_VIDEO_START(sauro)
+	MDRV_VIDEO_UPDATE(sauro)
 
-	MCFG_SOUND_ADD("speech", SP0256, 3120000)
-	MCFG_SOUND_CONFIG(sauro_sp256)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("speech", SP0256, 3120000)
+	MDRV_SOUND_CONFIG(sauro_sp256)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -467,39 +483,7 @@ ROM_START( sauro )
 
 	ROM_REGION( 0x10000, "speech", 0 )
 	/* SP0256 mask rom */
-	ROM_LOAD( "sp0256-al2.bin",   0x1000, 0x0800, CRC(b504ac15) SHA1(e60fcb5fa16ff3f3b69d36c7a6e955744d3feafc) )
-ROM_END
-
-ROM_START( saurop )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "s2.3k",     0x00000, 0x8000, CRC(79846222) SHA1(59ccfbaad0251f771c0fd624d00d93a50bca67d8) )
-	ROM_LOAD( "s1.3f",     0x08000, 0x8000, CRC(3efd13ed) SHA1(3920d21d5d9c285c5bcf47aa12b4e9a42294f149) )
-
-	ROM_REGION( 0x10000, "audiocpu", 0 )
-	ROM_LOAD( "s3.5x",     0x00000, 0x8000, CRC(0d501e1b) SHA1(20a56ff30d4fa5d2f483a449703b49153839f6bc) )
-
-	ROM_REGION( 0x10000, "gfx1", 0 )
-	ROM_LOAD( "s6.7x",     0x00000, 0x8000, CRC(4b77cb0f) SHA1(7b9cb2dca561d81390106c1a5c0533dcecaf6f1a) )
-	ROM_LOAD( "s7.7z",     0x08000, 0x8000, CRC(187da060) SHA1(1df156e58379bb39acade02aabab6ff1cb7cc288) )
-
-	ROM_REGION( 0x10000, "gfx2", 0 )
-	ROM_LOAD( "s4.7h",     0x00000, 0x8000, CRC(9b617cda) SHA1(ce26b84ad5ecd6185ae218520e9972645bbf09ad) )
-	ROM_LOAD( "s5.7k",     0x08000, 0x8000, CRC(de5cd249) SHA1(e3752b88b539e1057a35619ffbad01720ab60d7d) )
-
-	ROM_REGION( 0x20000, "gfx3", 0 )
-	ROM_LOAD( "s8.10l",     0x00000, 0x8000, CRC(e08b5d5e) SHA1(eaaeaa08b19c034ab2a2140f887edffca5f441b9) )
-	ROM_LOAD( "s9.10p",     0x08000, 0x8000, CRC(7c707195) SHA1(0529f6808b0cec3e12ca51bee189841d21577786) )
-	ROM_LOAD( "s10.10r",    0x10000, 0x8000, CRC(c93380d1) SHA1(fc9655cc94c2d2058f83eb341be7e7856a08194f) )
-	ROM_LOAD( "s11.10t",    0x18000, 0x8000, CRC(f47982a8) SHA1(cbaeac272c015d9439f151cfb3449082f11a57a1) )
-
-	ROM_REGION( 0x0c00, "proms", 0 )
-	ROM_LOAD( "82s137-3.bin",    0x0000, 0x0400, CRC(d52c4cd0) SHA1(27d6126b46616c06b55d8018c97f6c3d7805ae9e) )  /* Red component */
-	ROM_LOAD( "82s137-2.bin",    0x0400, 0x0400, CRC(c3e96d5d) SHA1(3f6f21526a4357e4a9a9d56a6f4ef5911af2d120) )  /* Green component */
-	ROM_LOAD( "82s137-1.bin",    0x0800, 0x0400, CRC(bdfcf00c) SHA1(9faf4d7f8959b64faa535c9945eec59c774a3760) )  /* Blue component */
-
-	ROM_REGION( 0x10000, "speech", 0 )
-	/* SP0256 mask rom */
-	ROM_LOAD( "sp0256-al2.bin",   0x1000, 0x0800, CRC(b504ac15) SHA1(e60fcb5fa16ff3f3b69d36c7a6e955744d3feafc) )
+	ROM_LOAD( "sp0256-al2.bin",   0x1000, 0x0800, CRC(df8de0b0) SHA1(86fb6d9fef955ac0bc76e0c45c66585946d278a1) )
 ROM_END
 
 ROM_START( trckydoc )
@@ -555,13 +539,12 @@ static DRIVER_INIT( tecfri )
 	/* This game doesn't like all memory to be initialized to zero, it won't
        initialize the high scores */
 
-	UINT8 *RAM = machine.region("maincpu")->base();
+	UINT8 *RAM = memory_region(machine, "maincpu");
 
 	memset(&RAM[0xe000], 0, 0x100);
 	RAM[0xe000] = 1;
 }
 
 GAME( 1987, sauro,    0,        sauro,    tecfri,    tecfri, ROT0, "Tecfri", "Sauro", 0 )
-GAME( 1987, saurop,   sauro,    sauro,    tecfri,    tecfri, ROT0, "Tecfri (Philko license)", "Sauro (Philko license)", 0 )
-GAME( 1987, trckydoc, 0,        trckydoc, tecfri,    tecfri, ROT0, "Tecfri", "Tricky Doc (set 1)", 0 )
-GAME( 1987, trckydoca,trckydoc, trckydoc, trckydoca, tecfri, ROT0, "Tecfri", "Tricky Doc (set 2)", 0 )
+GAME( 1987, trckydoc, 0,        trckydoc, tecfri,    tecfri, ROT0, "Tecfri", "Tricky Doc (Set 1)", 0 )
+GAME( 1987, trckydoca,trckydoc, trckydoc, trckydoca, tecfri, ROT0, "Tecfri", "Tricky Doc (Set 2)", 0 )

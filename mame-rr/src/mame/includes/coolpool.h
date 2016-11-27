@@ -1,34 +1,27 @@
-#define NVRAM_UNLOCK_SEQ_LEN 10
-
-class coolpool_state : public driver_device
+class coolpool_state
 {
 public:
-	coolpool_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_nvram(*this, "nvram") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, coolpool_state(machine)); }
 
-	UINT16 *m_vram_base;
-	required_shared_ptr<UINT16> m_nvram;
+	coolpool_state(running_machine &machine) { }
 
-	UINT8 m_cmd_pending;
-	UINT16 m_iop_cmd;
-	UINT16 m_iop_answer;
-	int m_iop_romaddr;
+	UINT16 *vram_base;
 
-	UINT8 m_newx[3];
-	UINT8 m_newy[3];
-	UINT8 m_oldx[3];
-	UINT8 m_oldy[3];
-	int m_dx[3];
-	int m_dy[3];
+	UINT8 cmd_pending;
+	UINT16 iop_cmd;
+	UINT16 iop_answer;
+	int iop_romaddr;
 
-	UINT16 m_result;
-	UINT16 m_lastresult;
+	UINT8 newx[3];
+	UINT8 newy[3];
+	UINT8 oldx[3];
+	UINT8 oldy[3];
+	int dx[3];
+	int dy[3];
 
-	device_t *m_maincpu;
-	device_t *m_dsp;
-	UINT16 m_nvram_write_seq[NVRAM_UNLOCK_SEQ_LEN];
-	UINT8 m_nvram_write_enable;
-	UINT8 m_old_cmd;
-	UINT8 m_same_cmd_count;
+	UINT16 result;
+	UINT16 lastresult;
+
+	running_device *maincpu;
+	running_device *dsp;
 };

@@ -4,29 +4,30 @@
 
 *************************************************************************/
 
-class mrflea_state : public driver_device
+class mrflea_state
 {
 public:
-	mrflea_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mrflea_state(machine)); }
+
+	mrflea_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_spriteram;
+	UINT8 *    videoram;
+	UINT8 *    spriteram;
 //  UINT8 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int     m_gfx_bank;
+	int     gfx_bank;
 
 	/* misc */
-	int m_io;
-	int m_main;
-	int m_status;
-	int m_select1;
+	int io;
+	int main;
+	int status;
+	int select1;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_subcpu;
+	running_device *maincpu;
+	running_device *subcpu;
 };
 
 
@@ -36,4 +37,4 @@ WRITE8_HANDLER( mrflea_gfx_bank_w );
 WRITE8_HANDLER( mrflea_videoram_w );
 WRITE8_HANDLER( mrflea_spriteram_w );
 
-SCREEN_UPDATE( mrflea );
+VIDEO_UPDATE( mrflea );

@@ -33,13 +33,11 @@
 #include "cpu/mcs51/mcs51.h"
 #include "deprecat.h"
 #include "machine/segaic16.h"
-#include "machine/nvram.h"
 #include "includes/segas16.h"
 #include "includes/genesis.h"
 #include "sound/2612intf.h"
 #include "sound/rf5c68.h"
 #include "video/segaic16.h"
-#include "includes/segaipt.h"
 
 
 /*************************************
@@ -83,43 +81,43 @@ static WRITE16_HANDLER( rom_5987_bank_w );
 
 static const segaic16_memory_map_entry rom_171_shad_info[] =
 {
-	{ 0x3d/2, 0x00000, 0x04000, 0xffc000,      ~0, FUNC(misc_io_r),     NULL,     FUNC(misc_io_w),             NULL,     NULL,                  "I/O space" },
-	{ 0x39/2, 0x00000, 0x02000, 0xffe000,      ~0, FUNC_NULL,           "bank10", FUNC(segaic16_paletteram_w), NULL,     &segaic16_paletteram,  "color RAM" },
-	{ 0x35/2, 0x00000, 0x10000, 0xfe0000,      ~0, FUNC_NULL,           "bank11", FUNC(segaic16_tileram_0_w),  NULL,     &segaic16_tileram_0,   "tile RAM" },
-	{ 0x35/2, 0x10000, 0x01000, 0xfef000,      ~0, FUNC_NULL,           "bank12", FUNC(segaic16_textram_0_w),  NULL,     &segaic16_textram_0,   "text RAM" },
-	{ 0x31/2, 0x00000, 0x00800, 0xfff800,      ~0, FUNC_NULL,           "bank13", FUNC_NULL,                   "bank13", &segaic16_spriteram_0, "object RAM" },
-	{ 0x2d/2, 0x00000, 0x04000, 0xffc000,      ~0, FUNC_NULL,           "bank14", FUNC_NULL,                   "bank14", &workram,              "work RAM" },
-	{ 0x29/2, 0x00000, 0x10000, 0xff0000,      ~0, FUNC_NULL,           NULL,     FUNC_NULL,                   NULL,     NULL,                  "????" },
-	{ 0x25/2, 0x00000, 0x00010, 0xfffff0,      ~0, FUNC(genesis_vdp_r), NULL,     FUNC(genesis_vdp_w),         NULL,     NULL,                  "VDP" },
-	{ 0x21/2, 0x00000, 0x80000, 0xf80000, 0x00000, FUNC_NULL,           "bank17", FUNC_NULL,                   NULL,     NULL,                  "ROM 0" },
+	{ 0x3d/2, 0x00000, 0x04000, 0xffc000,      ~0, misc_io_r,     NULL,     misc_io_w,             NULL,     NULL,                  "I/O space" },
+	{ 0x39/2, 0x00000, 0x02000, 0xffe000,      ~0, NULL,          "bank10", segaic16_paletteram_w, NULL,     &segaic16_paletteram,  "color RAM" },
+	{ 0x35/2, 0x00000, 0x10000, 0xfe0000,      ~0, NULL,          "bank11", segaic16_tileram_0_w,  NULL,     &segaic16_tileram_0,   "tile RAM" },
+	{ 0x35/2, 0x10000, 0x01000, 0xfef000,      ~0, NULL,          "bank12", segaic16_textram_0_w,  NULL,     &segaic16_textram_0,   "text RAM" },
+	{ 0x31/2, 0x00000, 0x00800, 0xfff800,      ~0, NULL,          "bank13", NULL,                  "bank13", &segaic16_spriteram_0, "object RAM" },
+	{ 0x2d/2, 0x00000, 0x04000, 0xffc000,      ~0, NULL,          "bank14", NULL,                  "bank14", &workram,              "work RAM" },
+	{ 0x29/2, 0x00000, 0x10000, 0xff0000,      ~0, NULL,          NULL,     NULL,                  NULL,     NULL,                  "????" },
+	{ 0x25/2, 0x00000, 0x00010, 0xfffff0,      ~0, genesis_vdp_r, NULL,     genesis_vdp_w,         NULL,     NULL,                  "VDP" },
+	{ 0x21/2, 0x00000, 0x80000, 0xf80000, 0x00000, NULL,          "bank17", NULL,                  NULL,     NULL,                  "ROM 0" },
 	{ 0 }
 };
 
 static const segaic16_memory_map_entry rom_171_5874_info[] =
 {
-	{ 0x3d/2, 0x00000, 0x04000, 0xffc000,      ~0, FUNC(misc_io_r),     NULL,     FUNC(misc_io_w),             NULL,     NULL,                  "I/O space" },
-	{ 0x39/2, 0x00000, 0x02000, 0xffe000,      ~0, FUNC_NULL,           "bank10", FUNC(segaic16_paletteram_w), NULL,     &segaic16_paletteram,  "color RAM" },
-	{ 0x35/2, 0x00000, 0x10000, 0xfe0000,      ~0, FUNC_NULL,           "bank11", FUNC(segaic16_tileram_0_w),  NULL,     &segaic16_tileram_0,   "tile RAM" },
-	{ 0x35/2, 0x10000, 0x01000, 0xfef000,      ~0, FUNC_NULL,           "bank12", FUNC(segaic16_textram_0_w),  NULL,     &segaic16_textram_0,   "text RAM" },
-	{ 0x31/2, 0x00000, 0x00800, 0xfff800,      ~0, FUNC_NULL,           "bank13", FUNC_NULL,                   "bank13", &segaic16_spriteram_0, "object RAM" },
-	{ 0x2d/2, 0x00000, 0x04000, 0xffc000,      ~0, FUNC_NULL,           "bank14", FUNC_NULL,                   "bank14", &workram,              "work RAM" },
-	{ 0x29/2, 0x00000, 0x00010, 0xfffff0,      ~0, FUNC(genesis_vdp_r), NULL,     FUNC(genesis_vdp_w),         NULL,     NULL,                  "VDP" },
-	{ 0x25/2, 0x00000, 0x80000, 0xf80000, 0x80000, FUNC_NULL,           "bank16", FUNC_NULL,                   NULL,     NULL,                  "ROM 1" },
-	{ 0x21/2, 0x00000, 0x80000, 0xf80000, 0x00000, FUNC_NULL,           "bank17", FUNC_NULL,                   NULL,     NULL,                  "ROM 0" },
+	{ 0x3d/2, 0x00000, 0x04000, 0xffc000,      ~0, misc_io_r,     NULL,     misc_io_w,             NULL,     NULL,                  "I/O space" },
+	{ 0x39/2, 0x00000, 0x02000, 0xffe000,      ~0, NULL,          "bank10", segaic16_paletteram_w, NULL,     &segaic16_paletteram,  "color RAM" },
+	{ 0x35/2, 0x00000, 0x10000, 0xfe0000,      ~0, NULL,          "bank11", segaic16_tileram_0_w,  NULL,     &segaic16_tileram_0,   "tile RAM" },
+	{ 0x35/2, 0x10000, 0x01000, 0xfef000,      ~0, NULL,          "bank12", segaic16_textram_0_w,  NULL,     &segaic16_textram_0,   "text RAM" },
+	{ 0x31/2, 0x00000, 0x00800, 0xfff800,      ~0, NULL,          "bank13", NULL,                  "bank13", &segaic16_spriteram_0, "object RAM" },
+	{ 0x2d/2, 0x00000, 0x04000, 0xffc000,      ~0, NULL,          "bank14", NULL,                  "bank14", &workram,              "work RAM" },
+	{ 0x29/2, 0x00000, 0x00010, 0xfffff0,      ~0, genesis_vdp_r, NULL,     genesis_vdp_w,         NULL,     NULL,                  "VDP" },
+	{ 0x25/2, 0x00000, 0x80000, 0xf80000, 0x80000, NULL,          "bank16", NULL,                  NULL,     NULL,                  "ROM 1" },
+	{ 0x21/2, 0x00000, 0x80000, 0xf80000, 0x00000, NULL,          "bank17", NULL,                  NULL,     NULL,                  "ROM 0" },
 	{ 0 }
 };
 
 static const segaic16_memory_map_entry rom_171_5987_info[] =
 {
-	{ 0x3d/2, 0x00000, 0x04000, 0xffc000,      ~0, FUNC(misc_io_r),     NULL,     FUNC(misc_io_w),             NULL,     NULL,                  "I/O space" },
-	{ 0x39/2, 0x00000, 0x02000, 0xffe000,      ~0, FUNC_NULL,           "bank10", FUNC(segaic16_paletteram_w), NULL,     &segaic16_paletteram,  "color RAM" },
-	{ 0x35/2, 0x00000, 0x10000, 0xfe0000,      ~0, FUNC_NULL,           "bank11", FUNC(segaic16_tileram_0_w),  NULL,     &segaic16_tileram_0,   "tile RAM" },
-	{ 0x35/2, 0x10000, 0x01000, 0xfef000,      ~0, FUNC_NULL,           "bank12", FUNC(segaic16_textram_0_w),  NULL,     &segaic16_textram_0,   "text RAM" },
-	{ 0x31/2, 0x00000, 0x00800, 0xfff800,      ~0, FUNC_NULL,           "bank13", FUNC_NULL,                   "bank13", &segaic16_spriteram_0, "object RAM" },
-	{ 0x2d/2, 0x00000, 0x04000, 0xffc000,      ~0, FUNC_NULL,           "bank14", FUNC_NULL,                   "bank14", &workram,              "work RAM" },
-	{ 0x29/2, 0x00000, 0x00010, 0xfffff0,      ~0, FUNC(genesis_vdp_r), NULL,     FUNC(genesis_vdp_w),         NULL,     NULL,                  "VDP" },
-	{ 0x25/2, 0x00000, 0x80000, 0xf80000, 0x80000, FUNC_NULL,           "bank16", FUNC(rom_5987_bank_w),       NULL,     NULL,                  "ROM 1/banking" },
-	{ 0x21/2, 0x00000, 0x100000,0xf00000, 0x00000, FUNC_NULL,           "bank17", FUNC_NULL,                   NULL,     NULL,                  "ROM 0" },
+	{ 0x3d/2, 0x00000, 0x04000, 0xffc000,      ~0, misc_io_r,     NULL,     misc_io_w,             NULL,     NULL,                  "I/O space" },
+	{ 0x39/2, 0x00000, 0x02000, 0xffe000,      ~0, NULL,          "bank10", segaic16_paletteram_w, NULL,     &segaic16_paletteram,  "color RAM" },
+	{ 0x35/2, 0x00000, 0x10000, 0xfe0000,      ~0, NULL,          "bank11", segaic16_tileram_0_w,  NULL,     &segaic16_tileram_0,   "tile RAM" },
+	{ 0x35/2, 0x10000, 0x01000, 0xfef000,      ~0, NULL,          "bank12", segaic16_textram_0_w,  NULL,     &segaic16_textram_0,   "text RAM" },
+	{ 0x31/2, 0x00000, 0x00800, 0xfff800,      ~0, NULL,          "bank13", NULL,                  "bank13", &segaic16_spriteram_0, "object RAM" },
+	{ 0x2d/2, 0x00000, 0x04000, 0xffc000,      ~0, NULL,          "bank14", NULL,                  "bank14", &workram,              "work RAM" },
+	{ 0x29/2, 0x00000, 0x00010, 0xfffff0,      ~0, genesis_vdp_r, NULL,     genesis_vdp_w,         NULL,     NULL,                  "VDP" },
+	{ 0x25/2, 0x00000, 0x80000, 0xf80000, 0x80000, NULL,          "bank16", rom_5987_bank_w,       NULL,     NULL,                  "ROM 1/banking" },
+	{ 0x21/2, 0x00000, 0x100000,0xf00000, 0x00000, NULL,          "bank17", NULL,                  NULL,     NULL,                  "ROM 0" },
 	{ 0 }
 };
 
@@ -138,27 +136,27 @@ static const segaic16_memory_map_entry *const region_info_list[] =
  *
  *************************************/
 
-static void sound_w(running_machine &machine, UINT8 data)
+static void sound_w(running_machine *machine, UINT8 data)
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
-	address_space *space = state->m_maincpu->memory().space(AS_PROGRAM);
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
+	const address_space *space = cpu_get_address_space(state->maincpu, ADDRESS_SPACE_PROGRAM);
 
 	soundlatch_w(space, 0, data & 0xff);
-	device_set_input_line(state->m_soundcpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->soundcpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
-static UINT8 sound_r(running_machine &machine)
+static UINT8 sound_r(running_machine *machine)
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
-	return state->m_mcu_data;
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
+	return state->mcu_data;
 }
 
-static void system18_generic_init(running_machine &machine, int _rom_board)
+static void system18_generic_init(running_machine *machine, int _rom_board)
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
 	/* set the ROM board */
-	state->m_rom_board = _rom_board;
+	state->rom_board = _rom_board;
 
 	/* allocate memory for regions not autmatically assigned */
 	segaic16_spriteram_0 = auto_alloc_array(machine, UINT16, 0x00800/2);
@@ -168,27 +166,25 @@ static void system18_generic_init(running_machine &machine, int _rom_board)
 	workram              = auto_alloc_array(machine, UINT16, 0x04000/2);
 
 	/* init the memory mapper */
-	segaic16_memory_mapper_init(machine.device("maincpu"), region_info_list[state->m_rom_board], sound_w, sound_r);
+	segaic16_memory_mapper_init(machine->device("maincpu"), region_info_list[state->rom_board], sound_w, sound_r);
 
 	/* init the FD1094 */
 	fd1094_driver_init(machine, "maincpu", segaic16_memory_mapper_set_decrypted);
 
 	/* reset the custom handlers and other pointers */
-	state->m_custom_io_r = NULL;
-	state->m_custom_io_w = NULL;
+	state->custom_io_r = NULL;
+	state->custom_io_w = NULL;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_soundcpu = machine.device("soundcpu");
-	state->m_mcu = machine.device("mcu");
+	state->maincpu = machine->device("maincpu");
+	state->soundcpu = machine->device("soundcpu");
+	state->mcu = machine->device("mcu");
 
-	machine.device<nvram_device>("nvram")->set_base(workram, 0x4000);
-
-	state->save_item(NAME(state->m_mcu_data));
-	state->save_item(NAME(state->m_lghost_value));
-	state->save_item(NAME(state->m_lghost_select));
-	state->save_item(NAME(state->m_misc_io_data));
-	state->save_item(NAME(state->m_wwally_last_x));
-	state->save_item(NAME(state->m_wwally_last_y));
+	state_save_register_global(machine, state->mcu_data);
+	state_save_register_global(machine, state->lghost_value);
+	state_save_register_global(machine, state->lghost_select);
+	state_save_register_global_array(machine, state->misc_io_data);
+	state_save_register_global_array(machine, state->wwally_last_x);
+	state_save_register_global_array(machine, state->wwally_last_y);
 	state_save_register_global_pointer(machine, segaic16_spriteram_0, 0x00800/2);
 	state_save_register_global_pointer(machine, segaic16_paletteram,  0x04000/2);
 	state_save_register_global_pointer(machine, segaic16_tileram_0,   0x10000/2);
@@ -206,21 +202,21 @@ static void system18_generic_init(running_machine &machine, int _rom_board)
 
 static TIMER_CALLBACK( boost_interleave )
 {
-	machine.scheduler().boost_interleave(attotime::zero, attotime::from_msec(10));
+	cpuexec_boost_interleave(machine, attotime_zero, ATTOTIME_IN_MSEC(10));
 }
 
 
 static MACHINE_RESET( system18 )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
 	segaic16_memory_mapper_reset(machine);
 	segaic16_tilemap_reset(machine, 0);
-	fd1094_machine_init(machine.device("maincpu"));
+	fd1094_machine_init(machine->device("maincpu"));
 
 	/* if we are running with a real live 8751, we need to boost the interleave at startup */
-	if (state->m_mcu != NULL && state->m_mcu->type() == I8751)
-		machine.scheduler().synchronize(FUNC(boost_interleave));
+	if (state->mcu != NULL && state->mcu->type() == I8751)
+		timer_call_after_resynch(machine, NULL, 0, boost_interleave);
 }
 
 
@@ -233,7 +229,7 @@ static MACHINE_RESET( system18 )
 
 static READ16_HANDLER( io_chip_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	static const char *const portnames[] = { "P1", "P2", "PORTC", "PORTD", "SERVICE", "COINAGE", "DSW", "PORTH" };
 	offset &= 0x1f/2;
 
@@ -249,11 +245,11 @@ static READ16_HANDLER( io_chip_r )
 		case 0x0c/2:
 		case 0x0e/2:
 			/* if the port is configured as an output, return the last thing written */
-			if (state->m_misc_io_data[0x1e/2] & (1 << offset))
-				return state->m_misc_io_data[offset];
+			if (state->misc_io_data[0x1e/2] & (1 << offset))
+				return state->misc_io_data[offset];
 
 			/* otherwise, return an input port */
-			return input_port_read(space->machine(), portnames[offset]);
+			return input_port_read(space->machine, portnames[offset]);
 
 		/* 'SEGA' protection */
 		case 0x10/2:
@@ -268,12 +264,12 @@ static READ16_HANDLER( io_chip_r )
 		/* CNT register & mirror */
 		case 0x18/2:
 		case 0x1c/2:
-			return state->m_misc_io_data[0x1c/2];
+			return state->misc_io_data[0x1c/2];
 
 		/* port direction register & mirror */
 		case 0x1a/2:
 		case 0x1e/2:
-			return state->m_misc_io_data[0x1e/2];
+			return state->misc_io_data[0x1e/2];
 	}
 	return 0xffff;
 }
@@ -281,13 +277,13 @@ static READ16_HANDLER( io_chip_r )
 
 static WRITE16_HANDLER( io_chip_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	UINT8 old;
 
 	/* generic implementation */
 	offset &= 0x1f/2;
-	old = state->m_misc_io_data[offset];
-	state->m_misc_io_data[offset] = data;
+	old = state->misc_io_data[offset];
+	state->misc_io_data[offset] = data;
 
 	switch (offset)
 	{
@@ -310,35 +306,35 @@ static WRITE16_HANDLER( io_chip_w )
 
 		/* miscellaneous output */
 		case 0x06/2:
-			system18_set_grayscale(space->machine(), ~data & 0x40);
-			segaic16_tilemap_set_flip(space->machine(), 0, data & 0x20);
-			segaic16_sprites_set_flip(space->machine(), 0, data & 0x20);
+			system18_set_grayscale(space->machine, ~data & 0x40);
+			segaic16_tilemap_set_flip(space->machine, 0, data & 0x20);
+			segaic16_sprites_set_flip(space->machine, 0, data & 0x20);
 /* These are correct according to cgfm's docs, but mwalker and ddcrew both
    enable the lockout and never turn it off
-            coin_lockout_w(space->machine(), 1, data & 0x08);
-            coin_lockout_w(space->machine(), 0, data & 0x04); */
-			coin_counter_w(space->machine(), 1, data & 0x02);
-			coin_counter_w(space->machine(), 0, data & 0x01);
+            coin_lockout_w(space->machine, 1, data & 0x08);
+            coin_lockout_w(space->machine, 0, data & 0x04); */
+			coin_counter_w(space->machine, 1, data & 0x02);
+			coin_counter_w(space->machine, 0, data & 0x01);
 			break;
 
 		/* tile banking */
 		case 0x0e/2:
-			if (state->m_rom_board == ROM_BOARD_171_5874 || state->m_rom_board == ROM_BOARD_171_SHADOW)
+			if (state->rom_board == ROM_BOARD_171_5874 || state->rom_board == ROM_BOARD_171_SHADOW)
 			{
 				int i;
 				for (i = 0; i < 4; i++)
 				{
-					segaic16_tilemap_set_bank(space->machine(), 0, 0 + i, (data & 0xf) * 4 + i);
-					segaic16_tilemap_set_bank(space->machine(), 0, 4 + i, ((data >> 4) & 0xf) * 4 + i);
+					segaic16_tilemap_set_bank(space->machine, 0, 0 + i, (data & 0xf) * 4 + i);
+					segaic16_tilemap_set_bank(space->machine, 0, 4 + i, ((data >> 4) & 0xf) * 4 + i);
 				}
 			}
 			break;
 
 		/* CNT register */
 		case 0x1c/2:
-			segaic16_set_display_enable(space->machine(), data & 2);
+			segaic16_set_display_enable(space->machine, data & 2);
 			if ((old ^ data) & 4)
-				system18_set_vdp_enable(space->machine(), data & 4);
+				system18_set_vdp_enable(space->machine, data & 4);
 			break;
 	}
 }
@@ -346,7 +342,7 @@ static WRITE16_HANDLER( io_chip_w )
 
 static READ16_HANDLER( misc_io_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	static const char *const portnames[] = { "SERVICE", "COINAGE" };
 
 	offset &= 0x1fff;
@@ -360,18 +356,18 @@ static READ16_HANDLER( misc_io_r )
 
 		/* video control latch */
 		case 0x2000/2:
-			return input_port_read(space->machine(), portnames[offset & 1]);
+			return input_port_read(space->machine, portnames[offset & 1]);
 	}
-	if (state->m_custom_io_r)
-		return state->m_custom_io_r(space, offset, mem_mask);
-	logerror("%06X:misc_io_r - unknown read access to address %04X\n", cpu_get_pc(&space->device()), offset * 2);
+	if (state->custom_io_r)
+		return state->custom_io_r(space, offset, mem_mask);
+	logerror("%06X:misc_io_r - unknown read access to address %04X\n", cpu_get_pc(space->cpu), offset * 2);
 	return segaic16_open_bus_r(space, 0, mem_mask);
 }
 
 
 static WRITE16_HANDLER( misc_io_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 
 	offset &= 0x1fff;
 	switch (offset & (0x3000/2))
@@ -390,17 +386,17 @@ static WRITE16_HANDLER( misc_io_w )
 		case 0x2000/2:
 			if (ACCESSING_BITS_0_7)
 			{
-				system18_set_vdp_mixing(space->machine(), data & 0xff);
+				system18_set_vdp_mixing(space->machine, data & 0xff);
 				return;
 			}
 			break;
 	}
-	if (state->m_custom_io_w)
+	if (state->custom_io_w)
 	{
-		state->m_custom_io_w(space, offset, data, mem_mask);
+		state->custom_io_w(space, offset, data, mem_mask);
 		return;
 	}
-	logerror("%06X:misc_io_w - unknown write access to address %04X = %04X & %04X\n", cpu_get_pc(&space->device()), offset * 2, data, mem_mask);
+	logerror("%06X:misc_io_w - unknown write access to address %04X = %04X & %04X\n", cpu_get_pc(space->cpu), offset * 2, data, mem_mask);
 }
 
 
@@ -421,20 +417,20 @@ static WRITE16_HANDLER( rom_5987_bank_w )
 	/* tile banking */
 	if (offset < 8)
 	{
-		int maxbanks = space->machine().gfx[0]->total_elements / 1024;
+		int maxbanks = space->machine->gfx[0]->total_elements / 1024;
 		if (data >= maxbanks)
 			data %= maxbanks;
-		segaic16_tilemap_set_bank(space->machine(), 0, offset, data);
+		segaic16_tilemap_set_bank(space->machine, 0, offset, data);
 	}
 
 	/* sprite banking */
 	else
 	{
-		int maxbanks = space->machine().region("gfx2")->bytes() / 0x40000;
+		int maxbanks = memory_region_length(space->machine, "gfx2") / 0x40000;
 		if (data >= maxbanks)
 			data = 255;
-		segaic16_sprites_set_bank(space->machine(), 0, (offset - 8) * 2 + 0, data * 2 + 0);
-		segaic16_sprites_set_bank(space->machine(), 0, (offset - 8) * 2 + 1, data * 2 + 1);
+		segaic16_sprites_set_bank(space->machine, 0, (offset - 8) * 2 + 0, data * 2 + 0);
+		segaic16_sprites_set_bank(space->machine, 0, (offset - 8) * 2 + 1, data * 2 + 1);
 	}
 }
 
@@ -451,13 +447,13 @@ static READ16_HANDLER( ddcrew_custom_io_r )
 	switch (offset)
 	{
 		case 0x3020/2:
-			return input_port_read(space->machine(), "P3");
+			return input_port_read(space->machine, "P3");
 
 		case 0x3022/2:
-			return input_port_read(space->machine(), "P4");
+			return input_port_read(space->machine, "P4");
 
 		case 0x3024/2:
-			return input_port_read(space->machine(), "P34START");
+			return input_port_read(space->machine, "P34START");
 	}
 	return segaic16_open_bus_r(space, 0, mem_mask);
 }
@@ -472,7 +468,7 @@ static READ16_HANDLER( ddcrew_custom_io_r )
 
 static READ16_HANDLER( lghost_custom_io_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 	UINT16 result;
 	switch (offset)
 	{
@@ -480,8 +476,8 @@ static READ16_HANDLER( lghost_custom_io_r )
 		case 0x3012/2:
 		case 0x3014/2:
 		case 0x3016/2:
-			result = state->m_lghost_value | 0x7f;
-			state->m_lghost_value <<= 1;
+			result = state->lghost_value | 0x7f;
+			state->lghost_value <<= 1;
 			return result;
 	}
 	return segaic16_open_bus_r(space, 0, mem_mask);
@@ -490,28 +486,28 @@ static READ16_HANDLER( lghost_custom_io_r )
 
 static WRITE16_HANDLER( lghost_custom_io_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x3010/2:
-			state->m_lghost_value = 255 - input_port_read(space->machine(), "GUNY1");
+			state->lghost_value = 255 - input_port_read(space->machine, "GUNY1");
 			break;
 
 		case 0x3012/2:
-			state->m_lghost_value = input_port_read(space->machine(), "GUNX1");
+			state->lghost_value = input_port_read(space->machine, "GUNX1");
 			break;
 
 		case 0x3014/2:
-			state->m_lghost_value = 255 - input_port_read(space->machine(), state->m_lghost_select ? "GUNY3" : "GUNY2");
+			state->lghost_value = 255 - input_port_read(space->machine, state->lghost_select ? "GUNY3" : "GUNY2");
 			break;
 
 		case 0x3016/2:
-			state->m_lghost_value = input_port_read(space->machine(), state->m_lghost_select ? "GUNX3" : "GUNX2");
+			state->lghost_value = input_port_read(space->machine, state->lghost_select ? "GUNX3" : "GUNX2");
 			break;
 
 		case 0x3020/2:
-			state->m_lghost_select = data & 1;
+			state->lghost_select = data & 1;
 			break;
 	}
 }
@@ -526,27 +522,27 @@ static WRITE16_HANDLER( lghost_custom_io_w )
 
 static READ16_HANDLER( wwally_custom_io_r )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x3000/2:
-			return (input_port_read(space->machine(), "TRACKX1") - state->m_wwally_last_x[0]) & 0xff;
+			return (input_port_read(space->machine, "TRACKX1") - state->wwally_last_x[0]) & 0xff;
 
 		case 0x3004/2:
-			return (input_port_read(space->machine(), "TRACKY1") - state->m_wwally_last_y[0]) & 0xff;
+			return (input_port_read(space->machine, "TRACKY1") - state->wwally_last_y[0]) & 0xff;
 
 		case 0x3008/2:
-			return (input_port_read(space->machine(), "TRACKX2") - state->m_wwally_last_x[1]) & 0xff;
+			return (input_port_read(space->machine, "TRACKX2") - state->wwally_last_x[1]) & 0xff;
 
 		case 0x300c/2:
-			return (input_port_read(space->machine(), "TRACKY2") - state->m_wwally_last_y[1]) & 0xff;
+			return (input_port_read(space->machine, "TRACKY2") - state->wwally_last_y[1]) & 0xff;
 
 		case 0x3010/2:
-			return (input_port_read(space->machine(), "TRACKX3") - state->m_wwally_last_x[2]) & 0xff;
+			return (input_port_read(space->machine, "TRACKX3") - state->wwally_last_x[2]) & 0xff;
 
 		case 0x3014/2:
-			return (input_port_read(space->machine(), "TRACKY3") - state->m_wwally_last_y[2]) & 0xff;
+			return (input_port_read(space->machine, "TRACKY3") - state->wwally_last_y[2]) & 0xff;
 	}
 	return segaic16_open_bus_r(space, 0, mem_mask);
 }
@@ -554,26 +550,26 @@ static READ16_HANDLER( wwally_custom_io_r )
 
 static WRITE16_HANDLER( wwally_custom_io_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x3000/2:
 		case 0x3004/2:
-			state->m_wwally_last_x[0] = input_port_read(space->machine(), "TRACKX1");
-			state->m_wwally_last_y[0] = input_port_read(space->machine(), "TRACKY1");
+			state->wwally_last_x[0] = input_port_read(space->machine, "TRACKX1");
+			state->wwally_last_y[0] = input_port_read(space->machine, "TRACKY1");
 			break;
 
 		case 0x3008/2:
 		case 0x300c/2:
-			state->m_wwally_last_x[1] = input_port_read(space->machine(), "TRACKX2");
-			state->m_wwally_last_y[1] = input_port_read(space->machine(), "TRACKY2");
+			state->wwally_last_x[1] = input_port_read(space->machine, "TRACKX2");
+			state->wwally_last_y[1] = input_port_read(space->machine, "TRACKY2");
 			break;
 
 		case 0x3010/2:
 		case 0x3014/2:
-			state->m_wwally_last_x[2] = input_port_read(space->machine(), "TRACKX3");
-			state->m_wwally_last_y[2] = input_port_read(space->machine(), "TRACKY3");
+			state->wwally_last_x[2] = input_port_read(space->machine, "TRACKX3");
+			state->wwally_last_y[2] = input_port_read(space->machine, "TRACKY3");
 			break;
 	}
 }
@@ -588,15 +584,31 @@ static WRITE16_HANDLER( wwally_custom_io_w )
 
 static WRITE8_HANDLER( soundbank_w )
 {
-	memory_set_bankptr(space->machine(), "bank1", space->machine().region("soundcpu")->base() + 0x10000 + 0x2000 * data);
+	memory_set_bankptr(space->machine, "bank1", memory_region(space->machine, "soundcpu") + 0x10000 + 0x2000 * data);
 }
 
 
 static WRITE8_HANDLER( mcu_data_w )
 {
-	segas1x_state *state = space->machine().driver_data<segas1x_state>();
-	state->m_mcu_data = data;
-	device_set_input_line(state->m_mcu, MCS51_INT1_LINE, HOLD_LINE);
+	segas1x_state *state = (segas1x_state *)space->machine->driver_data;
+	state->mcu_data = data;
+	cpu_set_input_line(state->mcu, MCS51_INT1_LINE, HOLD_LINE);
+}
+
+
+
+/*************************************
+ *
+ *  Capacitor-backed RAM
+ *
+ *************************************/
+
+static NVRAM_HANDLER( system18 )
+{
+	if (read_or_write)
+		mame_fwrite(file, workram, 0x4000);
+	else if (file)
+		mame_fread(file, workram, 0x4000);
 }
 
 
@@ -607,7 +619,7 @@ static WRITE8_HANDLER( mcu_data_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( system18_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( system18_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE(0x000000, 0xffffff) AM_READWRITE(segaic16_memory_mapper_lsb_r, segaic16_memory_mapper_lsb_w)
 ADDRESS_MAP_END
@@ -620,7 +632,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	AM_RANGE(0x0000, 0x9fff) AM_ROM AM_REGION("soundcpu", 0x10000)
 	AM_RANGE(0xa000, 0xbfff) AM_ROMBANK("bank1")
@@ -629,7 +641,7 @@ static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xe000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_portmap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x80, 0x83) AM_MIRROR(0x0c) AM_DEVREADWRITE("ym1", ym3438_r, ym3438_w)
@@ -646,7 +658,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( mcu_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mcu_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_UNMAP_HIGH
 	/* port 2 not used for high order address byte */
 	AM_RANGE(0x0000, 0x001f) AM_MIRROR(0xff00) AM_READWRITE(segaic16_memory_mapper_r, segaic16_memory_mapper_w)
@@ -698,17 +710,66 @@ static INPUT_PORTS_START( system18_generic )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("COINAGE")
-	SEGA_COINAGE_LOC(SW1)
+	PORT_DIPNAME( 0x0f, 0x0f, DEF_STR( Coin_A ) ) PORT_DIPLOCATION("SWA:1,2,3,4")
+	PORT_DIPSETTING(    0x07, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x09, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x05, "2 Coins/1 Credit 5/3 6/4" )
+	PORT_DIPSETTING(    0x04, "2 Coins/1 Credit 4/3" )
+	PORT_DIPSETTING(    0x0f, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x01, "1 Coin/1 Credit 2/3" )
+	PORT_DIPSETTING(    0x02, "1 Coin/1 Credit 4/5" )
+	PORT_DIPSETTING(    0x03, "1 Coin/1 Credit 5/6" )
+	PORT_DIPSETTING(    0x06, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0x0e, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x0d, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0x0b, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0x0a, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x00, "Free Play (if Coin B too) or 1/1" )
+	PORT_DIPNAME( 0xf0, 0xf0, DEF_STR( Coin_B ) ) PORT_DIPLOCATION("SWA:5,6,7,8")
+	PORT_DIPSETTING(    0x70, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x90, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x50, "2 Coins/1 Credit 5/3 6/4" )
+	PORT_DIPSETTING(    0x40, "2 Coins/1 Credit 4/3" )
+	PORT_DIPSETTING(    0xf0, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x10, "1 Coin/1 Credit 2/3" )
+	PORT_DIPSETTING(    0x20, "1 Coin/1 Credit 4/5" )
+	PORT_DIPSETTING(    0x30, "1 Coin/1 Credit 5/6" )
+	PORT_DIPSETTING(    0x60, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0xe0, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0xd0, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0xc0, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0xb0, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0xa0, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x00, "Free Play (if Coin A too) or 1/1" )
 
 	PORT_START("DSW")
-	PORT_DIPUNUSED_DIPLOC( 0x01, IP_ACTIVE_LOW, "SW2:1" )
-	PORT_DIPUNUSED_DIPLOC( 0x02, IP_ACTIVE_LOW, "SW2:2" )
-	PORT_DIPUNUSED_DIPLOC( 0x04, IP_ACTIVE_LOW, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, IP_ACTIVE_LOW, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, IP_ACTIVE_LOW, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, IP_ACTIVE_LOW, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, IP_ACTIVE_LOW, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, IP_ACTIVE_LOW, "SW2:8" )
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:1")
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:2")
+	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:3")
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:4")
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:5")
+	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:6")
+	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:7")
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) ) PORT_DIPLOCATION("SWB:8")
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("PORTH")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -741,13 +802,13 @@ static INPUT_PORTS_START( astorm )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:3,4,5")
+	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:3,4,5")
 	PORT_DIPSETTING(    0x04, DEF_STR( Easiest ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Easier ) )
 	PORT_DIPSETTING(    0x0c, DEF_STR( Easy ) )
@@ -756,11 +817,15 @@ static INPUT_PORTS_START( astorm )
 	PORT_DIPSETTING(    0x14, DEF_STR( Harder ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( Hardest ) )
 	PORT_DIPSETTING(    0x00, "Special" )
-	PORT_DIPNAME( 0x20, 0x20, "Coin Chutes" ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Coin Chutes" ) PORT_DIPLOCATION("SWB:6")
 	PORT_DIPSETTING(    0x20, "3" )
 	PORT_DIPSETTING(    0x00, "1" )
-	//"SW2:7" unused
-	//"SW2:8" unused
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:7")
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:8")
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 INPUT_PORTS_END
 
@@ -769,13 +834,13 @@ static INPUT_PORTS_START( astorm2p )
 	PORT_INCLUDE( system18_generic )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:3,4,5")
+	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:3,4,5")
 	PORT_DIPSETTING(    0x04, DEF_STR( Easiest ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Easier ) )
 	PORT_DIPSETTING(    0x0c, DEF_STR( Easy ) )
@@ -784,11 +849,15 @@ static INPUT_PORTS_START( astorm2p )
 	PORT_DIPSETTING(    0x14, DEF_STR( Harder ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( Hardest ) )
 	PORT_DIPSETTING(    0x00, "Special" )
-	PORT_DIPNAME( 0x20, 0x20, "Coin Chutes" ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Coin Chutes" ) PORT_DIPLOCATION("SWB:6")
 	PORT_DIPSETTING(    0x20, "2" )
 	PORT_DIPSETTING(    0x00, "1" )
-	//"SW2:7" unused
-	//"SW2:8" unused
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:7")
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:8")
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 INPUT_PORTS_END
 
@@ -800,24 +869,23 @@ static INPUT_PORTS_START( bloxeed )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x03, 0x03, "Price Type" ) PORT_DIPLOCATION("SW2:1,2") /* Normal game | VS Mode */
+	PORT_DIPNAME( 0x03, 0x03, "Price Type" ) PORT_DIPLOCATION("SWB:1,2") /* Normal game | VS Mode */
 	PORT_DIPSETTING(    0x03, "A" )		/* 1 Start / 1 Continue | 2 Start / 1 Continue */
 	PORT_DIPSETTING(    0x02, "B" )		/* 1 Start / 1 Continue | 1 Start / 1 Continue */
 	PORT_DIPSETTING(    0x01, "C" )		/* 2 Start / 1 Continue | 4 Start / 2 Continue */
 	PORT_DIPSETTING(    0x00, "D" )		/* 2 Start / 1 Continue | 2 Start / 2 Continue */
-	//"SW2:3" unused
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:4")
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:4")
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:5,6")
 	PORT_DIPSETTING(    0x20, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x30, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
-	//"SW2:7" unused
-	PORT_DIPNAME( 0x80, 0x00, "High Speed Mode" ) PORT_DIPLOCATION("SW2:8")
+	PORT_DIPNAME( 0x80, 0x00, "High Speed Mode" ) PORT_DIPLOCATION("SWB:8")
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+	/* Switches 3 & 7 are listed as "NOT USED" */
 INPUT_PORTS_END
 
 
@@ -825,23 +893,23 @@ static INPUT_PORTS_START( cltchitr )
 	PORT_INCLUDE( system18_generic )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0c, 0x0c, "Game Time P1" ) PORT_DIPLOCATION("SW2:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, "Game Time P1" ) PORT_DIPLOCATION("SWB:3,4")
 	PORT_DIPSETTING(    0x04, "2 Credits 18 Outcounts 14 Min." )
 	PORT_DIPSETTING(    0x00, "1 Credit 6 Outcounts 7 Min." )
 	PORT_DIPSETTING(    0x08, "1 Credit 12 Outcounts 12 Min." )
 	PORT_DIPSETTING(    0x0c, "1Credit 6 Outcounts 8M./2Credits 18 Outcounts 14M." )
-	PORT_DIPNAME( 0x30, 0x30, "Game Time P2" ) PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, "Game Time P2" ) PORT_DIPLOCATION("SWB:5,6")
 	PORT_DIPSETTING(    0x10, "4 Credits 18 Outcounts 16 Min." )
 	PORT_DIPSETTING(    0x00, "2 Credits 6 Outcounts 8 Min." )
 	PORT_DIPSETTING(    0x20, "2 Credits 12 Outcounts 14 Min." )
 	PORT_DIPSETTING(    0x30, "2Credits 6 Outcounts 8M./4Credits 18 Outcounts 16M." )
-	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:7,8")
 	PORT_DIPSETTING(    0x40, DEF_STR( Easiest ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0xc0, DEF_STR( Normal ) )
@@ -853,24 +921,24 @@ static INPUT_PORTS_START( ddcrew )
 	PORT_INCLUDE( system18_generic )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "Credits needed" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "Credits needed" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, "1 to start, 1 to continue" )
 	PORT_DIPSETTING(    0x00, "2 to start, 1 to continue" )
-	PORT_DIPNAME( 0x02, 0x02, "Switch to Start" ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x02, "Switch to Start" ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, "Start" )
 	PORT_DIPSETTING(    0x00, "Attack" )
-	PORT_DIPNAME( 0x04, 0x04, "Coin Chute" ) PORT_DIPLOCATION("SW2:3")
+	PORT_DIPNAME( 0x04, 0x04, "Coin Chute" ) PORT_DIPLOCATION("SWB:3")
 	PORT_DIPSETTING(    0x04, "Common" )
 	PORT_DIPSETTING(    0x00, "Individual" )
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:4")
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:4")
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x30, 0x30, "Player Start/Continue" ) PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, "Player Start/Continue" ) PORT_DIPLOCATION("SWB:5,6")
 	PORT_DIPSETTING(    0x30, "3/3" )
 	PORT_DIPSETTING(    0x20, "2/3" )
 	PORT_DIPSETTING(    0x10, "2/2" )
 	PORT_DIPSETTING(    0x00, "3/4" )
-	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:7,8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0xc0, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Hard ) )
@@ -909,24 +977,24 @@ static INPUT_PORTS_START( ddcrew2p )
 	PORT_INCLUDE( system18_generic )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "Credits needed" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "Credits needed" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, "1 to start, 1 to continue" )
 	PORT_DIPSETTING(    0x00, "2 to start, 1 to continue" )
-	PORT_DIPNAME( 0x02, 0x02, "Switch to Start" ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x02, "Switch to Start" ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, "Start" )
 	PORT_DIPSETTING(    0x00, "Attack" )
-	PORT_DIPNAME( 0x04, 0x04, "Coin Chute" ) PORT_DIPLOCATION("SW2:3")
+	PORT_DIPNAME( 0x04, 0x04, "Coin Chute" ) PORT_DIPLOCATION("SWB:3")
 	PORT_DIPSETTING(    0x04, "Common" )
 	PORT_DIPSETTING(    0x00, "Individual" )
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:4")
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:4")
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x30, 0x30, "Player Start/Continue" ) PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, "Player Start/Continue" ) PORT_DIPLOCATION("SWB:5,6")
 	PORT_DIPSETTING(    0x30, "3/3" )
 	PORT_DIPSETTING(    0x20, "2/3" )
 	PORT_DIPSETTING(    0x10, "2/2" )
 	PORT_DIPSETTING(    0x00, "3/4" )
-	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:7,8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0xc0, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Hard ) )
@@ -959,23 +1027,25 @@ static INPUT_PORTS_START( desertbr )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN3) // individual mode
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, "1" )
 	PORT_DIPSETTING(    0x00, "2" )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	//"SW2:3" unused
-	PORT_DIPNAME( 0x08, 0x08, "Play Mode" ) PORT_DIPLOCATION("SW2:4")
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:3")
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, "Play Mode" ) PORT_DIPLOCATION("SWB:4")
 	PORT_DIPSETTING(    0x00, "2 players" )
 	PORT_DIPSETTING(    0x08, "3 players" )
-	PORT_DIPNAME( 0x10, 0x10, "Coin Chute" ) PORT_DIPLOCATION("SW2:5")
+	PORT_DIPNAME( 0x10, 0x10, "Coin Chute" ) PORT_DIPLOCATION("SWB:5")
 	PORT_DIPSETTING(    0x10, "Common" )
 	PORT_DIPSETTING(    0x00, "Individual" )
-	PORT_DIPNAME( 0x20, 0x20, "Start Button" ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Start Button" ) PORT_DIPLOCATION("SWB:6")
 	PORT_DIPSETTING(    0x20, "Use" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Unused ) )
-	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:7,8")
 	PORT_DIPSETTING(    0x40, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0xc0, DEF_STR( Normal ) )
@@ -1013,13 +1083,13 @@ static INPUT_PORTS_START( lghost )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN3 )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:3,4,5")
+	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:3,4,5")
 	PORT_DIPSETTING(    0x0c, DEF_STR( Easiest ) )
 	PORT_DIPSETTING(    0x14, DEF_STR( Easier ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( Easy ) )
@@ -1028,13 +1098,15 @@ static INPUT_PORTS_START( lghost )
 	PORT_DIPSETTING(    0x04, DEF_STR( Harder ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Hardest ) )
 	PORT_DIPSETTING(    0x00, "Extra Hardest" )
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Allow_Continue ) ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Allow_Continue ) ) PORT_DIPLOCATION("SWB:6")
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0x40, 0x40, "Coin Chute" ) PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x40, 0x40, "Coin Chute" ) PORT_DIPLOCATION("SWB:7")
 	PORT_DIPSETTING(    0x00, "Common" )
 	PORT_DIPSETTING(    0x40, "Individual" )
-	//"SW2:8" unused
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) ) PORT_DIPLOCATION("SWB:8")
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("GUNX1")
 	PORT_BIT( 0xff, 0x80, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_SENSITIVITY(50) PORT_KEYDELTA(5)
@@ -1080,25 +1152,25 @@ static INPUT_PORTS_START( mwalk )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 ) // individual mode
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Lives) ) PORT_DIPLOCATION("SW2:3")
+	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Lives) ) PORT_DIPLOCATION("SWB:3")
 	PORT_DIPSETTING(    0x04, "2" )
 	PORT_DIPSETTING(    0x00, "3" )
-	PORT_DIPNAME( 0x08, 0x00, "Player Vitality" ) PORT_DIPLOCATION("SW2:4")
+	PORT_DIPNAME( 0x08, 0x00, "Player Vitality" ) PORT_DIPLOCATION("SWB:4")
 	PORT_DIPSETTING(    0x08, DEF_STR( Low ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( High ) )
-	PORT_DIPNAME( 0x10, 0x00, "Play Mode" ) PORT_DIPLOCATION("SW2:5")
+	PORT_DIPNAME( 0x10, 0x00, "Play Mode" ) PORT_DIPLOCATION("SWB:5")
 	PORT_DIPSETTING(    0x10, "2 Players" )
 	PORT_DIPSETTING(    0x00, "3 Players" )
-	PORT_DIPNAME( 0x20, 0x00, "Coin Chute" ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x00, "Coin Chute" ) PORT_DIPLOCATION("SWB:6")
 	PORT_DIPSETTING(    0x20, "Common" )
 	PORT_DIPSETTING(    0x00, "Individual" )
-	PORT_DIPNAME( 0xc0, 0x40, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0x40, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:7,8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0xc0, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Hard ) )
@@ -1109,18 +1181,12 @@ static INPUT_PORTS_START( mwalka )
 	PORT_INCLUDE( mwalk )
 
 	PORT_MODIFY("DSW")
-	//"SW2:1" not divert from "mwalk"
-	//"SW2:2" not divert from "mwalk"
-	//"SW2:3" not divert from "mwalk"
-	//"SW2:4" not divert from "mwalk"
-	PORT_DIPNAME( 0x10, 0x10, "Play Mode" ) PORT_DIPLOCATION("SW2:5")
+	PORT_DIPNAME( 0x10, 0x10, "Play Mode" )
 	PORT_DIPSETTING(    0x00, "2 Players" )
 	PORT_DIPSETTING(    0x10, "3 Players" )
-	PORT_DIPNAME( 0x20, 0x20, "Coin Chute" ) PORT_DIPLOCATION("SW2:6")
+	PORT_DIPNAME( 0x20, 0x20, "Coin Chute" )
 	PORT_DIPSETTING(    0x00, "Common" )
 	PORT_DIPSETTING(    0x20, "Individual" )
-	//"SW2:7" not divert from "mwalk"
-	//"SW2:8" not divert from "mwalk"
 INPUT_PORTS_END
 
 
@@ -1128,23 +1194,23 @@ static INPUT_PORTS_START( shdancer )
 	PORT_INCLUDE( system18_generic )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Lives ) ) PORT_DIPLOCATION("SW2:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Lives ) ) PORT_DIPLOCATION("SWB:3,4")
 	PORT_DIPSETTING(    0x00, "2" )
 	PORT_DIPSETTING(    0x0c, "3" )
 	PORT_DIPSETTING(    0x08, "4" )
 	PORT_DIPSETTING(    0x04, "5" )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:5,6")
 	PORT_DIPSETTING(    0x20, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x30, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
-	PORT_DIPNAME( 0xc0, 0xc0, "Time Adjust" ) PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0xc0, "Time Adjust" ) PORT_DIPLOCATION("SWB:7,8")
 	PORT_DIPSETTING(    0x00, "2.20" )
 	PORT_DIPSETTING(    0x40, "2.40" )
 	PORT_DIPSETTING(    0xc0, "3.00" )
@@ -1156,23 +1222,20 @@ static INPUT_PORTS_START( wwally )
 	PORT_INCLUDE( system18_generic )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits to Start" ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:2")
 	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x04, "Coin Chute" ) PORT_DIPLOCATION("SW2:3")
+	PORT_DIPNAME( 0x04, 0x04, "Coin Chute" ) PORT_DIPLOCATION("SWB:3")
 	PORT_DIPSETTING(    0x04, "Common" )
 	PORT_DIPSETTING(    0x00, "Individual" )
-	//"SW2:4" unused
-	//"SW2:5" unused
-	PORT_DIPNAME( 0x60, 0x60, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:6,7")
+	PORT_DIPNAME( 0x60, 0x60, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:6,7")
 	PORT_DIPSETTING(    0x40, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x60, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
-	//"SW2:8" unused
 
 	PORT_START("TRACKX1")
 	PORT_BIT( 0xff, 0x00, IPT_TRACKBALL_X ) PORT_SENSITIVITY(75) PORT_KEYDELTA(5) PORT_REVERSE
@@ -1225,57 +1288,61 @@ GFXDECODE_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( system18, segas1x_state )
+static MACHINE_DRIVER_START( system18 )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(segas1x_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 10000000)
-	MCFG_CPU_PROGRAM_MAP(system18_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 10000000)
+	MDRV_CPU_PROGRAM_MAP(system18_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_CPU_ADD("soundcpu", Z80, 8000000)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_portmap)
+	MDRV_CPU_ADD("soundcpu", Z80, 8000000)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_portmap)
 
-	MCFG_MACHINE_RESET(system18)
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_RESET(system18)
+	MDRV_NVRAM_HANDLER(system18)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57.23)    /* verified on pcb */
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(342,262)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(system18)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57.23)    /* verified on pcb */
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(342,262)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(segas18)
-	MCFG_PALETTE_LENGTH(2048*3+2048)
+	MDRV_GFXDECODE(segas18)
+	MDRV_PALETTE_LENGTH(2048*3+2048)
 
-	MCFG_VIDEO_START(system18)
+	MDRV_VIDEO_START(system18)
+	MDRV_VIDEO_UPDATE(system18)
 
-	MCFG_SEGA16SP_ADD_16B("segaspr1")
+	MDRV_SEGA16SP_ADD_16B("segaspr1")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM3438, 8000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym1", YM3438, 8000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("ym2", YM3438, 8000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ym2", YM3438, 8000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_SOUND_ADD("rfsnd", RF5C68, 10000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("rfsnd", RF5C68, 10000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( system18_8751, system18 )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_VBLANK_INT_HACK(NULL,0) /* TODO: ??? */
+static MACHINE_DRIVER_START( system18_8751 )
+	MDRV_IMPORT_FROM(system18)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_VBLANK_INT_HACK(NULL,0)
 
-	MCFG_CPU_ADD("mcu", I8751, 8000000)
-	MCFG_CPU_IO_MAP(mcu_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-MACHINE_CONFIG_END
+	MDRV_CPU_ADD("mcu", I8751, 8000000)
+	MDRV_CPU_IO_MAP(mcu_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+MACHINE_DRIVER_END
 
 
 
@@ -1687,7 +1754,6 @@ ROM_END
     D.D. Crew, Sega System 18
     CPU: FD1094 (317-0182 for 2P version, 317-0185 for 4P version, 317-0188 for 3P version)
     ROM Board: 171-5987A
-    (4th Player on Sega System 18,24) I/O Board: 837-7968
 */
 ROM_START( ddcrewj )
 	ROM_REGION( 0x300000, "maincpu", 0 ) /* 68000 code */
@@ -2225,29 +2291,29 @@ static DRIVER_INIT( generic_5987 )
 
 static DRIVER_INIT( ddcrew )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
 	DRIVER_INIT_CALL(generic_5987);
-	state->m_custom_io_r = ddcrew_custom_io_r;
+	state->custom_io_r = ddcrew_custom_io_r;
 }
 
 static DRIVER_INIT( lghost )
 {
 	has_guns=1;
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
 	DRIVER_INIT_CALL(generic_5987);
-	state->m_custom_io_r = lghost_custom_io_r;
-	state->m_custom_io_w = lghost_custom_io_w;
+	state->custom_io_r = lghost_custom_io_r;
+	state->custom_io_w = lghost_custom_io_w;
 }
 
 static DRIVER_INIT( wwally )
 {
-	segas1x_state *state = machine.driver_data<segas1x_state>();
+	segas1x_state *state = (segas1x_state *)machine->driver_data;
 
 	DRIVER_INIT_CALL(generic_5987);
-	state->m_custom_io_r = wwally_custom_io_r;
-	state->m_custom_io_w = wwally_custom_io_w;
+	state->custom_io_r = wwally_custom_io_r;
+	state->custom_io_w = wwally_custom_io_w;
 }
 
 
@@ -2258,29 +2324,28 @@ static DRIVER_INIT( wwally )
  *
  *************************************/
 
-//    YEAR, NAME,      PARENT,   MACHINE,       INPUT,    INIT,         MONITOR,COMPANY,FULLNAME,FLAGS
-GAME( 1990, astorm,    0,        system18,      astorm2p, generic_5874, ROT0,   "Sega", "Alien Storm (World, 2 Players, FD1094 317-0154)", 0 )
-GAME( 1990, astorm3,   astorm,   system18,      astorm,   generic_5874, ROT0,   "Sega", "Alien Storm (World, 3 Players, FD1094 317-0148)", 0 )
-GAME( 1990, astormu,   astorm,   system18,      astorm,   generic_5874, ROT0,   "Sega", "Alien Storm (US, 3 Players, FD1094 317-0147)", 0 )
-GAME( 1990, astormj,   astorm,   system18,      astorm2p, generic_5874, ROT0,   "Sega", "Alien Storm (Japan, 2 Players, FD1094 317-0146)", 0 )
-GAME( 1989, bloxeed,   0,        system18,      bloxeed,  generic_5874, ROT0,   "Sega", "Bloxeed (Japan, FD1094 317-0139)", 0 )
-GAME( 1991, cltchitr,  0,        system18,      cltchitr, generic_5987, ROT0,   "Sega", "Clutch Hitter (US, FD1094 317-0176)", 0 )
-GAME( 1991, cltchitrj, cltchitr, system18,      cltchitr, generic_5987, ROT0,   "Sega", "Clutch Hitter (Japan, FD1094 317-0175)", 0 )
-GAME( 1992, desertbr,  0,        system18,      desertbr, generic_5987, ROT270, "Sega", "Desert Breaker (World, FD1094 317-0196)", 0 )
-GAME( 1992, desertbrj, desertbr, system18,      desertbr, generic_5987, ROT270, "Sega", "Desert Breaker (Japan, FD1094 317-0194)", 0 )
-GAME( 1991, ddcrew,    0,        system18,      ddcrew,   ddcrew,       ROT0,   "Sega", "D. D. Crew (World, 3 Players, FD1094 317-0190)", 0 )
-GAME( 1991, ddcrewu,   ddcrew,   system18,      ddcrew,   ddcrew,       ROT0,   "Sega", "D. D. Crew (US, 4 Players, FD1094 317-0186)", 0 )
-GAME( 1991, ddcrew2,   ddcrew,   system18,      ddcrew2p, ddcrew,       ROT0,   "Sega", "D. D. Crew (World, 2 Players, FD1094 317-0184)", 0 )
-GAME( 1991, ddcrew1,   ddcrew,   system18,      ddcrew,   ddcrew,       ROT0,   "Sega", "D. D. Crew (World, 4 Players, FD1094 317-0187)", 0 )
-GAME( 1991, ddcrewj,   ddcrew,   system18,      ddcrew2p, ddcrew,       ROT0,   "Sega", "D. D. Crew (Japan, 2 Players, FD1094 317-0182)", 0 )
-GAME( 1990, lghost,    0,        system18,      lghost,   lghost,       ROT0,   "Sega", "Laser Ghost (World, 317-0166)", 0 )
-GAME( 1990, lghostu,   lghost,   system18,      lghost,   lghost,       ROT0,   "Sega", "Laser Ghost (US, 317-0165)", 0 )
-GAME( 1990, mwalk,     0,        system18_8751, mwalk,    generic_5874, ROT0,   "Sega", "Michael Jackson's Moonwalker (World, FD1094/8751 317-0159)", 0 )
-GAME( 1990, mwalku,    mwalk,    system18_8751, mwalka,   generic_5874, ROT0,   "Sega", "Michael Jackson's Moonwalker (US, FD1094/8751 317-0158)", 0 )
-GAME( 1990, mwalkj,    mwalk,    system18_8751, mwalk,    generic_5874, ROT0,   "Sega", "Michael Jackson's Moonwalker (Japan, FD1094/8751 317-0157)", 0 )
-GAME( 1989, pontoon,   0,        system18,      shdancer, generic_5874, ROT0,   "Sega", "Pontoon", GAME_NOT_WORKING )
-GAME( 1989, shdancer,  0,        system18,      shdancer, generic_shad, ROT0,   "Sega", "Shadow Dancer (World)", 0 )
-GAME( 1989, shdancerj, shdancer, system18,      shdancer, generic_shad, ROT0,   "Sega", "Shadow Dancer (Japan)", 0 )
-GAME( 1989, shdancer1, shdancer, system18,      shdancer, generic_shad, ROT0,   "Sega", "Shadow Dancer (US)", 0 )
-GAME( 1992, wwallyj,   0,        system18,      wwally,   wwally,       ROT0,   "Sega", "Wally wo Sagase! (rev B, Japan, FD1094 317-0197B)", 0) /* the roms do contain an english logo so maybe there is a world / us set too */
-GAME( 1992, wwallyja,  wwallyj,  system18,      wwally,   wwally,       ROT0,   "Sega", "Wally wo Sagase! (rev A, Japan, FD1094 317-0197A)", 0 )
+GAME( 1990, astorm,   0,        system18,      astorm2p, generic_5874, ROT0,   "Sega",    "Alien Storm (World, 2 Players, FD1094 317-0154)", 0 )
+GAME( 1990, astorm3,  astorm,   system18,      astorm,   generic_5874, ROT0,   "Sega",    "Alien Storm (World, 3 Players, FD1094 317-0148)", 0 )
+GAME( 1990, astormu,  astorm,   system18,      astorm,   generic_5874, ROT0,   "Sega",    "Alien Storm (US, 3 Players, FD1094 317-0147)", 0 )
+GAME( 1990, astormj,  astorm,   system18,      astorm2p, generic_5874, ROT0,   "Sega",    "Alien Storm (Japan, 2 Players, FD1094 317-0146)", 0 )
+GAME( 1989, bloxeed,  0,        system18,      bloxeed,  generic_5874, ROT0,   "Sega",    "Bloxeed (Japan, FD1094 317-0139)", 0 )
+GAME( 1991, cltchitr, 0,        system18,      cltchitr, generic_5987, ROT0,   "Sega",    "Clutch Hitter (US, FD1094 317-0176)", 0 )
+GAME( 1991, cltchitrj,cltchitr, system18,      cltchitr, generic_5987, ROT0,   "Sega",    "Clutch Hitter (Japan, FD1094 317-0175)", 0 )
+GAME( 1992, desertbr, 0,        system18,      desertbr, generic_5987, ROT270, "Sega",    "Desert Breaker (World, FD1094 317-0196)", 0 )
+GAME( 1992, desertbrj,desertbr, system18,      desertbr, generic_5987, ROT270, "Sega",    "Desert Breaker (Japan, FD1094 317-0194)", 0 )
+GAME( 1991, ddcrew,   0,        system18,      ddcrew,   ddcrew,       ROT0,   "Sega",    "D. D. Crew (World, 3 Player, FD1094 317-0190)", 0 )
+GAME( 1991, ddcrewu,  ddcrew,   system18,      ddcrew,   ddcrew,       ROT0,   "Sega",    "D. D. Crew (US, 4 Player, FD1094 317-0186)", 0 )
+GAME( 1991, ddcrew2,  ddcrew,   system18,      ddcrew2p, ddcrew,       ROT0,   "Sega",    "D. D. Crew (World, 2 Player, FD1094 317-0184)", 0 )
+GAME( 1991, ddcrew1,  ddcrew,   system18,      ddcrew,   ddcrew,       ROT0,   "Sega",    "D. D. Crew (World, 4 Player, FD1094 317-0187)", 0 )
+GAME( 1991, ddcrewj,  ddcrew,   system18,      ddcrew2p, ddcrew,       ROT0,   "Sega",    "D. D. Crew (Japan, 2 Player, FD1094 317-0182)", 0 )
+GAME( 1990, lghost,   0,        system18,      lghost,   lghost,       ROT0,   "Sega",    "Laser Ghost (World, 317-0166)", 0 )
+GAME( 1990, lghostu,  lghost,   system18,      lghost,   lghost,       ROT0,   "Sega",    "Laser Ghost (US, 317-0165)", 0 )
+GAME( 1990, mwalk,    0,        system18_8751, mwalk,    generic_5874, ROT0,   "Sega",    "Michael Jackson's Moonwalker (World, FD1094/8751 317-0159)", 0 )
+GAME( 1990, mwalku,   mwalk,    system18_8751, mwalka,   generic_5874, ROT0,   "Sega",    "Michael Jackson's Moonwalker (US, FD1094/8751 317-0158)", 0 )
+GAME( 1990, mwalkj,   mwalk,    system18_8751, mwalk,    generic_5874, ROT0,   "Sega",    "Michael Jackson's Moonwalker (Japan, FD1094/8751 317-0157)", 0 )
+GAME( 1989, pontoon,  0,        system18,      shdancer, generic_5874, ROT0,   "Sega",    "Pontoon", GAME_NOT_WORKING )
+GAME( 1989, shdancer, 0,        system18,      shdancer, generic_shad, ROT0,   "Sega",    "Shadow Dancer (World)" , 0 )
+GAME( 1989, shdancerj,shdancer, system18,      shdancer, generic_shad, ROT0,   "Sega",    "Shadow Dancer (Japan)", 0 )
+GAME( 1989, shdancer1,shdancer, system18,      shdancer, generic_shad, ROT0,   "Sega",    "Shadow Dancer (US)", 0 )
+GAME( 1992, wwallyj,  0,        system18,      wwally,   wwally,       ROT0,   "Sega",    "Wally wo Sagase! (rev B, Japan, FD1094 317-0197B)" , 0) /* the roms do contain an english logo so maybe there is a world / us set too */
+GAME( 1992, wwallyja, wwallyj,  system18,      wwally,   wwally,       ROT0,   "Sega",    "Wally wo Sagase! (rev A, Japan, FD1094 317-0197A)", 0 )

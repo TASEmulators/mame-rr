@@ -17,25 +17,14 @@ TODO:
 #include "sound/k056800.h"
 
 
-class ultrsprt_state : public driver_device
+static UINT32 *vram;
+static UINT32 *workram;
+
+static VIDEO_UPDATE( ultrsprt )
 {
-public:
-	ultrsprt_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT32 *m_vram;
-	UINT32 *m_workram;
-};
-
-
-
-
-static SCREEN_UPDATE( ultrsprt )
-{
-	ultrsprt_state *state = screen->machine().driver_data<ultrsprt_state>();
 	int i, j;
 
-	UINT8 *ram = (UINT8 *)state->m_vram;
+	UINT8 *ram = (UINT8 *)vram;
 
 	for (j=0; j < 400; j++)
 	{
@@ -57,11 +46,11 @@ static SCREEN_UPDATE( ultrsprt )
 
 static WRITE32_HANDLER( palette_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
-	data = space->machine().generic.paletteram.u32[offset];
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
+	data = space->machine->generic.paletteram.u32[offset];
 
-	palette_set_color(space->machine(), (offset*2)+0, MAKE_RGB(pal5bit(data >> 26), pal5bit(data >> 21), pal5bit(data >> 16)));
-	palette_set_color(space->machine(), (offset*2)+1, MAKE_RGB(pal5bit(data >> 10), pal5bit(data >>  5), pal5bit(data >>  0)));
+	palette_set_color(space->machine, (offset*2)+0, MAKE_RGB(pal5bit(data >> 26), pal5bit(data >> 21), pal5bit(data >> 16)));
+	palette_set_color(space->machine, (offset*2)+1, MAKE_RGB(pal5bit(data >> 10), pal5bit(data >>  5), pal5bit(data >>  0)));
 }
 
 static READ32_HANDLER( eeprom_r )
@@ -69,7 +58,7 @@ static READ32_HANDLER( eeprom_r )
 	UINT32 r = 0;
 
 	if (ACCESSING_BITS_24_31)
-		r |= input_port_read(space->machine(), "SERVICE");
+		r |= input_port_read(space->machine, "SERVICE");
 
 	return r;
 }
@@ -77,42 +66,41 @@ static READ32_HANDLER( eeprom_r )
 static WRITE32_HANDLER( eeprom_w )
 {
 	if (ACCESSING_BITS_24_31)
-		input_port_write(space->machine(), "EEPROMOUT", data, 0xffffffff);
+		input_port_write(space->machine, "EEPROMOUT", data, 0xffffffff);
 }
 
 static CUSTOM_INPUT( analog_ctrl_r )
 {
 	const char *tag = (const char *)param;
-	return input_port_read(field.machine(), tag) & 0xfff;
+	return input_port_read(field->port->machine, tag) & 0xfff;
 }
 
 static WRITE32_HANDLER( int_ack_w )
 {
-	cputag_set_input_line(space->machine(), "maincpu", INPUT_LINE_IRQ1, CLEAR_LINE);
+	cputag_set_input_line(space->machine, "maincpu", INPUT_LINE_IRQ1, CLEAR_LINE);
 }
 
 static MACHINE_START( ultrsprt )
 {
-	ultrsprt_state *state = machine.driver_data<ultrsprt_state>();
 	/* set conservative DRC options */
-	ppcdrc_set_options(machine.device("maincpu"), PPCDRC_COMPATIBLE_OPTIONS);
+	ppcdrc_set_options(machine->device("maincpu"), PPCDRC_COMPATIBLE_OPTIONS);
 
 	/* configure fast RAM regions for DRC */
-	ppcdrc_add_fastram(machine.device("maincpu"), 0x80000000, 0x8007ffff, FALSE, state->m_vram);
-	ppcdrc_add_fastram(machine.device("maincpu"), 0xff000000, 0xff01ffff, FALSE, state->m_workram);
+	ppcdrc_add_fastram(machine->device("maincpu"), 0x80000000, 0x8007ffff, FALSE, vram);
+	ppcdrc_add_fastram(machine->device("maincpu"), 0xff000000, 0xff01ffff, FALSE, workram);
 }
 
 
 
-static ADDRESS_MAP_START( ultrsprt_map, AS_PROGRAM, 32 )
-	AM_RANGE(0x00000000, 0x0007ffff) AM_RAM AM_BASE_MEMBER(ultrsprt_state, m_vram)
+static ADDRESS_MAP_START( ultrsprt_map, ADDRESS_SPACE_PROGRAM, 32 )
+	AM_RANGE(0x00000000, 0x0007ffff) AM_RAM AM_BASE(&vram)
 	AM_RANGE(0x70000000, 0x70000003) AM_READWRITE(eeprom_r, eeprom_w)
 	AM_RANGE(0x70000020, 0x70000023) AM_READ_PORT("P1")
 	AM_RANGE(0x70000040, 0x70000043) AM_READ_PORT("P2")
 	AM_RANGE(0x70000080, 0x70000087) AM_DEVWRITE("k056800", k056800_host_w)
 	AM_RANGE(0x70000088, 0x7000008f) AM_DEVREAD("k056800", k056800_host_r)
 	AM_RANGE(0x700000e0, 0x700000e3) AM_WRITE(int_ack_w)
-	AM_RANGE(0x7f000000, 0x7f01ffff) AM_RAM AM_BASE_MEMBER(ultrsprt_state, m_workram)
+	AM_RANGE(0x7f000000, 0x7f01ffff) AM_RAM AM_BASE(&workram)
 	AM_RANGE(0x7f700000, 0x7f703fff) AM_RAM_WRITE(palette_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x7f800000, 0x7f9fffff) AM_MIRROR(0x00600000) AM_ROM AM_REGION("user1", 0)
 ADDRESS_MAP_END
@@ -123,7 +111,7 @@ ADDRESS_MAP_END
 
 static READ16_HANDLER( K056800_68k_r )
 {
-	device_t *k056800 = space->machine().device("k056800");
+	running_device *k056800 = space->machine->device("k056800");
 	UINT16 r = 0;
 
 	if (ACCESSING_BITS_8_15)
@@ -137,7 +125,7 @@ static READ16_HANDLER( K056800_68k_r )
 
 static WRITE16_HANDLER( K056800_68k_w )
 {
-	device_t *k056800 = space->machine().device("k056800");
+	running_device *k056800 = space->machine->device("k056800");
 
 	if (ACCESSING_BITS_8_15)
 		k056800_sound_w(k056800, (offset*2)+0, (data >> 8) & 0xff, 0x00ff);
@@ -146,7 +134,7 @@ static WRITE16_HANDLER( K056800_68k_w )
 		k056800_sound_w(k056800, (offset*2)+1, (data >> 0) & 0xff, 0x00ff);
 }
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x00000000, 0x0001ffff) AM_ROM
 	AM_RANGE(0x00100000, 0x00101fff) AM_RAM
 	AM_RANGE(0x00200000, 0x00200007) AM_WRITE(K056800_68k_w)
@@ -172,13 +160,13 @@ static INPUT_PORTS_START( ultrsprt )
 	PORT_BIT( 0x10000000, IP_ACTIVE_HIGH, IPT_START2 )
 
 	PORT_START("SERVICE")
-	PORT_BIT( 0x02000000, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x02000000, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_SERVICE_NO_TOGGLE( 0x08000000, IP_ACTIVE_LOW )
 
 	PORT_START( "EEPROMOUT" )
-	PORT_BIT( 0x01000000, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, write_bit)
-	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_clock_line)
-	PORT_BIT( 0x04000000, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_cs_line)
+	PORT_BIT( 0x01000000, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_write_bit)
+	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_clock_line)
+	PORT_BIT( 0x04000000, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_cs_line)
 
 	PORT_START("STICKX1")
 	PORT_BIT( 0xfff, 0x800, IPT_AD_STICK_X ) PORT_MINMAX(0x000,0xfff) PORT_SENSITIVITY(70) PORT_KEYDELTA(10) PORT_PLAYER(1)
@@ -196,13 +184,13 @@ INPUT_PORTS_END
 
 static INTERRUPT_GEN( ultrsprt_vblank )
 {
-	device_set_input_line(device, INPUT_LINE_IRQ1, ASSERT_LINE);
+	cpu_set_input_line(device, INPUT_LINE_IRQ1, ASSERT_LINE);
 }
 
-static void sound_irq_callback(running_machine &machine, int irq)
+static void sound_irq_callback(running_machine *machine, int irq)
 {
 	if (irq == 0)
-		/*generic_pulse_irq_line(machine.device("audiocpu"), INPUT_LINE_IRQ5)*/;
+		/*generic_pulse_irq_line(machine->device("audiocpu"), INPUT_LINE_IRQ5)*/;
 	else
 		cputag_set_input_line(machine, "audiocpu", INPUT_LINE_IRQ6, HOLD_LINE);
 }
@@ -213,41 +201,42 @@ static const k056800_interface ultrsprt_k056800_interface =
 };
 
 
-static MACHINE_CONFIG_START( ultrsprt, ultrsprt_state )
+static MACHINE_DRIVER_START( ultrsprt )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", PPC403GA, 25000000)		/* PowerPC 403GA 25MHz */
-	MCFG_CPU_PROGRAM_MAP(ultrsprt_map)
-	MCFG_CPU_VBLANK_INT("screen", ultrsprt_vblank)
+	MDRV_CPU_ADD("maincpu", PPC403GA, 25000000)		/* PowerPC 403GA 25MHz */
+	MDRV_CPU_PROGRAM_MAP(ultrsprt_map)
+	MDRV_CPU_VBLANK_INT("screen", ultrsprt_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M68000, 8000000)		/* Not sure about the frequency */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_PERIODIC_INT(irq5_line_hold, 1)	// ???
+	MDRV_CPU_ADD("audiocpu", M68000, 8000000)		/* Not sure about the frequency */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_PERIODIC_INT(irq5_line_hold, 1)	// ???
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(12000))
+	MDRV_QUANTUM_TIME(HZ(12000))
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
-	MCFG_MACHINE_START(ultrsprt)
+	MDRV_EEPROM_93C46_ADD("eeprom")
+	MDRV_MACHINE_START(ultrsprt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 400)
-	MCFG_SCREEN_VISIBLE_AREA(0, 511, 0, 399)
-	MCFG_SCREEN_UPDATE(ultrsprt)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 400)
+	MDRV_SCREEN_VISIBLE_AREA(0, 511, 0, 399)
 
-	MCFG_PALETTE_LENGTH(8192)
+	MDRV_PALETTE_LENGTH(8192)
+
+	MDRV_VIDEO_UPDATE(ultrsprt)
 
 	/* sound hardware */
-	MCFG_K056800_ADD("k056800", ultrsprt_k056800_interface)
+	MDRV_K056800_ADD("k056800", ultrsprt_k056800_interface)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("konami", K054539, 48000)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("konami", K054539, 48000)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 /*****************************************************************************/

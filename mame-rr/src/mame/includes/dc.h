@@ -9,11 +9,12 @@
 
 /*----------- defined in machine/dc.c -----------*/
 
-READ64_HANDLER( pvr_ctrl_r );
-WRITE64_HANDLER( pvr_ctrl_w );
-
 READ64_HANDLER( dc_sysctrl_r );
 WRITE64_HANDLER( dc_sysctrl_w );
+READ64_HANDLER( dc_maple_r );
+WRITE64_HANDLER( dc_maple_w );
+READ64_HANDLER( naomi_maple_r );
+WRITE64_HANDLER( naomi_maple_w );
 READ64_HANDLER( dc_gdrom_r );
 WRITE64_HANDLER( dc_gdrom_w );
 READ64_HANDLER( dc_g1_ctrl_r );
@@ -33,10 +34,14 @@ WRITE32_DEVICE_HANDLER( dc_arm_aica_w );
 MACHINE_START( dc );
 MACHINE_RESET( dc );
 
-int dc_compute_interrupt_level(running_machine &machine);
-void dc_update_interrupt_status(running_machine &machine);
+int dc_compute_interrupt_level(running_machine *machine);
+void dc_update_interrupt_status(running_machine *machine);
+
+INPUT_CHANGED( dc_coin_slots_callback );
 
 extern UINT32 dc_sysctrl_regs[0x200/4];
+extern UINT32 dc_coin_counts[2];
+extern UINT8 maple0x86data1[0x80];
 extern UINT32 g1bus_regs[0x100/4];
 
 /*--------- Ch2-DMA Control Registers ----------*/
@@ -204,22 +209,16 @@ extern UINT32 pvrctrl_regs[0x100/4];
 extern UINT64 *dc_texture_ram;
 extern UINT64 *dc_framebuffer_ram;
 
-extern UINT64 *pvr2_texture_ram;
-extern UINT64 *pvr2_framebuffer_ram;
-extern UINT64 *elan_ram;
+void dc_vblank( running_machine *machine );
 
+READ64_HANDLER( pvr_ctrl_r );
+WRITE64_HANDLER( pvr_ctrl_w );
 READ64_HANDLER( pvr_ta_r );
 WRITE64_HANDLER( pvr_ta_w );
-READ64_HANDLER( pvr2_ta_r );
-WRITE64_HANDLER( pvr2_ta_w );
-READ64_HANDLER( pvrs_ta_r );
-WRITE64_HANDLER( pvrs_ta_w );
-READ32_HANDLER( elan_regs_r );
-WRITE32_HANDLER( elan_regs_w );
 WRITE64_HANDLER( ta_fifo_poly_w );
 WRITE64_HANDLER( ta_fifo_yuv_w );
 VIDEO_START(dc);
-SCREEN_UPDATE(dc);
+VIDEO_UPDATE(dc);
 
 /*--------------- CORE registers --------------*/
 #define PVRID				((0x005f8000-0x005f8000)/4)

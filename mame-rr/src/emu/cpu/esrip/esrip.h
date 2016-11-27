@@ -85,8 +85,8 @@ struct _esrip_config_
 {
 	read16_device_func	fdt_r;
 	write16_device_func	fdt_w;
-	UINT8 (*status_in)(running_machine &machine);
-	int (*draw)(running_machine &machine, int l, int r, int fig, int attr, int addr, int col, int x_scale, int bank);
+	UINT8 (*status_in)(running_machine *machine);
+	int (*draw)(running_machine *machine, int l, int r, int fig, int attr, int addr, int col, int x_scale, int bank);
 	const char* const lbrm_prom;
 };
 
@@ -96,6 +96,6 @@ struct _esrip_config_
 
 DECLARE_LEGACY_CPU_DEVICE(ESRIP, esrip);
 
-extern UINT8 get_rip_status(device_t *cpu);
+extern UINT8 get_rip_status(running_device *cpu);
 
 #endif /* _ESRIP_H */

@@ -1,4 +1,5 @@
 #include "emu.h"
+#include "streams.h"
 #include "dac.h"
 
 
@@ -16,10 +17,10 @@ struct _dac_state
 };
 
 
-INLINE dac_state *get_safe_token(device_t *device)
+INLINE dac_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == DAC);
+	assert(device->type() == SOUND_DAC);
 	return (dac_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -34,7 +35,7 @@ static STREAM_UPDATE( DAC_update )
 }
 
 
-void dac_data_w(device_t *device, UINT8 data)
+void dac_data_w(running_device *device, UINT8 data)
 {
 	dac_state *info = get_safe_token(device);
 	INT16 out = info->UnsignedVolTable[data];
@@ -42,13 +43,13 @@ void dac_data_w(device_t *device, UINT8 data)
 	if (info->output != out)
 	{
 		/* update the output buffer before changing the registers */
-		info->channel->update();
+		stream_update(info->channel);
 		info->output = out;
 	}
 }
 
 
-void dac_signed_data_w(device_t *device, UINT8 data)
+void dac_signed_data_w(running_device *device, UINT8 data)
 {
 	dac_state *info = get_safe_token(device);
 	INT16 out = info->SignedVolTable[data];
@@ -56,13 +57,13 @@ void dac_signed_data_w(device_t *device, UINT8 data)
 	if (info->output != out)
 	{
 		/* update the output buffer before changing the registers */
-		info->channel->update();
+		stream_update(info->channel);
 		info->output = out;
 	}
 }
 
 
-void dac_data_16_w(device_t *device, UINT16 data)
+void dac_data_16_w(running_device *device, UINT16 data)
 {
 	dac_state *info = get_safe_token(device);
 	INT16 out = data >> 1;		/* range      0..32767 */
@@ -70,13 +71,13 @@ void dac_data_16_w(device_t *device, UINT16 data)
 	if (info->output != out)
 	{
 		/* update the output buffer before changing the registers */
-		info->channel->update();
+		stream_update(info->channel);
 		info->output = out;
 	}
 }
 
 
-void dac_signed_data_16_w(device_t *device, UINT16 data)
+void dac_signed_data_16_w(running_device *device, UINT16 data)
 {
 	dac_state *info = get_safe_token(device);
 	INT16 out = (INT32)data - (INT32)0x08000;	/* range -32768..32767 */
@@ -85,7 +86,7 @@ void dac_signed_data_16_w(device_t *device, UINT16 data)
 	if (info->output != out)
 	{
 		/* update the output buffer before changing the registers */
-		info->channel->update();
+		stream_update(info->channel);
 		info->output = out;
 	}
 }
@@ -110,10 +111,10 @@ static DEVICE_START( dac )
 
 	DAC_build_voltable(info);
 
-	info->channel = device->machine().sound().stream_alloc(*device,0,1,device->clock() ? device->clock() : DEFAULT_SAMPLE_RATE,info,DAC_update);
+	info->channel = stream_create(device,0,1,device->clock() ? device->clock() : DEFAULT_SAMPLE_RATE,info,DAC_update);
 	info->output = 0;
 
-	device->save_item(NAME(info->output));
+	state_save_register_device_item(device, 0, info->output);
 }
 
 

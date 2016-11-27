@@ -14,24 +14,6 @@
 
 #define LOG 0
 
-enum MICROTOUCH_FORMAT
-{
-	FORMAT_UNKNOWN,
-	FORMAT_TABLET,
-	FORMAT_DECIMAL
-};
-
-ALLOW_SAVE_TYPE(MICROTOUCH_FORMAT);
-
-enum MICROTOUCH_MODE
-{
-	MODE_INACTIVE,
-	MODE_STREAM,
-	MODE_POINT
-};
-
-ALLOW_SAVE_TYPE(MICROTOUCH_MODE);
-
 static struct
 {
 	UINT8		rx_buffer[16];
@@ -41,8 +23,10 @@ static struct
 	UINT8		tx_buffer_num;
 	UINT8		tx_buffer_ptr;
 	int			reset_done;
-	MICROTOUCH_FORMAT	format;
-	MICROTOUCH_MODE		mode;
+	int			format_tablet;
+	int			format_decimal;
+	int			mode_inactive;
+	int			mode_stream;
 	int			last_touch_state;
 	int			last_x;
 	int			last_y;
@@ -106,33 +90,6 @@ static void microtouch_send_format_decimal_packet(int x, int y)
 	microtouch.tx_buffer[microtouch.tx_buffer_num++] = 0x0d;
 }
 
-static void microtouch_send_touch_packet(running_machine &machine)
-{
-	int tx = input_port_read(machine, "TOUCH_X");
-	int ty = input_port_read(machine, "TOUCH_Y");
-
-	if ( microtouch.touch_callback == NULL ||
-		 microtouch.touch_callback( machine, &tx, &ty ) != 0 )
-	{
-		ty = 0x4000 - ty;
-
-		switch( microtouch.format )
-		{
-			case FORMAT_TABLET:
-				microtouch_send_format_table_packet(0xc8, tx, ty);
-				break;
-			case FORMAT_DECIMAL:
-				microtouch_send_format_decimal_packet(tx, ty);
-				break;
-			case FORMAT_UNKNOWN:
-				break;
-		}
-		microtouch.last_touch_state = 1;
-		microtouch.last_x = tx;
-		microtouch.last_y = ty;
-	}
-}
-
 static TIMER_CALLBACK(microtouch_timer_callback)
 {
 	if ( microtouch.tx_buffer_ptr < microtouch.tx_buffer_num )
@@ -146,8 +103,9 @@ static TIMER_CALLBACK(microtouch_timer_callback)
 	}
 
 	if ( (microtouch.reset_done == 0) ||
-		 (microtouch.format == FORMAT_UNKNOWN) ||
-		 (microtouch.mode != MODE_STREAM))
+		 ((microtouch.format_tablet == 0) && (microtouch.format_decimal == 0)) ||
+		 (microtouch.mode_inactive == 1) ||
+		 (microtouch.mode_stream == 0) )
 	{
 		return;
 	}
@@ -155,29 +113,45 @@ static TIMER_CALLBACK(microtouch_timer_callback)
 	// send format tablet packet
 	if ( input_port_read(machine, "TOUCH") & 0x01 )
 	{
-		microtouch_send_touch_packet(machine);
+		int tx = input_port_read(machine, "TOUCH_X");
+		int ty = input_port_read(machine, "TOUCH_Y");
+
+		if ( microtouch.touch_callback == NULL ||
+			 microtouch.touch_callback( machine, &tx, &ty ) != 0 )
+		{
+			ty = 0x4000 - ty;
+
+			if ( microtouch.format_tablet )
+			{
+				microtouch_send_format_table_packet(0xc8, tx, ty);
+			}
+			else if ( microtouch.format_decimal )
+			{
+				microtouch_send_format_decimal_packet(tx, ty);
+			}
+			microtouch.last_touch_state = 1;
+			microtouch.last_x = tx;
+			microtouch.last_y = ty;
+		}
 	}
 	else
 	{
 		if ( microtouch.last_touch_state == 1 )
 		{
 			microtouch.last_touch_state = 0;
-			switch( microtouch.format )
+			if ( microtouch.format_tablet )
 			{
-				case FORMAT_TABLET:
-					microtouch_send_format_table_packet(0x88, microtouch.last_x, microtouch.last_y);
-					break;
-				case FORMAT_DECIMAL:
-					microtouch_send_format_decimal_packet(microtouch.last_x, microtouch.last_y);
-					break;
-				case FORMAT_UNKNOWN:
-					break;
+				microtouch_send_format_table_packet(0x88, microtouch.last_x, microtouch.last_y);
+			}
+			else if ( microtouch.format_decimal )
+			{
+				microtouch_send_format_decimal_packet(microtouch.last_x, microtouch.last_y);
 			}
 		}
 	}
 };
 
-void microtouch_init(running_machine &machine, microtouch_tx_func tx_cb, microtouch_touch_func touch_cb)
+void microtouch_init(running_machine *machine, microtouch_tx_func tx_cb, microtouch_touch_func touch_cb)
 {
 	memset(&microtouch, 0, sizeof(microtouch));
 
@@ -185,13 +159,13 @@ void microtouch_init(running_machine &machine, microtouch_tx_func tx_cb, microto
 	microtouch.tx_callback = tx_cb;
 	microtouch.touch_callback = touch_cb;
 
-	microtouch.timer = machine.scheduler().timer_alloc(FUNC(microtouch_timer_callback));
-	microtouch.timer->adjust(attotime::from_hz(167*5), 0, attotime::from_hz(167*5));
-
-	microtouch.format = FORMAT_UNKNOWN;
-	microtouch.mode = MODE_INACTIVE;
+	microtouch.timer = timer_alloc(machine, microtouch_timer_callback, NULL);
+	timer_adjust_periodic(microtouch.timer, ATTOTIME_IN_HZ(167*5), 0, ATTOTIME_IN_HZ(167*5));
 
 	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.reset_done);
+	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.format_tablet);
+	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.mode_inactive);
+	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.mode_stream);
 	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.last_touch_state);
 	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.last_x);
 	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.last_y);
@@ -200,8 +174,8 @@ void microtouch_init(running_machine &machine, microtouch_tx_func tx_cb, microto
 	state_save_register_item_array(machine, "microtouch", NULL, 0, microtouch.tx_buffer);
 	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.tx_buffer_num);
 	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.tx_buffer_ptr);
-	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.format);
-	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.mode);
+	state_save_register_item(machine, "microtouch", NULL, 0, microtouch.format_decimal);
+
 };
 
 
@@ -227,15 +201,12 @@ void microtouch_rx(int count, UINT8* data)
 		// check command
 		if ( microtouch_check_command( "MS", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
 		{
-			microtouch.mode = MODE_STREAM;
+			microtouch.mode_stream = 1;
+			microtouch.mode_inactive = 0;
 		}
 		else if ( microtouch_check_command( "MI", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
 		{
-			microtouch.mode = MODE_INACTIVE;
-		}
-		else if ( microtouch_check_command( "MP", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
-		{
-			microtouch.mode = MODE_POINT;
+			microtouch.mode_inactive = 1;
 		}
 		else if ( microtouch_check_command( "R", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
 		{
@@ -244,25 +215,11 @@ void microtouch_rx(int count, UINT8* data)
 		}
 		else if ( microtouch_check_command( "FT", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
 		{
-			microtouch.format = FORMAT_TABLET;
+			microtouch.format_tablet = 1;
 		}
 		else if ( microtouch_check_command( "FD", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
 		{
-			microtouch.format = FORMAT_DECIMAL;
-		}
-		else if ( microtouch_check_command("OI", microtouch.rx_buffer_ptr, microtouch.rx_buffer ) )
-		{
-			// output identity - SMT3, ver 01.00
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = 0x01;
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = 'Q';
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = '1';
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = '0';
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = '1';
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = '0';
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = '0';
-			microtouch.tx_buffer[microtouch.tx_buffer_num++] = 0x0d;
-			microtouch.rx_buffer_ptr = 0;
-			return;
+			microtouch.format_decimal = 1;
 		}
 		// send response
 		microtouch.tx_buffer[microtouch.tx_buffer_num++] = 0x01;
@@ -272,17 +229,9 @@ void microtouch_rx(int count, UINT8* data)
 	}
 };
 
-static INPUT_CHANGED( microtouch_touch )
-{
-	if ( newval && ( microtouch.mode == MODE_POINT ) )
-	{
-		microtouch_send_touch_packet( field.machine() );
-	}
-}
-
 INPUT_PORTS_START(microtouch)
 	PORT_START("TOUCH")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME( "Touch screen" ) PORT_CHANGED( microtouch_touch, 0 )
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME( "Touch screen" )
 	PORT_START("TOUCH_X")
 	PORT_BIT( 0x3fff, 0x2000, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_SENSITIVITY(45) PORT_KEYDELTA(15)
 	PORT_START("TOUCH_Y")

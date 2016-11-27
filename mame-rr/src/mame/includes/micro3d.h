@@ -12,66 +12,104 @@
 #define VGB_MONITOR_DISPLAY			0
 #define DRMATH_MONITOR_DISPLAY		0
 
-class micro3d_state : public driver_device
+class micro3d_state
 {
 public:
-	micro3d_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, micro3d_state(machine)); }
 
-	UINT16				*m_shared_ram;
-	device_t			*m_duart68681;
-	UINT8				m_m68681_tx0;
+	micro3d_state(running_machine &machine) { }
+
+	struct
+	{
+		union
+		{
+			struct
+			{
+				UINT8 gpdr;
+				UINT8 aer;
+				UINT8 ddr;
+				UINT8 iera;
+				UINT8 ierb;
+				UINT8 ipra;
+				UINT8 iprb;
+				UINT8 isra;
+				UINT8 isrb;
+				UINT8 imra;
+				UINT8 imrb;
+				UINT8 vr;
+				UINT8 tacr;
+				UINT8 tbcr;
+				UINT8 tcdcr;
+				UINT8 tadr;
+				UINT8 tbdr;
+				UINT8 tcdr;
+				UINT8 tddr;
+				UINT8 scr;
+				UINT8 ucr;
+				UINT8 rsr;
+				UINT8 tsr;
+				UINT8 udr;
+			};
+			UINT8 regs[24];
+		};
+
+		emu_timer *timer_a;
+	} mc68901;
+
+	UINT16				*shared_ram;
+	running_device		*duart68681;
+	UINT8				m68681_tx0;
 
 	/* Sound */
-	UINT8				m_sound_port_latch[4];
-	UINT8				m_dac_data;
+	UINT8				sound_port_latch[4];
+	UINT8				dac_data;
 
 	/* TI UART */
-	UINT8				m_ti_uart[9];
-	int					m_ti_uart_mode_cycle;
-	int					m_ti_uart_sync_cycle;
+	UINT8				ti_uart[9];
+	int					ti_uart_mode_cycle;
+	int					ti_uart_sync_cycle;
 
 	/* ADC */
-	UINT8				m_adc_val;
+	UINT8				adc_val;
 
 	/* Hardware version-check latch for BOTSS 1.1a */
-	UINT8				m_botssa_latch;
+	UINT8				botssa_latch;
 
 	/* MAC */
-	UINT32				*m_mac_sram;
-	UINT32				m_sram_r_addr;
-	UINT32				m_sram_w_addr;
-	UINT32				m_vtx_addr;
-	UINT32				m_mrab11;
-	UINT32				m_mac_stat;
-	UINT32				m_mac_inst;
+	UINT32				*mac_sram;
+	UINT32				sram_r_addr;
+	UINT32				sram_w_addr;
+	UINT32				vtx_addr;
+	UINT32				mrab11;
+	UINT32				mac_stat;
+	UINT32				mac_inst;
 
 	/* 2D video */
-	UINT16				*m_micro3d_sprite_vram;
-	UINT16				m_creg;
-	UINT16				m_xfer3dk;
+	UINT16				*micro3d_sprite_vram;
+	UINT16				creg;
+	UINT16				xfer3dk;
 
 	/* 3D pipeline */
-	UINT32				m_pipe_data;
-	UINT32				m_pipeline_state;
-	INT32				m_vtx_fifo[512];
-	UINT32				m_fifo_idx;
-	UINT32				m_draw_cmd;
-	int					m_draw_state;
-	INT32				m_x_min;
-	INT32				m_x_max;
-	INT32				m_y_min;
-	INT32				m_y_max;
-	INT32				m_z_min;
-	INT32				m_z_max;
-	INT32				m_x_mid;
-	INT32				m_y_mid;
-	int					m_dpram_bank;
-	UINT32				m_draw_dpram[1024];
-	UINT16				*m_frame_buffers[2];
-	UINT16				*m_tmp_buffer;
-	int					m_drawing_buffer;
-	int					m_display_buffer;
+	UINT32				pipe_data;
+	UINT32				pipeline_state;
+	INT32				vtx_fifo[512];
+	UINT32				fifo_idx;
+	UINT32				draw_cmd;
+	int					draw_state;
+	INT32				x_min;
+	INT32				x_max;
+	INT32				y_min;
+	INT32				y_max;
+	INT32				z_min;
+	INT32				z_max;
+	INT32				x_mid;
+	INT32				y_mid;
+	int					dpram_bank;
+	UINT32				draw_dpram[1024];
+	UINT16				*frame_buffers[2];
+	UINT16				*tmp_buffer;
+	int					drawing_buffer;
+	int					display_buffer;
 };
 
 typedef struct _micro3d_vtx_
@@ -79,8 +117,13 @@ typedef struct _micro3d_vtx_
 	INT32 x, y, z;
 } micro3d_vtx;
 
+/*----------- defined in drivers/micro3d.c -----------*/
+extern UINT16 *micro3d_sprite_vram;
+void m68901_int_gen(running_machine *machine, int source);
 
 /*----------- defined in machine/micro3d.c -----------*/
+READ16_HANDLER( micro3d_mc68901_r );
+WRITE16_HANDLER( micro3d_mc68901_w );
 
 READ16_HANDLER( micro3d_ti_uart_r );
 WRITE16_HANDLER( micro3d_ti_uart_w );
@@ -114,35 +157,32 @@ WRITE32_HANDLER( micro3d_mac1_w );
 WRITE32_HANDLER( micro3d_mac2_w );
 READ32_HANDLER( micro3d_mac2_r );
 
-void micro3d_duart_irq_handler(device_t *device, UINT8 vector);
-UINT8 micro3d_duart_input_r(device_t *device);
-void micro3d_duart_output_w(device_t *device, UINT8 data);
-void micro3d_duart_tx(device_t *device, int channel, UINT8 data);
+void micro3d_duart_irq_handler(running_device *device, UINT8 vector);
+UINT8 micro3d_duart_input_r(running_device *device);
+void micro3d_duart_output_w(running_device *device, UINT8 data);
+void micro3d_duart_tx(running_device *device, int channel, UINT8 data);
 
 MACHINE_RESET( micro3d );
 DRIVER_INIT( micro3d );
 DRIVER_INIT( botssa );
 
-
 /*----------- defined in audio/micro3d.c -----------*/
-
 WRITE8_DEVICE_HANDLER( micro3d_upd7759_w );
 WRITE8_HANDLER( micro3d_snd_dac_a );
 WRITE8_HANDLER( micro3d_snd_dac_b );
 READ8_HANDLER( micro3d_sound_io_r );
 WRITE8_HANDLER( micro3d_sound_io_w );
 
-void micro3d_noise_sh_w(running_machine &machine, UINT8 data);
+void micro3d_noise_sh_w(running_machine *machine, UINT8 data);
 
 DECLARE_LEGACY_SOUND_DEVICE(MICRO3D, micro3d_sound);
 
-
 /*----------- defined in video/micro3d.c -----------*/
-
 VIDEO_START( micro3d );
+VIDEO_UPDATE( micro3d );
 VIDEO_RESET( micro3d );
 
-void micro3d_tms_interrupt(device_t *device, int state);
+void micro3d_tms_interrupt(running_device *device, int state);
 void micro3d_scanline_update(screen_device &screen, bitmap_t *bitmap, int scanline, const tms34010_display_params *params);
 
 WRITE16_HANDLER( micro3d_clut_w );

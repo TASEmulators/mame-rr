@@ -6,17 +6,20 @@
 
 #include "machine/atarigen.h"
 
-class xybots_state : public atarigen_state
+class xybots_state
 {
 public:
-	xybots_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, xybots_state(machine)); }
 
-	UINT16			m_h256;
+	xybots_state(running_machine &machine) { }
+
+	atarigen_state	atarigen;
+
+	UINT16			h256;
 };
 
 
 /*----------- defined in video/xybots.c -----------*/
 
 VIDEO_START( xybots );
-SCREEN_UPDATE( xybots );
+VIDEO_UPDATE( xybots );

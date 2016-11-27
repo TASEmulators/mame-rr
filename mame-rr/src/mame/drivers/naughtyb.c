@@ -105,22 +105,20 @@ TODO:
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "sound/tms36xx.h"
-#include "audio/pleiads.h"
-#include "includes/naughtyb.h"
+#include "includes/phoenix.h"
 
 #define CLOCK_XTAL 12000000
 
 static READ8_HANDLER( in0_port_r )
 {
-	naughtyb_state *state = space->machine().driver_data<naughtyb_state>();
-	int in0 = input_port_read(space->machine(), "IN0");
+	int in0 = input_port_read(space->machine, "IN0");
 
-	if ( state->m_cocktail )
+	if ( naughtyb_cocktail )
 	{
 		// cabinet == cocktail -AND- handling player 2
 
 		in0 = ( in0 & 0x03 ) |				// start buttons
-			  ( input_port_read(space->machine(), "IN0_COCKTAIL") & 0xFC );	// cocktail inputs
+			  ( input_port_read(space->machine, "IN0_COCKTAIL") & 0xFC );	// cocktail inputs
 	}
 
 	return in0;
@@ -130,8 +128,8 @@ static READ8_HANDLER( dsw0_port_r )
 {
 	// vblank replaces the cabinet dip
 
-	return ( ( input_port_read(space->machine(), "DSW0") & 0x7F ) |		// dsw0
-			 ( input_port_read(space->machine(), "FAKE") & 0x80 ) );		// vblank
+	return ( ( input_port_read(space->machine, "DSW0") & 0x7F ) |		// dsw0
+			 ( input_port_read(space->machine, "FAKE") & 0x80 ) );		// vblank
 }
 
 /* Pop Flamer
@@ -141,33 +139,36 @@ static READ8_HANDLER( dsw0_port_r )
    If the values all match then it will jump to 0x0011 instead of 0x0009 (refresh instead of reset)
    Paul Priest: tourniquet@mameworld.net */
 
+//static int popflame_prot_count = 0;
+static UINT8 popflame_prot_seed;
+static int r_index;
 
 static READ8_HANDLER( popflame_protection_r ) /* Not used by bootleg/hack */
 {
-	naughtyb_state *state = space->machine().driver_data<naughtyb_state>();
 	static const int seed00[4] = { 0x78, 0x68, 0x48, 0x38|0x80 };
 	static const int seed10[4] = { 0x68, 0x60, 0x68, 0x60|0x80 };
-	UINT8 seedxx;
+	static int count;
+	static UINT8 seedxx;
 
-	seedxx = (state->m_r_index < 0x89) ? 1 : 0;
+	seedxx = (r_index < 0x89) ? 1 : 0;
 
-	state->m_prot_count = (state->m_prot_count + 1) % 4;
-	if(state->m_popflame_prot_seed == 0x10)
-		return seed10[state->m_prot_count] | seedxx;
+	count = (count + 1) % 4;
+	if(popflame_prot_seed == 0x10)
+		return seed10[count] | seedxx;
 	else
-		return seed00[state->m_prot_count] | seedxx;
+		return seed00[count] | seedxx;
 
 #if 0
-	if ( cpu_get_pc(&space->device()) == (0x26F2 + 0x03) )
+	if ( cpu_get_pc(space->cpu) == (0x26F2 + 0x03) )
 	{
 		popflame_prot_count = 0;
 		return 0x01;
 	} /* Must not carry when rotated left */
 
-	if ( cpu_get_pc(&space->device()) == (0x26F9 + 0x03) )
+	if ( cpu_get_pc(space->cpu) == (0x26F9 + 0x03) )
 		return 0x80; /* Must carry when rotated left */
 
-	if ( cpu_get_pc(&space->device()) == (0x270F + 0x03) )
+	if ( cpu_get_pc(space->cpu) == (0x270F + 0x03) )
 	{
 		switch( popflame_prot_count++ )
 		{
@@ -177,14 +178,13 @@ static READ8_HANDLER( popflame_protection_r ) /* Not used by bootleg/hack */
 			case 3: return 0x38; /* x011 1xxx, matches 0x07 at $2693, stored in $400D */
 		}
 	}
-	logerror("CPU #0 PC %06x: unmapped protection read\n", cpu_get_pc(&space->device()));
+	logerror("CPU #0 PC %06x: unmapped protection read\n", cpu_get_pc(space->cpu));
 	return 0x00;
 #endif
 }
 
 static WRITE8_HANDLER( popflame_protection_w )
 {
-	naughtyb_state *state = space->machine().driver_data<naughtyb_state>();
 	/*
     Alternative protection check is executed at the end of stage 3, it seems some kind of pseudo "EEPROM" device:
 2720: 21 98 B0      ld   hl,$B098
@@ -235,39 +235,39 @@ static WRITE8_HANDLER( popflame_protection_w )
     ---- --x- puts a bit into the write buffer
     ---- ---x reset write index buffer
     */
-	if(data & 1 && ((state->m_popflame_prot_seed & 1) == 0)) //Note: we use the write buffer index
-		state->m_r_index = 0;
-	if(data & 8 && ((state->m_popflame_prot_seed & 8) == 0))
-		state->m_r_index++;
+	if(data & 1 && ((popflame_prot_seed & 1) == 0)) //Note: we use the write buffer index
+		r_index = 0;
+	if(data & 8 && ((popflame_prot_seed & 8) == 0))
+		r_index++;
 
-	state->m_popflame_prot_seed = data & 0x10;
+	popflame_prot_seed = data & 0x10;
 
 }
 
 
 
-static ADDRESS_MAP_START( naughtyb_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( naughtyb_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_RAM
-	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_MEMBER(naughtyb_state, m_videoram)
-	AM_RANGE(0x8800, 0x8fff) AM_RAM AM_BASE_MEMBER(naughtyb_state, m_videoram2)
+	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_GENERIC(videoram) AM_SIZE_GENERIC(videoram)
+	AM_RANGE(0x8800, 0x8fff) AM_RAM AM_BASE(&naughtyb_videoram2)
 	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(naughtyb_videoreg_w)
-	AM_RANGE(0x9800, 0x9fff) AM_RAM AM_BASE_MEMBER(naughtyb_state, m_scrollreg)
-	AM_RANGE(0xa000, 0xa7ff) AM_DEVWRITE("cust", pleiads_sound_control_a_w)
-	AM_RANGE(0xa800, 0xafff) AM_DEVWRITE("cust", pleiads_sound_control_b_w)
+	AM_RANGE(0x9800, 0x9fff) AM_RAM AM_BASE(&naughtyb_scrollreg)
+	AM_RANGE(0xa000, 0xa7ff) AM_WRITE(pleiads_sound_control_a_w)
+	AM_RANGE(0xa800, 0xafff) AM_WRITE(pleiads_sound_control_b_w)
 	AM_RANGE(0xb000, 0xb7ff) AM_READ(in0_port_r)	// IN0
 	AM_RANGE(0xb800, 0xbfff) AM_READ(dsw0_port_r)	// DSW0
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( popflame_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( popflame_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_RAM
-	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_MEMBER(naughtyb_state, m_videoram)
-	AM_RANGE(0x8800, 0x8fff) AM_RAM AM_BASE_MEMBER(naughtyb_state, m_videoram2)
+	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE_GENERIC(videoram) AM_SIZE_GENERIC(videoram)
+	AM_RANGE(0x8800, 0x8fff) AM_RAM AM_BASE(&naughtyb_videoram2)
 	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(popflame_videoreg_w)
-	AM_RANGE(0x9800, 0x9fff) AM_RAM AM_BASE_MEMBER(naughtyb_state, m_scrollreg)
-	AM_RANGE(0xa000, 0xa7ff) AM_DEVWRITE("cust", pleiads_sound_control_a_w)
-	AM_RANGE(0xa800, 0xafff) AM_DEVWRITE("cust", pleiads_sound_control_b_w)
+	AM_RANGE(0x9800, 0x9fff) AM_RAM AM_BASE(&naughtyb_scrollreg)
+	AM_RANGE(0xa000, 0xa7ff) AM_WRITE(pleiads_sound_control_a_w)
+	AM_RANGE(0xa800, 0xafff) AM_WRITE(pleiads_sound_control_b_w)
 	AM_RANGE(0xb000, 0xb7ff) AM_READ(in0_port_r)	// IN0
 	AM_RANGE(0xb800, 0xbfff) AM_READ(dsw0_port_r)	// DSW0
 ADDRESS_MAP_END
@@ -282,9 +282,10 @@ ADDRESS_MAP_END
 
 ***************************************************************************/
 
-static INPUT_CHANGED( coin_inserted )
+static INTERRUPT_GEN( naughtyb_interrupt )
 {
-	cputag_set_input_line(field.machine(), "maincpu", INPUT_LINE_NMI, newval ? ASSERT_LINE : CLEAR_LINE);
+	if (input_port_read(device->machine, "FAKE") & 1)
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static INPUT_PORTS_START( naughtyb )
@@ -332,7 +333,12 @@ static INPUT_PORTS_START( naughtyb )
 	PORT_DIPSETTING(    0x80, DEF_STR( Cocktail ) )
 
 	PORT_START( "FAKE" )
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_CHANGED(coin_inserted, 0)
+	// The coin slots are not memory mapped.
+	// This fake input port is used by the interrupt
+	// handler to be notified of coin insertions. We use IMPULSE to
+	// trigger exactly one interrupt, without having to check when the
+	// user releases the key.
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_IMPULSE(1)
 	// when reading DSW0, bit 7 doesn't read cabinet, but vblank
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_VBLANK )
 INPUT_PORTS_END
@@ -380,7 +386,12 @@ static INPUT_PORTS_START( trvmstr )
 	PORT_DIPSETTING(    0x80, DEF_STR( Cocktail ) )
 
 	PORT_START( "FAKE" )
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_CHANGED(coin_inserted, 0)
+	// The coin slots are not memory mapped.
+	// This fake input port is used by the interrupt
+	// handler to be notified of coin insertions. We use IMPULSE to
+	// trigger exactly one interrupt, without having to check when the
+	// user releases the key.
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_IMPULSE(1)
 	// when reading DSW0, bit 7 doesn't read cabinet, but vblank
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_VBLANK )
 INPUT_PORTS_END
@@ -422,72 +433,74 @@ static const tms36xx_interface tms3615_interface =
 
 
 
-static MACHINE_CONFIG_START( naughtyb, naughtyb_state )
+static MACHINE_DRIVER_START( naughtyb )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, CLOCK_XTAL / 4) /* 12 MHz clock, divided by 4. CPU is a Z80A */
-	MCFG_CPU_PROGRAM_MAP(naughtyb_map)
+	MDRV_CPU_ADD("maincpu", Z80, CLOCK_XTAL / 4) /* 12 MHz clock, divided by 4. CPU is a Z80A */
+	MDRV_CPU_PROGRAM_MAP(naughtyb_map)
+	MDRV_CPU_VBLANK_INT("screen", naughtyb_interrupt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(36*8, 28*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(naughtyb)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(36*8, 28*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(naughtyb)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(naughtyb)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(naughtyb)
-	MCFG_VIDEO_START(naughtyb)
+	MDRV_PALETTE_INIT(naughtyb)
+	MDRV_VIDEO_START(naughtyb)
+	MDRV_VIDEO_UPDATE(naughtyb)
 
 	/* sound hardware */
 	/* uses the TMS3615NS for sound */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("tms", TMS36XX, 350)
-	MCFG_SOUND_CONFIG(tms3615_interface)
-	MCFG_SOUND_ROUTE(0, "mono", 0.60)
+	MDRV_SOUND_ADD("tms", TMS36XX, 350)
+	MDRV_SOUND_CONFIG(tms3615_interface)
+	MDRV_SOUND_ROUTE(0, "mono", 0.60)
 
-	MCFG_SOUND_ADD("cust", NAUGHTYB, 0)
-	MCFG_SOUND_ROUTE(0, "mono", 0.40)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("naughtyb", NAUGHTYB, 0)
+	MDRV_SOUND_ROUTE(0, "mono", 0.40)
+MACHINE_DRIVER_END
 
 
 /* Exactly the same but for certain address writes */
-static MACHINE_CONFIG_START( popflame, naughtyb_state )
+static MACHINE_DRIVER_START( popflame )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, CLOCK_XTAL / 4) /* 12 MHz clock, divided by 4. CPU is a Z80A */
-	MCFG_CPU_PROGRAM_MAP(popflame_map)
+	MDRV_CPU_ADD("maincpu", Z80, CLOCK_XTAL / 4) /* 12 MHz clock, divided by 4. CPU is a Z80A */
+	MDRV_CPU_PROGRAM_MAP(popflame_map)
+	MDRV_CPU_VBLANK_INT("screen", naughtyb_interrupt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(36*8, 28*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(naughtyb)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(36*8, 28*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(naughtyb)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(naughtyb)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(naughtyb)
-	MCFG_VIDEO_START(naughtyb)
+	MDRV_PALETTE_INIT(naughtyb)
+	MDRV_VIDEO_START(naughtyb)
+	MDRV_VIDEO_UPDATE(naughtyb)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("tms", TMS36XX, 350)
-	MCFG_SOUND_CONFIG(tms3615_interface)
-	MCFG_SOUND_ROUTE(0, "mono", 0.60)
+	MDRV_SOUND_ADD("tms", TMS36XX, 350)
+	MDRV_SOUND_CONFIG(tms3615_interface)
+	MDRV_SOUND_ROUTE(0, "mono", 0.60)
 
-	MCFG_SOUND_ADD("cust", POPFLAME, 0)
-	MCFG_SOUND_ROUTE(0, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("popflame", POPFLAME, 0)
+	MDRV_SOUND_ROUTE(0, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 
@@ -841,32 +854,31 @@ ROM_END
 static DRIVER_INIT( popflame )
 {
 	/* install a handler to catch protection checks */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x9000, 0x9000, FUNC(popflame_protection_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x9090, 0x9090, FUNC(popflame_protection_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x9000, 0x9000, 0, 0, popflame_protection_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x9090, 0x9090, 0, 0, popflame_protection_r);
 
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0xb000, 0xb0ff, FUNC(popflame_protection_w));
+	memory_install_write8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xb000, 0xb0ff, 0, 0, popflame_protection_w);
 }
 
+static int question_offset = 0;
 
 static READ8_HANDLER( trvmstr_questions_r )
 {
-	naughtyb_state *state = space->machine().driver_data<naughtyb_state>();
-	return space->machine().region("user1")->base()[state->m_question_offset];
+	return memory_region(space->machine, "user1")[question_offset];
 }
 
 static WRITE8_HANDLER( trvmstr_questions_w )
 {
-	naughtyb_state *state = space->machine().driver_data<naughtyb_state>();
 	switch(offset)
 	{
 	case 0:
-		state->m_question_offset = (state->m_question_offset & 0xffff00) | data;
+		question_offset = (question_offset & 0xffff00) | data;
 		break;
 	case 1:
-		state->m_question_offset = (state->m_question_offset & 0xff00ff) | (data << 8);
+		question_offset = (question_offset & 0xff00ff) | (data << 8);
 		break;
 	case 2:
-		state->m_question_offset = (state->m_question_offset & 0x00ffff) | (data << 16);
+		question_offset = (question_offset & 0x00ffff) | (data << 16);
 		break;
 	}
 }
@@ -874,7 +886,7 @@ static WRITE8_HANDLER( trvmstr_questions_w )
 static DRIVER_INIT( trvmstr )
 {
 	/* install questions' handlers  */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0xc000, 0xc002, FUNC(trvmstr_questions_r), FUNC(trvmstr_questions_w));
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xc000, 0xc002, 0, 0, trvmstr_questions_r, trvmstr_questions_w);
 }
 
 

@@ -4,29 +4,29 @@
 
 ***************************************************************************/
 
-class blmbycar_state : public driver_device
+class blmbycar_state
 {
 public:
-	blmbycar_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, blmbycar_state(machine)); }
+
+	blmbycar_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_vram_0;
-	UINT16 *    m_scroll_0;
-	UINT16 *    m_vram_1;
-	UINT16 *    m_scroll_1;
-	UINT16 *    m_spriteram;
-	UINT16 *    m_paletteram;
-	size_t      m_spriteram_size;
+	UINT16 *    vram_0;
+	UINT16 *    scroll_0;
+	UINT16 *    vram_1;
+	UINT16 *    scroll_1;
+	UINT16 *    spriteram;
+	UINT16 *    paletteram;
+	size_t      spriteram_size;
 
 	/* video-related */
-	tilemap_t     *m_tilemap_0;
-	tilemap_t     *m_tilemap_1;
+	tilemap_t     *tilemap_0, *tilemap_1;
 
 	/* input-related */
-	UINT8       m_pot_wheel;	// blmbycar
-	int         m_old_val;	// blmbycar
-	int         m_retvalue;	// waterball
+	UINT8       pot_wheel;	// blmbycar
+	int         old_val;	// blmbycar
+	int         retvalue;	// waterball
 };
 
 
@@ -38,4 +38,4 @@ WRITE16_HANDLER( blmbycar_vram_0_w );
 WRITE16_HANDLER( blmbycar_vram_1_w );
 
 VIDEO_START( blmbycar );
-SCREEN_UPDATE( blmbycar );
+VIDEO_UPDATE( blmbycar );

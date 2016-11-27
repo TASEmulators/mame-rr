@@ -22,7 +22,7 @@
  ***************************************************************/
 #define IN(cs,port)												\
 	(((port ^ (cs)->IO_IOCR) & 0xffc0) == 0) ?					\
-		z180_readcontrol(cs, port) : (cs)->iospace->read_byte(port)
+		z180_readcontrol(cs, port) : memory_read_byte_8le((cs)->iospace, port)
 
 /***************************************************************
  * Output a byte to given I/O port
@@ -30,7 +30,7 @@
 #define OUT(cs,port,value)										\
 	if (((port ^ (cs)->IO_IOCR) & 0xffc0) == 0)					\
 		z180_writecontrol(cs,port,value);						\
-	else (cs)->iospace->write_byte(port,value)
+	else memory_write_byte_8le((cs)->iospace,port,value)
 
 /***************************************************************
  * MMU calculate the memory managemant lookup table
@@ -66,9 +66,9 @@ INLINE void z180_mmu(z180_state *cpustate)
 /***************************************************************
  * Read a byte from given memory location
  ***************************************************************/
-#define RM(cs,addr)	(cs)->program->read_byte(MMU_REMAP_ADDR(cs,addr))
+#define RM(cs,addr)	memory_read_byte_8le((cs)->program, MMU_REMAP_ADDR(cs,addr))
 #ifdef UNUSED_FUNCTION
-UINT8 z180_readmem(device_t *device, offs_t offset)
+UINT8 z180_readmem(running_device *device, offs_t offset)
 {
 	z180_state *cpustate = get_safe_token(device);
 	return RM(cpustate, offset);
@@ -78,9 +78,9 @@ UINT8 z180_readmem(device_t *device, offs_t offset)
 /***************************************************************
  * Write a byte to given memory location
  ***************************************************************/
-#define WM(cs,addr,value) (cs)->program->write_byte(MMU_REMAP_ADDR(cs,addr),value)
+#define WM(cs,addr,value) memory_write_byte_8le((cs)->program, MMU_REMAP_ADDR(cs,addr),value)
 #ifdef UNUSED_FUNCTION
-void z180_writemem(device_t *device, offs_t offset, UINT8 data)
+void z180_writemem(running_device *device, offs_t offset, UINT8 data)
 {
 	z180_state *cpustate = get_safe_token(device);
 	WM(cpustate, offset, data);
@@ -114,7 +114,7 @@ INLINE UINT8 ROP(z180_state *cpustate)
 {
 	offs_t addr = cpustate->_PCD;
 	cpustate->_PC++;
-	return cpustate->direct->read_decrypted_byte(MMU_REMAP_ADDR(cpustate, addr));
+	return memory_decrypted_read_byte(cpustate->program, MMU_REMAP_ADDR(cpustate, addr));
 }
 
 /****************************************************************
@@ -127,14 +127,14 @@ INLINE UINT8 ARG(z180_state *cpustate)
 {
 	offs_t addr = cpustate->_PCD;
 	cpustate->_PC++;
-	return cpustate->direct->read_raw_byte(MMU_REMAP_ADDR(cpustate, addr));
+	return memory_raw_read_byte(cpustate->program, MMU_REMAP_ADDR(cpustate, addr));
 }
 
 INLINE UINT32 ARG16(z180_state *cpustate)
 {
 	offs_t addr = cpustate->_PCD;
 	cpustate->_PC += 2;
-	return cpustate->direct->read_raw_byte(MMU_REMAP_ADDR(cpustate, addr)) | (cpustate->direct->read_raw_byte(MMU_REMAP_ADDR(cpustate, addr+1)) << 8);
+	return memory_raw_read_byte(cpustate->program, MMU_REMAP_ADDR(cpustate, addr)) | (memory_raw_read_byte(cpustate->program, MMU_REMAP_ADDR(cpustate, addr+1)) << 8);
 }
 
 /***************************************************************

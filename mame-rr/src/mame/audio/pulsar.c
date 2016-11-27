@@ -59,11 +59,11 @@ static const samples_interface pulsar_samples_interface =
 };
 
 
-MACHINE_CONFIG_FRAGMENT( pulsar_audio )
-	MCFG_SOUND_ADD("samples", SAMPLES, 0)
-	MCFG_SOUND_CONFIG(pulsar_samples_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
+MACHINE_DRIVER_START( pulsar_audio )
+	MDRV_SOUND_ADD("samples", SAMPLES, 0)
+	MDRV_SOUND_CONFIG(pulsar_samples_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+MACHINE_DRIVER_END
 
 
 /* sample IDs - must match sample file name table above */
@@ -88,7 +88,7 @@ static int port1State = 0;
 
 WRITE8_HANDLER( pulsar_audio_1_w )
 {
-	device_t *samples = space->machine().device("samples");
+	running_device *samples = space->machine->device("samples");
 	int bitsChanged;
 	//int bitsGoneHigh;
 	int bitsGoneLow;
@@ -139,7 +139,7 @@ WRITE8_HANDLER( pulsar_audio_1_w )
 
 WRITE8_HANDLER( pulsar_audio_2_w )
 {
-	device_t *samples = space->machine().device("samples");
+	running_device *samples = space->machine->device("samples");
 	static int port2State = 0;
 	int bitsChanged;
 	int bitsGoneHigh;

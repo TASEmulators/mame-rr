@@ -140,9 +140,8 @@ struct _z180_state
 	z80_daisy_chain daisy;
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *iospace;
+	const address_space *program;
+	const address_space *iospace;
 	UINT8	rtemp;
 	UINT32	ioltemp;
 	int icount;
@@ -150,7 +149,7 @@ struct _z180_state
 	UINT8 *cc[6];
 };
 
-INLINE z180_state *get_safe_token(device_t *device)
+INLINE z180_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == Z180);
@@ -840,7 +839,7 @@ static CPU_SET_INFO( z180 );
 static UINT8 z180_readcontrol(z180_state *cpustate, offs_t port)
 {
 	/* normal external readport */
-	UINT8 data = cpustate->iospace->read_byte(port);
+	UINT8 data = memory_read_byte_8le(cpustate->iospace, port);
 
 	/* remap internal I/O registers */
 	if((port & (cpustate->IO_IOCR & 0xc0)) == (cpustate->IO_IOCR & 0xc0))
@@ -1268,7 +1267,7 @@ data |= 0x02; // kludge for 20pacgal
 static void z180_writecontrol(z180_state *cpustate, offs_t port, UINT8 data)
 {
 	/* normal external write port */
-	cpustate->iospace->write_byte(port, data);
+	memory_write_byte_8le(cpustate->iospace, port, data);
 
 	/* remap internal I/O registers */
 	if((port & (cpustate->IO_IOCR & 0xc0)) == (cpustate->IO_IOCR & 0xc0))
@@ -1643,18 +1642,18 @@ static int z180_dma0(z180_state *cpustate, int max_cycles)
 		switch( cpustate->IO_DMODE & (Z180_DMODE_SM | Z180_DMODE_DM) )
 		{
 		case 0x00:	/* memory SAR0+1 to memory DAR0+1 */
-			cpustate->program->write_byte(dar0++, cpustate->program->read_byte(sar0++));
+			memory_write_byte_8le(cpustate->program, dar0++, memory_read_byte_8le(cpustate->program, sar0++));
 			break;
 		case 0x04:	/* memory SAR0-1 to memory DAR0+1 */
-			cpustate->program->write_byte(dar0++, cpustate->program->read_byte(sar0--));
+			memory_write_byte_8le(cpustate->program, dar0++, memory_read_byte_8le(cpustate->program, sar0--));
 			break;
 		case 0x08:	/* memory SAR0 fixed to memory DAR0+1 */
-			cpustate->program->write_byte(dar0++, cpustate->program->read_byte(sar0));
+			memory_write_byte_8le(cpustate->program, dar0++, memory_read_byte_8le(cpustate->program, sar0));
 			break;
 		case 0x0c:	/* I/O SAR0 fixed to memory DAR0+1 */
 			if (cpustate->iol & Z180_DREQ0)
 			{
-				cpustate->program->write_byte(dar0++, IN(cpustate, sar0));
+				memory_write_byte_8le(cpustate->program, dar0++, IN(cpustate, sar0));
 				/* edge sensitive DREQ0 ? */
 				if (cpustate->IO_DCNTL & Z180_DCNTL_DIM0)
 				{
@@ -1664,18 +1663,18 @@ static int z180_dma0(z180_state *cpustate, int max_cycles)
 			}
 			break;
 		case 0x10:	/* memory SAR0+1 to memory DAR0-1 */
-			cpustate->program->write_byte(dar0--, cpustate->program->read_byte(sar0++));
+			memory_write_byte_8le(cpustate->program, dar0--, memory_read_byte_8le(cpustate->program, sar0++));
 			break;
 		case 0x14:	/* memory SAR0-1 to memory DAR0-1 */
-			cpustate->program->write_byte(dar0--, cpustate->program->read_byte(sar0--));
+			memory_write_byte_8le(cpustate->program, dar0--, memory_read_byte_8le(cpustate->program, sar0--));
 			break;
 		case 0x18:	/* memory SAR0 fixed to memory DAR0-1 */
-			cpustate->program->write_byte(dar0--, cpustate->program->read_byte(sar0));
+			memory_write_byte_8le(cpustate->program, dar0--, memory_read_byte_8le(cpustate->program, sar0));
 			break;
 		case 0x1c:	/* I/O SAR0 fixed to memory DAR0-1 */
 			if (cpustate->iol & Z180_DREQ0)
             {
-				cpustate->program->write_byte(dar0--, IN(cpustate, sar0));
+				memory_write_byte_8le(cpustate->program, dar0--, IN(cpustate, sar0));
 				/* edge sensitive DREQ0 ? */
 				if (cpustate->IO_DCNTL & Z180_DCNTL_DIM0)
 				{
@@ -1685,10 +1684,10 @@ static int z180_dma0(z180_state *cpustate, int max_cycles)
 			}
 			break;
 		case 0x20:	/* memory SAR0+1 to memory DAR0 fixed */
-			cpustate->program->write_byte(dar0, cpustate->program->read_byte(sar0++));
+			memory_write_byte_8le(cpustate->program, dar0, memory_read_byte_8le(cpustate->program, sar0++));
 			break;
 		case 0x24:	/* memory SAR0-1 to memory DAR0 fixed */
-			cpustate->program->write_byte(dar0, cpustate->program->read_byte(sar0--));
+			memory_write_byte_8le(cpustate->program, dar0, memory_read_byte_8le(cpustate->program, sar0--));
 			break;
 		case 0x28:	/* reserved */
 			break;
@@ -1697,7 +1696,7 @@ static int z180_dma0(z180_state *cpustate, int max_cycles)
 		case 0x30:	/* memory SAR0+1 to I/O DAR0 fixed */
 			if (cpustate->iol & Z180_DREQ0)
             {
-				OUT(cpustate, dar0, cpustate->program->read_byte(sar0++));
+				OUT(cpustate, dar0, memory_read_byte_8le(cpustate->program, sar0++));
 				/* edge sensitive DREQ0 ? */
 				if (cpustate->IO_DCNTL & Z180_DCNTL_DIM0)
 				{
@@ -1709,7 +1708,7 @@ static int z180_dma0(z180_state *cpustate, int max_cycles)
 		case 0x34:	/* memory SAR0-1 to I/O DAR0 fixed */
 			if (cpustate->iol & Z180_DREQ0)
             {
-				OUT(cpustate, dar0, cpustate->program->read_byte(sar0--));
+				OUT(cpustate, dar0, memory_read_byte_8le(cpustate->program, sar0--));
 				/* edge sensitive DREQ0 ? */
 				if (cpustate->IO_DCNTL & Z180_DCNTL_DIM0)
 				{
@@ -1777,16 +1776,16 @@ static int z180_dma1(z180_state *cpustate)
 	switch (cpustate->IO_DCNTL & (Z180_DCNTL_DIM1 | Z180_DCNTL_DIM0))
 	{
 	case 0x00:	/* memory MAR1+1 to I/O IAR1 fixed */
-		cpustate->iospace->write_byte(iar1, cpustate->program->read_byte(mar1++));
+		memory_write_byte_8le(cpustate->iospace, iar1, memory_read_byte_8le(cpustate->program, mar1++));
 		break;
 	case 0x01:	/* memory MAR1-1 to I/O IAR1 fixed */
-		cpustate->iospace->write_byte(iar1, cpustate->program->read_byte(mar1--));
+		memory_write_byte_8le(cpustate->iospace, iar1, memory_read_byte_8le(cpustate->program, mar1--));
 		break;
 	case 0x02:	/* I/O IAR1 fixed to memory MAR1+1 */
-		cpustate->program->write_byte(mar1++, cpustate->iospace->read_byte(iar1));
+		memory_write_byte_8le(cpustate->program, mar1++, memory_read_byte_8le(cpustate->iospace, iar1));
 		break;
 	case 0x03:	/* I/O IAR1 fixed to memory MAR1-1 */
-		cpustate->program->write_byte(mar1--, cpustate->iospace->read_byte(iar1));
+		memory_write_byte_8le(cpustate->program, mar1--, memory_read_byte_8le(cpustate->iospace, iar1));
 		break;
 	}
 
@@ -1941,12 +1940,12 @@ static void z180_write_iolines(z180_state *cpustate, UINT32 data)
 static CPU_INIT( z180 )
 {
 	z180_state *cpustate = get_safe_token(device);
-	if (device->static_config() != NULL)
-		cpustate->daisy.init(device, (const z80_daisy_config *)device->static_config());
+	if (device->baseconfig().static_config() != NULL)
+		cpustate->daisy.init(device, (const z80_daisy_config *)device->baseconfig().static_config());
 	cpustate->irq_callback = irqcallback;
 
-	SZHVC_add = auto_alloc_array(device->machine(), UINT8, 2*256*256);
-	SZHVC_sub = auto_alloc_array(device->machine(), UINT8, 2*256*256);
+	SZHVC_add = auto_alloc_array(device->machine, UINT8, 2*256*256);
+	SZHVC_sub = auto_alloc_array(device->machine, UINT8, 2*256*256);
 
 	/* set up the state table */
 	{
@@ -2050,46 +2049,46 @@ static CPU_INIT( z180 )
 		state->state_add(Z180_IOCR,       "IOCR",      cpustate->IO_IOCR);
 	}
 
-	device->save_item(NAME(cpustate->AF.w.l));
-	device->save_item(NAME(cpustate->BC.w.l));
-	device->save_item(NAME(cpustate->DE.w.l));
-	device->save_item(NAME(cpustate->HL.w.l));
-	device->save_item(NAME(cpustate->IX.w.l));
-	device->save_item(NAME(cpustate->IY.w.l));
-	device->save_item(NAME(cpustate->PC.w.l));
-	device->save_item(NAME(cpustate->SP.w.l));
-	device->save_item(NAME(cpustate->AF2.w.l));
-	device->save_item(NAME(cpustate->BC2.w.l));
-	device->save_item(NAME(cpustate->DE2.w.l));
-	device->save_item(NAME(cpustate->HL2.w.l));
-	device->save_item(NAME(cpustate->R));
-	device->save_item(NAME(cpustate->R2));
-	device->save_item(NAME(cpustate->IFF1));
-	device->save_item(NAME(cpustate->IFF2));
-	device->save_item(NAME(cpustate->HALT));
-	device->save_item(NAME(cpustate->IM));
-	device->save_item(NAME(cpustate->I));
-	device->save_item(NAME(cpustate->nmi_state));
-	device->save_item(NAME(cpustate->nmi_pending));
-	device->save_item(NAME(cpustate->irq_state));
-	device->save_item(NAME(cpustate->int_pending));
-	device->save_item(NAME(cpustate->timer_cnt));
-	device->save_item(NAME(cpustate->dma0_cnt));
-	device->save_item(NAME(cpustate->dma1_cnt));
-	device->save_item(NAME(cpustate->after_EI));
+	state_save_register_device_item(device, 0, cpustate->AF.w.l);
+	state_save_register_device_item(device, 0, cpustate->BC.w.l);
+	state_save_register_device_item(device, 0, cpustate->DE.w.l);
+	state_save_register_device_item(device, 0, cpustate->HL.w.l);
+	state_save_register_device_item(device, 0, cpustate->IX.w.l);
+	state_save_register_device_item(device, 0, cpustate->IY.w.l);
+	state_save_register_device_item(device, 0, cpustate->PC.w.l);
+	state_save_register_device_item(device, 0, cpustate->SP.w.l);
+	state_save_register_device_item(device, 0, cpustate->AF2.w.l);
+	state_save_register_device_item(device, 0, cpustate->BC2.w.l);
+	state_save_register_device_item(device, 0, cpustate->DE2.w.l);
+	state_save_register_device_item(device, 0, cpustate->HL2.w.l);
+	state_save_register_device_item(device, 0, cpustate->R);
+	state_save_register_device_item(device, 0, cpustate->R2);
+	state_save_register_device_item(device, 0, cpustate->IFF1);
+	state_save_register_device_item(device, 0, cpustate->IFF2);
+	state_save_register_device_item(device, 0, cpustate->HALT);
+	state_save_register_device_item(device, 0, cpustate->IM);
+	state_save_register_device_item(device, 0, cpustate->I);
+	state_save_register_device_item(device, 0, cpustate->nmi_state);
+	state_save_register_device_item(device, 0, cpustate->nmi_pending);
+	state_save_register_device_item_array(device, 0, cpustate->irq_state);
+	state_save_register_device_item_array(device, 0, cpustate->int_pending);
+	state_save_register_device_item(device, 0, cpustate->timer_cnt);
+	state_save_register_device_item(device, 0, cpustate->dma0_cnt);
+	state_save_register_device_item(device, 0, cpustate->dma1_cnt);
+	state_save_register_device_item(device, 0, cpustate->after_EI);
 
-	device->save_item(NAME(cpustate->tif));
+	state_save_register_device_item_array(device, 0, cpustate->tif);
 
-	device->save_item(NAME(cpustate->read_tcr_tmdr));
-	device->save_item(NAME(cpustate->tmdr_value));
-	device->save_item(NAME(cpustate->tmdrh));
-	device->save_item(NAME(cpustate->tmdr_latch));
+	state_save_register_device_item_array(device, 0, cpustate->read_tcr_tmdr);
+	state_save_register_device_item_array(device, 0, cpustate->tmdr_value);
+	state_save_register_device_item_array(device, 0, cpustate->tmdrh);
+	state_save_register_device_item(device, 0, cpustate->tmdr_latch);
 
-	device->save_item(NAME(cpustate->io));
-	device->save_item(NAME(cpustate->iol));
-	device->save_item(NAME(cpustate->ioltemp));
+	state_save_register_device_item_array(device, 0, cpustate->io);
+	state_save_register_device_item(device, 0, cpustate->iol);
+	state_save_register_device_item(device, 0, cpustate->ioltemp);
 
-	device->save_item(NAME(cpustate->mmu));
+	state_save_register_device_item_array(device, 0, cpustate->mmu);
 
 }
 
@@ -2213,7 +2212,6 @@ static CPU_RESET( z180 )
 	cpustate->after_EI = 0;
 	cpustate->ea = 0;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->iospace = device->space(AS_IO);
 	cpustate->device = device;
 
@@ -2563,7 +2561,7 @@ static void set_irq_line(z180_state *cpustate, int irqline, int state)
 /* logical to physical address translation */
 static CPU_TRANSLATE( z180 )
 {
-	if (space == AS_PROGRAM)
+	if (space == ADDRESS_SPACE_PROGRAM)
 	{
 		z180_state *cpustate = get_safe_token(device);
 		*address = MMU_REMAP_ADDR(cpustate, *address);
@@ -2691,12 +2689,12 @@ CPU_GET_INFO( z180 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 16;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:		info->i = 20;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:		info->i = 0;							break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:				info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:				info->i = 16;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:				info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: 		info->i = 20;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: 		info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 16;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:				info->i = 0;							break;
 
 		case CPUINFO_INT_INPUT_STATE + INPUT_LINE_NMI:	info->i = cpustate->nmi_state;			break;
 		case CPUINFO_INT_INPUT_STATE + Z180_IRQ0:		info->i = cpustate->irq_state[0];		break;

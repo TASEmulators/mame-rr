@@ -22,6 +22,7 @@ Notes:
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "deprecat.h"
 #include "cpu/m6809/m6809.h"
 #include "sound/2203intf.h"
 #include "includes/gng.h"
@@ -30,21 +31,21 @@ Notes:
 static WRITE8_HANDLER( gng_bankswitch_w )
 {
 	if (data == 4)
-		memory_set_bank(space->machine(), "bank1", 4);
+		memory_set_bank(space->machine, "bank1", 4);
 	else
-		memory_set_bank(space->machine(), "bank1", (data & 0x03));
+		memory_set_bank(space->machine, "bank1", (data & 0x03));
 }
 
 static WRITE8_HANDLER( gng_coin_counter_w )
 {
-	coin_counter_w(space->machine(), offset, data);
+	coin_counter_w(space->machine, offset, data);
 }
 
-static ADDRESS_MAP_START( gng_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( gng_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1dff) AM_RAM
 	AM_RANGE(0x1e00, 0x1fff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
-	AM_RANGE(0x2000, 0x27ff) AM_RAM_WRITE(gng_fgvideoram_w) AM_BASE_MEMBER(gng_state, m_fgvideoram)
-	AM_RANGE(0x2800, 0x2fff) AM_RAM_WRITE(gng_bgvideoram_w) AM_BASE_MEMBER(gng_state, m_bgvideoram)
+	AM_RANGE(0x2000, 0x27ff) AM_RAM_WRITE(gng_fgvideoram_w) AM_BASE_MEMBER(gng_state, fgvideoram)
+	AM_RANGE(0x2800, 0x2fff) AM_RAM_WRITE(gng_bgvideoram_w) AM_BASE_MEMBER(gng_state, bgvideoram)
 	AM_RANGE(0x3000, 0x3000) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x3001, 0x3001) AM_READ_PORT("P1")
 	AM_RANGE(0x3002, 0x3002) AM_READ_PORT("P2")
@@ -66,7 +67,7 @@ ADDRESS_MAP_END
 
 
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xc800) AM_READ(soundlatch_r)
@@ -302,72 +303,75 @@ GFXDECODE_END
 
 static MACHINE_START( gng )
 {
-	gng_state *state = machine.driver_data<gng_state>();
+	gng_state *state = (gng_state *)machine->driver_data;
 
-	UINT8 *rombase = machine.region("maincpu")->base();
+	UINT8 *rombase = memory_region(machine, "maincpu");
 	memory_configure_bank(machine, "bank1", 0, 4, &rombase[0x10000], 0x2000);
 	memory_configure_bank(machine, "bank1", 4, 1, &rombase[0x4000], 0x2000);
 
-	state->save_item(NAME(state->m_scrollx));
-	state->save_item(NAME(state->m_scrolly));
+	state_save_register_global_array(machine, state->scrollx);
+	state_save_register_global_array(machine, state->scrolly);
 }
 
 static MACHINE_RESET( gng )
 {
-	gng_state *state = machine.driver_data<gng_state>();
+	gng_state *state = (gng_state *)machine->driver_data;
 
-	state->m_scrollx[0] = 0;
-	state->m_scrollx[1] = 0;
-	state->m_scrolly[0] = 0;
-	state->m_scrolly[1] = 0;
+	state->scrollx[0] = 0;
+	state->scrollx[1] = 0;
+	state->scrolly[0] = 0;
+	state->scrolly[1] = 0;
 }
 
-static MACHINE_CONFIG_START( gng, gng_state )
+static MACHINE_DRIVER_START( gng )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(gng_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, XTAL_12MHz/8)		/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(gng_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", M6809, XTAL_12MHz/8)		/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(gng_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_12MHz/4)		/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,4*60)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_12MHz/4)		/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,4)
 
-	MCFG_MACHINE_START(gng)
-	MCFG_MACHINE_RESET(gng)
+	MDRV_MACHINE_START(gng)
+	MDRV_MACHINE_RESET(gng)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.59)    /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(gng)
-	MCFG_SCREEN_EOF(gng)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.59)    /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(gng)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(gng)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(gng)
+	MDRV_VIDEO_START(gng)
+	MDRV_VIDEO_EOF(gng)
+	MDRV_VIDEO_UPDATE(gng)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, XTAL_12MHz/8)		/* verified on pcb */
-	MCFG_SOUND_ROUTE(0, "mono", 0.40)
-	MCFG_SOUND_ROUTE(1, "mono", 0.40)
-	MCFG_SOUND_ROUTE(2, "mono", 0.40)
-	MCFG_SOUND_ROUTE(3, "mono", 0.20)
+	MDRV_SOUND_ADD("ym1", YM2203, XTAL_12MHz/8)		/* verified on pcb */
+	MDRV_SOUND_ROUTE(0, "mono", 0.40)
+	MDRV_SOUND_ROUTE(1, "mono", 0.40)
+	MDRV_SOUND_ROUTE(2, "mono", 0.40)
+	MDRV_SOUND_ROUTE(3, "mono", 0.20)
 
-	MCFG_SOUND_ADD("ym2", YM2203, XTAL_12MHz/8)		/* verified on pcb */
-	MCFG_SOUND_ROUTE(0, "mono", 0.40)
-	MCFG_SOUND_ROUTE(1, "mono", 0.40)
-	MCFG_SOUND_ROUTE(2, "mono", 0.40)
-	MCFG_SOUND_ROUTE(3, "mono", 0.20)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, XTAL_12MHz/8)		/* verified on pcb */
+	MDRV_SOUND_ROUTE(0, "mono", 0.40)
+	MDRV_SOUND_ROUTE(1, "mono", 0.40)
+	MDRV_SOUND_ROUTE(2, "mono", 0.40)
+	MDRV_SOUND_ROUTE(3, "mono", 0.20)
+MACHINE_DRIVER_END
 
 
 
@@ -720,7 +724,7 @@ static READ8_HANDLER( diamond_hack_r )
 
 static DRIVER_INIT( diamond )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x6000, 0x6000, FUNC(diamond_hack_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x6000, 0x6000, 0, 0, diamond_hack_r);
 }
 
 

@@ -27,25 +27,25 @@
 
 static INTERRUPT_GEN( battlnts_interrupt )
 {
-	battlnts_state *state = device->machine().driver_data<battlnts_state>();
-	if (k007342_is_int_enabled(state->m_k007342))
-		device_set_input_line(device, HD6309_IRQ_LINE, HOLD_LINE);
+	battlnts_state *state = (battlnts_state *)device->machine->driver_data;
+	if (k007342_is_int_enabled(state->k007342))
+		cpu_set_input_line(device, HD6309_IRQ_LINE, HOLD_LINE);
 }
 
 static WRITE8_HANDLER( battlnts_sh_irqtrigger_w )
 {
-	battlnts_state *state = space->machine().driver_data<battlnts_state>();
-	device_set_input_line_and_vector(state->m_audiocpu, 0, HOLD_LINE, 0xff);
+	battlnts_state *state = (battlnts_state *)space->machine->driver_data;
+	cpu_set_input_line_and_vector(state->audiocpu, 0, HOLD_LINE, 0xff);
 }
 
 static WRITE8_HANDLER( battlnts_bankswitch_w )
 {
 	/* bits 6 & 7 = bank number */
-	memory_set_bank(space->machine(), "bank1", (data & 0xc0) >> 6);
+	memory_set_bank(space->machine, "bank1", (data & 0xc0) >> 6);
 
 	/* bits 4 & 5 = coin counters */
-	coin_counter_w(space->machine(), 0, data & 0x10);
-	coin_counter_w(space->machine(), 1, data & 0x20);
+	coin_counter_w(space->machine, 0, data & 0x10);
+	coin_counter_w(space->machine, 1, data & 0x20);
 
 	/* other bits unknown */
 }
@@ -57,7 +57,7 @@ static WRITE8_HANDLER( battlnts_bankswitch_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( battlnts_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( battlnts_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_DEVREADWRITE("k007342", k007342_r, k007342_w)	/* Color RAM + Video RAM */
 	AM_RANGE(0x2000, 0x21ff) AM_DEVREADWRITE("k007420", k007420_r, k007420_w)	/* Sprite RAM */
 	AM_RANGE(0x2200, 0x23ff) AM_DEVREADWRITE("k007342", k007342_scroll_r, k007342_scroll_w)		/* Scroll RAM */
@@ -77,7 +77,7 @@ static ADDRESS_MAP_START( battlnts_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0xffff) AM_ROM								/* ROM 777e02.bin */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( battlnts_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( battlnts_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM							/* ROM 777c01.rom */
 	AM_RANGE(0x8000, 0x87ff) AM_RAM							/* RAM */
 	AM_RANGE(0xa000, 0xa001) AM_DEVREADWRITE("ym1", ym3812_r, ym3812_w)		/* YM3812 (chip 1) */
@@ -220,65 +220,68 @@ static const k007420_interface bladestl_k007420_intf =
 
 static MACHINE_START( battlnts )
 {
-	battlnts_state *state = machine.driver_data<battlnts_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	battlnts_state *state = (battlnts_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x10000], 0x4000);
 
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_k007342 = machine.device("k007342");
-	state->m_k007420 = machine.device("k007420");
+	state->audiocpu = machine->device("audiocpu");
+	state->k007342 = machine->device("k007342");
+	state->k007420 = machine->device("k007420");
 
-	state->save_item(NAME(state->m_spritebank));
-	state->save_item(NAME(state->m_layer_colorbase));
+	state_save_register_global(machine, state->spritebank);
+	state_save_register_global_array(machine, state->layer_colorbase);
 }
 
 static MACHINE_RESET( battlnts )
 {
-	battlnts_state *state = machine.driver_data<battlnts_state>();
+	battlnts_state *state = (battlnts_state *)machine->driver_data;
 
-	state->m_layer_colorbase[0] = 0;
-	state->m_layer_colorbase[1] = 0;
-	state->m_spritebank = 0;
+	state->layer_colorbase[0] = 0;
+	state->layer_colorbase[1] = 0;
+	state->spritebank = 0;
 }
 
-static MACHINE_CONFIG_START( battlnts, battlnts_state )
+static MACHINE_DRIVER_START( battlnts )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(battlnts_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", HD6309, XTAL_24MHz / 2 /* 3000000*4? */)
-	MCFG_CPU_PROGRAM_MAP(battlnts_map)
-	MCFG_CPU_VBLANK_INT("screen", battlnts_interrupt)
+	MDRV_CPU_ADD("maincpu", HD6309, XTAL_24MHz / 2 /* 3000000*4? */)
+	MDRV_CPU_PROGRAM_MAP(battlnts_map)
+	MDRV_CPU_VBLANK_INT("screen", battlnts_interrupt)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_24MHz / 6 /* 3579545? */)
-	MCFG_CPU_PROGRAM_MAP(battlnts_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_24MHz / 6 /* 3579545? */)
+	MDRV_CPU_PROGRAM_MAP(battlnts_sound_map)
 
-	MCFG_MACHINE_START(battlnts)
-	MCFG_MACHINE_RESET(battlnts)
+	MDRV_MACHINE_START(battlnts)
+	MDRV_MACHINE_RESET(battlnts)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(battlnts)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
+	MDRV_GFXDECODE(battlnts)
+	MDRV_PALETTE_LENGTH(128)
 
-	MCFG_GFXDECODE(battlnts)
-	MCFG_PALETTE_LENGTH(128)
+	MDRV_VIDEO_UPDATE(battlnts)
 
-	MCFG_K007342_ADD("k007342", bladestl_k007342_intf)
-	MCFG_K007420_ADD("k007420", bladestl_k007420_intf)
+	MDRV_K007342_ADD("k007342", bladestl_k007342_intf)
+	MDRV_K007420_ADD("k007420", bladestl_k007420_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM3812, XTAL_24MHz / 8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("ym1", YM3812, XTAL_24MHz / 8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("ym2", YM3812, XTAL_24MHz / 8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM3812, XTAL_24MHz / 8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************************
@@ -402,7 +405,7 @@ static void shuffle( UINT8 *buf, int len )
 static DRIVER_INIT( rackemup )
 {
 	/* rearrange char ROM */
-	shuffle(machine.region("gfx1")->base(), machine.region("gfx1")->bytes());
+	shuffle(memory_region(machine, "gfx1"), memory_region_length(machine, "gfx1"));
 }
 
 

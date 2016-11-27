@@ -24,29 +24,20 @@ Todo:
 
 #define SCHEMATIC_CLOCK (20000000)
 
-class segald_state : public driver_device
-{
-public:
-	segald_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+static UINT8 nmi_enable = 0;
 
-	UINT8 m_nmi_enable;
+static UINT8* obj_RAM;
+static UINT8* color_RAM;
+static UINT8* fix_RAM;
+static UINT8* out_RAM;
 
-	UINT8* m_obj_RAM;
-	UINT8* m_color_RAM;
-	UINT8* m_fix_RAM;
-	UINT8* m_out_RAM;
-
-	device_t *m_laserdisc;
-	UINT8 m_ldv1000_input_latch;
-	UINT8 m_ldv1000_output_latch;
-
-};
+static running_device *laserdisc;
+static UINT8 ldv1000_input_latch;
+static UINT8 ldv1000_output_latch;
 
 /* VIDEO GOODS */
-static void astron_draw_characters(running_machine &machine, bitmap_t *bitmap,const rectangle *cliprect)
+static void astron_draw_characters(running_machine *machine, bitmap_t *bitmap,const rectangle *cliprect)
 {
-	segald_state *state = machine.driver_data<segald_state>();
 	UINT8 characterX, characterY;
 
 	for (characterX = 0; characterX < 32; characterX++)
@@ -54,13 +45,13 @@ static void astron_draw_characters(running_machine &machine, bitmap_t *bitmap,co
 		for (characterY = 0; characterY < 32; characterY++)
 		{
 			int current_screen_character = (characterY*32) + characterX;
-			drawgfx_transpen(bitmap, cliprect, machine.gfx[0], state->m_fix_RAM[current_screen_character],
+			drawgfx_transpen(bitmap, cliprect, machine->gfx[0], fix_RAM[current_screen_character],
 					1, 0, 0, characterX*8, characterY*8, 0);
 		}
 	}
 }
 
-static void astron_draw_sprites(running_machine &machine, bitmap_t *bitmap, const rectangle *cliprect)
+static void astron_draw_sprites(bitmap_t *bitmap, const rectangle *cliprect)
 {
 	/* Heisted from Daphne */
 	const UINT8 SPR_Y_TOP     = 0;
@@ -72,7 +63,6 @@ static void astron_draw_sprites(running_machine &machine, bitmap_t *bitmap, cons
 /*  const UINT8 SPR_GFXOFS_LO = 6;*/
 /*  const UINT8 SPR_GFXOFS_HI = 7;*/
 
-	segald_state *state = machine.driver_data<segald_state>();
 	int sx,sy;
 	int spr_number;
 	int spr_base;
@@ -80,8 +70,8 @@ static void astron_draw_sprites(running_machine &machine, bitmap_t *bitmap, cons
 	for (spr_number = 0; spr_number < 32; spr_number++)
 	{
 		spr_base = 0x10 * spr_number;
-		sy = state->m_obj_RAM[spr_base + SPR_Y_TOP];
-		sx = state->m_obj_RAM[spr_base + SPR_X_LO];
+		sy = obj_RAM[spr_base + SPR_Y_TOP];
+		sx = obj_RAM[spr_base + SPR_X_LO];
 
 		if (sx != 0 || sy != 0)
 			logerror("Hey!  A sprite's not at 0,0 : %d %d", sx, sy);
@@ -89,12 +79,12 @@ static void astron_draw_sprites(running_machine &machine, bitmap_t *bitmap, cons
 }
 
 
-static SCREEN_UPDATE( astron )
+static VIDEO_UPDATE( astron )
 {
 	bitmap_fill(bitmap, cliprect, 0);
 
-	astron_draw_characters(screen->machine(), bitmap, cliprect);
-	astron_draw_sprites(screen->machine(), bitmap, cliprect);
+	astron_draw_characters(screen->machine, bitmap, cliprect);
+	astron_draw_sprites(bitmap, cliprect);
 
 	return 0;
 }
@@ -105,59 +95,47 @@ static SCREEN_UPDATE( astron )
 /* READS */
 static READ8_HANDLER( astron_DISC_read )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
+	if (nmi_enable)
+		ldv1000_input_latch = laserdisc_data_r(laserdisc);
 
-	if (state->m_nmi_enable)
-		state->m_ldv1000_input_latch = laserdisc_data_r(state->m_laserdisc);
+	logerror("DISC read   (0x%04x) @ 0x%04x [0x%x]\n", ldv1000_input_latch, offset, cpu_get_pc(space->cpu));
 
-	logerror("DISC read   (0x%04x) @ 0x%04x [0x%x]\n", state->m_ldv1000_input_latch, offset, cpu_get_pc(&space->device()));
-
-	return state->m_ldv1000_input_latch;
+	return ldv1000_input_latch;
 }
 
 static READ8_HANDLER( astron_OUT_read )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
-
-	logerror("OUT read   (0x%04x) @ 0x%04x [0x%x]\n", state->m_out_RAM[offset], offset, cpu_get_pc(&space->device()));
-	return state->m_out_RAM[offset];
+	logerror("OUT read   (0x%04x) @ 0x%04x [0x%x]\n", out_RAM[offset], offset, cpu_get_pc(space->cpu));
+	return out_RAM[offset];
 }
 
 static READ8_HANDLER( astron_OBJ_read )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
-
-	logerror("OBJ read   (0x%04x) @ 0x%04x [0x%x]\n", state->m_obj_RAM[offset], offset, cpu_get_pc(&space->device()));
-	return state->m_obj_RAM[offset];
+	logerror("OBJ read   (0x%04x) @ 0x%04x [0x%x]\n", obj_RAM[offset], offset, cpu_get_pc(space->cpu));
+	return obj_RAM[offset];
 }
 
 static READ8_HANDLER( astron_COLOR_read )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
-
-	logerror("COLOR read   (0x%04x) @ 0x%04x [0x%x]\n", state->m_color_RAM[offset], offset, cpu_get_pc(&space->device()));
-	return state->m_color_RAM[offset];
+	logerror("COLOR read   (0x%04x) @ 0x%04x [0x%x]\n", color_RAM[offset], offset, cpu_get_pc(space->cpu));
+	return color_RAM[offset];
 }
 
 
 /* WRITES */
 static WRITE8_HANDLER( astron_DISC_write )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
+	logerror("DISC write : 0x%04x @  0x%04x [0x%x]\n", data, offset, cpu_get_pc(space->cpu));
 
-	logerror("DISC write : 0x%04x @  0x%04x [0x%x]\n", data, offset, cpu_get_pc(&space->device()));
+	ldv1000_output_latch = data;
 
-	state->m_ldv1000_output_latch = data;
-
-	if (state->m_nmi_enable)
-		laserdisc_data_w(state->m_laserdisc, state->m_ldv1000_output_latch);
+	if (nmi_enable)
+		laserdisc_data_w(laserdisc, ldv1000_output_latch);
 }
 
 static WRITE8_HANDLER( astron_OUT_write )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
-
-	logerror("OUT write : 0x%04x @  0x%04x [0x%x]\n", data, offset, cpu_get_pc(&space->device()));
+	logerror("OUT write : 0x%04x @  0x%04x [0x%x]\n", data, offset, cpu_get_pc(space->cpu));
 
 	switch(offset)
 	{
@@ -175,7 +153,7 @@ static WRITE8_HANDLER( astron_OUT_write )
 			/* data & 0x10 = Continue Lamp */
 
 			/* data & 0x20 = CHC           */
-			state->m_nmi_enable = data & 0x40;      /* NMIE */
+			nmi_enable = data & 0x40;      /* NMIE */
 			/* data & 0x80 = CN0 Pin 19    */
 			break;
 
@@ -188,30 +166,27 @@ static WRITE8_HANDLER( astron_OUT_write )
 			break;
 	}
 
-	state->m_out_RAM[offset] = data;
+	out_RAM[offset] = data;
 }
 
 static WRITE8_HANDLER( astron_OBJ_write )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
-
-	state->m_obj_RAM[offset] = data;
-	logerror("OBJ write : 0x%04x @ 0x%04x [0x%x]\n", data, offset, cpu_get_pc(&space->device()));
+	obj_RAM[offset] = data;
+	logerror("OBJ write : 0x%04x @ 0x%04x [0x%x]\n", data, offset, cpu_get_pc(space->cpu));
 }
 
 static WRITE8_HANDLER( astron_COLOR_write )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
 	UINT8 r, g, b, a;
 	UINT8 highBits, lowBits;
 	const UINT8 palIndex = offset >> 1;
 
 	/* Combine */
-	state->m_color_RAM[offset] = data;
+	color_RAM[offset] = data;
 
 	/* Easy access */
-	highBits = state->m_color_RAM[(palIndex<<1)+1] & 0x0f;
-	lowBits  = state->m_color_RAM[(palIndex<<1)];
+	highBits = color_RAM[(palIndex<<1)+1] & 0x0f;
+	lowBits  = color_RAM[(palIndex<<1)];
 
 	/* 4-bit RGB */
 	r = (lowBits  & 0x0f);
@@ -219,47 +194,45 @@ static WRITE8_HANDLER( astron_COLOR_write )
 	b = (highBits & 0x0f);
 	a = (highBits & 0x80) ? 0 : 255;
 
-	palette_set_color(space->machine(), palIndex, MAKE_ARGB(a, r, g, b));
-	logerror("COLOR write : 0x%04x @   0x%04x [0x%x]\n", data, offset, cpu_get_pc(&space->device()));
+	palette_set_color(space->machine, palIndex, MAKE_ARGB(a, r, g, b));
+	logerror("COLOR write : 0x%04x @   0x%04x [0x%x]\n", data, offset, cpu_get_pc(space->cpu));
 }
 
 static WRITE8_HANDLER( astron_FIX_write )
 {
-	segald_state *state = space->machine().driver_data<segald_state>();
-
-	state->m_fix_RAM[offset] = data;
-	/* logerror("FIX write : 0x%04x @ 0x%04x [0x%x]\n", data, offset, cpu_get_pc(&space->device())); */
+	fix_RAM[offset] = data;
+	/* logerror("FIX write : 0x%04x @ 0x%04x [0x%x]\n", data, offset, cpu_get_pc(space->cpu)); */
 }
 
 static WRITE8_HANDLER( astron_io_bankswitch_w )
 {
 	logerror("Banking 0x%x\n", data);
-	memory_set_bank(space->machine(), "bank1", data & 0xff);
+	memory_set_bank(space->machine, "bank1", data & 0xff);
 }
 
 
 
 
 /* PROGRAM MAP */
-static ADDRESS_MAP_START( mainmem, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mainmem, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 
-	AM_RANGE(0xc000, 0xc7ff) AM_READWRITE(astron_OBJ_read, astron_OBJ_write) AM_BASE_MEMBER(segald_state, m_obj_RAM)	/* OBJ according to the schematics (sprite) */
-	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(astron_DISC_read, astron_DISC_write)					/* DISC interface according to schematics */
+	AM_RANGE(0xc000, 0xc7ff) AM_READWRITE(astron_OBJ_read,astron_OBJ_write) AM_BASE(&obj_RAM)	/* OBJ according to the schematics (sprite) */
+	AM_RANGE(0xc800, 0xcfff) AM_READWRITE(astron_DISC_read,astron_DISC_write)					/* DISC interface according to schematics */
 	AM_RANGE(0xd000, 0xd000) AM_READ_PORT("DSWA")								/* SW bank 2 (DIPs) */
 	AM_RANGE(0xd001, 0xd001) AM_READ_PORT("DSWB")								/* SW bank 3 (DIPs) */
 	AM_RANGE(0xd002, 0xd002) AM_READ_PORT("IN0")								/* SW bank 0 (IO) */
 	AM_RANGE(0xd003, 0xd003) AM_READ_PORT("IN1")								/* SW bank 1 (IO) */
-	AM_RANGE(0xd800, 0xd803) AM_READWRITE(astron_OUT_read, astron_OUT_write) AM_BASE_MEMBER(segald_state, m_out_RAM)	/* OUT according to schematics (output port) */
-	AM_RANGE(0xe000, 0xe1ff) AM_READWRITE(astron_COLOR_read, astron_COLOR_write) AM_BASE_MEMBER(segald_state, m_color_RAM) /* COLOR according to the schematics */
-	AM_RANGE(0xf000, 0xf7ff) AM_WRITE(astron_FIX_write) AM_BASE_MEMBER(segald_state, m_fix_RAM)						/* FIX according to schematics (characters) */
+	AM_RANGE(0xd800, 0xd803) AM_READWRITE(astron_OUT_read, astron_OUT_write) AM_BASE(&out_RAM)	/* OUT according to schematics (output port) */
+	AM_RANGE(0xe000, 0xe1ff) AM_READWRITE(astron_COLOR_read, astron_COLOR_write) AM_BASE(&color_RAM) /* COLOR according to the schematics */
+	AM_RANGE(0xf000, 0xf7ff) AM_WRITE(astron_FIX_write)	AM_BASE(&fix_RAM)						/* FIX according to schematics (characters) */
 	AM_RANGE(0xf800, 0xffff) AM_RAM																/* RAM according to schematics */
 ADDRESS_MAP_END
 
 
 /* I/O MAP */
-static ADDRESS_MAP_START( mainport, AS_IO, 8 )
+static ADDRESS_MAP_START( mainport, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_WRITE(astron_io_bankswitch_w)
 ADDRESS_MAP_END
@@ -277,8 +250,8 @@ static INPUT_PORTS_START( astron )
 	PORT_DIPSETTING(    0xf0, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0xc0, "1C/1C 2C/1C 3C/3C 4C/4C 5C/6C" )
 	PORT_DIPSETTING(    0x40, "1C/1C 2C/1C 3C/3C 4C/5C" )
-	PORT_DIPSETTING(    0x80, "1C/1C 2C/3C" )
 	PORT_DIPSETTING(    0x60, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0x80, "1C/1C 2C/3C" )
 	PORT_DIPSETTING(    0x70, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x00, "1C/2C 2C/4C 3C/6C 4C/8C 5C/11C" )
 	PORT_DIPSETTING(    0xb0, DEF_STR( 1C_3C ) )
@@ -294,8 +267,8 @@ static INPUT_PORTS_START( astron )
 	PORT_DIPSETTING(    0x0f, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x0c, "1C/1C 2C/1C 3C/3C 4C/4C 5C/6C" )
 	PORT_DIPSETTING(    0x04, "1C/1C 2C/1C 3C/3C 4C/5C" )
-	PORT_DIPSETTING(    0x08, "1C/1C 2C/3C" )
 	PORT_DIPSETTING(    0x06, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0x08, "1C/1C 2C/3C" )
 	PORT_DIPSETTING(    0x07, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x00, "1C/2C 2C/4C 3C/6C 4C/8C 5C/11C" )
 	PORT_DIPSETTING(    0x0b, DEF_STR( 1C_3C ) )
@@ -323,7 +296,9 @@ static INPUT_PORTS_START( astron )
 	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Allow_Continue ) ) PORT_DIPLOCATION("SW2:7")
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x01, IP_ACTIVE_LOW, "SW2:8" )
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unused ) ) PORT_DIPLOCATION("SW2:8")
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("IN0")
 	PORT_BIT ( 0x01, IP_ACTIVE_LOW, IPT_COIN1 )                                           /* SW0 = nonJAMMA pin 15 = coin1 & coin2 (?) */
@@ -336,14 +311,14 @@ static INPUT_PORTS_START( astron )
 	PORT_BIT ( 0x80, IP_ACTIVE_LOW, IPT_UNUSED )                                          /* SW7 = nonJAMMA pin 19 = unused? */
 
 	PORT_START("IN1")
-	PORT_BIT ( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT )                                  /* SW8  = nonJAMMA pin 9  = right */
-	PORT_BIT ( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT )                                   /* SW9  = nonJAMMA pin 10 = left */
-	PORT_BIT ( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_UP )                                     /* SW10 = nonJAMMA pin 11 = up */
-	PORT_BIT ( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN )                                   /* SW11 = nonJAMMA pin 12 = down */
-	PORT_BIT ( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 )                                         /* SW12 = nonJAMMA pin 13 = fire */
-	PORT_BIT ( 0x20, IP_ACTIVE_LOW, IPT_UNUSED )                                          /* SW13 = nonJAMMA pin 14 = unused? */
-	PORT_BIT ( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )                                          /* SW14 = nonJAMMA pin V  = unused? */
-	PORT_BIT ( 0x80, IP_ACTIVE_LOW, IPT_UNUSED )                                          /* SW15 = nonJAMMA pin W  = unused? */
+	PORT_BIT ( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT )								  /* SW8  = nonJAMMA pin 9  = right */
+	PORT_BIT ( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) 								  /* SW9  = nonJAMMA pin 10 = left */
+	PORT_BIT ( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_UP )   								  /* SW10 = nonJAMMA pin 11 = up */
+	PORT_BIT ( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) 								  /* SW11 = nonJAMMA pin 12 = down */
+	PORT_BIT ( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 )       								  /* SW12 = nonJAMMA pin 13 = fire */
+	PORT_BIT ( 0x20, IP_ACTIVE_LOW, IPT_UNUSED )        								  /* SW13 = nonJAMMA pin 14 = unused? */
+	PORT_BIT ( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )        								  /* SW14 = nonJAMMA pin V  = unused? */
+	PORT_BIT ( 0x80, IP_ACTIVE_LOW, IPT_UNUSED )        								  /* SW15 = nonJAMMA pin W  = unused? */
 INPUT_PORTS_END
 
 static GFXDECODE_START( segald )
@@ -354,39 +329,37 @@ GFXDECODE_END
 
 static MACHINE_START( astron )
 {
-	segald_state *state = machine.driver_data<segald_state>();
-
-	state->m_laserdisc = machine.device("laserdisc");
+	laserdisc = machine->device("laserdisc");
 }
 
 
 /* DRIVER */
-static MACHINE_CONFIG_START( astron, segald_state )
+static MACHINE_DRIVER_START( astron )
 
 	/* main cpu */
-	MCFG_CPU_ADD("maincpu", Z80, SCHEMATIC_CLOCK/4)
-	MCFG_CPU_PROGRAM_MAP(mainmem)
-	MCFG_CPU_IO_MAP(mainport)
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse, 1000.0/59.94)
+	MDRV_CPU_ADD("maincpu", Z80, SCHEMATIC_CLOCK/4)
+	MDRV_CPU_PROGRAM_MAP(mainmem)
+	MDRV_CPU_IO_MAP(mainport)
+	MDRV_CPU_PERIODIC_INT(nmi_line_pulse, 1000.0/59.94)
 
-	MCFG_MACHINE_START(astron)
+	MDRV_MACHINE_START(astron)
 
-	MCFG_LASERDISC_ADD("laserdisc", PIONEER_LDV1000, "screen", "ldsound")
-	MCFG_LASERDISC_OVERLAY(astron, 256, 256, BITMAP_FORMAT_INDEXED16)
+	MDRV_LASERDISC_ADD("laserdisc", PIONEER_LDV1000, "screen", "ldsound")
+	MDRV_LASERDISC_OVERLAY(astron, 256, 256, BITMAP_FORMAT_INDEXED16)
 
 	/* video hardware */
-	MCFG_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
+	MDRV_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
 
-	MCFG_GFXDECODE(segald)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(segald)
+	MDRV_PALETTE_LENGTH(256)
 
 	/* sound hardare */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ldsound", LASERDISC_SOUND, 0)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ldsound", LASERDISC, 0)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 ROM_START( astron )
@@ -594,15 +567,15 @@ ROM_END
 
 static DRIVER_INIT( astron )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 	memory_configure_bank(machine, "bank1", 0, 2, &ROM[0x8000], 0x4000);
 }
 
 
-//    YEAR, NAME,     PARENT,  MACHINE,INPUT,  INIT,   MONITOR,COMPANY,FULLNAME,FLAGS
-GAME( 1983, astron,   0,       astron, astron, astron, ROT0,   "Sega", "Astron Belt", GAME_NOT_WORKING|GAME_NO_SOUND)
-GAME( 1983, astronp,  astron,  astron, astron, astron, ROT0,   "Sega", "Astron Belt (Pioneer LDV1000)", GAME_NOT_WORKING|GAME_NO_SOUND)
-GAME( 1983, cobraseg, astron,  astron, astron, astron, ROT0,   "Sega", "Cobra Command (Sega LaserDisc Hardware)", GAME_NOT_WORKING|GAME_NO_SOUND)
-GAME( 1983, galaxyr,  0,       astron, astron, astron, ROT0,   "Sega", "Galaxy Ranger", GAME_NOT_WORKING|GAME_NO_SOUND)
-GAME( 1983, galaxyrp, galaxyr, astron, astron, astron, ROT0,   "Sega", "Galaxy Ranger (Pioneer LDV1000)", GAME_NOT_WORKING|GAME_NO_SOUND)
-GAME( 1983, sblazerp, galaxyr, astron, astron, astron, ROT0,   "Sega", "Star Blazer (Pioneer LDV1000)", GAME_NOT_WORKING|GAME_NO_SOUND)
+/*    YEAR  NAME      PARENT   MACHINE  INPUT   INIT    MONITOR COMPANY FULLNAME                                   FLAGS) */
+GAME( 1983, astron,   0,       astron,  astron, astron, ROT0,   "Sega", "Astron Belt",							   GAME_NOT_WORKING|GAME_NO_SOUND)
+GAME( 1983, astronp,  astron,  astron,  astron, astron, ROT0,   "Sega", "Astron Belt (Pioneer LDV1000)",		   GAME_NOT_WORKING|GAME_NO_SOUND)
+GAME( 1983, cobraseg, astron,  astron,  astron, astron, ROT0,   "Sega", "Cobra Command (Sega LaserDisc Hardware)", GAME_NOT_WORKING|GAME_NO_SOUND)
+GAME( 1983, galaxyr,  0,       astron,  astron, astron, ROT0,   "Sega", "Galaxy Ranger",						   GAME_NOT_WORKING|GAME_NO_SOUND)
+GAME( 1983, galaxyrp, galaxyr, astron,  astron, astron, ROT0,   "Sega", "Galaxy Ranger (Pioneer LDV1000)",		   GAME_NOT_WORKING|GAME_NO_SOUND)
+GAME( 1983, sblazerp, galaxyr, astron,  astron, astron, ROT0,   "Sega", "Star Blazer (Pioneer LDV1000)",		   GAME_NOT_WORKING|GAME_NO_SOUND)

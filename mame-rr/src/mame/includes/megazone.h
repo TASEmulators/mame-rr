@@ -4,35 +4,36 @@
 
 *************************************************************************/
 
-class megazone_state : public driver_device
+class megazone_state
 {
 public:
-	megazone_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, megazone_state(machine)); }
+
+	megazone_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *       m_scrollx;
-	UINT8 *       m_scrolly;
-	UINT8 *       m_videoram;
-	UINT8 *       m_colorram;
-	UINT8 *       m_videoram2;
-	UINT8 *       m_colorram2;
-	UINT8 *       m_spriteram;
-	size_t        m_spriteram_size;
-	size_t        m_videoram_size;
-	size_t        m_videoram2_size;
+	UINT8 *       scrollx;
+	UINT8 *       scrolly;
+	UINT8 *       videoram;
+	UINT8 *       colorram;
+	UINT8 *       videoram2;
+	UINT8 *       colorram2;
+	UINT8 *       spriteram;
+	size_t        spriteram_size;
+	size_t        videoram_size;
+	size_t        videoram2_size;
 
 	/* video-related */
-	bitmap_t      *m_tmpbitmap;
-	int           m_flipscreen;
+	bitmap_t      *tmpbitmap;
+	int           flipscreen;
 
 	/* misc */
-	int           m_i8039_status;
+	int           i8039_status;
 
 	/* devices */
-	cpu_device *m_maincpu;
-	cpu_device *m_audiocpu;
-	cpu_device *m_daccpu;
+	cpu_device *maincpu;
+	cpu_device *audiocpu;
+	cpu_device *daccpu;
 };
 
 
@@ -43,4 +44,4 @@ WRITE8_HANDLER( megazone_flipscreen_w );
 
 PALETTE_INIT( megazone );
 VIDEO_START( megazone );
-SCREEN_UPDATE( megazone );
+VIDEO_UPDATE( megazone );

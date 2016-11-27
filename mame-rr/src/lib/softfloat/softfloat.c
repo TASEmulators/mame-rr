@@ -37,12 +37,18 @@ these four paragraphs for those parts of this code that are retained.
 | Floating-point rounding mode, extended double-precision rounding precision,
 | and exception flags.
 *----------------------------------------------------------------------------*/
+int8 float_rounding_mode = float_round_nearest_even;
 int8 float_exception_flags = 0;
 #ifdef FLOATX80
 int8 floatx80_rounding_precision = 80;
 #endif
 
-int8 float_rounding_mode = float_round_nearest_even;
+/*----------------------------------------------------------------------------
+| Primitive arithmetic functions, including multi-word arithmetic, and
+| division and square root approximations.  (Can be specialized to target if
+| desired.)
+*----------------------------------------------------------------------------*/
+#include "softfloat-macros"
 
 /*----------------------------------------------------------------------------
 | Functions and definitions to determine:  (1) whether tininess for underflow
@@ -483,6 +489,42 @@ static float64
 #ifdef FLOATX80
 
 /*----------------------------------------------------------------------------
+| Returns the fraction bits of the extended double-precision floating-point
+| value `a'.
+*----------------------------------------------------------------------------*/
+
+INLINE bits64 extractFloatx80Frac( floatx80 a )
+{
+
+    return a.low;
+
+}
+
+/*----------------------------------------------------------------------------
+| Returns the exponent bits of the extended double-precision floating-point
+| value `a'.
+*----------------------------------------------------------------------------*/
+
+INLINE int32 extractFloatx80Exp( floatx80 a )
+{
+
+    return a.high & 0x7FFF;
+
+}
+
+/*----------------------------------------------------------------------------
+| Returns the sign bit of the extended double-precision floating-point value
+| `a'.
+*----------------------------------------------------------------------------*/
+
+INLINE flag extractFloatx80Sign( floatx80 a )
+{
+
+    return a.high>>15;
+
+}
+
+/*----------------------------------------------------------------------------
 | Normalizes the subnormal extended double-precision floating-point value
 | represented by the denormalized significand `aSig'.  The normalized exponent
 | and significand are stored at the locations pointed to by `zExpPtr' and
@@ -497,6 +539,21 @@ static void
     shiftCount = countLeadingZeros64( aSig );
     *zSigPtr = aSig<<shiftCount;
     *zExpPtr = 1 - shiftCount;
+
+}
+
+/*----------------------------------------------------------------------------
+| Packs the sign `zSign', exponent `zExp', and significand `zSig' into an
+| extended double-precision floating-point value, returning the result.
+*----------------------------------------------------------------------------*/
+
+INLINE floatx80 packFloatx80( flag zSign, int32 zExp, bits64 zSig )
+{
+    floatx80 z;
+
+    z.low = zSig;
+    z.high = ( ( (bits16) zSign )<<15 ) + zExp;
+    return z;
 
 }
 
@@ -801,6 +858,177 @@ static void
         shortShift128Left( aSig0, aSig1, shiftCount, zSig0Ptr, zSig1Ptr );
         *zExpPtr = 1 - shiftCount;
     }
+
+}
+
+/*----------------------------------------------------------------------------
+| Packs the sign `zSign', the exponent `zExp', and the significand formed
+| by the concatenation of `zSig0' and `zSig1' into a quadruple-precision
+| floating-point value, returning the result.  After being shifted into the
+| proper positions, the three fields `zSign', `zExp', and `zSig0' are simply
+| added together to form the most significant 32 bits of the result.  This
+| means that any integer portion of `zSig0' will be added into the exponent.
+| Since a properly normalized significand will have an integer portion equal
+| to 1, the `zExp' input should be 1 less than the desired result exponent
+| whenever `zSig0' and `zSig1' concatenated form a complete, normalized
+| significand.
+*----------------------------------------------------------------------------*/
+
+INLINE float128
+ packFloat128( flag zSign, int32 zExp, bits64 zSig0, bits64 zSig1 )
+{
+    float128 z;
+
+    z.low = zSig1;
+    z.high = ( ( (bits64) zSign )<<63 ) + ( ( (bits64) zExp )<<48 ) + zSig0;
+    return z;
+
+}
+
+/*----------------------------------------------------------------------------
+| Takes an abstract floating-point value having sign `zSign', exponent `zExp',
+| and extended significand formed by the concatenation of `zSig0', `zSig1',
+| and `zSig2', and returns the proper quadruple-precision floating-point value
+| corresponding to the abstract input.  Ordinarily, the abstract value is
+| simply rounded and packed into the quadruple-precision format, with the
+| inexact exception raised if the abstract input cannot be represented
+| exactly.  However, if the abstract value is too large, the overflow and
+| inexact exceptions are raised and an infinity or maximal finite value is
+| returned.  If the abstract value is too small, the input value is rounded to
+| a subnormal number, and the underflow and inexact exceptions are raised if
+| the abstract input cannot be represented exactly as a subnormal quadruple-
+| precision floating-point number.
+|     The input significand must be normalized or smaller.  If the input
+| significand is not normalized, `zExp' must be 0; in that case, the result
+| returned is a subnormal number, and it must not require rounding.  In the
+| usual case that the input significand is normalized, `zExp' must be 1 less
+| than the ``true'' floating-point exponent.  The handling of underflow and
+| overflow follows the IEC/IEEE Standard for Binary Floating-Point Arithmetic.
+*----------------------------------------------------------------------------*/
+
+static float128
+ roundAndPackFloat128(
+     flag zSign, int32 zExp, bits64 zSig0, bits64 zSig1, bits64 zSig2 )
+{
+    int8 roundingMode;
+    flag roundNearestEven, increment, isTiny;
+
+    roundingMode = float_rounding_mode;
+    roundNearestEven = ( roundingMode == float_round_nearest_even );
+    increment = ( (sbits64) zSig2 < 0 );
+    if ( ! roundNearestEven ) {
+        if ( roundingMode == float_round_to_zero ) {
+            increment = 0;
+        }
+        else {
+            if ( zSign ) {
+                increment = ( roundingMode == float_round_down ) && zSig2;
+            }
+            else {
+                increment = ( roundingMode == float_round_up ) && zSig2;
+            }
+        }
+    }
+    if ( 0x7FFD <= (bits32) zExp ) {
+        if (    ( 0x7FFD < zExp )
+             || (    ( zExp == 0x7FFD )
+                  && eq128(
+                         LIT64( 0x0001FFFFFFFFFFFF ),
+                         LIT64( 0xFFFFFFFFFFFFFFFF ),
+                         zSig0,
+                         zSig1
+                     )
+                  && increment
+                )
+           ) {
+            float_raise( float_flag_overflow | float_flag_inexact );
+            if (    ( roundingMode == float_round_to_zero )
+                 || ( zSign && ( roundingMode == float_round_up ) )
+                 || ( ! zSign && ( roundingMode == float_round_down ) )
+               ) {
+                return
+                    packFloat128(
+                        zSign,
+                        0x7FFE,
+                        LIT64( 0x0000FFFFFFFFFFFF ),
+                        LIT64( 0xFFFFFFFFFFFFFFFF )
+                    );
+            }
+            return packFloat128( zSign, 0x7FFF, 0, 0 );
+        }
+        if ( zExp < 0 ) {
+            isTiny =
+                   ( float_detect_tininess == float_tininess_before_rounding )
+                || ( zExp < -1 )
+                || ! increment
+                || lt128(
+                       zSig0,
+                       zSig1,
+                       LIT64( 0x0001FFFFFFFFFFFF ),
+                       LIT64( 0xFFFFFFFFFFFFFFFF )
+                   );
+            shift128ExtraRightJamming(
+                zSig0, zSig1, zSig2, - zExp, &zSig0, &zSig1, &zSig2 );
+            zExp = 0;
+            if ( isTiny && zSig2 ) float_raise( float_flag_underflow );
+            if ( roundNearestEven ) {
+                increment = ( (sbits64) zSig2 < 0 );
+            }
+            else {
+                if ( zSign ) {
+                    increment = ( roundingMode == float_round_down ) && zSig2;
+                }
+                else {
+                    increment = ( roundingMode == float_round_up ) && zSig2;
+                }
+            }
+        }
+    }
+    if ( zSig2 ) float_exception_flags |= float_flag_inexact;
+    if ( increment ) {
+        add128( zSig0, zSig1, 0, 1, &zSig0, &zSig1 );
+        zSig1 &= ~ ( ( zSig2 + zSig2 == 0 ) & roundNearestEven );
+    }
+    else {
+        if ( ( zSig0 | zSig1 ) == 0 ) zExp = 0;
+    }
+    return packFloat128( zSign, zExp, zSig0, zSig1 );
+
+}
+
+/*----------------------------------------------------------------------------
+| Takes an abstract floating-point value having sign `zSign', exponent `zExp',
+| and significand formed by the concatenation of `zSig0' and `zSig1', and
+| returns the proper quadruple-precision floating-point value corresponding
+| to the abstract input.  This routine is just like `roundAndPackFloat128'
+| except that the input significand has fewer bits and does not have to be
+| normalized.  In all cases, `zExp' must be 1 less than the ``true'' floating-
+| point exponent.
+*----------------------------------------------------------------------------*/
+
+static float128
+ normalizeRoundAndPackFloat128(
+     flag zSign, int32 zExp, bits64 zSig0, bits64 zSig1 )
+{
+    int8 shiftCount;
+    bits64 zSig2;
+
+    if ( zSig0 == 0 ) {
+        zSig0 = zSig1;
+        zSig1 = 0;
+        zExp -= 64;
+    }
+    shiftCount = countLeadingZeros64( zSig0 ) - 15;
+    if ( 0 <= shiftCount ) {
+        zSig2 = 0;
+        shortShift128Left( zSig0, zSig1, shiftCount, &zSig0, &zSig1 );
+    }
+    else {
+        shift128ExtraRightJamming(
+            zSig0, zSig1, 0, - shiftCount, &zSig0, &zSig1, &zSig2 );
+    }
+    zExp -= shiftCount;
+    return roundAndPackFloat128( zSign, zExp, zSig0, zSig1, zSig2 );
 
 }
 
@@ -1638,7 +1866,7 @@ float32 float32_div( float32 a, float32 b )
 
 float32 float32_rem( float32 a, float32 b )
 {
-    flag aSign, zSign;
+    flag aSign, bSign, zSign;
     int16 aExp, bExp, expDiff;
     bits32 aSig, bSig;
     bits32 q;
@@ -1651,7 +1879,7 @@ float32 float32_rem( float32 a, float32 b )
     aSign = extractFloat32Sign( a );
     bSig = extractFloat32Frac( b );
     bExp = extractFloat32Exp( b );
-//    bSign = extractFloat32Sign( b );
+    bSign = extractFloat32Sign( b );
     if ( aExp == 0xFF ) {
         if ( aSig || ( ( bExp == 0xFF ) && bSig ) ) {
             return propagateFloat32NaN( a, b );
@@ -2575,7 +2803,7 @@ float64 float64_div( float64 a, float64 b )
 
 float64 float64_rem( float64 a, float64 b )
 {
-    flag aSign, zSign;
+    flag aSign, bSign, zSign;
     int16 aExp, bExp, expDiff;
     bits64 aSig, bSig;
     bits64 q, alternateASig;
@@ -2586,7 +2814,7 @@ float64 float64_rem( float64 a, float64 b )
     aSign = extractFloat64Sign( a );
     bSig = extractFloat64Frac( b );
     bExp = extractFloat64Exp( b );
-//    bSign = extractFloat64Sign( b );
+    bSign = extractFloat64Sign( b );
     if ( aExp == 0x7FF ) {
         if ( aSig || ( ( bExp == 0x7FF ) && bSig ) ) {
             return propagateFloat64NaN( a, b );
@@ -3483,7 +3711,7 @@ floatx80 floatx80_div( floatx80 a, floatx80 b )
 
 floatx80 floatx80_rem( floatx80 a, floatx80 b )
 {
-    flag aSign, zSign;
+    flag aSign, bSign, zSign;
     int32 aExp, bExp, expDiff;
     bits64 aSig0, aSig1, bSig;
     bits64 q, term0, term1, alternateASig0, alternateASig1;
@@ -3494,7 +3722,7 @@ floatx80 floatx80_rem( floatx80 a, floatx80 b )
     aSign = extractFloatx80Sign( a );
     bSig = extractFloatx80Frac( b );
     bExp = extractFloatx80Exp( b );
-//    bSign = extractFloatx80Sign( b );
+    bSign = extractFloatx80Sign( b );
     if ( aExp == 0x7FFF ) {
         if (    (bits64) ( aSig0<<1 )
              || ( ( bExp == 0x7FFF ) && (bits64) ( bSig<<1 ) ) ) {
@@ -4592,7 +4820,7 @@ float128 float128_div( float128 a, float128 b )
 
 float128 float128_rem( float128 a, float128 b )
 {
-    flag aSign, zSign;
+    flag aSign, bSign, zSign;
     int32 aExp, bExp, expDiff;
     bits64 aSig0, aSig1, bSig0, bSig1, q, term0, term1, term2;
     bits64 allZero, alternateASig0, alternateASig1, sigMean1;
@@ -4606,7 +4834,7 @@ float128 float128_rem( float128 a, float128 b )
     bSig1 = extractFloat128Frac1( b );
     bSig0 = extractFloat128Frac0( b );
     bExp = extractFloat128Exp( b );
-//    bSign = extractFloat128Sign( b );
+    bSign = extractFloat128Sign( b );
     if ( aExp == 0x7FFF ) {
         if (    ( aSig0 | aSig1 )
              || ( ( bExp == 0x7FFF ) && ( bSig0 | bSig1 ) ) ) {

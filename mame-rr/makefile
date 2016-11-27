@@ -75,7 +75,7 @@ else
 UNAME = $(shell uname -a)
 
 ifeq ($(firstword $(filter Linux,$(UNAME))),Linux)
-TARGETOS = linux
+TARGETOS = unix
 endif
 ifeq ($(firstword $(filter Solaris,$(UNAME))),Solaris)
 TARGETOS = solaris
@@ -85,9 +85,6 @@ TARGETOS = freebsd
 endif
 ifeq ($(firstword $(filter GNU/kFreeBSD,$(UNAME))),GNU/kFreeBSD)
 TARGETOS = freebsd
-endif
-ifeq ($(firstword $(filter NetBSD,$(UNAME))),NetBSD)
-TARGETOS = netbsd
 endif
 ifeq ($(firstword $(filter OpenBSD,$(UNAME))),OpenBSD)
 TARGETOS = openbsd
@@ -153,7 +150,7 @@ endif
 # PREFIX =
 
 # uncomment and specify suffix to be added to the name
- SUFFIX = -rr
+# SUFFIX =
 
 
 
@@ -405,10 +402,6 @@ ifdef PROFILER
 DEFS += -DMAME_PROFILER
 endif
 
-# define USE_NETWORK if we are a making network enabled build
-ifdef USE_NETWORK
-DEFS += -DUSE_NETWORK
-endif
 
 
 #-------------------------------------------------
@@ -477,8 +470,7 @@ CCOMFLAGS += \
 	-Wundef \
 	-Wformat-security \
 	-Wwrite-strings \
-	-Wno-sign-compare \
-	-Wno-conversion
+	-Wno-sign-compare
 
 # warnings only applicable to C compiles
 CONLYFLAGS += \
@@ -497,17 +489,15 @@ COBJFLAGS += \
 #-------------------------------------------------
 
 # add core include paths
-INCPATH += \
+CCOMFLAGS += \
 	-I$(SRC)/$(TARGET) \
 	-I$(OBJ)/$(TARGET)/layout \
 	-I$(SRC)/emu \
 	-I$(OBJ)/emu \
 	-I$(OBJ)/emu/layout \
 	-I$(SRC)/lib/util \
-	-I$(SRC)/lib \
 	-I$(SRC)/osd \
 	-I$(SRC)/osd/$(OSD) \
-
 
 
 #-------------------------------------------------
@@ -582,10 +572,6 @@ LIBOCORE = $(OBJ)/libocore.a
 LIBOSD = $(OBJ)/libosd.a
 
 VERSIONOBJ = $(OBJ)/version.o
-DRIVLISTSRC = $(OBJ)/drivlist.c
-DRIVLISTOBJ = $(OBJ)/drivlist.o
-DEVLISTSRC = $(OBJ)/devlist.c
-DEVLISTOBJ = $(OBJ)/devlist.o
 
 
 
@@ -599,7 +585,7 @@ LIBS =
 
 # add expat XML library
 ifeq ($(BUILD_EXPAT),1)
-INCPATH += -I$(SRC)/lib/expat
+CCOMFLAGS += -I$(SRC)/lib/expat
 EXPAT = $(OBJ)/libexpat.a
 else
 LIBS += -lexpat
@@ -608,7 +594,7 @@ endif
 
 # add ZLIB compression library
 ifeq ($(BUILD_ZLIB),1)
-INCPATH += -I$(SRC)/lib/zlib
+CCOMFLAGS += -I$(SRC)/lib/zlib
 ZLIB = $(OBJ)/libz.a
 else
 LIBS += -lz
@@ -617,12 +603,6 @@ endif
 
 # add SoftFloat floating point emulation library
 SOFTFLOAT = $(OBJ)/libsoftfloat.a
-
-# add formats emulation library
-FORMATS_LIB = $(OBJ)/libformats.a
-
-# add cothread library
-COTHREAD = $(OBJ)/libco.a
 
 
 
@@ -663,7 +643,6 @@ include $(SRC)/build/build.mak
 include $(SRC)/tools/tools.mak
 
 # combine the various definitions to one
-CCOMFLAGS += $(INCPATH)
 CDEFS = $(DEFS)
 
 
@@ -675,12 +654,6 @@ CDEFS = $(DEFS)
 emulator: maketree $(BUILD) $(EMULATOR)
 
 buildtools: maketree $(BUILD)
-
-# In order to keep dependencies reasonable, we exclude objects in the base of
-# $(SRC)/emu, as well as all the OSD objects and anything in the $(OBJ) tree
-depend: maketree $(MAKEDEP_TARGET)
-	@echo Rebuilding depend.mak...
-	$(MAKEDEP) -I. $(INCPATH) -X$(SRC)/emu -X$(SRC)/osd/... -X$(OBJ)/... src/$(TARGET) > depend.mak
 
 tools: maketree $(TOOLS)
 
@@ -696,10 +669,6 @@ clean: $(OSDCLEAN)
 ifdef MAP
 	@echo Deleting $(FULLNAME).map...
 	$(RM) $(FULLNAME).map
-endif
-ifdef SYMBOLS
-	@echo Deleting $(FULLNAME).sym...
-	$(RM) $(FULLNAME).sym
 endif
 
 checkautodetect:
@@ -725,9 +694,9 @@ $(sort $(OBJDIRS)):
 ifndef EXECUTABLE_DEFINED
 
 # always recompile the version string
-$(VERSIONOBJ): $(DRVLIBS) $(LIBOSD) $(LIBCPU) $(LIBEMU) $(LIBSOUND) $(LIBUTIL) $(EXPAT) $(ZLIB) $(SOFTFLOAT) $(FORMATS_LIB) $(COTHREAD) $(LIBOCORE) $(RESFILE)
+$(VERSIONOBJ): $(DRVLIBS) $(LIBOSD) $(LIBCPU) $(LIBEMU) $(LIBSOUND) $(LIBUTIL) $(EXPAT) $(ZLIB) $(SOFTFLOAT) $(LIBOCORE) $(RESFILE)
 
-$(EMULATOR): $(VERSIONOBJ) $(DRIVLISTOBJ) $(DEVLISTOBJ) $(DRVLIBS) $(LIBOSD) $(LIBCPU) $(LIBEMU) $(LIBDASM) $(LIBSOUND) $(LIBUTIL) $(EXPAT) $(SOFTFLOAT) $(FORMATS_LIB) $(COTHREAD) $(ZLIB) $(LIBOCORE) $(RESFILE)
+$(EMULATOR): $(VERSIONOBJ) $(DRVLIBS) $(LIBOSD) $(LIBCPU) $(LIBEMU) $(LIBDASM) $(LIBSOUND) $(LIBUTIL) $(EXPAT) $(SOFTFLOAT) $(ZLIB) $(LIBOCORE) $(RESFILE)
 	@echo Linking $@...
 	$(LD) $(LDFLAGS) $(LDFLAGSEMULATOR) $^ $(LIBS) -o $@
 ifeq ($(TARGETOS),win32)
@@ -756,30 +725,14 @@ $(OBJ)/%.s: $(SRC)/%.c | $(OSPREBUILD)
 	@echo Compiling $<...
 	$(CC) $(CDEFS) $(CFLAGS) -S $< -o $@
 
-$(OBJ)/%.lh: $(SRC)/%.lay $(FILE2STR_TARGET)
+$(OBJ)/%.lh: $(SRC)/%.lay $(FILE2STR)
 	@echo Converting $<...
 	@$(FILE2STR) $< $@ layout_$(basename $(notdir $<))
 
-$(OBJ)/%.fh: $(SRC)/%.png $(PNG2BDC_TARGET) $(FILE2STR_TARGET)
+$(OBJ)/%.fh: $(SRC)/%.png $(PNG2BDC) $(FILE2STR)
 	@echo Converting $<...
 	@$(PNG2BDC) $< $(OBJ)/temp.bdc
 	@$(FILE2STR) $(OBJ)/temp.bdc $@ font_$(basename $(notdir $<)) UINT8
-
-$(DRIVLISTOBJ): $(DRIVLISTSRC)
-	@echo Compiling $<...
-	$(CC) $(CDEFS) $(CFLAGS) -c $< -o $@
-
-$(DEVLISTOBJ): $(DEVLISTSRC)
-	@echo Compiling $<...
-	$(CC) $(CDEFS) $(CFLAGS) -c $< -o $@
-
-$(DRIVLISTSRC): $(SRC)/$(TARGET)/$(SUBTARGET).lst $(MAKELIST_TARGET)
-	@echo Building driver list $<...
-	@$(MAKELIST) $< >$@
-
-$(DEVLISTSRC): $(SRC)/$(TARGET)/$(SUBTARGET)_dev.lst $(MAKEDEV_TARGET)
-	@echo Building device list $<...
-	@$(MAKEDEV) $< >$@
 
 $(OBJ)/%.a:
 	@echo Archiving $@...
@@ -792,10 +745,3 @@ $(OBJ)/%.o: $(SRC)/%.m | $(OSPREBUILD)
 	$(CC) $(CDEFS) $(COBJFLAGS) $(CCOMFLAGS) -c $< -o $@
 endif
 
-
-
-#-------------------------------------------------
-# optional dependencies file
-#-------------------------------------------------
-
--include depend.mak

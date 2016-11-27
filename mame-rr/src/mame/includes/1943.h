@@ -4,29 +4,25 @@
 
 ***************************************************************************/
 
-class _1943_state : public driver_device
+class _1943_state
 {
 public:
-	_1943_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, _1943_state(machine)); }
+
+	_1943_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_videoram;
-	UINT8 * m_colorram;
-	UINT8 * m_spriteram;
-	UINT8 * m_scrollx;
-	UINT8 * m_scrolly;
-	UINT8 * m_bgscrollx;
-	size_t  m_spriteram_size;
+	UINT8 * videoram;
+	UINT8 * colorram;
+	UINT8 * spriteram;
+	UINT8 * scrollx;
+	UINT8 * scrolly;
+	UINT8 * bgscrollx;
+	size_t  spriteram_size;
 
 	/* video-related */
-	tilemap_t *m_fg_tilemap;
-	tilemap_t *m_bg_tilemap;
-	tilemap_t *m_bg2_tilemap;
-	int     m_char_on;
-	int     m_obj_on;
-	int     m_bg1_on;
-	int     m_bg2_on;
+	tilemap_t *fg_tilemap, *bg_tilemap, *bg2_tilemap;
+	int     char_on, obj_on, bg1_on, bg2_on;
 };
 
 
@@ -40,4 +36,4 @@ extern WRITE8_HANDLER( c1943_colorram_w );
 
 extern PALETTE_INIT( 1943 );
 extern VIDEO_START( 1943 );
-extern SCREEN_UPDATE( 1943 );
+extern VIDEO_UPDATE( 1943 );

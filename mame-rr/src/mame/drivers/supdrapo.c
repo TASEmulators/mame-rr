@@ -63,18 +63,18 @@
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "sound/ay8910.h"
-#include "machine/nvram.h"
 
-class supdrapo_state : public driver_device
+class supdrapo_state
 {
 public:
-	supdrapo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, supdrapo_state(machine)); }
 
-	UINT8 *m_char_bank;
-	UINT8 *m_col_line;
-	UINT8 *m_videoram;
-	UINT8 m_wdog;
+	supdrapo_state(running_machine &machine) { }
+
+	UINT8 *char_bank;
+	UINT8 *col_line;
+	UINT8 *videoram;
+	UINT8 wdog;
 };
 
 
@@ -87,9 +87,9 @@ static VIDEO_START( supdrapo )
 }
 
 
-static SCREEN_UPDATE( supdrapo )
+static VIDEO_UPDATE( supdrapo )
 {
-	supdrapo_state *state = screen->machine().driver_data<supdrapo_state>();
+	supdrapo_state *state = (supdrapo_state *)screen->machine->driver_data;
 	int x, y;
 	int count;
 	int color;
@@ -100,11 +100,11 @@ static SCREEN_UPDATE( supdrapo )
 	{
 		for(x = 0; x < 32; x++)
 		{
-			int tile = state->m_videoram[count] + state->m_char_bank[count] * 0x100;
+			int tile = state->videoram[count] + state->char_bank[count] * 0x100;
 			/* Global Column Coloring, GUESS! */
-			color = state->m_col_line[(x*2) + 1] ? (state->m_col_line[(x*2) + 1] - 1) & 7 : 0;
+			color = state->col_line[(x*2) + 1] ? (state->col_line[(x*2) + 1] - 1) & 7 : 0;
 
-			drawgfx_opaque(bitmap, cliprect, screen->machine().gfx[0], tile,color, 0, 0, x*8, y*8);
+			drawgfx_opaque(bitmap, cliprect, screen->machine->gfx[0], tile,color, 0, 0, x*8, y*8);
 
 			count++;
 		}
@@ -149,7 +149,7 @@ static PALETTE_INIT( sdpoker )
 
 static READ8_HANDLER( sdpoker_rng_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static WRITE8_HANDLER( wdog8000_w )
@@ -179,14 +179,14 @@ static WRITE8_HANDLER( wdog8000_w )
   Watchdog: 00
 
 */
-	supdrapo_state *state = space->machine().driver_data<supdrapo_state>();
+	supdrapo_state *state = (supdrapo_state *)space->machine->driver_data;
 
-	if (state->m_wdog == data)
+	if (state->wdog == data)
 	{
 		watchdog_reset_w(space, 0, 0);	/* Reset */
 	}
 
-	state->m_wdog = data;
+	state->wdog = data;
 //  logerror("Watchdog: %02X\n", data);
 }
 
@@ -212,12 +212,12 @@ static WRITE8_HANDLER( debug7c00_w )
 
 static WRITE8_HANDLER( coinin_w )
 {
-	coin_counter_w(space->machine(), 0, data & 0x01);	/* Coin In */
+	coin_counter_w(space->machine, 0, data & 0x01);	/* Coin In */
 }
 
 static WRITE8_HANDLER( payout_w )
 {
-	coin_counter_w(space->machine(), 1, data & 0x01);	/* Payout */
+	coin_counter_w(space->machine, 1, data & 0x01);	/* Payout */
 }
 
 
@@ -232,8 +232,8 @@ static MACHINE_START( supdrapo )
 
 static MACHINE_RESET( supdrapo )
 {
-	supdrapo_state *state = machine.driver_data<supdrapo_state>();
-	state->m_wdog = 1;
+	supdrapo_state *state = (supdrapo_state *)machine->driver_data;
+	state->wdog = 1;
 }
 
 
@@ -241,14 +241,14 @@ static MACHINE_RESET( supdrapo )
                               Memory Map
 **********************************************************************/
 
-static ADDRESS_MAP_START( sdpoker_mem, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sdpoker_mem, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x4fff) AM_ROM
 	AM_RANGE(0x5000, 0x50ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0x57ff, 0x57ff) AM_RAM AM_SHARE("share1")
-	AM_RANGE(0x5800, 0x58ff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(supdrapo_state,m_col_line)
+	AM_RANGE(0x5800, 0x58ff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(supdrapo_state,col_line)
 	AM_RANGE(0x6000, 0x67ff) AM_RAM //work ram
-	AM_RANGE(0x6800, 0x6bff) AM_RAM AM_BASE_MEMBER(supdrapo_state,m_videoram)
-	AM_RANGE(0x6c00, 0x6fff) AM_RAM AM_BASE_MEMBER(supdrapo_state,m_char_bank)
+	AM_RANGE(0x6800, 0x6bff) AM_RAM AM_BASE_MEMBER(supdrapo_state,videoram)
+	AM_RANGE(0x6c00, 0x6fff) AM_RAM AM_BASE_MEMBER(supdrapo_state,char_bank)
 	AM_RANGE(0x7000, 0x7bff) AM_RAM //$7600 seems watchdog
 	AM_RANGE(0x7c00, 0x7c00) AM_WRITE(debug7c00_w)
 	AM_RANGE(0x8000, 0x8000) AM_READ_PORT("IN4") AM_WRITE(wdog8000_w)
@@ -258,7 +258,7 @@ static ADDRESS_MAP_START( sdpoker_mem, AS_PROGRAM, 8 )
 	AM_RANGE(0x8004, 0x8004) AM_READ_PORT("IN3") AM_WRITE(debug8004_w)
 	AM_RANGE(0x8005, 0x8005) AM_READ_PORT("SW2")
 	AM_RANGE(0x8006, 0x8006) AM_READ_PORT("SW1")
-	AM_RANGE(0x9000, 0x90ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x9000, 0x90ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x9400, 0x9400) AM_READ(sdpoker_rng_r)
 	AM_RANGE(0x9800, 0x9801) AM_DEVWRITE("aysnd", ay8910_data_address_w)
 ADDRESS_MAP_END
@@ -430,38 +430,40 @@ static const ay8910_interface ay8910_config =
                            Machine Driver
 **********************************************************************/
 
-static MACHINE_CONFIG_START( supdrapo, supdrapo_state )
+static MACHINE_DRIVER_START( supdrapo )
 
-	MCFG_CPU_ADD("maincpu", Z80, CPU_CLOCK)	/* guess */
-	MCFG_CPU_PROGRAM_MAP(sdpoker_mem)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_DRIVER_DATA( supdrapo_state )
 
-	MCFG_MACHINE_START(supdrapo)
-	MCFG_MACHINE_RESET(supdrapo)
+	MDRV_CPU_ADD("maincpu", Z80, CPU_CLOCK)	/* guess */
+	MDRV_CPU_PROGRAM_MAP(sdpoker_mem)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_START(supdrapo)
+	MDRV_MACHINE_RESET(supdrapo)
+
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(supdrapo)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
 
-	MCFG_GFXDECODE(supdrapo)
-	MCFG_PALETTE_LENGTH(0x100)
-	MCFG_PALETTE_INIT(sdpoker)
+	MDRV_GFXDECODE(supdrapo)
+	MDRV_PALETTE_LENGTH(0x100)
+	MDRV_PALETTE_INIT(sdpoker)
 
-	MCFG_VIDEO_START(supdrapo)
+	MDRV_VIDEO_START(supdrapo)
+	MDRV_VIDEO_UPDATE(supdrapo)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, SND_CLOCK)	/* guess */
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, SND_CLOCK)	/* guess */
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 /*********************************************************************

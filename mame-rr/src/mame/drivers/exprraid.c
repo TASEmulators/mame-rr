@@ -98,7 +98,7 @@ Stephh's notes (based on the games M6502 code and some tests) :
     It is tested though via code at 0xe794.
     When this Dip Switch is set to "On", pressing COIN1 or COIN2 always
     adds 1 credit regardless of the "Coinage" and "Coin Mode" settings.
-  - At the beginning of each level, you have text in upper case
+  - At the begining of each level, you have text in upper case
     which gives you some hints to pass the level or some advice.
   - In this version, due to extra code at 0xfd80, you only have 4 wagons
     for the "shoot" stages instead of 5.
@@ -153,7 +153,7 @@ Stephh's notes (based on the games M6502 code and some tests) :
     Coinage tables :
       * 0xe7dc : COIN1 - 0xe7e4 : COIN2 (Mode 1)
       * 0xe7ec : COIN1 - 0xe7f4 : COIN2 (Mode 2)
-  - At the beginning of each level, you have text in lower case
+  - At the begining of each level, you have text in lower case
     which doesn't give you any hints to pass the level nor advice.
   - In this version, you always have 5 wagons for the "shoot" stages.
   - Continue play is always available but score is reset to 0.
@@ -188,7 +188,7 @@ Stephh's notes (based on the games M6502 code and some tests) :
 
   - "@ 1986 DATA EAST CORPORATION" + extra code to display the Warning screen (Japan)
   - Original Warning screen
-  - "CREDIT" misspelled to "CRDDIT".
+  - "CREDIT" mispelled to "CRDDIT".
   - This version is heavily based on 'exprrada' (even if I think
     that there shall exist a "better" Japan undumped version)
     so all comments also fit for this set. The main difference is
@@ -219,11 +219,11 @@ Stephh's notes (based on the games M6502 code and some tests) :
 
 static READ8_HANDLER( exprraid_protection_r )
 {
-	exprraid_state *state = space->machine().driver_data<exprraid_state>();
+	exprraid_state *state = (exprraid_state *)space->machine->driver_data;
 	switch (offset)
 	{
 	case 0:
-		return state->m_main_ram[0x02a9];
+		return state->main_ram[0x02a9];
 	case 1:
 		return 0x02;
 	}
@@ -233,21 +233,21 @@ static READ8_HANDLER( exprraid_protection_r )
 
 static WRITE8_HANDLER( sound_cpu_command_w )
 {
-	exprraid_state *state = space->machine().driver_data<exprraid_state>();
+	exprraid_state *state = (exprraid_state *)space->machine->driver_data;
 	soundlatch_w(space, 0, data);
-	device_set_input_line(state->m_slave, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->slave, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static READ8_HANDLER( vblank_r )
 {
-	return input_port_read(space->machine(), "IN0");
+	return input_port_read(space->machine, "IN0");
 }
 
-static ADDRESS_MAP_START( master_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x05ff) AM_RAM AM_BASE_MEMBER(exprraid_state, m_main_ram)
-	AM_RANGE(0x0600, 0x07ff) AM_RAM AM_BASE_SIZE_MEMBER(exprraid_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x0800, 0x0bff) AM_RAM_WRITE(exprraid_videoram_w) AM_BASE_MEMBER(exprraid_state, m_videoram)
-	AM_RANGE(0x0c00, 0x0fff) AM_RAM_WRITE(exprraid_colorram_w) AM_BASE_MEMBER(exprraid_state, m_colorram)
+static ADDRESS_MAP_START( master_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x05ff) AM_RAM AM_BASE_MEMBER(exprraid_state, main_ram)
+	AM_RANGE(0x0600, 0x07ff) AM_RAM AM_BASE_SIZE_MEMBER(exprraid_state, spriteram, spriteram_size)
+	AM_RANGE(0x0800, 0x0bff) AM_RAM_WRITE(exprraid_videoram_w) AM_BASE_MEMBER(exprraid_state, videoram)
+	AM_RANGE(0x0c00, 0x0fff) AM_RAM_WRITE(exprraid_colorram_w) AM_BASE_MEMBER(exprraid_state, colorram)
 	AM_RANGE(0x1317, 0x1317) AM_READNOP // ???
 	AM_RANGE(0x1700, 0x1700) AM_READNOP // ???
 	AM_RANGE(0x1800, 0x1800) AM_READ_PORT("DSW0")	/* DSW 0 */
@@ -266,11 +266,11 @@ static ADDRESS_MAP_START( master_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x4000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( master_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( master_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("IN0")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slave_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_RAM
 	AM_RANGE(0x2000, 0x2001) AM_DEVREADWRITE("ym1", ym2203_r, ym2203_w)
 	AM_RANGE(0x4000, 0x4001) AM_DEVREADWRITE("ym2", ym3526_r, ym3526_w)
@@ -280,14 +280,14 @@ ADDRESS_MAP_END
 
 static INPUT_CHANGED( coin_inserted_deco16 )
 {
-	exprraid_state *state = field.machine().driver_data<exprraid_state>();
-	device_set_input_line(state->m_maincpu, DECO16_IRQ_LINE, newval ? CLEAR_LINE : ASSERT_LINE);
+	exprraid_state *state = (exprraid_state *)field->port->machine->driver_data;
+	cpu_set_input_line(state->maincpu, DECO16_IRQ_LINE, newval ? CLEAR_LINE : ASSERT_LINE);
 }
 
 static INPUT_CHANGED( coin_inserted_nmi )
 {
-	exprraid_state *state = field.machine().driver_data<exprraid_state>();
-	device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
+	exprraid_state *state = (exprraid_state *)field->port->machine->driver_data;
+	cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
 }
 
 static INPUT_PORTS_START( exprraid )
@@ -439,10 +439,10 @@ GFXDECODE_END
 
 
 /* handler called by the 3812 emulator when the internal timers cause an IRQ */
-static void irqhandler( device_t *device, int linestate )
+static void irqhandler( running_device *device, int linestate )
 {
-	exprraid_state *state = device->machine().driver_data<exprraid_state>();
-	device_set_input_line_and_vector(state->m_slave, 0, linestate, 0xff);
+	exprraid_state *state = (exprraid_state *)device->machine->driver_data;
+	cpu_set_input_line_and_vector(state->slave, 0, linestate, 0xff);
 }
 
 static const ym3526_interface ym3526_config =
@@ -453,21 +453,21 @@ static const ym3526_interface ym3526_config =
 #if 0
 static INTERRUPT_GEN( exprraid_interrupt )
 {
-	exprraid_state *state = device->machine().driver_data<exprraid_state>();
+	exprraid_state *state = (exprraid_state *)device->machine->driver_data;
 
-	if ((~input_port_read(device->machine(), "IN2")) & 0xc0)
+	if ((~input_port_read(device->machine, "IN2")) & 0xc0)
 	{
-		if (state->m_coin == 0)
+		if (state->coin == 0)
 		{
-			state->m_coin = 1;
-			//device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
-			device_set_input_line(device, DECO16_IRQ_LINE, ASSERT_LINE);
+			state->coin = 1;
+			//cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+			cpu_set_input_line(device, DECO16_IRQ_LINE, ASSERT_LINE);
 		}
 	}
 	else
 	{
-		device_set_input_line(device, DECO16_IRQ_LINE, CLEAR_LINE);
-		state->m_coin = 0;
+		cpu_set_input_line(device, DECO16_IRQ_LINE, CLEAR_LINE);
+		state->coin = 0;
 	}
 }
 #endif
@@ -475,68 +475,72 @@ static INTERRUPT_GEN( exprraid_interrupt )
 
 static MACHINE_START( exprraid )
 {
-	exprraid_state *state = machine.driver_data<exprraid_state>();
+	exprraid_state *state = (exprraid_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_slave = machine.device("slave");
+	state->maincpu = machine->device("maincpu");
+	state->slave = machine->device("slave");
 
-	state->save_item(NAME(state->m_bg_index));
+	state_save_register_global_array(machine, state->bg_index);
 }
 
 static MACHINE_RESET( exprraid )
 {
-	exprraid_state *state = machine.driver_data<exprraid_state>();
+	exprraid_state *state = (exprraid_state *)machine->driver_data;
 
-	state->m_bg_index[0] = 0;
-	state->m_bg_index[1] = 0;
-	state->m_bg_index[2] = 0;
-	state->m_bg_index[3] = 0;
+	state->bg_index[0] = 0;
+	state->bg_index[1] = 0;
+	state->bg_index[2] = 0;
+	state->bg_index[3] = 0;
 }
 
-static MACHINE_CONFIG_START( exprraid, exprraid_state )
+static MACHINE_DRIVER_START( exprraid )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(exprraid_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", DECO16, 4000000)        /* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(master_map)
-	MCFG_CPU_IO_MAP(master_io_map)
+	MDRV_CPU_ADD("maincpu", DECO16, 4000000)        /* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(master_map)
+	MDRV_CPU_IO_MAP(master_io_map)
 
-	MCFG_CPU_ADD("slave", M6809, 2000000)        /* 2 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(slave_map)
+	MDRV_CPU_ADD("slave", M6809, 2000000)        /* 2 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(slave_map)
 								/* IRQs are caused by the YM3526 */
-	MCFG_MACHINE_START(exprraid)
-	MCFG_MACHINE_RESET(exprraid)
+	MDRV_MACHINE_START(exprraid)
+	MDRV_MACHINE_RESET(exprraid)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(exprraid)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(exprraid)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(exprraid)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(exprraid)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(exprraid)
+	MDRV_VIDEO_UPDATE(exprraid)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 1500000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("ym1", YM2203, 1500000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ym2", YM3526, 3600000)
-	MCFG_SOUND_CONFIG(ym3526_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM3526, 3600000)
+	MDRV_SOUND_CONFIG(ym3526_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( exprboot, exprraid )
+static MACHINE_DRIVER_START( exprboot )
+	MDRV_IMPORT_FROM(exprraid)
 
-	MCFG_CPU_REPLACE("maincpu", M6502, 4000000)        /* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(master_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_REPLACE("maincpu", M6502, 4000000)        /* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(master_map)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -733,11 +737,11 @@ ROM_START( wexpressb2 )
 ROM_END
 
 
-static void exprraid_gfx_expand(running_machine &machine)
+static void exprraid_gfx_expand(running_machine *machine)
 {
 	/* Expand the background rom so we can use regular decode routines */
 
-	UINT8	*gfx = machine.region("gfx3")->base();
+	UINT8	*gfx = memory_region(machine, "gfx3");
 	int offs = 0x10000 - 0x1000;
 	int i;
 
@@ -756,7 +760,7 @@ static void exprraid_gfx_expand(running_machine &machine)
 
 static DRIVER_INIT( wexpress )
 {
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 
 	/* HACK: this set uses M6502 irq vectors but DECO CPU-16 opcodes??? */
 	rom[0xfff7] = rom[0xfffa];
@@ -778,13 +782,13 @@ static DRIVER_INIT( exprraid )
 
 static DRIVER_INIT( wexpressb )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x3800, 0x3800, FUNC(vblank_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x3800, 0x3800, 0, 0, vblank_r);
 	exprraid_gfx_expand(machine);
 }
 
 static DRIVER_INIT( wexpressb2 )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0xFFC0, 0xFFC0, FUNC(vblank_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xFFC0, 0xFFC0, 0, 0, vblank_r);
 	exprraid_gfx_expand(machine);
 }
 

@@ -49,7 +49,7 @@ static void(*info_onstart)(int uid);
 static void(*info_onstop)(int uid);
 static int info_uid;
 
-running_machine * machine;
+running_machine *machine;
 static lua_State *LUA;
 
 // Screen
@@ -199,19 +199,19 @@ void MAME_LuaWriteInform() {
 	while (lua_next(LUA, 1) != 0)
 	{
 		unsigned int addr = luaL_checkinteger(LUA, 2);
-		address_space *space = machine->firstcpu->space();
+		const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 		lua_Integer value;
 		lua_getfield(LUA, LUA_REGISTRYINDEX, memoryValueTable);
 		lua_pushvalue(LUA, 2);
 		lua_gettable(LUA, 4);
 		value = luaL_checkinteger(LUA, 5);
-		if (value != (lua_Integer)space->read_byte(addr))
+		if (value != (lua_Integer)memory_read_byte(space, addr))
 		{
 			int res;
 
 			// Value changed; update & invoke the Lua callback
 			lua_pushinteger(LUA, addr);
-			lua_pushinteger(LUA, space->read_byte(addr));
+			lua_pushinteger(LUA, memory_read_byte(space, addr));
 			lua_settable(LUA, 4);
 			lua_pop(LUA, 2);
 
@@ -259,7 +259,7 @@ static int mame_romname(lua_State *L) {
 //
 //   Returns the name of the source file for the running game.
 static int mame_gamename(lua_State *L) {
-	lua_pushstring(L, machine->system().description);
+	lua_pushstring(L, machine->gamedrv->description);
 	return 1;
 }
 
@@ -267,7 +267,7 @@ static int mame_gamename(lua_State *L) {
 //
 //   Returns the name of the source file for the running game.
 static int mame_parentname(lua_State *L) {
-	lua_pushstring(L, machine->system().parent);
+	lua_pushstring(L, machine->gamedrv->parent);
 	return 1;
 }
 
@@ -276,13 +276,13 @@ static int mame_parentname(lua_State *L) {
 //   Returns the name of the source file for the running game.
 static int mame_sourcename(lua_State *L) {
 	const char *srcfile;
-	srcfile = strrchr(machine->system().source_file, '/');
+	srcfile = strrchr(machine->gamedrv->source_file, '/');
 	if (!srcfile)
-		srcfile = strrchr(machine->system().source_file, '\\');
+		srcfile = strrchr(machine->gamedrv->source_file, '\\');
 	if (!srcfile)
-		srcfile = strrchr(machine->system().source_file, ':');
+		srcfile = strrchr(machine->gamedrv->source_file, ':');
 	if (!srcfile)
-		srcfile = machine->system().source_file;
+		srcfile = machine->gamedrv->source_file;
 	else
 		srcfile++;
 	lua_pushstring(L, srcfile);
@@ -302,17 +302,17 @@ static int mame_speedmode(lua_State *L) {
 	
 	if (core_stricmp(mode, "normal")==0) {
 		speedmode = SPEED_NORMAL;
-		machine->video().set_fastforward(false);
-		machine->video().set_throttled(true);
+		video_set_fastforward(FALSE);
+		video_set_throttle(TRUE);
 	} else if (core_stricmp(mode, "nothrottle")==0) {
 		speedmode = SPEED_NOTHROTTLE;
-		machine->video().set_throttled(false);
+		video_set_throttle(FALSE);
 	} else if (core_stricmp(mode, "turbo")==0) {
 		speedmode = SPEED_TURBO;
-		machine->video().set_fastforward(true);
+		video_set_fastforward(TRUE);
 	} else if (core_stricmp(mode, "maximum")==0) {
 		speedmode = SPEED_MAXIMUM;
-//		SetEmulationSpeed(EMUSPEED_MAXIMUM); // TODO-RR
+//		SetEmulationSpeed(EMUSPEED_MAXIMUM); // TODO
 	} else
 		luaL_error(L, "Invalid mode %s to mame.speedmode",mode);
 
@@ -744,64 +744,64 @@ static int mame_registerstart(lua_State *L) {
 	return 1;
 }
 
-static UINT16 custom_read_word(address_space *space, offs_t address) {
+static UINT16 custom_read_word(const address_space *space, offs_t address) {
 	// if this is misaligned read, just read two bytes
 	if ((address & 1) != 0) {
-		UINT8 byte0 = space->read_byte(address + 0);
-		UINT8 byte1 = space->read_byte(address + 1);
+		UINT8 byte0 = memory_read_byte(space, address + 0);
+		UINT8 byte1 = memory_read_byte(space, address + 1);
 
 		// based on the endianness, the result is assembled differently
-		if (space->endianness() == ENDIANNESS_LITTLE)
+		if (space->endianness == ENDIANNESS_LITTLE)
 			return (byte0 | (byte1 << 8));
 		else
 			return (byte1 | (byte0 << 8));
 	}
 	else
-		return space->read_word(address);
+		return memory_read_word(space, address);
 }
 
-static UINT32 custom_read_dword(address_space *space, offs_t address) {
+static UINT32 custom_read_dword(const address_space *space, offs_t address) {
 	// if this is misaligned read, just read two words */
 	if ((address & 3) != 0) {
 		UINT16 word0 = custom_read_word(space, address + 0);
 		UINT16 word1 = custom_read_word(space, address + 2);
 
 		// based on the endianness, the result is assembled differently
-		if (space->endianness() == ENDIANNESS_LITTLE)
+		if (space->endianness == ENDIANNESS_LITTLE)
 			return (word0 | (word1 << 16));
 		else
 			return (word1 | (word0 << 16));
 	}
 	else
-		return space->read_dword(address);
+		return memory_read_dword(space, address);
 }
 
 static int memory_readbyte(lua_State *L)
 {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
-	lua_pushinteger(L, space->read_byte(luaL_checkinteger(L,1)) );
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, memory_read_byte(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readbytesigned(lua_State *L) {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
-	lua_pushinteger(L, (signed char)space->read_byte(luaL_checkinteger(L,1)));
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	lua_pushinteger(L, (signed char)memory_read_byte(space, luaL_checkinteger(L,1)));
 	return 1;
 }
 
 static int memory_readword(lua_State *L)
 {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, custom_read_word(space, luaL_checkinteger(L,1)) );
 	return 1;
 }
 
 static int memory_readwordsigned(lua_State *L) {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (signed short)custom_read_word(space, luaL_checkinteger(L,1)));
 	return 1;
 }
@@ -809,7 +809,7 @@ static int memory_readwordsigned(lua_State *L) {
 static int memory_readdword(lua_State *L)
 {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	UINT32 val = custom_read_dword(space, luaL_checkinteger(L,1));
 
 	// lua_pushinteger doesn't work properly for 32bit system, does it?
@@ -822,7 +822,7 @@ static int memory_readdword(lua_State *L)
 
 static int memory_readdwordsigned(lua_State *L) {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	lua_pushinteger(L, (INT32)custom_read_dword(space, luaL_checkinteger(L,1)));
 	return 1;
 }
@@ -832,7 +832,7 @@ static int memory_readbyterange(lua_State *L) {
 	int a,n;
 	UINT32 address = luaL_checkinteger(L,1);
 	int length = luaL_checkinteger(L,2);
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	if(length < 0)
 	{
@@ -846,7 +846,7 @@ static int memory_readbyterange(lua_State *L) {
 	// put all the values into the (1-based) array
 	for(a = address, n = 1; n <= length; a++, n++)
 	{
-		unsigned char value = space->read_byte(address);
+		unsigned char value = memory_read_byte(space, address);
 		lua_pushinteger(L, value);
 		lua_rawseti(L, -2, n);
 	}
@@ -854,26 +854,26 @@ static int memory_readbyterange(lua_State *L) {
 	return 1;
 }
 
-void custom_write_word(address_space *space, offs_t address, UINT16 data) {
+void custom_write_word(const address_space *space, offs_t address, UINT16 data) {
 	// if this is a misaligned write, just write two bytes
 	if ((address & 1) != 0) {
-		if (space->endianness() == ENDIANNESS_LITTLE) {
-			space->write_byte(address + 0, data >> 0);
-			space->write_byte(address + 1, data >> 8);
+		if (space->endianness == ENDIANNESS_LITTLE) {
+			memory_write_byte(space, address + 0, data >> 0);
+			memory_write_byte(space, address + 1, data >> 8);
 		}
 		else {
-			space->write_byte(address + 0, data >> 8);
-			space->write_byte(address + 1, data >> 0);
+			memory_write_byte(space, address + 0, data >> 8);
+			memory_write_byte(space, address + 1, data >> 0);
 		}
 	}
 	else
-		space->write_word(address, data);
+		memory_write_word(space, address, data);
 }
 
-void custom_write_dword(address_space *space, offs_t address, UINT32 data) {
+void custom_write_dword(const address_space *space, offs_t address, UINT32 data) {
 	// if this is a misaligned write, just write two words
 	if ((address & 3) != 0) {
-		if (space->endianness() == ENDIANNESS_LITTLE) {
+		if (space->endianness == ENDIANNESS_LITTLE) {
 			custom_write_word(space, address + 0, data >> 0);
 			custom_write_word(space, address + 2, data >> 16);
 		}
@@ -883,21 +883,21 @@ void custom_write_dword(address_space *space, offs_t address, UINT32 data) {
 		}
 	}
 	else
-		space->write_dword(address, data);
+		memory_write_dword(space, address, data);
 }
 
 static int memory_writebyte(lua_State *L)
 {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
-	space->write_byte(luaL_checkinteger(L,1), luaL_checkinteger(L,2));
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
+	memory_write_byte(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
 }
 
 static int memory_writeword(lua_State *L)
 {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	custom_write_word(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
 }
@@ -905,7 +905,7 @@ static int memory_writeword(lua_State *L)
 static int memory_writedword(lua_State *L)
 {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 	custom_write_dword(space, luaL_checkinteger(L,1), luaL_checkinteger(L,2));
 	return 0;
 }
@@ -920,12 +920,12 @@ static int memory_registerwrite(lua_State *L) {
 	if (empty_driver.compare(machine->basename()) == 0) luaL_error(L, "no game loaded");
 	// Check args
 	unsigned int addr = luaL_checkinteger(L, 1);
-	address_space *space = machine->firstcpu->space();
+	const address_space *space = cpu_get_address_space(machine->firstcpu, ADDRESS_SPACE_PROGRAM);
 
 	
 	
 	// Check the address range
-//	if (addr > space->address_to_byte(space->bytemask))
+//	if (addr > memory_address_to_byte(space,space->bytemask))
 //		luaL_error(L, "arg 1 is out of range");
 
 	// Commit it to the registery
@@ -936,7 +936,7 @@ static int memory_registerwrite(lua_State *L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, memoryValueTable);
 	lua_pushvalue(L,1);
 	if (lua_isnil(L,2)) lua_pushnil(L);
-	else lua_pushinteger(L, space->read_byte(addr));
+	else lua_pushinteger(L, memory_read_byte(space, addr));
 	lua_settable(L, -3);
 	
 	if(!usingMemoryRegister)
@@ -952,23 +952,23 @@ static int joy_get_internal(lua_State *L, bool reportUp, bool reportDown) {
 	lua_newtable(L);
 
 	// Update the values of all the inputs
-	input_field_config *field;
-	input_port_config *port;
+	const input_field_config *field;
+	const input_port_config *port;
 
 	// iterate over the input ports and add menu items
 	for (port = machine->m_portlist.first(); port != NULL; port = port->next())
-		for (field = port->fieldlist().first(); field != NULL; field = field->next()) {
+		for (field = port->fieldlist; field != NULL; field = field->next) {
 			const char *name = input_field_name(field);
 
 			// add if we match the group and we have a valid name
-			if (name != NULL && input_condition_true(*machine, &field->condition, port->owner()) &&
+			if (name != NULL && input_condition_true(machine, &field->condition) &&
 #ifdef MESS
 				(field->category == 0 || input_category_active(machine, field->category)) &&
 #endif // MESS
-				((field->type == IPT_OTHER && field->name != NULL) || input_type_group(*machine, field->type, field->player) != IPG_INVALID)) {
+				((field->type == IPT_OTHER && field->name != NULL) || input_type_group(machine, field->type, field->player) != IPG_INVALID)) {
 //					type = input_type_is_analog(field->type) ? INPUT_TYPE_ANALOG : INPUT_TYPE_DIGITAL;
 //					bool pressed = input_seq_pressed(machine,input_field_seq(field, SEQ_TYPE_STANDARD));
-					bool pressed = get_port_digital(*port) & field->mask;
+					bool pressed = get_port_digital(port) & field->mask;
 					if ((pressed && reportDown) || (!pressed && reportUp)) {
 						lua_pushboolean(L,pressed);
 						lua_setfield(L, -2, name);
@@ -1016,20 +1016,20 @@ static int joypad_set(lua_State *L) {
 	memset(lua_joypads,0,0x0100);
 
 	// Update the values of all the inputs
-	input_field_config *field;
-	input_port_config *port;
+	const input_field_config *field;
+	const input_port_config *port;
 
 	// iterate over the input ports and add menu items
 	for (port = machine->m_portlist.first(); port != NULL; port = port->next())
-		for (field = port->fieldlist().first(); field != NULL; field = field->next()) {
+		for (field = port->fieldlist; field != NULL; field = field->next) {
 			const char *name = input_field_name(field);
 
 			// add if we match the group and we have a valid name
-			if (name != NULL && input_condition_true(*machine, &field->condition, port->owner()) &&
+			if (name != NULL && input_condition_true(machine, &field->condition) &&
 #ifdef MESS
-				(field->category == 0 || input_category_active(*machine, field->category)) &&
+				(field->category == 0 || input_category_active(machine, field->category)) &&
 #endif // MESS
-				((field->type == IPT_OTHER && field->name != NULL) || input_type_group(*machine, field->type, field->player) != IPG_INVALID)) {
+				((field->type == IPT_OTHER && field->name != NULL) || input_type_group(machine, field->type, field->player) != IPG_INVALID)) {
 					lua_getfield(L, 1, name);
 					if (!lua_isnil(L,-1)) {
 						if (lua_toboolean(L,-1))
@@ -1057,7 +1057,7 @@ void luasav_save(const char *fullname) {
 	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator)) );
 	filenameEnd = strrchr(filename, '.');
 	filenameEnd[0] = '\0';
-	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", machine->options().state_directory(),
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE),
 	        PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 
 	// call savestate.save callback if any and store the results in a luasav file if any
@@ -1084,7 +1084,7 @@ void luasav_load(const char *fullname) {
 	strncpy ( filename, strrchr(fullname, pathseparator)+1,strlen(strrchr(fullname, pathseparator)) );
 	filenameEnd = strrchr(filename, '.');
 	filenameEnd[0] = '\0';
-	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", machine->options().state_directory(),
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE),
 	        PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 
 	// call savestate.registerload callback if any
@@ -1249,7 +1249,7 @@ static int savestate_loadscriptdata(lua_State *L) {
 	else
 		filename = luaL_checkstring(L,1);
 
-	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", machine->options().state_directory(), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
+	sprintf(luaSaveFilename, "%s%s%s%s%s.luasav", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 	luaSaveFile = fopen(luaSaveFilename, "rb");
 	if(luaSaveFile)
 	{
@@ -1272,7 +1272,7 @@ static int savestate_savescriptdata(lua_State *L) {
 	else
 		filename = luaL_checkstring(L,1);
 
-	sprintf(luaSaveFilename, "%s%s%s%s%s.sta", machine->options().state_directory(), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
+	sprintf(luaSaveFilename, "%s%s%s%s%s.sta", options_get_string(mame_options(), SEARCHPATH_STATE), PATH_SEPARATOR, machine->basename(), PATH_SEPARATOR, filename);
 	luasav_save(luaSaveFilename);
 	return 0;
 }
@@ -1282,7 +1282,7 @@ static int savestate_savescriptdata(lua_State *L) {
 //
 //   Gets the frame counter for the movie
 int movie_framecount(lua_State *L) {
-	lua_pushinteger(L, get_current_frame(*machine));
+	lua_pushinteger(L, get_current_frame(machine));
 	return 1;
 }
 
@@ -1290,9 +1290,9 @@ int movie_framecount(lua_State *L) {
 //
 //   "record", "playback" or nil
 int movie_mode(lua_State *L) {
-	if (get_record_file(*machine))
+	if (get_record_file(machine))
 		lua_pushstring(L, "record");
-	else if (get_playback_file(*machine))
+	else if (get_playback_file(machine))
 		lua_pushstring(L, "playback");
 	else
 		lua_pushnil(L);
@@ -1313,10 +1313,10 @@ static int movie_rerecordcounting(lua_State *L) {
 //
 //   Stops movie playback/recording. Bombs out if movie is not running.
 static int movie_stop(lua_State *L) {
-	if (!get_record_file(*machine) && !get_playback_file(*machine))
+	if (!get_record_file(machine) && !get_playback_file(machine))
 		luaL_error(L, "no movie");
 
-	stop_movie(*machine, "used movie.stop()");
+	stop_movie(machine, "used movie.stop()");
 	return 0;
 }
 
@@ -1332,8 +1332,8 @@ static void gui_prepare() {
 		gui_bitmap = bitmap_alloc(LUA_SCREEN_WIDTH, LUA_SCREEN_HEIGHT, BITMAP_FORMAT_ARGB32);
 		bitmap_fill(gui_bitmap, NULL, MAKE_ARGB(0x00,0xff,0xff,0xff));
 		gui_data = (UINT8 *)BITMAP_ADDR8(gui_bitmap,0,0);
-		gui_texture = machine->render().texture_alloc(NULL);
-		gui_texture->set_bitmap(gui_bitmap, NULL, TEXFORMAT_ARGB32);
+		gui_texture = render_texture_alloc(NULL, NULL);
+		render_texture_set_bitmap(gui_texture, gui_bitmap, NULL, TEXFORMAT_ARGB32, NULL);
 
 		old_screen_width  = LUA_SCREEN_WIDTH;
 		old_screen_height = LUA_SCREEN_HEIGHT;
@@ -2954,7 +2954,7 @@ static int input_getcurrentinputstatus(lua_State *L) {
 		int x, y, bla;
 		RECT t;
 		GetClientRect(win_window_list->hwnd, &t);
-		ui_input_find_mouse(*machine, &x, &y, &bla);
+		ui_input_find_mouse(machine, &x, &y, &bla);
 		x = (x / ((float)t.right / LUA_SCREEN_WIDTH));
 		y = (y / ((float)t.bottom / LUA_SCREEN_HEIGHT));
 	
@@ -3678,25 +3678,25 @@ UINT32 MAME_LuaReadJoypad() {
 	if (lua_joypads_used) {
 		// Update the values of all the inputs
 		unsigned int i = 0;
-	input_field_config *field;
-	input_port_config *port;
-
-	// iterate over the input ports and add menu items
+		const input_field_config *field;
+		const input_port_config *port;
+	
+		// iterate over the input ports and add menu items
 		for (port = machine->m_portlist.first(); port != NULL; port = port->next())
-			for (field = port->fieldlist().first(); field != NULL; field = field->next()) {
+			for (field = port->fieldlist; field != NULL; field = field->next) {
 				const char *name = input_field_name(field);
 	
 				// add if we match the group and we have a valid name
-				if (name != NULL && input_condition_true(*machine, &field->condition, port->owner()) &&
+				if (name != NULL && input_condition_true(machine, &field->condition) &&
 	#ifdef MESS
-					(field->category == 0 || input_category_active(*machine, field->category)) &&
+					(field->category == 0 || input_category_active(machine, field->category)) &&
 	#endif // MESS
-					((field->type == IPT_OTHER && field->name != NULL) || input_type_group(*machine, field->type, field->player) != IPG_INVALID)) {
+					((field->type == IPT_OTHER && field->name != NULL) || input_type_group(machine, field->type, field->player) != IPG_INVALID)) {
 						if(lua_joypads[i] == 1) {
-							set_port_digital(*port, get_port_digital(*port) | field->mask);
+							set_port_digital(port, get_port_digital(port) | field->mask);
 						}
 						if(lua_joypads[i] == 2) {
-							set_port_digital(*port, get_port_digital(*port) & (~field->mask));
+							set_port_digital(port, get_port_digital(port) & (~field->mask));
 						}
 //						mame_printf_info("*READ_JOY*: '%s' %d (%X:%X:%X:%X)\n",name,lua_joypads[i],caca,field->mask,(caca ^ field->mask),(caca & field->mask));
 						i++;
@@ -3757,10 +3757,11 @@ void MAME_LuaGui() {
 
 	gui_used = GUI_USED_SINCE_LAST_FRAME;
 
-	machine->primary_screen->container().add_quad(0.0f, 0.0f,
-	                                             1.0f, 1.0f,
-	                                             MAKE_ARGB(0xff, 0xff, 0xff, 0xff),
-	                                             gui_texture, PRIMFLAG_BLENDMODE(BLENDMODE_ALPHA));
+	render_screen_add_quad(machine->primary_screen,
+	                       0.0f, 0.0f,
+	                       1.0f, 1.0f,
+	                       MAKE_ARGB(0xff, 0xff, 0xff, 0xff),
+	                       gui_texture, PRIMFLAG_BLENDMODE(BLENDMODE_ALPHA));
 }
 
 /**
@@ -3927,7 +3928,7 @@ char* MAME_GetLuaScriptName() {
 }
 
 
-static void on_vblank(running_machine &machine, screen_device &device, bool vblank_state)
+static void on_vblank(screen_device &screen, void *param, bool vblank_state)
 {
 	if (!vblank_state)
 		CallRegisteredLuaFunctions(LUACALL_AFTEREMULATION);
@@ -3937,30 +3938,30 @@ void lua_exit(running_machine &machine)
 {
 	// free bitmaps and textures for the GUI
 	if (gui_texture != NULL)
-		machine.render().texture_free(gui_texture);
+		render_texture_free(gui_texture);
 	gui_texture = NULL;
 
 	if (gui_bitmap != NULL)
-		global_free(gui_bitmap);
+		bitmap_free(gui_bitmap);
 	gui_bitmap = NULL;
 	
 	old_screen_width  = 0;
 	old_screen_height = 0;
 }
 
-void lua_init(running_machine &machine_ptr)
+void lua_init(running_machine *machine_ptr)
 {
-	const char *filename = machine_ptr.options().value(OPTION_LUA);
+	const char *filename = options_get_string(mame_options(), OPTION_LUA);
 
 	if ( (filename[0] != 0) && (LUA == NULL) )
 		MAME_LoadLuaCode(filename);
 
-	if (machine != &machine_ptr)
-		machine = &machine_ptr;
+	if (machine != machine_ptr)
+		machine = machine_ptr;
 	gui_prepare();
-	machine->add_notifier(MACHINE_NOTIFY_FRAME, machine_notify_delegate(FUNC(MAME_LuaFrameBoundary), machine));
-	machine->add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(FUNC(lua_exit), machine));
-	machine->primary_screen->register_vblank_callback(vblank_state_delegate(FUNC(on_vblank), machine));
+	machine->add_notifier(MACHINE_NOTIFY_FRAME, MAME_LuaFrameBoundary);
+	machine->add_notifier(MACHINE_NOTIFY_EXIT, lua_exit);
+	machine->primary_screen->register_vblank_callback(on_vblank, NULL);
 	CallRegisteredLuaFunctions(LUACALL_ONSTART);
 	is_init = true;
 }

@@ -98,10 +98,9 @@ static sdl_draw_info draw;
 
 typedef struct _worker_param worker_param;
 struct _worker_param {
-	running_machine &machine() const { assert(m_machine != NULL); return *m_machine; }
 	sdl_window_info *window;
-	render_primitive_list *list;
-	running_machine *m_machine;
+	const render_primitive_list *list;
+	running_machine *machine;
 	int resize_new_width;
 	int resize_new_height;
 };
@@ -112,19 +111,19 @@ struct _worker_param {
 //============================================================
 
 static void sdlwindow_exit(running_machine &machine);
-static void sdlwindow_video_window_destroy(running_machine &machine, sdl_window_info *window);
+static void sdlwindow_video_window_destroy(running_machine *machine, sdl_window_info *window);
 static OSDWORK_CALLBACK( draw_video_contents_wt );
 static OSDWORK_CALLBACK( sdlwindow_video_window_destroy_wt );
 static OSDWORK_CALLBACK( sdlwindow_resize_wt );
 static OSDWORK_CALLBACK( sdlwindow_toggle_full_screen_wt );
-static void sdlwindow_update_cursor_state(running_machine &machine, sdl_window_info *window);
+static void sdlwindow_update_cursor_state(running_machine *machine, sdl_window_info *window);
 static void sdlwindow_sync(void);
 
 static void get_min_bounds(sdl_window_info *window, int *window_width, int *window_height, int constrain);
 static void get_max_bounds(sdl_window_info *window, int *window_width, int *window_height, int constrain);
 
 static void *complete_create_wt(void *param, int threadid);
-static void set_starting_view(running_machine &machine, int index, sdl_window_info *window, const char *defview, const char *view);
+static void set_starting_view(running_machine *machine, int index, sdl_window_info *window, const char *view);
 
 //============================================================
 //  clear the worker_param structure, inline - faster than memset
@@ -134,7 +133,7 @@ INLINE void clear_worker_param(worker_param *wp)
 {
 	wp->window=NULL;
 	wp->list=NULL;
-	wp->m_machine=NULL;
+	wp->machine=NULL;
 	wp->resize_new_width=0;
 	wp->resize_new_height=0;
 }
@@ -203,17 +202,17 @@ static OSDWORK_CALLBACK(sdlwindow_thread_id)
 //  (main thread)
 //============================================================
 
-int sdlwindow_init(running_machine &machine)
+int sdlwindow_init(running_machine *machine)
 {
 	mame_printf_verbose("Enter sdlwindow_init\n");
 	// determine if we are using multithreading or not
-	multithreading_enabled = downcast<sdl_options &>(machine.options()).multithreading();
+	multithreading_enabled = options_get_bool(machine->options(), SDLOPTION_MULTITHREADING);
 
 	// get the main thread ID before anything else
 	main_threadid = SDL_ThreadID();
 
 	// ensure we get called on the way out
-	machine.add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(FUNC(sdlwindow_exit), &machine));
+	machine->add_notifier(MACHINE_NOTIFY_EXIT, sdlwindow_exit);
 
 	// if multithreading, create a thread to run the windows
 	if (multithreading_enabled)
@@ -235,14 +234,14 @@ int sdlwindow_init(running_machine &machine)
 #if USE_OPENGL
 	if (video_config.mode == VIDEO_MODE_OPENGL)
 	{
-		if (drawogl_init(machine, &draw))
+		if (drawogl_init(&draw))
 			video_config.mode = VIDEO_MODE_SOFT;
 	}
 #endif
 #if	SDL_VERSION_ATLEAST(1,3,0)
 	if (video_config.mode == VIDEO_MODE_SDL13)
 	{
-		if (draw13_init(machine, &draw))
+		if (draw13_init(&draw))
 			video_config.mode = VIDEO_MODE_SOFT;
 	}
 #endif
@@ -304,7 +303,7 @@ static void sdlwindow_exit(running_machine &machine)
 	{
 		sdl_window_info *temp = sdl_window_list;
 		sdl_window_list = temp->next;
-		sdlwindow_video_window_destroy(machine, temp);
+		sdlwindow_video_window_destroy(&machine, temp);
 	}
 
 	// if we're multithreaded, clean up the window thread
@@ -348,14 +347,14 @@ void sdlwindow_blit_surface_size(sdl_window_info *window, int window_width, int 
 	INT32 target_height = window_height;
 
 	// start with the minimum size
-	window->target->compute_minimum_size(newwidth, newheight);
+	render_target_get_minimum_size(window->target, &newwidth, &newheight);
 
 	// compute the appropriate visible area if we're trying to keepaspect
 	if (video_config.keepaspect)
 	{
 		// make sure the monitor is up-to-date
 		sdlvideo_monitor_refresh(window->monitor);
-		window->target->compute_visible_area(target_width, target_height, sdlvideo_monitor_get_aspect(window->monitor), window->target->orientation(), target_width, target_height);
+		render_target_compute_visible_area(window->target, target_width, target_height, sdlvideo_monitor_get_aspect(window->monitor), render_target_get_orientation(window->target), &target_width, &target_height);
 		desired_aspect = (float)target_width / (float)target_height;
 	}
 
@@ -407,7 +406,7 @@ void sdlwindow_blit_surface_size(sdl_window_info *window, int window_width, int 
 	}
 
     //FIXME: really necessary to distinguish for yuv_modes ?
-	if (window->target->zoom_to_screen()
+	if ((render_target_get_layer_config(window->target) & LAYER_CONFIG_ZOOM_TO_SCREEN)
 		&& (window->scale_mode == VIDEO_SCALE_MODE_NONE ))
 		newwidth = window_width;
 
@@ -507,7 +506,7 @@ static OSDWORK_CALLBACK( sdlwindow_toggle_full_screen_wt )
 	ASSERT_WINDOW_THREAD();
 
 	// if we are in debug mode, never go full screen
-	if (window->machine().debug_flags & DEBUG_FLAG_OSD_ENABLED)
+	if (window->machine->debug_flags & DEBUG_FLAG_OSD_ENABLED)
 		return NULL;
 
 	// If we are going fullscreen (leaving windowed) remember our windowed size
@@ -518,7 +517,7 @@ static OSDWORK_CALLBACK( sdlwindow_toggle_full_screen_wt )
 	}
 
 	window->destroy(window);
-	sdlinput_release_keys(wp->machine());
+	sdlinput_release_keys(wp->machine);
 
 	// toggle the window mode
 	window->fullscreen = !window->fullscreen;
@@ -528,7 +527,7 @@ static OSDWORK_CALLBACK( sdlwindow_toggle_full_screen_wt )
 	return NULL;
 }
 
-void sdlwindow_toggle_full_screen(running_machine &machine, sdl_window_info *window)
+void sdlwindow_toggle_full_screen(running_machine *machine, sdl_window_info *window)
 {
 	worker_param wp;
 
@@ -536,7 +535,7 @@ void sdlwindow_toggle_full_screen(running_machine &machine, sdl_window_info *win
 
 	clear_worker_param(&wp);
 	wp.window = window;
-	wp.m_machine = &machine;
+	wp.machine = machine;
 
 	execute_async_wait(&sdlwindow_toggle_full_screen_wt, &wp);
 }
@@ -553,7 +552,7 @@ static OSDWORK_CALLBACK( destroy_all_textures_wt )
 	return NULL;
 }
 
-void sdlwindow_modify_prescale(running_machine &machine, sdl_window_info *window, int dir)
+void sdlwindow_modify_prescale(running_machine *machine, sdl_window_info *window, int dir)
 {
 	worker_param wp;
 	int new_prescale = window->prescale;
@@ -561,7 +560,7 @@ void sdlwindow_modify_prescale(running_machine &machine, sdl_window_info *window
 	clear_worker_param(&wp);
 
 	wp.window = window;
-	wp.m_machine = &machine;
+	wp.machine = machine;
 
 	if (dir > 0 && window->prescale < 3)
 		new_prescale = window->prescale + 1;
@@ -593,12 +592,12 @@ void sdlwindow_modify_prescale(running_machine &machine, sdl_window_info *window
 //  (main or window thread)
 //============================================================
 
-static void sdlwindow_update_cursor_state(running_machine &machine, sdl_window_info *window)
+static void sdlwindow_update_cursor_state(running_machine *machine, sdl_window_info *window)
 {
 #if (SDL_VERSION_ATLEAST(1,3,0))
 	// do not do mouse capture if the debugger's enabled to avoid
 	// the possibility of losing control
-	if (!(machine.debug_flags & DEBUG_FLAG_OSD_ENABLED))
+	if (!(machine->debug_flags & DEBUG_FLAG_OSD_ENABLED))
 	{
 		//FIXME: SDL1.3: really broken: the whole SDL code
 		//       will only work correct with relative mouse movements ...
@@ -607,13 +606,13 @@ static void sdlwindow_update_cursor_state(running_machine &machine, sdl_window_i
 		{
 			SDL_ShowCursor(SDL_ENABLE);
 			if (SDL_GetWindowGrab(window->sdl_window ))
-				SDL_SetWindowGrab(window->sdl_window, SDL_FALSE);
+				SDL_SetWindowGrab(window->sdl_window, 0);
 		}
 		else
 		{
 			SDL_ShowCursor(SDL_DISABLE);
 			if (!SDL_GetWindowGrab(window->sdl_window))
-				SDL_SetWindowGrab(window->sdl_window, SDL_TRUE);
+				SDL_SetWindowGrab(window->sdl_window, 1);
 		}
 		SDL_SetCursor(NULL); // Force an update in case the underlying driver has changed visibility
 	}
@@ -621,7 +620,7 @@ static void sdlwindow_update_cursor_state(running_machine &machine, sdl_window_i
 #else
 	// do not do mouse capture if the debugger's enabled to avoid
 	// the possibility of losing control
-	if (!(machine.debug_flags & DEBUG_FLAG_OSD_ENABLED))
+	if (!(machine->debug_flags & DEBUG_FLAG_OSD_ENABLED))
 	{
 		if ( window->fullscreen || sdlinput_should_hide_mouse(machine) )
 		{
@@ -649,10 +648,11 @@ static void sdlwindow_update_cursor_state(running_machine &machine, sdl_window_i
 //  (main thread)
 //============================================================
 
-int sdlwindow_video_window_create(running_machine &machine, int index, sdl_monitor_info *monitor, const sdl_window_config *config)
+int sdlwindow_video_window_create(running_machine *machine, int index, sdl_monitor_info *monitor, const sdl_window_config *config)
 {
 	sdl_window_info *window;
 	worker_param *wp = (worker_param *) osd_malloc(sizeof(worker_param));
+	char option[20];
 	int result;
 
 	ASSERT_MAIN_THREAD();
@@ -666,7 +666,7 @@ int sdlwindow_video_window_create(running_machine &machine, int index, sdl_monit
 	window->depth = config->depth;
 	window->refresh = config->refresh;
 	window->monitor = monitor;
-	window->m_machine = &machine;
+	window->machine = machine;
 	window->index = index;
 
 	//FIXME: these should be per_window in config-> or even better a bit set
@@ -676,8 +676,7 @@ int sdlwindow_video_window_create(running_machine &machine, int index, sdl_monit
 
 	// set the initial maximized state
 	// FIXME: Does not belong here
-	sdl_options &options = downcast<sdl_options &>(machine.options());
-	window->startmaximized = options.maximize();
+	window->startmaximized = options_get_bool(machine->options(), SDLOPTION_MAXIMIZE);
 
 	if (!window->fullscreen)
 	{
@@ -696,16 +695,22 @@ int sdlwindow_video_window_create(running_machine &machine, int index, sdl_monit
 	window->rendered_event = osd_event_alloc(FALSE, TRUE);
 
 	// load the layout
-	window->target = machine.render().target_alloc();
+	window->target = render_target_alloc(machine, NULL, FALSE);
+	if (window->target == NULL)
+	{
+		osd_free(wp);
+		goto error;
+	}
 
 	// set the specific view
-	set_starting_view(machine, index, window, options.view(), options.view(index));
+	sprintf(option, SDLOPTION_VIEW("%d"), index);
+	set_starting_view(machine, index, window, options_get_string(machine->options(), option));
 
 	// make the window title
 	if (video_config.numscreens == 1)
-		sprintf(window->title, APPNAME ": %s [%s]", machine.system().description, machine.system().name);
+		sprintf(window->title, APPNAME ": %s [%s]", machine->gamedrv->description, machine->gamedrv->name);
 	else
-		sprintf(window->title, APPNAME ": %s [%s] - Screen %d", machine.system().description, machine.system().name, index);
+		sprintf(window->title, APPNAME ": %s [%s] - Screen %d", machine->gamedrv->description, machine->gamedrv->name, index);
 
 	wp->window = window;
 
@@ -749,14 +754,14 @@ static OSDWORK_CALLBACK( sdlwindow_video_window_destroy_wt )
 	window->destroy(window);
 
 	// release all keys ...
-	sdlinput_release_keys(wp->machine());
+	sdlinput_release_keys(wp->machine);
 
 
 	osd_free(wp);
 	return NULL;
 }
 
-static void sdlwindow_video_window_destroy(running_machine &machine, sdl_window_info *window)
+static void sdlwindow_video_window_destroy(running_machine *machine, sdl_window_info *window)
 {
 	sdl_window_info **prevptr;
 	worker_param wp;
@@ -780,11 +785,12 @@ static void sdlwindow_video_window_destroy(running_machine &machine, sdl_window_
 	// free the textures etc
 	clear_worker_param(&wp);
 	wp.window = window;
-	wp.m_machine = &machine;
+	wp.machine = machine;
 	execute_async_wait(&sdlwindow_video_window_destroy_wt, &wp);
 
 	// free the render target, after the textures!
-	window->machine().render().target_free(window->target);
+	if (window->target != NULL)
+		render_target_free(window->target);
 
 	// free the event
 	osd_event_free(window->rendered_event);
@@ -807,7 +813,7 @@ static void pick_best_mode(sdl_window_info *window, int *fswidth, int *fsheight)
 	float size_score, best_score = 0.0f;
 
 	// determine the minimum width/height for the selected target
-	window->target->compute_minimum_size(minimum_width, minimum_height);
+	render_target_get_minimum_size(window->target, &minimum_width, &minimum_height);
 
 	// use those as the target for now
 	target_width = minimum_width * MAX(1, window->prescale);
@@ -819,7 +825,7 @@ static void pick_best_mode(sdl_window_info *window, int *fswidth, int *fsheight)
 		minimum_height -= 4;
 	}
 
-	num = SDL_GetNumDisplayModes(window->monitor->handle);
+	num = SDL_GetNumDisplayModes();
 
 	if (num == 0)
 	{
@@ -831,7 +837,7 @@ static void pick_best_mode(sdl_window_info *window, int *fswidth, int *fsheight)
 		for (i = 0; i < num; ++i)
 		{
 			SDL_DisplayMode mode;
-			SDL_GetDisplayMode(window->monitor->handle, i, &mode);
+			SDL_GetDisplayMode(i, &mode);
 
 			// compute initial score based on difference between target and current
 			size_score = 1.0f / (1.0f + fabsf((INT32)mode.w - target_width) + fabsf((INT32)mode.h - target_height));
@@ -874,7 +880,7 @@ static void pick_best_mode(sdl_window_info *window, int *fswidth, int *fsheight)
 	SDL_Rect **modes;
 
 	// determine the minimum width/height for the selected target
-	window->target->compute_minimum_size(minimum_width, minimum_height);
+	render_target_get_minimum_size(window->target, &minimum_width, &minimum_height);
 
 	// use those as the target for now
 	target_width = minimum_width * MAX(1, window->prescale);
@@ -946,10 +952,9 @@ static void pick_best_mode(sdl_window_info *window, int *fswidth, int *fsheight)
 //  (main thread)
 //============================================================
 
-void sdlwindow_video_window_update(running_machine &machine, sdl_window_info *window)
+void sdlwindow_video_window_update(running_machine *machine, sdl_window_info *window)
 {
 
-	osd_ticks_t		event_wait_ticks;
 	ASSERT_MAIN_THREAD();
 
 	// adjust the cursor state
@@ -961,7 +966,7 @@ void sdlwindow_video_window_update(running_machine &machine, sdl_window_info *wi
 		int tempwidth, tempheight;
 
 		// see if the games video mode has changed
-		window->target->compute_minimum_size(tempwidth, tempheight);
+		render_target_get_minimum_size(window->target, &tempwidth, &tempheight);
 		if (tempwidth != window->minwidth || tempheight != window->minheight)
 		{
 			window->minwidth = tempwidth;
@@ -978,26 +983,22 @@ void sdlwindow_video_window_update(running_machine &machine, sdl_window_info *wi
 			}
 		}
 
-		if (video_config.waitvsync && video_config.syncrefresh)
-			event_wait_ticks = osd_ticks_per_second(); // block at most a second
-		else
-			event_wait_ticks = 0;
-
-		if (osd_event_wait(window->rendered_event, event_wait_ticks))
+		// only render if we have been signalled
+		if (osd_event_wait(window->rendered_event, 0))
 		{
 			worker_param wp;
-			render_primitive_list *primlist;
+			const render_primitive_list *primlist;
 
 			clear_worker_param(&wp);
 
 			// ensure the target bounds are up-to-date, and then get the primitives
-			primlist = &window->get_primitives(window);
+			primlist = window->get_primitives(window);
 
 			// and redraw now
 
 			wp.list = primlist;
 			wp.window = window;
-			wp.m_machine = &machine;
+			wp.machine = machine;
 
 			execute_async(&draw_video_contents_wt, &wp);
 		}
@@ -1010,8 +1011,9 @@ void sdlwindow_video_window_update(running_machine &machine, sdl_window_info *wi
 //  (main thread)
 //============================================================
 
-static void set_starting_view(running_machine &machine, int index, sdl_window_info *window, const char *defview, const char *view)
+static void set_starting_view(running_machine *machine, int index, sdl_window_info *window, const char *view)
 {
+	const char *defview = options_get_string(machine->options(), SDLOPTION_VIEW( ));
 	int viewindex;
 
 	ASSERT_MAIN_THREAD();
@@ -1021,10 +1023,10 @@ static void set_starting_view(running_machine &machine, int index, sdl_window_in
 		view = defview;
 
 	// query the video system to help us pick a view
-	viewindex = window->target->configured_view(view, index, video_config.numscreens);
+	viewindex = video_get_view_for_target(machine, window->target, view, index, video_config.numscreens);
 
 	// set the view
-	window->target->set_view(viewindex);
+	render_target_set_view(window->target, viewindex);
 	window->start_viewscreen=viewindex;
 }
 
@@ -1150,7 +1152,7 @@ static OSDWORK_CALLBACK( draw_video_contents_wt )
 	ASSERT_REDRAW_THREAD();
 
 	// Some configurations require events to be polled in the worker thread
-	sdlinput_process_events_buf(wp->machine());
+	sdlinput_process_events_buf(wp->machine);
 
 	window->primlist = wp->list;
 
@@ -1206,21 +1208,21 @@ static void constrain_to_aspect_ratio(sdl_window_info *window, int *window_width
 	{
 		case WMSZ_BOTTOM:
 		case WMSZ_TOP:
-			window->target->compute_visible_area(10000, propheight, pixel_aspect, window->target->orientation(), propwidth, propheight);
+			render_target_compute_visible_area(window->target, 10000, propheight, pixel_aspect, render_target_get_orientation(window->target), &propwidth, &propheight);
 			break;
 
 		case WMSZ_LEFT:
 		case WMSZ_RIGHT:
-			window->target->compute_visible_area(propwidth, 10000, pixel_aspect, window->target->orientation(), propwidth, propheight);
+			render_target_compute_visible_area(window->target, propwidth, 10000, pixel_aspect, render_target_get_orientation(window->target), &propwidth, &propheight);
 			break;
 
 		default:
-			window->target->compute_visible_area(propwidth, propheight, pixel_aspect, window->target->orientation(), propwidth, propheight);
+			render_target_compute_visible_area(window->target, propwidth, propheight, pixel_aspect, render_target_get_orientation(window->target), &propwidth, &propheight);
 			break;
 	}
 
 	// get the minimum width/height for the current layout
-	window->target->compute_minimum_size(minwidth, minheight);
+	render_target_get_minimum_size(window->target, &minwidth, &minheight);
 
 	// clamp against the absolute minimum
 	propwidth = MAX(propwidth, MIN_WINDOW_DIM);
@@ -1253,7 +1255,7 @@ static void constrain_to_aspect_ratio(sdl_window_info *window, int *window_width
 	propheight = MIN(propheight, maxheight);
 
 	// compute the visible area based on the proposed rectangle
-	window->target->compute_visible_area(propwidth, propheight, pixel_aspect, window->target->orientation(), viswidth, visheight);
+	render_target_compute_visible_area(window->target, propwidth, propheight, pixel_aspect, render_target_get_orientation(window->target), &viswidth, &visheight);
 
 	*window_width = viswidth;
 	*window_height = visheight;
@@ -1270,7 +1272,7 @@ static void get_min_bounds(sdl_window_info *window, int *window_width, int *wind
 	INT32 minwidth, minheight;
 
 	// get the minimum target size
-	window->target->compute_minimum_size(minwidth, minheight);
+	render_target_get_minimum_size(window->target, &minwidth, &minheight);
 
 	// expand to our minimum dimensions
 	if (minwidth < MIN_WINDOW_DIM)

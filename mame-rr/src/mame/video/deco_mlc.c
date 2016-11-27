@@ -9,40 +9,39 @@
 */
 
 #include "emu.h"
-#include "includes/deco_mlc.h"
 
 //extern int mlc_raster_table[9][256];
 //extern UINT32 mlc_clipper[32];
 //static bitmap_t *temp_bitmap;
+static UINT32 colour_mask, *mlc_buffered_spriteram;
+UINT32 *mlc_vram, *mlc_clip_ram;
 
 /******************************************************************************/
 
 VIDEO_START( mlc )
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
-	if (machine.gfx[0]->color_granularity==16)
-		state->m_colour_mask=0x7f;
-	else if (machine.gfx[0]->color_granularity==32)
-		state->m_colour_mask=0x3f;
+	if (machine->gfx[0]->color_granularity==16)
+		colour_mask=0x7f;
+	else if (machine->gfx[0]->color_granularity==32)
+		colour_mask=0x3f;
 	else
-		state->m_colour_mask=0x1f;
+		colour_mask=0x1f;
 
 //  temp_bitmap = auto_bitmap_alloc( machine, 512, 512, BITMAP_FORMAT_RGB32 );
-	state->m_mlc_buffered_spriteram = auto_alloc_array(machine, UINT32, 0x3000/4);
+	mlc_buffered_spriteram = auto_alloc_array(machine, UINT32, 0x3000/4);
 }
 
 #ifdef UNUSED_FUNCTION
-static void blitRaster(running_machine &machine, bitmap_t *bitmap, int rasterMode)
+static void blitRaster(running_machine *machine, bitmap_t *bitmap, int rasterMode)
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
 	int x,y;
 	for (y=0; y<256; y++) //todo
 	{
 		UINT32* src=BITMAP_ADDR32(temp_bitmap, y&0x1ff, 0);
 		UINT32* dst=BITMAP_ADDR32(bitmap, y, 0);
-		UINT32 xptr=(state->m_mlc_raster_table[0][y]<<13);
+		UINT32 xptr=(mlc_raster_table[0][y]<<13);
 
-		if (machine.input().code_pressed(KEYCODE_X))
+		if (input_code_pressed(machine, KEYCODE_X))
 			xptr=0;
 
 		for (x=0; x<320; x++)
@@ -50,12 +49,12 @@ static void blitRaster(running_machine &machine, bitmap_t *bitmap, int rasterMod
 			if (src[x])
 				dst[x]=src[(xptr>>16)&0x1ff];
 
-			//if (machine.input().code_pressed(KEYCODE_X))
+			//if (input_code_pressed(machine, KEYCODE_X))
 			//  xptr+=0x10000;
 			//else if(rasterHackTest[0][y]<0)
-				xptr+=0x10000 - ((state->m_mlc_raster_table[2][y]&0x3ff)<<5);
+				xptr+=0x10000 - ((mlc_raster_table[2][y]&0x3ff)<<5);
 			//else
-			//  xptr+=0x10000 + (state->m_mlc_raster_table[0][y]<<5);
+			//  xptr+=0x10000 + (mlc_raster_table[0][y]<<5);
 		}
 	}
 }
@@ -97,7 +96,7 @@ static void mlc_drawgfxzoom(
 	{
 		if( gfx )
 		{
-			const pen_t *pal = &gfx->machine().pens[gfx->color_base + gfx->color_granularity * (color % gfx->total_colors)];
+			const pen_t *pal = &gfx->machine->pens[gfx->color_base + gfx->color_granularity * (color % gfx->total_colors)];
 			const UINT8 *code_base1 = gfx_element_get_data(gfx, code1 % gfx->total_elements);
 			const UINT8 *code_base2 = gfx_element_get_data(gfx, code2 % gfx->total_elements);
 
@@ -225,14 +224,13 @@ static void mlc_drawgfxzoom(
 	}
 }
 
-static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectangle *cliprect)
+static void draw_sprites(running_machine* machine, bitmap_t *bitmap,const rectangle *cliprect)
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
 	UINT32 *index_ptr=0;
 	int offs,fx=0,fy=0,x,y,color,colorOffset,sprite,indx,h,w,bx,by,fx1,fy1;
 	int xoffs,yoffs;
-	UINT8 *rom = machine.region("gfx2")->base() + 0x20000, *index_ptr8;
-	UINT8 *rawrom = machine.region("gfx2")->base();
+	UINT8 *rom = memory_region(machine, "gfx2") + 0x20000, *index_ptr8;
+	UINT8 *rawrom = memory_region(machine, "gfx2");
 	int blockIsTilemapIndex=0;
 	int sprite2=0,indx2=0,use8bppMode=0;
 	int yscale,xscale;
@@ -246,13 +244,13 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
 //  int rasterDirty=0;
 	int clipper=0;
 	rectangle user_clip;
-	UINT32* mlc_spriteram=state->m_mlc_buffered_spriteram; // spriteram32
+	UINT32* mlc_spriteram=mlc_buffered_spriteram; // spriteram32
 
 	for (offs = (0x3000/4)-8; offs>=0; offs-=8)
 	{
 		if ((mlc_spriteram[offs+0]&0x8000)==0)
 			continue;
-		if ((mlc_spriteram[offs+1]&0x2000) && (machine.primary_screen->frame_number() & 1))
+		if ((mlc_spriteram[offs+1]&0x2000) && (machine->primary_screen->frame_number() & 1))
 			continue;
 
 		/*
@@ -313,19 +311,19 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
         however there are space for 8 clipping windows, where is the high bit? (Or is it ~0x400?) */
 		clipper=((clipper&2)>>1)|((clipper&1)<<1); // Swap low two bits
 
-		user_clip.min_y=state->m_mlc_clip_ram[(clipper*4)+0];
-		user_clip.max_y=state->m_mlc_clip_ram[(clipper*4)+1];
-		user_clip.min_x=state->m_mlc_clip_ram[(clipper*4)+2];
-		user_clip.max_x=state->m_mlc_clip_ram[(clipper*4)+3];
+		user_clip.min_y=mlc_clip_ram[(clipper*4)+0];
+		user_clip.max_y=mlc_clip_ram[(clipper*4)+1];
+		user_clip.min_x=mlc_clip_ram[(clipper*4)+2];
+		user_clip.max_x=mlc_clip_ram[(clipper*4)+3];
 
 		sect_rect(&user_clip, cliprect);
 
 		/* Any colours out of range (for the bpp value) trigger 'shadow' mode */
-		if (color & (state->m_colour_mask+1))
+		if (color & (colour_mask+1))
 			alpha=0x80;
 		else
 			alpha=0xff;
-		color&=state->m_colour_mask;
+		color&=colour_mask;
 
 		/* If this bit is set, combine this block with the next one */
 		if (mlc_spriteram[offs+1]&0x1000) {
@@ -372,7 +370,7 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
 
 		} else {
 			indx&=0x1fff;
-			index_ptr=state->m_mlc_vram + indx*4;
+			index_ptr=mlc_vram + indx*4;
 			h=(index_ptr[0]>>8)&0xf;
 			w=(index_ptr[1]>>8)&0xf;
 
@@ -380,7 +378,7 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
 			if (!w) w=16;
 
 			if (use8bppMode) {
-				UINT32* index_ptr2=state->m_mlc_vram + ((indx2*4)&0x7fff);
+				UINT32* index_ptr2=mlc_vram + ((indx2*4)&0x7fff);
 				sprite2=((index_ptr2[2]&0x3)<<16) | (index_ptr2[3]&0xffff);
 			}
 
@@ -460,7 +458,7 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
 					}
 					else
 					{
-						const UINT32* ptr=state->m_mlc_vram + ((sprite)&0x7fff);
+						const UINT32* ptr=mlc_vram + ((sprite)&0x7fff);
 						tile=(*ptr)&0xffff;
 
 						if (tileFormat)
@@ -482,7 +480,7 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
 //                  rasterDirty=1;
 
 				mlc_drawgfxzoom(
-								/*rasterMode ? temp_bitmap : */bitmap,&user_clip,machine.gfx[0],
+								/*rasterMode ? temp_bitmap : */bitmap,&user_clip,machine->gfx[0],
 								tile,tile2,
 								color + colorOffset,fx,fy,xbase,ybase,
 								0,
@@ -509,21 +507,20 @@ static void draw_sprites(running_machine& machine, bitmap_t *bitmap,const rectan
 	}
 }
 
-SCREEN_EOF( mlc )
+VIDEO_EOF( mlc )
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
 	/* Spriteram is definitely double buffered, as the vram lookup tables
     are often updated a frame after spriteram is setup to point to a new
     lookup table.  Without buffering incorrect one frame glitches are seen
     in several places, especially in Hoops.
     */
-	memcpy(state->m_mlc_buffered_spriteram, state->m_spriteram, 0x3000);
+	memcpy(mlc_buffered_spriteram, machine->generic.spriteram.u32, 0x3000);
 }
 
-SCREEN_UPDATE( mlc )
+VIDEO_UPDATE( mlc )
 {
 //  bitmap_fill(temp_bitmap,cliprect,0);
-	bitmap_fill(bitmap,cliprect,screen->machine().pens[0]); /* Pen 0 fill colour confirmed from Skull Fang level 2 */
-	draw_sprites(screen->machine(),bitmap,cliprect);
+	bitmap_fill(bitmap,cliprect,screen->machine->pens[0]); /* Pen 0 fill colour confirmed from Skull Fang level 2 */
+	draw_sprites(screen->machine,bitmap,cliprect);
 	return 0;
 }

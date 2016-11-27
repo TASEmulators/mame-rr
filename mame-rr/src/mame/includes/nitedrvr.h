@@ -15,33 +15,34 @@
 #define NITEDRVR_ATTRACT_EN	NODE_06
 
 
-class nitedrvr_state : public driver_device
+class nitedrvr_state
 {
 public:
-	nitedrvr_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, nitedrvr_state(machine)); }
+
+	nitedrvr_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_hvc;
-	UINT8 *    m_videoram;
+	UINT8 *    hvc;
+	UINT8 *    videoram;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
+	tilemap_t  *bg_tilemap;
 
 	/* input */
-	UINT8 m_gear;
-	UINT8 m_track;
-	INT32 m_steering_buf;
-	INT32 m_steering_val;
-	UINT8 m_crash_en;
-	UINT8 m_crash_data;
-	UINT8 m_crash_data_en;	// IC D8
-	UINT8 m_ac_line;
-	INT32 m_last_steering_val;
+	UINT8 gear;
+	UINT8 track;
+	INT32 steering_buf;
+	INT32 steering_val;
+	UINT8 crash_en;
+	UINT8 crash_data;
+	UINT8 crash_data_en;	// IC D8
+	UINT8 ac_line;
+	INT32 last_steering_val;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_discrete;
+	running_device *maincpu;
+	running_device *discrete;
 };
 
 
@@ -71,4 +72,4 @@ WRITE8_HANDLER( nitedrvr_hvc_w );
 WRITE8_HANDLER( nitedrvr_videoram_w );
 
 VIDEO_START( nitedrvr );
-SCREEN_UPDATE( nitedrvr );
+VIDEO_UPDATE( nitedrvr );

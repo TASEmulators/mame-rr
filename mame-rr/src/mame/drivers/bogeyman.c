@@ -12,6 +12,7 @@
 ***************************************************************************/
 
 #include "emu.h"
+#include "deprecat.h"
 #include "cpu/m6502/m6502.h"
 #include "sound/ay8910.h"
 #include "includes/bogeyman.h"
@@ -23,37 +24,37 @@
 
 static WRITE8_HANDLER( bogeyman_8910_latch_w )
 {
-	bogeyman_state *state = space->machine().driver_data<bogeyman_state>();
-	state->m_psg_latch = data;
+	bogeyman_state *state = (bogeyman_state *)space->machine->driver_data;
+	state->psg_latch = data;
 }
 
 static WRITE8_HANDLER( bogeyman_8910_control_w )
 {
-	bogeyman_state *state = space->machine().driver_data<bogeyman_state>();
+	bogeyman_state *state = (bogeyman_state *)space->machine->driver_data;
 
 	// bit 0 is flipscreen
-	flip_screen_set(space->machine(), data & 0x01);
+	flip_screen_set(space->machine, data & 0x01);
 
 	// bit 5 goes to 8910 #0 BDIR pin
-	if ((state->m_last_write & 0x20) == 0x20 && (data & 0x20) == 0x00)
-		ay8910_data_address_w(space->machine().device("ay1"), state->m_last_write >> 4, state->m_psg_latch);
+	if ((state->last_write & 0x20) == 0x20 && (data & 0x20) == 0x00)
+		ay8910_data_address_w(space->machine->device("ay1"), state->last_write >> 4, state->psg_latch);
 
 	// bit 7 goes to 8910 #1 BDIR pin
-	if ((state->m_last_write & 0x80) == 0x80 && (data & 0x80) == 0x00)
-		ay8910_data_address_w(space->machine().device("ay2"), state->m_last_write >> 6, state->m_psg_latch);
+	if ((state->last_write & 0x80) == 0x80 && (data & 0x80) == 0x00)
+		ay8910_data_address_w(space->machine->device("ay2"), state->last_write >> 6, state->psg_latch);
 
-	state->m_last_write = data;
+	state->last_write = data;
 }
 
 /* Memory Map */
 
-static ADDRESS_MAP_START( bogeyman_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bogeyman_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x17ff) AM_RAM
-	AM_RANGE(0x1800, 0x1bff) AM_RAM_WRITE(bogeyman_videoram2_w) AM_BASE_MEMBER(bogeyman_state, m_videoram2)
-	AM_RANGE(0x1c00, 0x1fff) AM_RAM_WRITE(bogeyman_colorram2_w) AM_BASE_MEMBER(bogeyman_state, m_colorram2)
-	AM_RANGE(0x2000, 0x20ff) AM_RAM_WRITE(bogeyman_videoram_w) AM_BASE_MEMBER(bogeyman_state, m_videoram)
-	AM_RANGE(0x2100, 0x21ff) AM_RAM_WRITE(bogeyman_colorram_w) AM_BASE_MEMBER(bogeyman_state, m_colorram)
-	AM_RANGE(0x2800, 0x2bff) AM_RAM AM_BASE_SIZE_MEMBER(bogeyman_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x1800, 0x1bff) AM_RAM_WRITE(bogeyman_videoram2_w) AM_BASE_MEMBER(bogeyman_state, videoram2)
+	AM_RANGE(0x1c00, 0x1fff) AM_RAM_WRITE(bogeyman_colorram2_w) AM_BASE_MEMBER(bogeyman_state, colorram2)
+	AM_RANGE(0x2000, 0x20ff) AM_RAM_WRITE(bogeyman_videoram_w) AM_BASE_MEMBER(bogeyman_state, videoram)
+	AM_RANGE(0x2100, 0x21ff) AM_RAM_WRITE(bogeyman_colorram_w) AM_BASE_MEMBER(bogeyman_state, colorram)
+	AM_RANGE(0x2800, 0x2bff) AM_RAM AM_BASE_SIZE_MEMBER(bogeyman_state, spriteram, spriteram_size)
 	AM_RANGE(0x3000, 0x300f) AM_RAM_WRITE(bogeyman_paletteram_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x3800, 0x3800) AM_READ_PORT("P1") AM_WRITE(bogeyman_8910_control_w)
 	AM_RANGE(0x3801, 0x3801) AM_READ_PORT("P2") AM_WRITE(bogeyman_8910_latch_w)
@@ -206,28 +207,28 @@ GFXDECODE_END
 
 static MACHINE_START( bogeyman )
 {
-	bogeyman_state *state = machine.driver_data<bogeyman_state>();
+	bogeyman_state *state = (bogeyman_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_psg_latch));
-	state->save_item(NAME(state->m_last_write));
+	state_save_register_global(machine, state->psg_latch);
+	state_save_register_global(machine, state->last_write);
 }
 
 static MACHINE_RESET( bogeyman )
 {
-	bogeyman_state *state = machine.driver_data<bogeyman_state>();
+	bogeyman_state *state = (bogeyman_state *)machine->driver_data;
 
-	state->m_psg_latch = 0;
-	state->m_last_write = 0;
+	state->psg_latch = 0;
+	state->last_write = 0;
 }
 
 static WRITE8_DEVICE_HANDLER( bogeyman_colbank_w )
 {
-	bogeyman_state *state = device->machine().driver_data<bogeyman_state>();
+	bogeyman_state *state = (bogeyman_state *)device->machine->driver_data;
 
-	if((data & 1) != (state->m_colbank & 1))
+	if((data & 1) != (state->colbank & 1))
 	{
-		state->m_colbank = data & 1;
-		tilemap_mark_all_tiles_dirty(state->m_fg_tilemap);
+		state->colbank = data & 1;
+		tilemap_mark_all_tiles_dirty(state->fg_tilemap);
 	}
 }
 
@@ -241,43 +242,46 @@ static const ay8910_interface ay8910_config =
 	DEVCB_NULL
 };
 
-static MACHINE_CONFIG_START( bogeyman, bogeyman_state )
+static MACHINE_DRIVER_START( bogeyman )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(bogeyman_state)
 
 	// basic machine hardware
-	MCFG_CPU_ADD("maincpu", M6502, 1500000)	/* Verified */
-	MCFG_CPU_PROGRAM_MAP(bogeyman_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold, 16*60) // Controls sound
+	MDRV_CPU_ADD("maincpu", M6502, 1500000)	/* Verified */
+	MDRV_CPU_PROGRAM_MAP(bogeyman_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold, 16) // Controls sound
 
-	MCFG_MACHINE_START(bogeyman)
-	MCFG_MACHINE_RESET(bogeyman)
+	MDRV_MACHINE_START(bogeyman)
+	MDRV_MACHINE_RESET(bogeyman)
 
 	// video hardware
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(bogeyman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(bogeyman)
-	MCFG_PALETTE_LENGTH(16+256)
+	MDRV_GFXDECODE(bogeyman)
+	MDRV_PALETTE_LENGTH(16+256)
 
-	MCFG_PALETTE_INIT(bogeyman)
-	MCFG_VIDEO_START(bogeyman)
+	MDRV_PALETTE_INIT(bogeyman)
+	MDRV_VIDEO_START(bogeyman)
+	MDRV_VIDEO_UPDATE(bogeyman)
 
 	// sound hardware
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, 1500000)	/* Verified */
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("ay1", AY8910, 1500000)	/* Verified */
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 1500000)	/* Verified */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, 1500000)	/* Verified */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
 /* ROMs */
 

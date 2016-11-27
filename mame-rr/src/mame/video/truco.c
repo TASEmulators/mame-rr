@@ -7,13 +7,12 @@
 ***************************************************************************/
 
 #include "emu.h"
-#include "includes/truco.h"
 
 PALETTE_INIT( truco )
 {
 	int i;
 
-	for (i = 0;i < machine.total_colors();i++)
+	for (i = 0;i < machine->total_colors();i++)
 	{
 		int	r = ( i & 0x8 ) ? 0xff : 0x00;
 		int g = ( i & 0x4 ) ? 0xff : 0x00;
@@ -31,11 +30,9 @@ PALETTE_INIT( truco )
 	}
 }
 
-SCREEN_UPDATE( truco )
+VIDEO_UPDATE( truco )
 {
-	truco_state *state = screen->machine().driver_data<truco_state>();
-	UINT8 *videoram = state->m_videoram;
-	UINT8		*vid = videoram;
+	UINT8		*vid = screen->machine->generic.videoram.u8;
 	int x, y;
 
 	for( y = 0; y < 192; y++ )

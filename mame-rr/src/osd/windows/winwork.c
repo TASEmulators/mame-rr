@@ -279,14 +279,6 @@ INLINE void scalable_lock_release(scalable_lock *lock, INT32 myslot)
 }
 
 
-INLINE void scalable_lock_delete(scalable_lock *lock)
-{
-#if USE_SCALABLE_LOCKS
-#else
-	DeleteCriticalSection(&lock->section);
-#endif
-}
-
 
 //============================================================
 //  osd_work_queue_alloc
@@ -494,8 +486,6 @@ void osd_work_queue_free(osd_work_queue *queue)
 	// free the list
 	if (queue->thread != NULL)
 		free(queue->thread);
-
-	scalable_lock_delete(&queue->lock);
 
 	// free all the events
 	if (queue->doneevent != NULL)
@@ -729,11 +719,14 @@ static unsigned __stdcall worker_thread_entry(void *param)
 	// loop until we exit
 	for ( ;; )
 	{
+		// block waiting for work or exit
+		DWORD result = WAIT_OBJECT_0;
+
 		// bail on exit, and only wait if there are no pending items in queue
 		if (!queue->exiting && queue->list == NULL)
 		{
 			begin_timing(thread->waittime);
-			WaitForSingleObject(thread->wakeevent, INFINITE);
+			result = WaitForSingleObject(thread->wakeevent, INFINITE);
 			end_timing(thread->waittime);
 		}
 		if (queue->exiting)

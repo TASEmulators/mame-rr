@@ -102,17 +102,26 @@
 #include "includes/decoprot.h"
 #include "cpu/arm/arm.h"
 #include "cpu/sh2/sh2.h"
-#include "includes/deco_mlc.h"
 
+VIDEO_START( mlc );
+VIDEO_UPDATE( mlc );
+VIDEO_EOF( mlc );
+
+extern UINT32 *mlc_vram, *mlc_clip_ram;
+static UINT32 *mlc_ram, *irq_ram;
+static timer_device *raster_irq_timer;
+static int mainCpuIsArm;
+static int mlc_raster_table[9][256];
+static UINT32 vbl_i;
 
 /***************************************************************************/
 
 static READ32_HANDLER(test2_r)
 {
 //  if (offset==0)
-//      return input_port_read(space->machine(), "IN0"); //0xffffffff;
-//   logerror("%08x:  Test2_r %d\n",cpu_get_pc(&space->device()),offset);
-	return space->machine().rand(); //0xffffffff;
+//      return input_port_read(space->machine, "IN0"); //0xffffffff;
+//   logerror("%08x:  Test2_r %d\n",cpu_get_pc(space->cpu),offset);
+	return mame_rand(space->machine); //0xffffffff;
 }
 
 static READ32_HANDLER(test3_r)
@@ -122,8 +131,8 @@ static READ32_HANDLER(test3_r)
 
 */
 //if (offset==0)
-//  return space->machine().rand()|(space->machine().rand()<<16);
-//  logerror("%08x:  Test3_r %d\n",cpu_get_pc(&space->device()),offset);
+//  return mame_rand(space->machine)|(mame_rand(space->machine)<<16);
+//  logerror("%08x:  Test3_r %d\n",cpu_get_pc(space->cpu),offset);
 	return 0xffffffff;
 }
 
@@ -132,62 +141,59 @@ static WRITE32_DEVICE_HANDLER( avengrs_eprom_w )
 	if (ACCESSING_BITS_8_15) {
 		UINT8 ebyte=(data>>8)&0xff;
 //      if (ebyte&0x80) {
-			eeprom_device *eeprom = downcast<eeprom_device *>(device);
-			eeprom->set_clock_line((ebyte & 0x2) ? ASSERT_LINE : CLEAR_LINE);
-			eeprom->write_bit(ebyte & 0x1);
-			eeprom->set_cs_line((ebyte & 0x4) ? CLEAR_LINE : ASSERT_LINE);
+			eeprom_set_clock_line(device, (ebyte & 0x2) ? ASSERT_LINE : CLEAR_LINE);
+			eeprom_write_bit(device, ebyte & 0x1);
+			eeprom_set_cs_line(device, (ebyte & 0x4) ? CLEAR_LINE : ASSERT_LINE);
 //      }
 	}
 	else if (ACCESSING_BITS_0_7) {
 		//volume control todo
 	}
 	else
-		logerror("%s:  eprom_w %08x mask %08x\n",device->machine().describe_context(),data,mem_mask);
+		logerror("%s:  eprom_w %08x mask %08x\n",cpuexec_describe_context(device->machine),data,mem_mask);
 }
 
 static WRITE32_HANDLER( avengrs_palette_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
 	/* x bbbbb ggggg rrrrr */
-	palette_set_color_rgb(space->machine(),offset,pal5bit(space->machine().generic.paletteram.u32[offset] >> 0),pal5bit(space->machine().generic.paletteram.u32[offset] >> 5),pal5bit(space->machine().generic.paletteram.u32[offset] >> 10));
+	palette_set_color_rgb(space->machine,offset,pal5bit(space->machine->generic.paletteram.u32[offset] >> 0),pal5bit(space->machine->generic.paletteram.u32[offset] >> 5),pal5bit(space->machine->generic.paletteram.u32[offset] >> 10));
 }
 
 static READ32_HANDLER( decomlc_vbl_r )
 {
-	deco_mlc_state *state = space->machine().driver_data<deco_mlc_state>();
-	state->m_vbl_i ^=0xffffffff;
-//logerror("vbl r %08x\n", cpu_get_pc(&space->device()));
+	vbl_i ^=0xffffffff;
+//logerror("vbl r %08x\n", cpu_get_pc(space->cpu));
 	// Todo: Vblank probably in $10
-	return state->m_vbl_i;
+	return vbl_i;
 }
 
 static READ32_HANDLER( mlc_scanline_r )
 {
-//  logerror("read scanline counter (%d)\n", space->machine().primary_screen->vpos());
-	return space->machine().primary_screen->vpos();
+//  logerror("read scanline counter (%d)\n", space->machine->primary_screen->vpos());
+	return space->machine->primary_screen->vpos();
 }
 
 static TIMER_DEVICE_CALLBACK( interrupt_gen )
 {
-	deco_mlc_state *state = timer.machine().driver_data<deco_mlc_state>();
-//  logerror("hit scanline IRQ %d (%08x)\n", machine.primary_screen->vpos(), info.i);
-	cputag_set_input_line(timer.machine(), "maincpu", state->m_mainCpuIsArm ? ARM_IRQ_LINE : 1, HOLD_LINE);
+//  logerror("hit scanline IRQ %d (%08x)\n", machine->primary_screen->vpos(), info.i);
+	cputag_set_input_line(timer.machine, "maincpu", mainCpuIsArm ? ARM_IRQ_LINE : 1, HOLD_LINE);
 }
 
 static WRITE32_HANDLER( mlc_irq_w )
 {
-	deco_mlc_state *state = space->machine().driver_data<deco_mlc_state>();
-	int scanline=space->machine().primary_screen->vpos();
-	state->m_irq_ram[offset]=data&0xffff;
+	static int lastScanline[9]={ 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	int scanline=space->machine->primary_screen->vpos();
+	irq_ram[offset]=data&0xffff;
 
 	switch (offset*4)
 	{
 	case 0x10: /* IRQ ack.  Value written doesn't matter */
-		cputag_set_input_line(space->machine(), "maincpu", state->m_mainCpuIsArm ? ARM_IRQ_LINE : 1, CLEAR_LINE);
+		cputag_set_input_line(space->machine, "maincpu", mainCpuIsArm ? ARM_IRQ_LINE : 1, CLEAR_LINE);
 		return;
 	case 0x14: /* Prepare scanline interrupt */
-		state->m_raster_irq_timer->adjust(space->machine().primary_screen->time_until_pos(state->m_irq_ram[0x14/4]));
-		//logerror("prepare scanline to fire at %d (currently on %d)\n", state->m_irq_ram[0x14/4], space->machine().primary_screen->vpos());
+		raster_irq_timer->adjust(space->machine->primary_screen->time_until_pos(irq_ram[0x14/4]));
+		//logerror("prepare scanline to fire at %d (currently on %d)\n", irq_ram[0x14/4], space->machine->primary_screen->vpos());
 		return;
 	case 0x18:
 	case 0x1c:
@@ -201,17 +207,17 @@ static WRITE32_HANDLER( mlc_irq_w )
 		if (scanline > 255)
 			scanline = 255;
 		/* Update scanlines up to present line */
-		while (state->m_lastScanline[offset-6]<scanline)
+		while (lastScanline[offset-6]<scanline)
 		{
-			state->m_mlc_raster_table[offset-6][state->m_lastScanline[offset-6]+1]=state->m_mlc_raster_table[offset-6][state->m_lastScanline[offset-6]];
-			state->m_lastScanline[offset-6]++;
+			mlc_raster_table[offset-6][lastScanline[offset-6]+1]=mlc_raster_table[offset-6][lastScanline[offset-6]];
+			lastScanline[offset-6]++;
 		}
 
-		if (state->m_lastScanline[offset-6] > scanline)
-			state->m_lastScanline[offset-6]=0;
+		if (lastScanline[offset-6] > scanline)
+			lastScanline[offset-6]=0;
 
 		/* Set current scanline value */
-		state->m_mlc_raster_table[offset-6][scanline]=data&0xffff;
+		mlc_raster_table[offset-6][scanline]=data&0xffff;
 		break;
 
 	default:
@@ -223,14 +229,12 @@ static WRITE32_HANDLER( mlc_irq_w )
 
 static READ32_HANDLER(mlc_spriteram_r)
 {
-	deco_mlc_state *state = space->machine().driver_data<deco_mlc_state>();
-	return state->m_spriteram[offset]&0xffff;
+	return space->machine->generic.spriteram.u32[offset]&0xffff;
 }
 
 static READ32_HANDLER(mlc_vram_r)
 {
-	deco_mlc_state *state = space->machine().driver_data<deco_mlc_state>();
-	return state->m_mlc_vram[offset]&0xffff;
+	return mlc_vram[offset]&0xffff;
 }
 
 static READ32_HANDLER(stadhr96_prot_146_r)
@@ -244,7 +248,7 @@ static READ32_HANDLER(stadhr96_prot_146_r)
     */
 	offset<<=1;
 
-	logerror("%08x:  Read prot %04x\n", cpu_get_pc(&space->device()), offset);
+	logerror("%08x:  Read prot %04x\n", cpu_get_pc(space->cpu), offset);
 
 	if (offset==0x5c4)
 		return 0xaa55 << 16;
@@ -260,17 +264,17 @@ static READ32_HANDLER(stadhr96_prot_146_r)
 
 /******************************************************************************/
 
-static ADDRESS_MAP_START( decomlc_map, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( decomlc_map, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x0000000, 0x00fffff) AM_ROM AM_MIRROR(0xff000000)
-	AM_RANGE(0x0100000, 0x011ffff) AM_RAM AM_BASE_MEMBER(deco_mlc_state, m_mlc_ram) AM_MIRROR(0xff000000)
+	AM_RANGE(0x0100000, 0x011ffff) AM_RAM AM_BASE(&mlc_ram) AM_MIRROR(0xff000000)
 	AM_RANGE(0x0200000, 0x020000f) AM_READNOP AM_MIRROR(0xff000000)/* IRQ control? */
 	AM_RANGE(0x0200070, 0x0200073) AM_READ(decomlc_vbl_r) AM_MIRROR(0xff000000)
 	AM_RANGE(0x0200074, 0x0200077) AM_READ(mlc_scanline_r) AM_MIRROR(0xff000000)
 	AM_RANGE(0x0200078, 0x020007f) AM_READ(test2_r)	AM_MIRROR(0xff000000)
-	AM_RANGE(0x0200000, 0x020007f) AM_WRITE(mlc_irq_w) AM_BASE_MEMBER(deco_mlc_state, m_irq_ram) AM_MIRROR(0xff000000)
-	AM_RANGE(0x0200080, 0x02000ff) AM_RAM AM_BASE_MEMBER(deco_mlc_state, m_mlc_clip_ram) AM_MIRROR(0xff000000)
-	AM_RANGE(0x0204000, 0x0206fff) AM_RAM_READ(mlc_spriteram_r) AM_BASE_SIZE_MEMBER(deco_mlc_state, m_spriteram, m_spriteram_size) AM_MIRROR(0xff000000)
-	AM_RANGE(0x0280000, 0x029ffff) AM_RAM_READ(mlc_vram_r) AM_BASE_MEMBER(deco_mlc_state, m_mlc_vram) AM_MIRROR(0xff000000)
+	AM_RANGE(0x0200000, 0x020007f) AM_WRITE(mlc_irq_w) AM_BASE(&irq_ram) AM_MIRROR(0xff000000)
+	AM_RANGE(0x0200080, 0x02000ff) AM_RAM AM_BASE(&mlc_clip_ram) AM_MIRROR(0xff000000)
+	AM_RANGE(0x0204000, 0x0206fff) AM_RAM_READ(mlc_spriteram_r) AM_BASE_SIZE_GENERIC(spriteram) AM_MIRROR(0xff000000)
+	AM_RANGE(0x0280000, 0x029ffff) AM_RAM_READ(mlc_vram_r) AM_BASE(&mlc_vram) AM_MIRROR(0xff000000)
 	AM_RANGE(0x0300000, 0x0307fff) AM_RAM_WRITE(avengrs_palette_w) AM_BASE_GENERIC(paletteram) AM_MIRROR(0xff000000)
 	AM_RANGE(0x0400000, 0x0400003) AM_READ_PORT("INPUTS") AM_MIRROR(0xff000000)
 	AM_RANGE(0x0440000, 0x044001f) AM_READ(test3_r)	AM_MIRROR(0xff000000)
@@ -309,7 +313,7 @@ static INPUT_PORTS_START( mlc )
 	PORT_BIT( 0x00100000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x00200000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x00400000, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x00800000, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x00800000, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x01000000, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(1)
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x04000000, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -374,84 +378,85 @@ GFXDECODE_END
 
 static MACHINE_RESET( mlc )
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
-	state->m_vbl_i = 0xffffffff;
-	state->m_raster_irq_timer = machine.device<timer_device>("int_timer");
+	vbl_i = 0xffffffff;
+	raster_irq_timer = machine->device<timer_device>("int_timer");
 }
 
-static MACHINE_CONFIG_START( avengrgs, deco_mlc_state )
+static MACHINE_DRIVER_START( avengrgs )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", SH2,42000000/2) /* 21 MHz clock confirmed on real board */
-	MCFG_CPU_PROGRAM_MAP(decomlc_map)
+	MDRV_CPU_ADD("maincpu", SH2,42000000/2) /* 21 MHz clock confirmed on real board */
+	MDRV_CPU_PROGRAM_MAP(decomlc_map)
 
-	MCFG_MACHINE_RESET(mlc)
-	MCFG_EEPROM_93C46_ADD("eeprom") /* Actually 93c45 */
+	MDRV_MACHINE_RESET(mlc)
+	MDRV_EEPROM_93C46_ADD("eeprom") /* Actually 93c45 */
 
-	MCFG_TIMER_ADD("int_timer", interrupt_gen)
+	MDRV_TIMER_ADD("int_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(mlc)
-	MCFG_SCREEN_EOF(mlc)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(deco_mlc)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(deco_mlc)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(mlc)
+	MDRV_VIDEO_START(mlc)
+	MDRV_VIDEO_UPDATE(mlc)
+	MDRV_VIDEO_EOF(mlc)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymz", YMZ280B, 42000000 / 3)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymz", YMZ280B, 42000000 / 3)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( mlc, deco_mlc_state )
+static MACHINE_DRIVER_START( mlc )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", ARM,42000000/6) /* 42 MHz -> 7MHz clock confirmed on real board */
-	MCFG_CPU_PROGRAM_MAP(decomlc_map)
+	MDRV_CPU_ADD("maincpu", ARM,42000000/6) /* 42 MHz -> 7MHz clock confirmed on real board */
+	MDRV_CPU_PROGRAM_MAP(decomlc_map)
 
-	MCFG_MACHINE_RESET(mlc)
-	MCFG_EEPROM_93C46_ADD("eeprom") /* Actually 93c45 */
+	MDRV_MACHINE_RESET(mlc)
+	MDRV_EEPROM_93C46_ADD("eeprom") /* Actually 93c45 */
 
-	MCFG_TIMER_ADD("int_timer", interrupt_gen)
+	MDRV_TIMER_ADD("int_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(mlc)
-	MCFG_SCREEN_EOF(mlc)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(deco_mlc)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(deco_mlc)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(mlc)
+	MDRV_VIDEO_START(mlc)
+	MDRV_VIDEO_UPDATE(mlc)
+	MDRV_VIDEO_EOF(mlc)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymz", YMZ280B, 42000000 / 3)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymz", YMZ280B, 42000000 / 3)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( mlc_6bpp, mlc )
-	MCFG_GFXDECODE(6bpp)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( mlc_6bpp )
+	MDRV_IMPORT_FROM(mlc)
+	MDRV_GFXDECODE(6bpp)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( mlc_5bpp, mlc )
-	MCFG_GFXDECODE(5bpp)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( mlc_5bpp )
+	MDRV_IMPORT_FROM(mlc)
+	MDRV_GFXDECODE(5bpp)
+MACHINE_DRIVER_END
 
 /***************************************************************************/
 
@@ -696,11 +701,11 @@ ROM_END
 
 /***************************************************************************/
 
-static void descramble_sound( running_machine &machine )
+static void descramble_sound( running_machine *machine )
 {
 	/* the same as simpl156 / heavy smash? */
-	UINT8 *rom = machine.region("ymz")->base();
-	int length = machine.region("ymz")->bytes();
+	UINT8 *rom = memory_region(machine, "ymz");
+	int length = memory_region_length(machine, "ymz");
 	UINT8 *buf1 = auto_alloc_array(machine, UINT8, length);
 
 	UINT32 x;
@@ -726,38 +731,35 @@ static void descramble_sound( running_machine &machine )
 
 static READ32_HANDLER( avengrgs_speedup_r )
 {
-	deco_mlc_state *state = space->machine().driver_data<deco_mlc_state>();
-	UINT32 a=state->m_mlc_ram[0x89a0/4];
-	UINT32 p=cpu_get_pc(&space->device());
+	UINT32 a=mlc_ram[0x89a0/4];
+	UINT32 p=cpu_get_pc(space->cpu);
 
-	if ((p==0x3234 || p==0x32dc) && (a&1)) device_spin_until_interrupt(&space->device());
+	if ((p==0x3234 || p==0x32dc) && (a&1)) cpu_spinuntil_int(space->cpu);
 
 	return a;
 }
 
 static DRIVER_INIT( avengrgs )
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
 	// init options
-	sh2drc_set_options(machine.device("maincpu"), SH2DRC_FASTEST_OPTIONS);
+	sh2drc_set_options(machine->device("maincpu"), SH2DRC_FASTEST_OPTIONS);
 
 	// set up speed cheat
-	sh2drc_add_pcflush(machine.device("maincpu"), 0x3234);
-	sh2drc_add_pcflush(machine.device("maincpu"), 0x32dc);
+	sh2drc_add_pcflush(machine->device("maincpu"), 0x3234);
+	sh2drc_add_pcflush(machine->device("maincpu"), 0x32dc);
 
-	state->m_mainCpuIsArm = 0;
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x01089a0, 0x01089a3, FUNC(avengrgs_speedup_r) );
+	mainCpuIsArm = 0;
+	memory_install_read32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x01089a0, 0x01089a3, 0, 0, avengrgs_speedup_r );
 	descramble_sound(machine);
 }
 
 static DRIVER_INIT( mlc )
 {
-	deco_mlc_state *state = machine.driver_data<deco_mlc_state>();
 	/* The timing in the ARM core isn't as accurate as it should be, so bump up the
         effective clock rate here to compensate otherwise we have slowdowns in
         Skull Fung where there probably shouldn't be. */
-	machine.device("maincpu")->set_clock_scale(2.0f);
-	state->m_mainCpuIsArm = 1;
+	machine->device("maincpu")->set_clock_scale(2.0f);
+	mainCpuIsArm = 1;
 	deco156_decrypt(machine);
 	descramble_sound(machine);
 }

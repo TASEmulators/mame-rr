@@ -52,27 +52,18 @@ Is this based on some Seta / Taito HW design, the sprite-tilemaps look familiar
 #include "cpu/m68000/m68000.h"
 #include "sound/okim6295.h"
 
-
-class blackt96_state : public driver_device
-{
-public:
-	blackt96_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT16* m_tilemapram;
-	UINT16* m_tilemapram2;
-};
-
-
 static VIDEO_START( blackt96 )
 {
+
 }
 
-static void draw_strip(running_machine &machine, bitmap_t *bitmap, const rectangle *cliprect, int stripnum, int xbase, int ybase, int bg)
+static UINT16* blackt96_tilemapram;
+static UINT16* blackt96_tilemapram2;
+
+static void draw_strip(running_machine *machine, bitmap_t *bitmap, const rectangle *cliprect, int stripnum, int xbase, int ybase, int bg)
 {
-	blackt96_state *state = machine.driver_data<blackt96_state>();
-	const gfx_element *gfxspr = machine.gfx[1];
-	const gfx_element *gfxbg = machine.gfx[0];
+	const gfx_element *gfxspr = machine->gfx[1];
+	const gfx_element *gfxbg = machine->gfx[0];
 
 	int base = stripnum;
 	int count = 0;
@@ -80,9 +71,9 @@ static void draw_strip(running_machine &machine, bitmap_t *bitmap, const rectang
 
 	for (y=0;y<32;y++)
 	{
-		UINT16 tile = (state->m_tilemapram2[count*2 + (base/2)+1]&0x3fff);
-		UINT16 flipx = (state->m_tilemapram2[count*2 + (base/2)+1]&0x4000);
-		UINT16 colour = (state->m_tilemapram2[count*2 + (base/2)]&0x00ff);
+		UINT16 tile = (blackt96_tilemapram2[count*2 + (base/2)+1]&0x3fff);
+		UINT16 flipx = (blackt96_tilemapram2[count*2 + (base/2)+1]&0x4000);
+		UINT16 colour = (blackt96_tilemapram2[count*2 + (base/2)]&0x00ff);
 
 		if (tile&0x2000)
 		{
@@ -98,9 +89,8 @@ static void draw_strip(running_machine &machine, bitmap_t *bitmap, const rectang
 
 }
 
-static void draw_main(running_machine &machine, bitmap_t *bitmap, const rectangle *cliprect, int bg)
+static void draw_main(running_machine *machine, bitmap_t *bitmap, const rectangle *cliprect, int bg)
 {
-	blackt96_state *state = machine.driver_data<blackt96_state>();
 
 	int x;
 
@@ -111,8 +101,8 @@ static void draw_main(running_machine &machine, bitmap_t *bitmap, const rectangl
 		int yy;
 		int s = 0;
 
-		xx=  ((state->m_tilemapram2[x+0]&0x001f)<<4) | (state->m_tilemapram2[x+1]&0xf000)>>12;
-		yy = ((state->m_tilemapram2[x+1]&0x1ff));
+		xx=  ((blackt96_tilemapram2[x+0]&0x001f)<<4) | (blackt96_tilemapram2[x+1]&0xf000)>>12;
+		yy = ((blackt96_tilemapram2[x+1]&0x1ff));
 
 		if (xx&0x100) xx-=0x200;
 		yy = 0x1ff-yy;
@@ -128,17 +118,16 @@ static void draw_main(running_machine &machine, bitmap_t *bitmap, const rectangl
 
 }
 
-static SCREEN_UPDATE( blackt96 )
+static VIDEO_UPDATE( blackt96 )
 {
-	blackt96_state *state = screen->machine().driver_data<blackt96_state>();
 	int count;
 	int x,y;
-	const gfx_element *gfx = screen->machine().gfx[2];
+	const gfx_element *gfx = screen->machine->gfx[2];
 
-	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
+	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 
-	draw_main(screen->machine(),bitmap,cliprect,1);
-	draw_main(screen->machine(),bitmap,cliprect,0);
+	draw_main(screen->machine,bitmap,cliprect,1);
+	draw_main(screen->machine,bitmap,cliprect,0);
 
 	/* Text Layer */
 	count = 0;
@@ -146,7 +135,7 @@ static SCREEN_UPDATE( blackt96 )
 	{
 		for (y=0;y<32;y++)
 		{
-			UINT16 tile = (state->m_tilemapram[count*2]&0x7ff)+0x800; // +0xc00 for korean text
+			UINT16 tile = (blackt96_tilemapram[count*2]&0x7ff)+0x800; // +0xc00 for korean text
 			drawgfx_transpen(bitmap,cliprect,gfx,tile,0,0,0,x*8,-16+y*8,0);
 			count++;
 		}
@@ -168,7 +157,7 @@ static WRITE16_HANDLER( blackt96_80000_w )
 }
 
 
-static ADDRESS_MAP_START( blackt96_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( blackt96_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x080000, 0x080001) AM_READ_PORT("P1_P2") AM_WRITE(blackt96_80000_w)
 	AM_RANGE(0x0c0000, 0x0c0001) AM_READ_PORT("IN1") AM_WRITE(blackt96_c0000_w) // COIN INPUT
@@ -177,8 +166,8 @@ static ADDRESS_MAP_START( blackt96_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x0f0000, 0x0f0001) AM_READ_PORT("DSW1")
 	AM_RANGE(0x0f0008, 0x0f0009) AM_READ_PORT("DSW2")
 
-	AM_RANGE(0x100000, 0x100fff) AM_RAM AM_BASE_MEMBER(blackt96_state, m_tilemapram) // text tilemap
-	AM_RANGE(0x200000, 0x207fff) AM_RAM AM_BASE_MEMBER(blackt96_state, m_tilemapram2)// sprite list + sprite tilemaps
+	AM_RANGE(0x100000, 0x100fff) AM_RAM AM_BASE(&blackt96_tilemapram) // text tilemap
+	AM_RANGE(0x200000, 0x207fff) AM_RAM AM_BASE(&blackt96_tilemapram2)// sprite list + sprite tilemaps
 	AM_RANGE(0x400000, 0x400fff) AM_RAM_WRITE(paletteram16_xxxxRRRRGGGGBBBB_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xc00000, 0xc03fff) AM_RAM // main ram
 
@@ -455,7 +444,7 @@ static WRITE8_HANDLER( blackt96_soundio_port00_w )
 
 static READ8_HANDLER( blackt96_soundio_port01_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static WRITE8_HANDLER( blackt96_soundio_port01_w )
@@ -465,7 +454,7 @@ static WRITE8_HANDLER( blackt96_soundio_port01_w )
 
 static READ8_HANDLER( blackt96_soundio_port02_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static WRITE8_HANDLER( blackt96_soundio_port02_w )
@@ -473,7 +462,7 @@ static WRITE8_HANDLER( blackt96_soundio_port02_w )
 
 }
 
-static ADDRESS_MAP_START( sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0x00) AM_WRITE( blackt96_soundio_port00_w )
 	AM_RANGE(0x01, 0x01) AM_READWRITE( blackt96_soundio_port01_r, blackt96_soundio_port01_w )
 	AM_RANGE(0x02, 0x02) AM_READWRITE( blackt96_soundio_port02_r, blackt96_soundio_port02_w )
@@ -482,39 +471,39 @@ ADDRESS_MAP_END
 
 
 
-static MACHINE_CONFIG_START( blackt96, blackt96_state )
-	MCFG_CPU_ADD("maincpu", M68000, 18000000 /2)
-	MCFG_CPU_PROGRAM_MAP(blackt96_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+static MACHINE_DRIVER_START( blackt96 )
+	MDRV_CPU_ADD("maincpu", M68000, 18000000 /2)
+	MDRV_CPU_PROGRAM_MAP(blackt96_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", PIC16C57, 8000000)	/* ? */
-	MCFG_CPU_IO_MAP(sound_io_map)
+	MDRV_CPU_ADD("audiocpu", PIC16C57, 8000000)	/* ? */
+	MDRV_CPU_IO_MAP(sound_io_map)
 
-	MCFG_GFXDECODE(blackt96)
+	MDRV_GFXDECODE(blackt96)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-//  MCFG_SCREEN_VISIBLE_AREA(0*8, 16*32-1, 0*8, 16*32-1)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 256-1, 0*8, 208-1)
-	MCFG_SCREEN_UPDATE(blackt96)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+//  MDRV_SCREEN_VISIBLE_AREA(0*8, 16*32-1, 0*8, 16*32-1)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 256-1, 0*8, 208-1)
 
-	MCFG_PALETTE_LENGTH(0x800)
+	MDRV_PALETTE_LENGTH(0x800)
 
-	MCFG_VIDEO_START(blackt96)
+	MDRV_VIDEO_START(blackt96)
+	MDRV_VIDEO_UPDATE(blackt96)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_OKIM6295_ADD("oki1", 8000000/8, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
+	MDRV_OKIM6295_ADD("oki1", 8000000/8, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
 
-	MCFG_OKIM6295_ADD("oki2", 8000000/8, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki2", 8000000/8, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.47)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.47)
+MACHINE_DRIVER_END
 
 
 ROM_START( blackt96 )

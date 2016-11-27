@@ -112,9 +112,9 @@
 #include "ui.h"
 #include "uimenu.h"
 #include "uiinput.h"
+#include "streams.h"
 #include "crsshair.h"
 #include "validity.h"
-#include "unzip.h"
 #include "debug/debugcon.h"
 
 #include <time.h>
@@ -131,7 +131,6 @@ static char giant_string_buffer[65536] = { 0 };
 bool start_paused = false;
 
 
-
 //**************************************************************************
 //  RUNNING MACHINE
 //**************************************************************************
@@ -140,40 +139,47 @@ bool start_paused = false;
 //  running_machine - constructor
 //-------------------------------------------------
 
-running_machine::running_machine(const machine_config &_config, osd_interface &osd, bool exit_to_game_select)
-	: firstcpu(NULL),
+running_machine::running_machine(const game_driver &driver, const machine_config &_config, core_options &options, bool exit_to_game_select)
+	: m_regionlist(m_respool),
+	  m_devicelist(m_respool),
+	  config(&_config),
+	  m_config(_config),
+	  firstcpu(NULL),
+	  gamedrv(&driver),
+	  m_game(driver),
 	  primary_screen(NULL),
 	  palette(NULL),
 	  pens(NULL),
 	  colortable(NULL),
 	  shadow_table(NULL),
 	  priority_bitmap(NULL),
+	  sample_rate(options_get_int(&options, OPTION_SAMPLERATE)),
 	  debug_flags(0),
+      ui_active(false),
+	  mame_data(NULL),
+	  timer_data(NULL),
+	  state_data(NULL),
 	  memory_data(NULL),
 	  palette_data(NULL),
 	  tilemap_data(NULL),
+	  streams_data(NULL),
+	  devices_data(NULL),
 	  romload_data(NULL),
+	  sound_data(NULL),
 	  input_data(NULL),
 	  input_port_data(NULL),
 	  ui_input_data(NULL),
+	  cheat_data(NULL),
 	  debugcpu_data(NULL),
 	  generic_machine_data(NULL),
 	  generic_video_data(NULL),
 	  generic_audio_data(NULL),
-
-	  m_config(_config),
-	  m_system(_config.gamedrv()),
-	  m_osd(osd),
-	  m_regionlist(m_respool),
-	  m_save(*this),
-	  m_scheduler(*this),
-	  m_cheat(NULL),
-	  m_render(NULL),
-	  m_input(NULL),
-	  m_sound(NULL),
-	  m_video(NULL),
 	  m_debug_view(NULL),
-	  m_driver_device(NULL),
+	  driver_data(NULL),
+	  m_logerror_list(NULL),
+	  m_scheduler(*this),
+	  m_options(options),
+	  m_basename(driver.name),
 	  m_current_phase(MACHINE_PHASE_PREINIT),
 	  m_paused(false),
 	  m_hard_reset_pending(false),
@@ -181,31 +187,27 @@ running_machine::running_machine(const machine_config &_config, osd_interface &o
 	  m_exit_to_game_select(exit_to_game_select),
 	  m_new_driver_pending(NULL),
 	  m_soft_reset_timer(NULL),
-	  m_rand_seed(0x9d14abd7),
-      m_ui_active(false),
-	  m_basename(_config.gamedrv().name),
-	  m_sample_rate(_config.options().sample_rate()),
 	  m_logfile(NULL),
 	  m_saveload_schedule(SLS_NONE),
-	  m_saveload_schedule_time(attotime::zero),
+	  m_saveload_schedule_time(attotime_zero),
 	  m_saveload_searchpath(NULL),
-	  m_logerror_list(m_respool)
+	  m_rand_seed(0x9d14abd7)
 {
 	memset(gfx, 0, sizeof(gfx));
 	memset(&generic, 0, sizeof(generic));
+	memset(m_notifier_list, 0, sizeof(m_notifier_list));
 	memset(&m_base_time, 0, sizeof(m_base_time));
 
-	// set the machine on all devices
-	const_cast<device_list &>(devicelist()).set_machine_all(*this);
+	// attach this machine to all the devices in the configuration
+	m_devicelist.import_config_list(m_config.m_devicelist, *this);
 
-	// find the driver device config and tell it which game
-	m_driver_device = device<driver_device>("root");
-	if (m_driver_device == NULL)
-		throw emu_fatalerror("Machine configuration missing driver_device");
+	// allocate the driver data (after devices)
+	if (m_config.m_driver_data_alloc != NULL)
+		driver_data = (*m_config.m_driver_data_alloc)(*this);
 
 	// find devices
-	primary_screen = downcast<screen_device *>(devicelist().first(SCREEN));
-	for (device_t *device = devicelist().first(); device != NULL; device = device->next())
+	primary_screen = screen_first(*this);
+	for (device_t *device = m_devicelist.first(); device != NULL; device = device->next())
 		if (dynamic_cast<cpu_device *>(device) != NULL)
 		{
 			firstcpu = downcast<cpu_device *>(device);
@@ -213,8 +215,8 @@ running_machine::running_machine(const machine_config &_config, osd_interface &o
 		}
 
 	// fetch core options
-	if (options().debug())
-		debug_flags = (DEBUG_FLAG_ENABLED | DEBUG_FLAG_CALL_HOOK) | (options().debug_internal() ? 0 : DEBUG_FLAG_OSD_ENABLED);
+	if (options_get_bool(&m_options, OPTION_DEBUG))
+		debug_flags = (DEBUG_FLAG_ENABLED | DEBUG_FLAG_CALL_HOOK) | (options_get_bool(&m_options, OPTION_DEBUG_INTERNAL) ? 0 : DEBUG_FLAG_OSD_ENABLED);
 }
 
 
@@ -224,6 +226,8 @@ running_machine::running_machine(const machine_config &_config, osd_interface &o
 
 running_machine::~running_machine()
 {
+	/* clear flag for added devices */
+	options_set_bool(&m_options, OPTION_ADDED_DEVICE_OPTIONS, FALSE, OPTION_PRIORITY_CMDLINE);
 }
 
 
@@ -240,7 +244,9 @@ const char *running_machine::describe_context()
 	{
 		cpu_device *cpu = downcast<cpu_device *>(&executing->device());
 		if (cpu != NULL)
-			m_context.printf("'%s' (%s)", cpu->tag(), core_i64_format(cpu->pc(), cpu->space(AS_PROGRAM)->logaddrchars(), cpu->is_octal()));
+			m_context.printf("'%s' (%s)", cpu->tag(), core_i64_hex_format(cpu->pc(), cpu->space(AS_PROGRAM)->logaddrchars));
+		else
+			m_context.printf("'%s'", cpu->tag());
 	}
 	else
 		m_context.cpy("(no context)");
@@ -256,118 +262,109 @@ const char *running_machine::describe_context()
 void running_machine::start()
 {
 	// initialize basic can't-fail systems here
-	config_init(*this);
-	m_input = auto_alloc(*this, input_manager(*this));
-	output_init(*this);
-	palette_init(*this);
-	m_render = auto_alloc(*this, render_manager(*this));
-	generic_machine_init(*this);
-	generic_sound_init(*this);
+	fileio_init(this);
+	config_init(this);
+	input_init(this);
+	output_init(this);
+	state_init(this);
+	state_save_allow_registration(this, true);
+	palette_init(this);
+	render_init(this);
+	ui_init(this);
+	generic_machine_init(this);
+	generic_video_init(this);
+	generic_sound_init(this);
 
-	// allocate a soft_reset timer
-	m_soft_reset_timer = m_scheduler.timer_alloc(timer_expired_delegate(FUNC(running_machine::soft_reset), this));
+	// initialize the timers and allocate a soft_reset timer
+	// this must be done before cpu_init so that CPU's can allocate timers
+	timer_init(this);
+	m_soft_reset_timer = timer_alloc(this, static_soft_reset, NULL);
 
 	// init the osd layer
-	m_osd.init(*this);
-
-	// create the video manager
-	m_video = auto_alloc(*this, video_manager(*this));
-	ui_init(*this);
+	osd_init(this);
 
 	// initialize the base time (needed for doing record/playback)
-	::time(&m_base_time);
+	time(&m_base_time);
 
 	// initialize the input system and input ports for the game
 	// this must be done before memory_init in order to allow specifying
 	// callbacks based on input port tags
-	time_t newbase = input_port_init(*this);
+	time_t newbase = input_port_init(this, m_game.ipt);
 	if (newbase != 0)
 		m_base_time = newbase;
 
 	// intialize UI input
-	ui_input_init(*this);
+	ui_input_init(this);
 
 	// initialize the streams engine before the sound devices start
-	m_sound = auto_alloc(*this, sound_manager(*this));
+	streams_init(this);
 
 	// first load ROMs, then populate memory, and finally initialize CPUs
 	// these operations must proceed in this order
-	rom_init(*this);
-	memory_init(*this);
-	watchdog_init(*this);
-
-	// must happen after memory_init because this relies on generic.spriteram
-	generic_video_init(*this);
+	rom_init(this);
+	memory_init(this);
+	watchdog_init(this);
 
 	// allocate the gfx elements prior to device initialization
-	gfx_init(*this);
+	gfx_init(this);
 
 	// initialize natural keyboard support
-	inputx_init(*this);
+	inputx_init(this);
 
 	// initialize image devices
-	image_init(*this);
-	tilemap_init(*this);
-	crosshair_init(*this);
+	image_init(this);
 
-	// initialize the debugger
-	if ((debug_flags & DEBUG_FLAG_ENABLED) != 0)
-		debugger_init(*this);
+	// start up the devices
+	m_devicelist.start_all();
 
 	// call the game driver's init function
 	// this is where decryption is done and memory maps are altered
 	// so this location in the init order is important
-	ui_set_startup_text(*this, "Initializing...", true);
+	ui_set_startup_text(this, "Initializing...", true);
+	if (m_game.driver_init != NULL)
+		(*m_game.driver_init)(this);
 
-	// start up the devices
-	const_cast<device_list &>(devicelist()).start_all();
+	// finish image devices init process
+	image_postdevice_init(this);
+
+	// start the video and audio hardware
+	video_init(this);
+	tilemap_init(this);
+	crosshair_init(this);
+
+	sound_init(this);
+
+	// initialize the debugger
+	if ((debug_flags & DEBUG_FLAG_ENABLED) != 0)
+		debugger_init(this);
+
+	// call the driver's _START callbacks
+	if (m_config.m_machine_start != NULL)
+		(*m_config.m_machine_start)(this);
+	if (m_config.m_sound_start != NULL)
+		(*m_config.m_sound_start)(this);
+	if (m_config.m_video_start != NULL)
+		(*m_config.m_video_start)(this);
 
 	// if we're coming in with a savegame request, process it now
-	const char *savegame = options().state();
+	const char *savegame = options_get_string(&m_options, OPTION_STATE);
 	if (savegame[0] != 0)
 		schedule_load(savegame);
 
 	// if we're in autosave mode, schedule a load
-	else if (options().autosave() && (m_system.flags & GAME_SUPPORTS_SAVE) != 0)
+	else if (options_get_bool(&m_options, OPTION_AUTOSAVE) && (m_game.flags & GAME_SUPPORTS_SAVE) != 0)
 		schedule_load("auto");
 
 	// set up the cheat engine
-	m_cheat = auto_alloc(*this, cheat_manager(*this));
+	if (options_get_bool(&m_options, OPTION_CHEAT))
+		cheat_init(this);
 
-	lua_init(*this);
+	lua_init(this);
 	extern void Update_RAM_Search(running_machine &machine);
-	this->add_notifier(MACHINE_NOTIFY_FRAME, machine_notify_delegate(FUNC(Update_RAM_Search), this));
+	add_notifier(MACHINE_NOTIFY_FRAME, Update_RAM_Search);
 
 	// disallow save state registrations starting here
-	m_save.allow_registration(false);
-}
-
-
-//-------------------------------------------------
-//  add_dynamic_device - dynamically add a device
-//-------------------------------------------------
-
-device_t &running_machine::add_dynamic_device(device_t &owner, device_type type, const char *tag, UINT32 clock)
-{
-	// allocate and append this device
-	astring fulltag;
-	owner.subtag(fulltag, tag);
-	device_t &device = const_cast<device_list &>(devicelist()).append(fulltag, *type(m_config, fulltag, &owner, clock));
-
-	// append any machine config additions from new devices
-	for (device_t *curdevice = devicelist().first(); curdevice != NULL; curdevice = curdevice->next())
-		if (!curdevice->configured())
-		{
-			machine_config_constructor machconfig = curdevice->machine_config_additions();
-			if (machconfig != NULL)
-		    	(*machconfig)(const_cast<machine_config &>(m_config), curdevice);
-		}
-
-	// notify any new devices that their configurations are complete
-	for (device_t *curdevice = devicelist().first(); curdevice != NULL; curdevice = curdevice->next())
-		if (!curdevice->configured())
-			curdevice->config_complete();
-	return device;
+	state_save_allow_registration(this, false);
 }
 
 
@@ -386,10 +383,9 @@ int running_machine::run(bool firstrun)
 		m_current_phase = MACHINE_PHASE_INIT;
 
 		// if we have a logfile, set up the callback
-		if (options().log())
+		if (options_get_bool(&m_options, OPTION_LOG))
 		{
-			m_logfile = auto_alloc(*this, emu_file(OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS));
-			file_error filerr = m_logfile->open("error.log");
+			file_error filerr = mame_fopen(SEARCHPATH_DEBUGLOG, "error.log", OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS, &m_logfile);
 			assert_always(filerr == FILERR_NONE, "unable to open log file");
 			add_logerror_callback(logfile_callback);
 		}
@@ -398,14 +394,14 @@ int running_machine::run(bool firstrun)
 		start();
 
 		// load the configuration settings and NVRAM
-		bool settingsloaded = config_load_settings(*this);
-		if (!is_movie_pending(*this)) {
-			nvram_load(*this);
+		bool settingsloaded = config_load_settings(this);
+		if (!is_movie_pending(this)) {
+			nvram_load(this);
 		}
-		sound().ui_mute(false);
+		sound_mute(this, FALSE);
 
 		// display the startup screens
-		ui_display_startup_screens(*this, firstrun, !settingsloaded);
+		ui_display_startup_screens(this, firstrun, !settingsloaded);
 
 		// perform a soft reset -- this takes us to the running phase
 		soft_reset();
@@ -419,7 +415,7 @@ int running_machine::run(bool firstrun)
 		m_hard_reset_pending = false;
 		while ((!m_hard_reset_pending && !m_exit_pending) || m_saveload_schedule != SLS_NONE)
 		{
-			g_profiler.start(PROFILER_EXTRA);
+			profiler_mark_start(PROFILER_EXTRA);
 
 			// execute CPUs if not paused
 			if (!m_paused)
@@ -427,22 +423,22 @@ int running_machine::run(bool firstrun)
 
 			// otherwise, just pump video updates through
 			else
-				m_video->frame_update();
+				video_frame_update(this, false);
 
 			// handle save/load
 			if (m_saveload_schedule != SLS_NONE)
 				handle_saveload();
 
-			g_profiler.stop();
+			profiler_mark_end();
 		}
 
 		// and out via the exit phase
 		m_current_phase = MACHINE_PHASE_EXIT;
 
 		// save the NVRAM and configuration
-		sound().ui_mute(true);
-		nvram_save(*this);
-		config_save_settings(*this);
+		sound_mute(this, true);
+		nvram_save(this);
+		config_save_settings(this);
 	}
 	catch (emu_fatalerror &fatal)
 	{
@@ -464,10 +460,10 @@ int running_machine::run(bool firstrun)
 
 	// call all exit callbacks registered
 	call_notifiers(MACHINE_NOTIFY_EXIT);
-	zip_file_cache_clear();
 
 	// close the logfile
-	auto_free(*this, m_logfile);
+	if (m_logfile != NULL)
+		mame_fclose(m_logfile);
 	return error;
 }
 
@@ -479,10 +475,10 @@ int running_machine::run(bool firstrun)
 void running_machine::schedule_exit()
 {
 	// if we are in-game but we started with the select game menu, return to that instead
-	if (m_exit_to_game_select && options().system_name()[0] != 0)
+	if (m_exit_to_game_select && options_get_string(&m_options, OPTION_GAMENAME)[0] != 0)
 	{
-		options().set_system_name("");
-		ui_menu_force_game_select(*this, &render().ui_container());
+		options_set_string(&m_options, OPTION_GAMENAME, "", OPTION_PRIORITY_CMDLINE);
+		ui_menu_force_game_select(this, render_container_get_ui());
 	}
 
 	// otherwise, exit for real
@@ -493,7 +489,7 @@ void running_machine::schedule_exit()
 	m_scheduler.eat_all_cycles();
 
 	// if we're autosaving on exit, schedule a save as well
-	if (options().autosave() && (m_system.flags & GAME_SUPPORTS_SAVE) && this->time() > attotime::zero)
+	if (options_get_bool(&m_options, OPTION_AUTOSAVE) && (m_game.flags & GAME_SUPPORTS_SAVE))
 		schedule_save("auto");
 }
 
@@ -522,7 +518,7 @@ void running_machine::schedule_hard_reset()
 
 void running_machine::schedule_soft_reset()
 {
-	m_soft_reset_timer->adjust(attotime::zero);
+	timer_adjust_oneshot(m_soft_reset_timer, attotime_zero, 0);
 
 	// we can't be paused since the timer needs to fire
 //	resume();
@@ -562,7 +558,7 @@ void running_machine::set_saveload_filename(const char *filename)
 	}
 	else
 	{
-		m_saveload_searchpath = options().state_directory();
+		m_saveload_searchpath = SEARCHPATH_STATE;
 		m_saveload_pending_file.cpy(basename()).cat(PATH_SEPARATOR).cat(filename).cat(".sta");
 	}
 }
@@ -580,7 +576,7 @@ void running_machine::schedule_save(const char *filename)
 
 	// note the start time and set a timer for the next timeslice to actually schedule it
 	m_saveload_schedule = SLS_SAVE;
-	m_saveload_schedule_time = this->time();
+	m_saveload_schedule_time = timer_get_time(this);
 
 	// we can't be paused since we need to clear out anonymous timers
 //	resume();
@@ -599,7 +595,7 @@ void running_machine::schedule_load(const char *filename)
 
 	// note the start time and set a timer for the next timeslice to actually schedule it
 	m_saveload_schedule = SLS_LOAD;
-	m_saveload_schedule_time = this->time();
+	m_saveload_schedule_time = timer_get_time(this);
 
 	// we can't be paused since we need to clear out anonymous timers
 //	resume();
@@ -642,15 +638,15 @@ void running_machine::resume()
 //  region_alloc - allocates memory for a region
 //-------------------------------------------------
 
-memory_region *running_machine::region_alloc(const char *name, UINT32 length, UINT8 width, endianness_t endian)
+region_info *running_machine::region_alloc(const char *name, UINT32 length, UINT32 flags)
 {
     // make sure we don't have a region of the same name; also find the end of the list
-    memory_region *info = m_regionlist.find(name);
+    region_info *info = m_regionlist.find(name);
     if (info != NULL)
 		fatalerror("region_alloc called with duplicate region name \"%s\"\n", name);
 
 	// allocate the region
-	return &m_regionlist.append(name, *auto_alloc(*this, memory_region(*this, name, length, width, endian)));
+	return m_regionlist.append(name, auto_alloc(this, region_info(*this, name, length, flags)));
 }
 
 
@@ -669,17 +665,25 @@ void running_machine::region_free(const char *name)
 //  given type
 //-------------------------------------------------
 
-void running_machine::add_notifier(machine_notification event, machine_notify_delegate callback)
+void running_machine::add_notifier(machine_notification event, notify_callback callback)
 {
 	assert_always(m_current_phase == MACHINE_PHASE_INIT, "Can only call add_notifier at init time!");
 
 	// exit notifiers are added to the head, and executed in reverse order
 	if (event == MACHINE_NOTIFY_EXIT)
-		m_notifier_list[event].prepend(*global_alloc(notifier_callback_item(callback)));
+	{
+		notifier_callback_item *notifier = auto_alloc(this, notifier_callback_item(callback));
+		notifier->m_next = m_notifier_list[event];
+		m_notifier_list[event] = notifier;
+	}
 
 	// all other notifiers are added to the tail, and executed in the order registered
 	else
-		m_notifier_list[event].append(*global_alloc(notifier_callback_item(callback)));
+	{
+		notifier_callback_item **tailptr;
+		for (tailptr = &m_notifier_list[event]; *tailptr != NULL; tailptr = &(*tailptr)->m_next) ;
+		*tailptr = auto_alloc(this, notifier_callback_item(callback));
+	}
 }
 
 
@@ -691,7 +695,10 @@ void running_machine::add_notifier(machine_notification event, machine_notify_de
 void running_machine::add_logerror_callback(logerror_callback callback)
 {
 	assert_always(m_current_phase == MACHINE_PHASE_INIT, "Can only call add_logerror_callback at init time!");
-	m_logerror_list.append(*auto_alloc(*this, logerror_callback_item(callback)));
+
+	logerror_callback_item **tailptr;
+	for (tailptr = &m_logerror_list; *tailptr != NULL; tailptr = &(*tailptr)->m_next) ;
+	*tailptr = auto_alloc(this, logerror_callback_item(callback));
 }
 
 
@@ -702,7 +709,7 @@ void running_machine::add_logerror_callback(logerror_callback callback)
 void CLIB_DECL running_machine::logerror(const char *format, ...)
 {
 	// process only if there is a target
-	if (m_logerror_list.first() != NULL)
+	if (m_logerror_list != NULL)
 	{
 		va_list arg;
 		va_start(arg, format);
@@ -719,18 +726,18 @@ void CLIB_DECL running_machine::logerror(const char *format, ...)
 void CLIB_DECL running_machine::vlogerror(const char *format, va_list args)
 {
 	// process only if there is a target
-	if (m_logerror_list.first() != NULL)
+	if (m_logerror_list != NULL)
 	{
-		g_profiler.start(PROFILER_LOGERROR);
+		profiler_mark_start(PROFILER_LOGERROR);
 
 		// dump to the buffer
 		vsnprintf(giant_string_buffer, ARRAY_LENGTH(giant_string_buffer), format, args);
 
 		// log to all callbacks
-		for (logerror_callback_item *cb = m_logerror_list.first(); cb != NULL; cb = cb->next())
+		for (logerror_callback_item *cb = m_logerror_list; cb != NULL; cb = cb->m_next)
 			(*cb->m_func)(*this, giant_string_buffer);
 
-		g_profiler.stop();
+		profiler_mark_end();
 	}
 }
 
@@ -754,7 +761,7 @@ void running_machine::base_datetime(system_time &systime)
 
 void running_machine::current_datetime(system_time &systime)
 {
-	systime.set(m_base_time + this->time().seconds);
+	systime.set(m_base_time + timer_get_time(this).seconds);
 }
 
 
@@ -779,8 +786,8 @@ UINT32 running_machine::rand()
 
 void running_machine::call_notifiers(machine_notification which)
 {
-	for (notifier_callback_item *cb = m_notifier_list[which].first(); cb != NULL; cb = cb->next())
-		cb->m_func();
+	for (notifier_callback_item *cb = m_notifier_list[which]; cb != NULL; cb = cb->m_next)
+		(*cb->m_func)(*this);
 }
 
 
@@ -797,16 +804,15 @@ void running_machine::handle_saveload()
 	file_error filerr = FILERR_NONE;
 
 	// if no name, bail
-	emu_file file(m_saveload_searchpath, openflags);
-	if (!m_saveload_pending_file)
+	if (m_saveload_pending_file.len() == 0)
 		goto cancel;
 
 	// if there are anonymous timers, we can't save just yet, and we can't load yet either
 	// because the timers might overwrite data we have loaded
-	if (!m_scheduler.can_save())
+	if (timer_count_anonymous(this) > 0)
 	{
 		// if more than a second has passed, we're probably screwed
-		if ((this->time() - m_saveload_schedule_time) > attotime::from_seconds(1))
+		if (attotime_sub(timer_get_time(this), m_saveload_schedule_time).seconds > 0)
 		{
 			popmessage("Unable to %s due to pending anonymous timers. See error.log for details.", opname);
 			goto cancel;
@@ -815,14 +821,17 @@ void running_machine::handle_saveload()
 	}
 
 	// open the file
-	filerr = file.open(m_saveload_pending_file);
+	mame_file *file;
+	filerr = mame_fopen(m_saveload_searchpath, m_saveload_pending_file, openflags, &file);
 	if (filerr == FILERR_NONE)
 	{
+		astring fullname(mame_file_full_name(file));
+
 		// read/write the save state
-		save_error saverr = (m_saveload_schedule == SLS_LOAD) ? m_save.read_file(file) : m_save.write_file(file);
+		state_save_error staterr = (m_saveload_schedule == SLS_LOAD) ? state_save_read_file(this, file) : state_save_write_file(this, file);
 
 		// handle the result
-		switch (saverr)
+		switch (staterr)
 		{
 			case STATERR_ILLEGAL_REGISTRATIONS:
 				popmessage("Error: Unable to %s state due to illegal registrations. See error.log for details.", opname);
@@ -841,7 +850,7 @@ void running_machine::handle_saveload()
 				break;
 
 			case STATERR_NONE:
-				if (!(m_system.flags & GAME_SUPPORTS_SAVE))
+				if (!(m_game.flags & GAME_SUPPORTS_SAVE))
 					popmessage("State successfully %s.\nWarning: Save states are not officially supported for this game.", opnamed);
 				else
 					popmessage("State successfully %s.", opnamed);
@@ -852,20 +861,20 @@ void running_machine::handle_saveload()
 				break;
 		}
 
-		if (saverr == STATERR_NONE) {
+		if (staterr == STATERR_NONE) {
 			if (m_saveload_schedule == SLS_SAVE)
-				movie_postsave(*this, &file);
+				movie_postsave(this, file);
 			if (m_saveload_schedule == SLS_LOAD)
-				movie_postload(*this, &file);
+				movie_postload(this, file);
 			if (m_saveload_schedule == SLS_SAVE)
-				luasav_save(file.filename());
+				luasav_save(fullname);
 			if (m_saveload_schedule == SLS_LOAD)
-				luasav_load(file.filename());
+				luasav_load(fullname);
 		}
-
 		// close and perhaps delete the file
-		if (saverr != STATERR_NONE && m_saveload_schedule == SLS_SAVE)
-			file.remove_on_close();
+		mame_fclose(file);
+		if (staterr != STATERR_NONE && m_saveload_schedule == SLS_SAVE)
+			osd_rmfile(fullname);
 	}
 	else
 		popmessage("Error: Failed to open file for %s operation.", opname);
@@ -883,7 +892,9 @@ cancel:
 //  of the system
 //-------------------------------------------------
 
-void running_machine::soft_reset(void *ptr, INT32 param)
+TIMER_CALLBACK( running_machine::static_soft_reset ) { machine->soft_reset(); }
+
+void running_machine::soft_reset()
 {
 	logerror("Soft reset\n");
 
@@ -893,8 +904,19 @@ void running_machine::soft_reset(void *ptr, INT32 param)
 	// call all registered reset callbacks
 	call_notifiers(MACHINE_NOTIFY_RESET);
 
+	// run the driver's reset callbacks
+	if (m_config.m_machine_reset != NULL)
+		(*m_config.m_machine_reset)(this);
+	if (m_config.m_sound_reset != NULL)
+		(*m_config.m_sound_reset)(this);
+	if (m_config.m_video_reset != NULL)
+		(*m_config.m_video_reset)(this);
+
 	// now we're running
 	m_current_phase = MACHINE_PHASE_RUNNING;
+
+	// allow 0-time queued callbacks to run before any CPUs execute
+	timer_execute_timers(this);
 }
 
 
@@ -906,37 +928,37 @@ void running_machine::soft_reset(void *ptr, INT32 param)
 void running_machine::logfile_callback(running_machine &machine, const char *buffer)
 {
 	if (machine.m_logfile != NULL)
-		machine.m_logfile->puts(buffer);
+		mame_fputs(machine.m_logfile, buffer);
 }
+
+
 
 /***************************************************************************
     MEMORY REGIONS
 ***************************************************************************/
 
 //-------------------------------------------------
-//  memory_region - constructor
+//  region_info - constructor
 //-------------------------------------------------
 
-memory_region::memory_region(running_machine &machine, const char *name, UINT32 length, UINT8 width, endianness_t endian)
+region_info::region_info(running_machine &machine, const char *name, UINT32 length, UINT32 flags)
 	: m_machine(machine),
 	  m_next(NULL),
 	  m_name(name),
 	  m_length(length),
-	  m_width(width),
-	  m_endianness(endian)
+	  m_flags(flags)
 {
-	assert(width == 1 || width == 2 || width == 4 || width == 8);
-	m_base.u8 = auto_alloc_array(machine, UINT8, length);
+	m_base.u8 = auto_alloc_array(&machine, UINT8, length);
 }
 
 
 //-------------------------------------------------
-//  ~memory_region - destructor
+//  ~region_info - destructor
 //-------------------------------------------------
 
-memory_region::~memory_region()
+region_info::~region_info()
 {
-	auto_free(machine(), m_base.v);
+	auto_free(&m_machine, m_base.v);
 }
 
 
@@ -949,7 +971,7 @@ memory_region::~memory_region()
 //  notifier_callback_item - constructor
 //-------------------------------------------------
 
-running_machine::notifier_callback_item::notifier_callback_item(machine_notify_delegate func)
+running_machine::notifier_callback_item::notifier_callback_item(notify_callback func)
 	: m_next(NULL),
 	  m_func(func)
 {
@@ -964,259 +986,6 @@ running_machine::logerror_callback_item::logerror_callback_item(logerror_callbac
 	: m_next(NULL),
 	  m_func(func)
 {
-}
-
-
-
-//**************************************************************************
-//  DRIVER DEVICE
-//**************************************************************************
-
-//-------------------------------------------------
-//  driver_device - constructor
-//-------------------------------------------------
-
-driver_device::driver_device(const machine_config &mconfig, device_type type, const char *tag)
-	: device_t(mconfig, type, "Driver Device", tag, NULL, 0),
-	  m_system(NULL),
-	  m_palette_init(NULL)
-{
-	memset(m_callbacks, 0, sizeof(m_callbacks));
-}
-
-
-//-------------------------------------------------
-//  driver_device - destructor
-//-------------------------------------------------
-
-driver_device::~driver_device()
-{
-}
-
-
-//-------------------------------------------------
-//  static_set_game - set the game in the device
-//  configuration
-//-------------------------------------------------
-
-void driver_device::static_set_game(device_t &device, const game_driver &game)
-{
-	driver_device &driver = downcast<driver_device &>(device);
-
-	// set the system
-	driver.m_system = &game;
-
-	// set the short name to the game's name
-	driver.m_shortname = game.name;
-
-	// and set the search path to include all parents
-	driver.m_searchpath = game.name;
-	for (int parent = driver_list::clone(game); parent != -1; parent = driver_list::clone(parent))
-		driver.m_searchpath.cat(";").cat(driver_list::driver(parent).name);
-}
-
-
-//-------------------------------------------------
-//  static_set_machine_start - set the legacy
-//  machine start callback in the device
-//  configuration
-//-------------------------------------------------
-
-void driver_device::static_set_callback(device_t &device, callback_type type, legacy_callback_func callback)
-{
-	downcast<driver_device &>(device).m_callbacks[type] = callback;
-}
-
-
-//-------------------------------------------------
-//  static_set_palette_init - set the legacy
-//  palette init callback in the device
-//  configuration
-//-------------------------------------------------
-
-void driver_device::static_set_palette_init(device_t &device, palette_init_func callback)
-{
-	downcast<driver_device &>(device).m_palette_init = callback;
-}
-
-
-//-------------------------------------------------
-//  driver_start - default implementation which
-//  does nothing
-//-------------------------------------------------
-
-void driver_device::driver_start()
-{
-}
-
-
-//-------------------------------------------------
-//  machine_start - default implementation which
-//  calls to the legacy machine_start function
-//-------------------------------------------------
-
-void driver_device::machine_start()
-{
-	if (m_callbacks[CB_MACHINE_START] != NULL)
-		(*m_callbacks[CB_MACHINE_START])(machine());
-}
-
-
-//-------------------------------------------------
-//  sound_start - default implementation which
-//  calls to the legacy sound_start function
-//-------------------------------------------------
-
-void driver_device::sound_start()
-{
-	if (m_callbacks[CB_SOUND_START] != NULL)
-		(*m_callbacks[CB_SOUND_START])(machine());
-}
-
-
-//-------------------------------------------------
-//  video_start - default implementation which
-//  calls to the legacy video_start function
-//-------------------------------------------------
-
-void driver_device::video_start()
-{
-	if (m_callbacks[CB_VIDEO_START] != NULL)
-		(*m_callbacks[CB_VIDEO_START])(machine());
-}
-
-
-//-------------------------------------------------
-//  driver_reset - default implementation which
-//  does nothing
-//-------------------------------------------------
-
-void driver_device::driver_reset()
-{
-}
-
-
-//-------------------------------------------------
-//  machine_reset - default implementation which
-//  calls to the legacy machine_reset function
-//-------------------------------------------------
-
-void driver_device::machine_reset()
-{
-	if (m_callbacks[CB_MACHINE_RESET] != NULL)
-		(*m_callbacks[CB_MACHINE_RESET])(machine());
-}
-
-
-//-------------------------------------------------
-//  sound_reset - default implementation which
-//  calls to the legacy sound_reset function
-//-------------------------------------------------
-
-void driver_device::sound_reset()
-{
-	if (m_callbacks[CB_SOUND_RESET] != NULL)
-		(*m_callbacks[CB_SOUND_RESET])(machine());
-}
-
-
-//-------------------------------------------------
-//  video_reset - default implementation which
-//  calls to the legacy video_reset function
-//-------------------------------------------------
-
-void driver_device::video_reset()
-{
-	if (m_callbacks[CB_VIDEO_RESET] != NULL)
-		(*m_callbacks[CB_VIDEO_RESET])(machine());
-}
-
-
-//-------------------------------------------------
-//  video_update - default implementation which
-//  calls to the legacy video_update function
-//-------------------------------------------------
-
-bool driver_device::screen_update(screen_device &screen, bitmap_t &bitmap, const rectangle &cliprect)
-{
-	return 0;
-}
-
-
-//-------------------------------------------------
-//  video_eof - default implementation which
-//  calls to the legacy video_eof function
-//-------------------------------------------------
-
-void driver_device::screen_eof()
-{
-}
-
-
-//-------------------------------------------------
-//  device_rom_region - return a pointer to the
-//  game's ROMs
-//-------------------------------------------------
-
-const rom_entry *driver_device::device_rom_region() const
-{
-	return m_system->rom;
-}
-
-
-//-------------------------------------------------
-//  device_input_ports - return a pointer to the
-//  game's input ports
-//-------------------------------------------------
-
-ioport_constructor driver_device::device_input_ports() const
-{
-	return m_system->ipt;
-}
-
-
-//-------------------------------------------------
-//  device_start - device override which calls
-//  the various helpers
-//-------------------------------------------------
-
-void driver_device::device_start()
-{
-	// reschedule ourselves to be last
-	if (next() != NULL)
-		throw device_missing_dependencies();
-
-	// call the game-specific init
-	if (m_system->driver_init != NULL)
-		(*m_system->driver_init)(machine());
-
-	// finish image devices init process
-	image_postdevice_init(machine());
-
-	// call palette_init if present
-	if (m_palette_init != NULL)
-		(*m_palette_init)(machine(), machine().region("proms")->base());
-
-	// start the various pieces
-	driver_start();
-	machine_start();
-	sound_start();
-	video_start();
-}
-
-
-//-------------------------------------------------
-//  device_reset - device override which calls
-//  the various helpers
-//-------------------------------------------------
-
-void driver_device::device_reset()
-{
-	// reset each piece
-	driver_reset();
-	machine_reset();
-	sound_reset();
-	video_reset();
 }
 
 

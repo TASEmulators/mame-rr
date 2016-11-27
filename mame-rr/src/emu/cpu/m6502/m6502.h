@@ -46,10 +46,13 @@ enum
 };
 
 #define M6502_IRQ_LINE		0
-/* use device_set_input_line(cpudevice, M6502_SET_OVERFLOW, level)
+/* use cpu_set_input_line(cpudevice, M6502_SET_OVERFLOW, level)
    to change level of the so input line
    positiv edge sets overflow flag */
 #define M6502_SET_OVERFLOW	1
+
+typedef UINT8 (*m6510_port_read_func)(running_device *device, UINT8 direction);
+typedef void (*m6510_port_write_func)(running_device *device, UINT8 direction, UINT8 data);
 
 
 /* Optional interface to set callbacks */
@@ -58,12 +61,12 @@ struct _m6502_interface
 {
 	read8_space_func		read_indexed_func;
 	write8_space_func		write_indexed_func;
-	devcb_read8				in_port_func;
-	devcb_write8			out_port_func;
+	m6510_port_read_func	port_read_func;
+	m6510_port_write_func	port_write_func;
 };
 
 DECLARE_LEGACY_CPU_DEVICE(M6502, m6502);
-DECLARE_LEGACY_CPU_DEVICE(M6504, m6504);
+
 extern CPU_DISASSEMBLE( m6502 );
 
 /****************************************************************************
@@ -159,7 +162,7 @@ DECLARE_LEGACY_CPU_DEVICE(N2A03, n2a03);
    Bit 7 of address $4011 (the PSG's DPCM control register), when set,
    causes an IRQ to be generated.  This function allows the IRQ to be called
    from the PSG core when such an occasion arises. */
-extern void n2a03_irq(device_t *device);
+extern void n2a03_irq(running_device *device);
 
 
 /****************************************************************************

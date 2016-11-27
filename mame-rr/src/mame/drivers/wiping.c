@@ -35,32 +35,29 @@ dip: 6.7 7.7
 ***************************************************************************/
 #include "emu.h"
 #include "cpu/z80/z80.h"
-#include "audio/wiping.h"
 #include "includes/wiping.h"
 
 
+static UINT8 *sharedram1,*sharedram2;
+
 static READ8_HANDLER( shared1_r )
 {
-	wiping_state *state = space->machine().driver_data<wiping_state>();
-	return state->m_sharedram1[offset];
+	return sharedram1[offset];
 }
 
 static READ8_HANDLER( shared2_r )
 {
-	wiping_state *state = space->machine().driver_data<wiping_state>();
-	return state->m_sharedram2[offset];
+	return sharedram2[offset];
 }
 
 static WRITE8_HANDLER( shared1_w )
 {
-	wiping_state *state = space->machine().driver_data<wiping_state>();
-	state->m_sharedram1[offset] = data;
+	sharedram1[offset] = data;
 }
 
 static WRITE8_HANDLER( shared2_w )
 {
-	wiping_state *state = space->machine().driver_data<wiping_state>();
-	state->m_sharedram2[offset] = data;
+	sharedram2[offset] = data;
 }
 
 
@@ -72,7 +69,7 @@ static READ8_HANDLER( ports_r )
 
 	res = 0;
 	for (i = 0; i < 8; i++)
-		res |= ((input_port_read(space->machine(), portnames[i]) >> offset) & 1) << i;
+		res |= ((input_port_read(space->machine, portnames[i]) >> offset) & 1) << i;
 
 	return res;
 }
@@ -80,20 +77,20 @@ static READ8_HANDLER( ports_r )
 static WRITE8_HANDLER( subcpu_reset_w )
 {
 	if (data & 1)
-		cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_RESET, CLEAR_LINE);
+		cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_RESET, CLEAR_LINE);
 	else
-		cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_RESET, ASSERT_LINE);
+		cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_RESET, ASSERT_LINE);
 }
 
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
-	AM_RANGE(0x8000, 0x83ff) AM_BASE_MEMBER(wiping_state, m_videoram)
-	AM_RANGE(0x8400, 0x87ff) AM_BASE_MEMBER(wiping_state, m_colorram)
-	AM_RANGE(0x8800, 0x88ff) AM_BASE_SIZE_MEMBER(wiping_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x8000, 0x83ff) AM_BASE(&wiping_videoram)
+	AM_RANGE(0x8400, 0x87ff) AM_BASE(&wiping_colorram)
+	AM_RANGE(0x8800, 0x88ff) AM_BASE_SIZE_GENERIC(spriteram)
 	AM_RANGE(0x8000, 0x8bff) AM_RAM
-	AM_RANGE(0x9000, 0x93ff) AM_READWRITE(shared1_r,shared1_w) AM_BASE_MEMBER(wiping_state, m_sharedram1)
-	AM_RANGE(0x9800, 0x9bff) AM_READWRITE(shared2_r,shared2_w) AM_BASE_MEMBER(wiping_state, m_sharedram2)
+	AM_RANGE(0x9000, 0x93ff) AM_READWRITE(shared1_r,shared1_w) AM_BASE(&sharedram1)
+	AM_RANGE(0x9800, 0x9bff) AM_READWRITE(shared2_r,shared2_w) AM_BASE(&sharedram2)
 	AM_RANGE(0xa000, 0xa000) AM_WRITE(interrupt_enable_w)
 	AM_RANGE(0xa002, 0xa002) AM_WRITE(wiping_flipscreen_w)
 	AM_RANGE(0xa003, 0xa003) AM_WRITE(subcpu_reset_w)
@@ -102,9 +99,9 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xb800, 0xb800) AM_WRITE(watchdog_reset_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
-	AM_RANGE(0x4000, 0x7fff) AM_DEVWRITE("wiping", wiping_sound_w)
+	AM_RANGE(0x4000, 0x7fff) AM_WRITE(wiping_sound_w) AM_BASE(&wiping_soundregs)
 	AM_RANGE(0x9000, 0x93ff) AM_READWRITE(shared1_r,shared1_w)
 	AM_RANGE(0x9800, 0x9bff) AM_READWRITE(shared2_r,shared2_w)
 	AM_RANGE(0xa001, 0xa001) AM_WRITE(interrupt_enable_w)
@@ -281,37 +278,37 @@ GFXDECODE_END
 
 
 
-static MACHINE_CONFIG_START( wiping, wiping_state )
+static MACHINE_DRIVER_START( wiping )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,18432000/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,18432000/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,18432000/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,120)	/* periodic interrupt, don't know about the frequency */
+	MDRV_CPU_ADD("audiocpu", Z80,18432000/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold,120)	/* periodic interrupt, don't know about the frequency */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(36*8, 28*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(wiping)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(36*8, 28*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(wiping)
-	MCFG_PALETTE_LENGTH(64*4+64*4)
+	MDRV_GFXDECODE(wiping)
+	MDRV_PALETTE_LENGTH(64*4+64*4)
 
-	MCFG_PALETTE_INIT(wiping)
+	MDRV_PALETTE_INIT(wiping)
+	MDRV_VIDEO_UPDATE(wiping)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("wiping", WIPING, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("wiping", WIPING, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 

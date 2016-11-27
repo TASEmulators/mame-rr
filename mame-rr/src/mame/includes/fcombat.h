@@ -22,33 +22,32 @@
 #define VISIBLE_Y_MAX			(30*8)
 
 
-class fcombat_state : public driver_device
+class fcombat_state
 {
 public:
-	fcombat_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, fcombat_state(machine)); }
+
+	fcombat_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_spriteram;
-	size_t     m_videoram_size;
-	size_t     m_spriteram_size;
+	UINT8 *    videoram;
+	UINT8 *    spriteram;
+	size_t     videoram_size;
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t    *m_bgmap;
-	UINT8      m_cocktail_flip;
-	UINT8      m_char_palette;
-	UINT8      m_sprite_palette;
-	UINT8      m_char_bank;
+	tilemap_t    *bgmap;
+	UINT8      cocktail_flip;
+	UINT8      char_palette, sprite_palette;
+	UINT8      char_bank;
 
 	/* misc */
-	int        m_fcombat_sh;
-	int        m_fcombat_sv;
-	int        m_tx;
-	int        m_ty;
+	int        fcombat_sh;
+	int        fcombat_sv;
+	int        tx, ty;
 
 	/* devices */
-	device_t *m_maincpu;
+	running_device *maincpu;
 };
 
 
@@ -57,6 +56,6 @@ public:
 
 PALETTE_INIT( fcombat );
 VIDEO_START( fcombat );
-SCREEN_UPDATE( fcombat );
+VIDEO_UPDATE( fcombat );
 
 WRITE8_HANDLER( fcombat_videoreg_w );

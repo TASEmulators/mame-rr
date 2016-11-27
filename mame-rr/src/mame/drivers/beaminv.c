@@ -55,24 +55,25 @@ Stephh's notes (based on the games Z80 code and some tests) :
 #include "cpu/z80/z80.h"
 
 
-class beaminv_state : public driver_device
+class beaminv_state
 {
 public:
-	beaminv_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, beaminv_state(machine)); }
+
+	beaminv_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	size_t     m_videoram_size;
+	UINT8 *    videoram;
+	size_t     videoram_size;
 
 	/* misc */
-	emu_timer  *m_interrupt_timer;
+	emu_timer  *interrupt_timer;
 
 	/* input-related */
-	UINT8      m_controller_select;
+	UINT8      controller_select;
 
 	/* devices */
-	device_t *m_maincpu;
+	running_device *maincpu;
 };
 
 
@@ -92,33 +93,33 @@ static const int interrupt_lines[INTERRUPTS_PER_FRAME] = { 0x00, 0x80 };
 
 static TIMER_CALLBACK( interrupt_callback )
 {
-	beaminv_state *state = machine.driver_data<beaminv_state>();
+	beaminv_state *state = (beaminv_state *)machine->driver_data;
 	int interrupt_number = param;
 	int next_interrupt_number;
 	int next_vpos;
 
-	device_set_input_line(state->m_maincpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->maincpu, 0, HOLD_LINE);
 
 	/* set up for next interrupt */
 	next_interrupt_number = (interrupt_number + 1) % INTERRUPTS_PER_FRAME;
 	next_vpos = interrupt_lines[next_interrupt_number];
 
-	state->m_interrupt_timer->adjust(machine.primary_screen->time_until_pos(next_vpos), next_interrupt_number);
+	timer_adjust_oneshot(state->interrupt_timer, machine->primary_screen->time_until_pos(next_vpos), next_interrupt_number);
 }
 
 
-static void create_interrupt_timer( running_machine &machine )
+static void create_interrupt_timer( running_machine *machine )
 {
-	beaminv_state *state = machine.driver_data<beaminv_state>();
-	state->m_interrupt_timer = machine.scheduler().timer_alloc(FUNC(interrupt_callback));
+	beaminv_state *state = (beaminv_state *)machine->driver_data;
+	state->interrupt_timer = timer_alloc(machine, interrupt_callback, NULL);
 }
 
 
-static void start_interrupt_timer( running_machine &machine )
+static void start_interrupt_timer( running_machine *machine )
 {
-	beaminv_state *state = machine.driver_data<beaminv_state>();
+	beaminv_state *state = (beaminv_state *)machine->driver_data;
 	int vpos = interrupt_lines[0];
-	state->m_interrupt_timer->adjust(machine.primary_screen->time_until_pos(vpos));
+	timer_adjust_oneshot(state->interrupt_timer, machine->primary_screen->time_until_pos(vpos), 0);
 }
 
 
@@ -131,13 +132,13 @@ static void start_interrupt_timer( running_machine &machine )
 
 static MACHINE_START( beaminv )
 {
-	beaminv_state *state = machine.driver_data<beaminv_state>();
+	beaminv_state *state = (beaminv_state *)machine->driver_data;
 	create_interrupt_timer(machine);
 
-	state->m_maincpu = machine.device("maincpu");
+	state->maincpu = machine->device("maincpu");
 
 	/* setup for save states */
-	state->save_item(NAME(state->m_controller_select));
+	state_save_register_global(machine, state->controller_select);
 }
 
 
@@ -150,10 +151,10 @@ static MACHINE_START( beaminv )
 
 static MACHINE_RESET( beaminv )
 {
-	beaminv_state *state = machine.driver_data<beaminv_state>();
+	beaminv_state *state = (beaminv_state *)machine->driver_data;
 	start_interrupt_timer(machine);
 
-	state->m_controller_select = 0;
+	state->controller_select = 0;
 }
 
 
@@ -164,18 +165,18 @@ static MACHINE_RESET( beaminv )
  *
  *************************************/
 
-static SCREEN_UPDATE( beaminv )
+static VIDEO_UPDATE( beaminv )
 {
-	beaminv_state *state = screen->machine().driver_data<beaminv_state>();
+	beaminv_state *state = (beaminv_state *)screen->machine->driver_data;
 	offs_t offs;
 
-	for (offs = 0; offs < state->m_videoram_size; offs++)
+	for (offs = 0; offs < state->videoram_size; offs++)
 	{
 		int i;
 
 		UINT8 y = offs;
 		UINT8 x = offs >> 8 << 3;
-		UINT8 data = state->m_videoram[offs];
+		UINT8 data = state->videoram[offs];
 
 		for (i = 0; i < 8; i++)
 		{
@@ -193,7 +194,7 @@ static SCREEN_UPDATE( beaminv )
 
 static READ8_HANDLER( v128_r )
 {
-	return (space->machine().primary_screen->vpos() >> 7) & 0x01;
+	return (space->machine->primary_screen->vpos() >> 7) & 0x01;
 }
 
 
@@ -210,16 +211,16 @@ static READ8_HANDLER( v128_r )
 
 static WRITE8_HANDLER( controller_select_w )
 {
-	beaminv_state *state = space->machine().driver_data<beaminv_state>();
+	beaminv_state *state = (beaminv_state *)space->machine->driver_data;
 	/* 0x01 (player 1) or 0x02 (player 2) */
-	state->m_controller_select = data;
+	state->controller_select = data;
 }
 
 
 static READ8_HANDLER( controller_r )
 {
-	beaminv_state *state = space->machine().driver_data<beaminv_state>();
-	return input_port_read(space->machine(), (state->m_controller_select == 1) ? P1_CONTROL_PORT_TAG : P2_CONTROL_PORT_TAG);
+	beaminv_state *state = (beaminv_state *)space->machine->driver_data;
+	return input_port_read(space->machine, (state->controller_select == 1) ? P1_CONTROL_PORT_TAG : P2_CONTROL_PORT_TAG);
 }
 
 
@@ -230,14 +231,14 @@ static READ8_HANDLER( controller_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x17ff) AM_ROM
 	AM_RANGE(0x1800, 0x1fff) AM_RAM
 	AM_RANGE(0x2400, 0x2400) AM_MIRROR(0x03ff) AM_READ_PORT("DSW")
 	AM_RANGE(0x2800, 0x2800) AM_MIRROR(0x03ff) AM_READ_PORT("INPUTS")
 	AM_RANGE(0x3400, 0x3400) AM_MIRROR(0x03ff) AM_READ(controller_r)
 	AM_RANGE(0x3800, 0x3800) AM_MIRROR(0x03ff) AM_READ(v128_r)
-	AM_RANGE(0x4000, 0x5fff) AM_RAM AM_BASE_SIZE_MEMBER(beaminv_state, m_videoram, m_videoram_size)
+	AM_RANGE(0x4000, 0x5fff) AM_RAM AM_BASE_SIZE_MEMBER(beaminv_state, videoram, videoram_size)
 ADDRESS_MAP_END
 
 
@@ -248,7 +249,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( main_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_WRITE(controller_select_w) /* to be confirmed */
 ADDRESS_MAP_END
@@ -327,25 +328,29 @@ INPUT_PORTS_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( beaminv, beaminv_state )
+static MACHINE_DRIVER_START( beaminv )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(beaminv_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 2000000)	/* 2 MHz ? */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_IO_MAP(main_io_map)
+	MDRV_CPU_ADD("maincpu", Z80, 2000000)	/* 2 MHz ? */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_IO_MAP(main_io_map)
 
-	MCFG_MACHINE_START(beaminv)
-	MCFG_MACHINE_RESET(beaminv)
+	MDRV_MACHINE_START(beaminv)
+	MDRV_MACHINE_RESET(beaminv)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 247, 16, 231)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_UPDATE(beaminv)
+	MDRV_VIDEO_UPDATE(beaminv)
 
-MACHINE_CONFIG_END
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 247, 16, 231)
+	MDRV_SCREEN_REFRESH_RATE(60)
+
+MACHINE_DRIVER_END
 
 
 
