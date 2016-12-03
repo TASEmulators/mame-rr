@@ -8,7 +8,9 @@
 #include <commdlg.h>
 #include <io.h>
 #undef delete
+#undef rand // work around vc compiler error
 #include <string>
+#define rand __error_use_mame_rand_instead__
 
 #ifndef W_OK
 #define W_OK 4

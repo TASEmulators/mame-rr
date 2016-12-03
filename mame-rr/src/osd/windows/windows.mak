@@ -135,6 +135,8 @@ LDFLAGS += /LTCG
 AR += /LTCG
 endif
 
+LIBS += -lshell32
+
 # disable warnings and link against bufferoverflowu for 64-bit targets
 ifeq ($(PTR64),1)
 CCOMFLAGS += /wd4267
@@ -157,7 +159,7 @@ CPPONLYFLAGS += /wd4800
 LDFLAGS += /ENTRY:wmainCRTStartup
 
 # add some VC++-specific defines
-DEFS += -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE -DXML_STATIC -Dsnprintf=_snprintf
+DEFS += -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE -DXML_STATIC -Dsnprintf=_snprintf -DWIN32
 
 # make msvcprep into a pre-build step
 OSPREBUILD = $(VCONV)
