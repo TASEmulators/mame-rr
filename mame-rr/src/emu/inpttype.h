@@ -617,6 +617,7 @@ static const input_type_desc core_types[] =
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_PASTE,            "UI Paste Text",          SEQ_DEF_2(KEYCODE_SCRLOCK, KEYCODE_LSHIFT) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_TOGGLE_DEBUG,     "Toggle Debugger",        SEQ_DEF_0 )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_FRAME_ADVANCE,    "Frame Advance",          SEQ_DEF_1(KEYCODE_TILDE) )
+	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_TOGGLE_READONLY,  "Toggle Read-Only",       SEQ_DEF_2(KEYCODE_Q, KEYCODE_LCONTROL) )
 
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_OPEN,         "Lua Script Window",      SEQ_DEF_2(KEYCODE_L, KEYCODE_LCONTROL) )
 	INPUT_PORT_DIGITAL_TYPE( 0, UI,      UI_LUA_STOP,         "Lua Script Stop",        SEQ_DEF_0 )

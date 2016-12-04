@@ -271,6 +271,7 @@ struct _input_port_private
 	UINT32						bytes_per_frame;
 	UINT8						movie_header[INP_HEADER_SIZE];
 	char						movie_filename[_MAX_PATH];
+	UINT32						movie_readonly;
 };
 
 struct movie_type {
@@ -4376,10 +4377,13 @@ void movie_postload(running_machine *machine, mame_file *file)
 {
 	input_port_private *portdata = machine->input_port_data;
 
-	reserve_movie_buffer_space((portdata->bytes_per_frame*(portdata->current_frame+1)) - (movie.pointer - movie.buffer));
-	mame_fread(file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
-	if (!MAME_LuaRerecordCountSkip())
-		portdata->rerecord_count++;
+	if (!portdata->movie_readonly)
+	{
+		reserve_movie_buffer_space((portdata->bytes_per_frame*(portdata->current_frame+1)) - (movie.pointer - movie.buffer));
+		mame_fread(file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
+		if (!MAME_LuaRerecordCountSkip())
+			portdata->rerecord_count++;
+	}
 	movie.pointer = movie.buffer+(portdata->bytes_per_frame * portdata->current_frame);
 }
 
@@ -4470,6 +4474,7 @@ static void playback_open_file(running_machine *machine,const char* filename)
 	// initialize movie
 	movie.pointer = movie.buffer;
 	movie.size = 0;
+	portdata->movie_readonly = 1;
 
 	// fill buffer
 	bytes_to_read = portdata->bytes_per_frame*(portdata->total_frames+1);
@@ -4494,7 +4499,7 @@ static void playback_init(running_machine *machine)
 
 	/* if file, open */
 	if (filename[0] != 0) {
-		strncpy(machine->input_port_data->movie_filename,filename,_MAX_PATH);
+		strncpy(machine->input_port_data->movie_filename, filename, _MAX_PATH);
 		playback_open_file(machine, filename);
 	}
 }
@@ -4658,6 +4663,7 @@ static void record_open_file(running_machine *machine,const char* filename)
 	// initialize movie
 	movie.pointer = movie.buffer;
 	movie.size = 0;
+	portdata->movie_readonly = 0;
 }
 
 
@@ -4669,15 +4675,15 @@ static void record_init(running_machine *machine)
 {
 	char filename[_MAX_PATH];
 
-	strncpy(filename,options_get_string(machine->options(), OPTION_RECORD),_MAX_PATH);
+	strncpy(filename, options_get_string(machine->options(), OPTION_RECORD),_MAX_PATH);
 	if (scheduled_record_file[0] != 0) {
-		strncpy(filename,scheduled_record_file,_MAX_PATH);
+		strncpy(filename, scheduled_record_file, _MAX_PATH);
 		scheduled_record_file[0] = 0;
 	}
 
 	/* if file, open */
 	if (filename[0] != 0) {
-		strncpy(machine->input_port_data->movie_filename,filename,_MAX_PATH);
+		strncpy(machine->input_port_data->movie_filename, filename, _MAX_PATH);
 		record_open_file(machine, filename);
 	}
 }
@@ -5666,27 +5672,47 @@ void set_port_digital(const input_port_config *port, UINT32 new_digital)
 	port->state->digital = new_digital;
 }
 
-void schedule_record(char * choice) {
+void schedule_record(char * choice)
+{
 	strcpy(scheduled_record_file, choice);
 }
 
-void schedule_playback(char * choice) {
+void schedule_playback(char * choice)
+{
 	strcpy(scheduled_playback_file, choice);
 }
 
-void stop_movie(running_machine *machine, const char *message) {
+void stop_movie(running_machine *machine, const char *message)
+{
 	if (get_record_file(machine))
 		record_end(machine, message);
 	if (get_playback_file(machine))
 		playback_end(machine, message);
 }
 
-void replay_movie(running_machine *machine) {
+void replay_movie(running_machine *machine)
+{
 	schedule_playback(machine->input_port_data->movie_filename);
 	machine->schedule_hard_reset();
 }
 
-bool is_movie_pending(running_machine *machine){
+void toggle_readonly(running_machine *machine)
+{
+	input_port_private *portdata = machine->input_port_data;
+
+	if (portdata->record_file != NULL || portdata->playback_file != NULL)
+	{
+		portdata->movie_readonly ^= 1;
+		
+		if (portdata->movie_readonly)
+			popmessage("Movie is now read-only");
+		else
+			popmessage("Movie is now editable");
+	}
+}
+
+bool is_movie_pending(running_machine *machine)
+{
 	return (get_record_file(machine) || get_playback_file(machine) ||
 	        (scheduled_playback_file[0] != 0) || (scheduled_record_file[0] != 0));
 }

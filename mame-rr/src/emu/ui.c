@@ -1484,6 +1484,10 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 			machine->pause();
 	}
 
+	/* read only toggle */
+	if (ui_input_pressed(machine, IPT_UI_TOGGLE_READONLY))
+		toggle_readonly(machine);
+
 	/* movies */
 	if (ui_input_pressed(machine, IPT_UI_PLAY_MOVIE_BEGIN))
 		replay_movie(machine);
