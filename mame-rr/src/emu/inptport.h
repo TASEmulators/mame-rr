@@ -1249,6 +1249,7 @@ int input_category_active(running_machine *machine, int category);
 FILE* get_record_file(running_machine* machine);
 FILE* get_playback_file(running_machine* machine);
 UINT32 get_current_frame(running_machine* machine);
+UINT32 get_movie_length(running_machine* machine);
 UINT32 get_port_digital(const input_port_config *port);
 void set_port_digital(const input_port_config *port, UINT32 new_digital);
 void movie_postsave(running_machine *machine, mame_file *file);

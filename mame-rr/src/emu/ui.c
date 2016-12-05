@@ -380,6 +380,7 @@ void ui_update_and_render(running_machine *machine, render_container *container)
 	/* always start clean */
 	render_container_empty(container);
 
+#if 0
 	/* if we're paused, dim the whole screen */
 	if (machine->phase() >= MACHINE_PHASE_RESET && (single_step || machine->paused()))
 	{
@@ -391,6 +392,7 @@ void ui_update_and_render(running_machine *machine, render_container *container)
 		if (alpha >= 0)
 			render_container_add_rect(container, 0.0f, 0.0f, 1.0f, 1.0f, MAKE_ARGB(alpha,0x00,0x00,0x00), PRIMFLAG_BLENDMODE(BLENDMODE_ALPHA));
 	}
+#endif
 
 	/* render any cheat stuff at the bottom */
 	cheat_render_text(machine, container);

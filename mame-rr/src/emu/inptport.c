@@ -5643,7 +5643,12 @@ static void execute_dumpkbd(running_machine *machine, int ref, int params, const
 
 }
 
-/* INP file handle helper functions */
+
+
+/***************************************************************************
+     MOVIE HELPER FUNCTIONS
+***************************************************************************/
+ 
 FILE* get_record_file(running_machine* machine)
 {
 	return machine->input_port_data->record_file;
@@ -5657,6 +5662,23 @@ FILE* get_playback_file(running_machine* machine)
 UINT32 get_current_frame(running_machine* machine)
 {
 	return machine->input_port_data->current_frame;
+}
+
+
+
+/*-------------------------------------------------
+    get_movie_length - if movie is playing,
+	returns its length, otherwise 0
+-------------------------------------------------*/
+
+UINT32 get_movie_length(running_machine* machine)
+{
+	input_port_private *portdata = machine->input_port_data;
+	
+	if (portdata->playback_file != NULL)
+		return portdata->total_frames;
+	else
+		return 0;
 }
 
 UINT32 get_port_digital(const input_port_config *port)

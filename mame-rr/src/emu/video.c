@@ -583,21 +583,31 @@ const char *video_get_speed_text(running_machine *machine)
 	bool paused = machine->paused();
 	static char buffer[1024];
 	char *dest = buffer;
+	int movie_length = get_movie_length(machine);
 
 	/* validate */
 	assert(machine != NULL);
 
 	/* show frame counter */
-	dest += sprintf(dest, "[%i] : ",get_current_frame(machine));
+	dest += sprintf(dest, " %i ",get_current_frame(machine));
+	
+	/* show movie length, if it's playing */
+	if (movie_length)
+		dest += sprintf(dest, "/ %i ", movie_length);
+	
+	/* show reminder about recording mode */
+	if (get_record_file(machine))
+		dest += sprintf(dest, "\n recording ");
 
 	/* if we're paused, just display Paused */
 	if (paused)
-		dest += sprintf(dest, "paused");
+		dest += sprintf(dest, "\n paused ");
 
 	/* if we're fast forwarding, just display Fast-forward */
 	else if (global.fastforward)
-		dest += sprintf(dest, "fast ");
-
+		dest += sprintf(dest, "\n fast ");
+	
+#if 0
 	/* if we're auto frameskipping, display that plus the level */
 	else if (effective_autoframeskip(machine))
 		dest += sprintf(dest, "auto%2d/%d", effective_frameskip(), MAX_FRAMESKIP);
@@ -613,6 +623,7 @@ const char *video_get_speed_text(running_machine *machine)
 	/* display the number of partial updates as well */
 	if (global.partial_updates_this_frame > 1)
 		dest += sprintf(dest, "\n%d partial updates", global.partial_updates_this_frame);
+#endif
 
 	/* return a pointer to the static buffer */
 	return buffer;
