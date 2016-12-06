@@ -4779,10 +4779,12 @@ static void record_end(running_machine *machine, const char *message)
 	/* only applies if we have a live file */
 	if (portdata->record_file != NULL)
 	{
-		fwrite(portdata->movie_header, 1, sizeof(portdata->movie_header), portdata->record_file);
-		fwrite(&portdata->current_frame, 1, sizeof(portdata->current_frame), portdata->record_file);
+		int movie_buffer_length = movie.pointer - movie.buffer;
+		int frame = movie_buffer_length / portdata->bytes_per_frame;
+		fwrite(portdata->movie_header,    1, sizeof(portdata->movie_header),   portdata->record_file);
+		fwrite(&frame,                    1, sizeof(frame),                    portdata->record_file);
 		fwrite(&portdata->rerecord_count, 1, sizeof(portdata->rerecord_count), portdata->record_file);
-		fwrite(movie.buffer, 1, portdata->bytes_per_frame*(portdata->current_frame+1), portdata->record_file);
+		fwrite(movie.buffer,              1, movie_buffer_length,              portdata->record_file);
 
 		/* close the file */
 		fclose(portdata->record_file);
