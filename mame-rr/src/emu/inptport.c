@@ -274,14 +274,18 @@ struct _input_port_private
 	UINT32						movie_readonly;
 };
 
+
 struct movie_type {
 	UINT8* buffer;    // full movie input buffer
 	UINT32 size;      // movie input buffer size
 	UINT8* pointer;   // pointer to the full movie input buffer
 };
 static struct movie_type movie;
+
+
 static char scheduled_record_file[_MAX_PATH];
 static char scheduled_playback_file[_MAX_PATH];
+static char current_movie_file[_MAX_PATH];
 
 
 typedef struct _inputx_code inputx_code;
@@ -4334,6 +4338,8 @@ static void save_game_inputs(running_machine *machine, xml_data_node *parentnode
     INPUT PLAYBACK
 ***************************************************************************/
 
+
+
 static void set_bytes_per_frame(running_machine *machine)
 {
 	input_port_private *portdata = machine->input_port_data;
@@ -4342,7 +4348,8 @@ static void set_bytes_per_frame(running_machine *machine)
 
 	portdata->bytes_per_frame = 12; // frame data
 
-	for (port = machine->m_portlist.first(); port != NULL; port = port->next()) {
+	for (port = machine->m_portlist.first(); port != NULL; port = port->next())
+	{
 		portdata->bytes_per_frame += 8; // digital
 
 		// loop over analog ports
@@ -4354,38 +4361,108 @@ static void set_bytes_per_frame(running_machine *machine)
 #undef realloc
 #define BUFFER_GROWTH_SIZE (4096)
 
+
+
+/*-------------------------------------------------
+    reserve_movie_buffer_space - allocate the
+	initial buffer for movie data, or expand
+	the existing one if necessary
+-------------------------------------------------*/
+
 static void reserve_movie_buffer_space(UINT32 space_needed)
 {
-	UINT32 total_space_needed = (UINT32)movie.pointer+space_needed-(UINT32)movie.buffer;
+	/* space_needed is extra space after the current frame */
+	UINT32 total_space_needed = (UINT32)movie.pointer + space_needed - (UINT32)movie.buffer;
 
-	if (total_space_needed > movie.size) {
-		UINT32 ptr_offset   = movie.pointer - movie.buffer;
+	/* check if we fit in already */
+	if (total_space_needed > movie.size)
+	{
+		/* get byte count up to current frame */
+		UINT32 ptr_offset = movie.pointer - movie.buffer;
+		
+		/* we're allocating in whole blocks */
 		UINT32 alloc_chunks = total_space_needed / BUFFER_GROWTH_SIZE;
-
-		movie.size    = BUFFER_GROWTH_SIZE * (alloc_chunks+1);
-		movie.buffer  = (UINT8*)realloc(movie.buffer, movie.size);
+		
+		/* set new movie size */
+		movie.size = BUFFER_GROWTH_SIZE * (alloc_chunks + 1);
+		
+		/* expand the buffer */
+		movie.buffer = (UINT8 *)realloc(movie.buffer, movie.size);
+		
+		/* set current frame to movie end */
 		movie.pointer = movie.buffer + ptr_offset;
 	}
 }
 
+
+/*-------------------------------------------------
+    movie_postsave - store entire current movie
+	to savestate file
+-------------------------------------------------*/
+
 void movie_postsave(running_machine *machine, mame_file *file)
 {
-	mame_fwrite(file, movie.buffer, machine->input_port_data->bytes_per_frame*(machine->input_port_data->current_frame+1));
+	mame_fwrite(file, movie.buffer,
+		machine->input_port_data->bytes_per_frame * (machine->input_port_data->current_frame + 1));
 }
+
+
+/*-------------------------------------------------
+    movie_postload - movie input data
+	manipulations after state is loaded 
+-------------------------------------------------*/
 
 void movie_postload(running_machine *machine, mame_file *file)
 {
 	input_port_private *portdata = machine->input_port_data;
-
-	if (!portdata->movie_readonly)
+	
+	/* TODO: GUID check */
+	
+	/* discard input data if read-only */
+	if (portdata->movie_readonly)
 	{
-		reserve_movie_buffer_space((portdata->bytes_per_frame*(portdata->current_frame+1)) - (movie.pointer - movie.buffer));
-		mame_fread(file, movie.buffer, portdata->bytes_per_frame*(portdata->current_frame+1));
+		/* TODO: timeline consistency check */
+		
+		/* switched to read-only during recording */
+		if (get_record_file(machine))
+		{
+			/* stop recording and close the file */
+			record_end(machine, "Switched to playback");
+			
+			/* reuse the file for playback */
+			schedule_playback(current_movie_file);
+			playback_init(machine);
+		}
+	}
+	else
+	{
+		/* switched to read+write during playback */
+		if (get_playback_file(machine))
+		{
+			/* stop playback and close the file */
+			playback_end(machine, "Recording resumed");
+			
+			/* reuse the file for recording */
+			schedule_record(current_movie_file);
+			record_init(machine);
+		}
+		
+		/* allocate extra space for movie buffer */
+		reserve_movie_buffer_space((portdata->bytes_per_frame * (portdata->current_frame + 1)) - (movie.pointer - movie.buffer));
+		
+		/* fill the buffer with input data from the savestate */
+		mame_fread(file, movie.buffer, portdata->bytes_per_frame * (portdata->current_frame + 1));
+		
+		/* increment rerecords if we're not botting */
 		if (!MAME_LuaRerecordCountSkip())
 			portdata->rerecord_count++;
 	}
-	movie.pointer = movie.buffer+(portdata->bytes_per_frame * portdata->current_frame);
+	
+	/* set movie pointer to the current frame position in buffer */
+	movie.pointer = movie.buffer + (portdata->bytes_per_frame * portdata->current_frame);
 }
+
+
 
 /*-------------------------------------------------
     playback_read_uint8 - read an 8-bit value
@@ -4477,7 +4554,7 @@ static void playback_open_file(running_machine *machine,const char* filename)
 	portdata->movie_readonly = 1;
 
 	// fill buffer
-	bytes_to_read = portdata->bytes_per_frame*(portdata->total_frames+1);
+	bytes_to_read = portdata->bytes_per_frame * (portdata->total_frames + 1);
 	reserve_movie_buffer_space(bytes_to_read);
 	fread(movie.buffer, 1, bytes_to_read, portdata->playback_file);
 }
@@ -4491,9 +4568,10 @@ static void playback_init(running_machine *machine)
 {
 	char filename[_MAX_PATH];
 
-	strncpy(filename,options_get_string(machine->options(), OPTION_PLAYBACK),_MAX_PATH);
+	strncpy(filename, options_get_string(machine->options(), OPTION_PLAYBACK),_MAX_PATH);
 	if (scheduled_playback_file[0] != 0) {
-		strncpy(filename,scheduled_playback_file,_MAX_PATH);
+		strncpy(filename,           scheduled_playback_file, _MAX_PATH);
+		strncpy(current_movie_file, scheduled_playback_file, _MAX_PATH);
 		scheduled_playback_file[0] = 0;
 	}
 
@@ -4677,7 +4755,8 @@ static void record_init(running_machine *machine)
 
 	strncpy(filename, options_get_string(machine->options(), OPTION_RECORD),_MAX_PATH);
 	if (scheduled_record_file[0] != 0) {
-		strncpy(filename, scheduled_record_file, _MAX_PATH);
+		strncpy(filename,           scheduled_record_file, _MAX_PATH);
+		strncpy(current_movie_file, scheduled_record_file, _MAX_PATH);
 		scheduled_record_file[0] = 0;
 	}
 
@@ -5708,8 +5787,11 @@ void stop_movie(running_machine *machine, const char *message)
 {
 	if (get_record_file(machine))
 		record_end(machine, message);
+	
 	if (get_playback_file(machine))
 		playback_end(machine, message);
+	
+	current_movie_file[0] = 0;
 }
 
 void replay_movie(running_machine *machine)
@@ -5722,7 +5804,7 @@ void toggle_readonly(running_machine *machine)
 {
 	input_port_private *portdata = machine->input_port_data;
 
-	if (portdata->record_file != NULL || portdata->playback_file != NULL)
+	if (get_record_file(machine) || get_playback_file(machine))
 	{
 		portdata->movie_readonly ^= 1;
 		
