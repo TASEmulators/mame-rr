@@ -4569,6 +4569,10 @@ static void playback_init(running_machine *machine)
 	char filename[_MAX_PATH];
 
 	strncpy(filename, options_get_string(machine->options(), OPTION_PLAYBACK),_MAX_PATH);
+	
+	if (filename[0] != 0)
+		machine->pause();
+	
 	if (scheduled_playback_file[0] != 0) {
 		strncpy(filename,           scheduled_playback_file, _MAX_PATH);
 		strncpy(current_movie_file, scheduled_playback_file, _MAX_PATH);
