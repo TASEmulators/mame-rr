@@ -347,7 +347,7 @@ endif
 FULLNAME = $(PREFIX)$(PREFIXSDL)$(NAME)$(SUFFIX)$(SUFFIX64)$(SUFFIXDEBUG)$(SUFFIXPROFILE)
 
 # add an EXE suffix to get the final emulator name
-EMULATOR = $(FULLNAME)$(EXE)
+EMULATOR = $(FULLNAME)-rr$(EXE)
 
 
 
