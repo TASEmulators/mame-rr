@@ -4740,7 +4740,7 @@ static void record_open_file(running_machine *machine,const char* filename)
 	portdata->movie_header[0x08] = INP_HEADER_MAJVERSION;
 	portdata->movie_header[0x09] = INP_HEADER_MINVERSION;
 	strcpy((char *)portdata->movie_header + 0x0c, machine->gamedrv->name);
-	sprintf((char *)portdata->movie_header + 0x18, APPNAME " %s", build_version);
+	sprintf((char *)portdata->movie_header + 0x18, "%s", build_version);
 
 	// initialize movie
 	movie.pointer = movie.buffer;
@@ -4785,6 +4785,9 @@ static void record_end(running_machine *machine, const char *message)
 	{
 		int movie_buffer_length = movie.pointer - movie.buffer;
 		int frame = movie_buffer_length / portdata->bytes_per_frame;
+		double framerate = ATTOSECONDS_TO_HZ(machine->primary_screen->frame_period().attoseconds);
+		
+		memcpy(portdata->movie_header + 0x30, &framerate, sizeof(double));
 		fwrite(portdata->movie_header,    1, sizeof(portdata->movie_header),   portdata->record_file);
 		fwrite(&frame,                    1, sizeof(frame),                    portdata->record_file);
 		fwrite(&portdata->rerecord_count, 1, sizeof(portdata->rerecord_count), portdata->record_file);

@@ -100,6 +100,7 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 {
 	UINT8 movie_header[INP_HEADER_SIZE];
 	static bool bReadOnlyStatus = true;
+	double framerate;
 	UINT32 total_frames;
 	UINT32 rerecord_count;
 
@@ -154,6 +155,7 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 		return;
 	if (movie_header[0x08] != INP_HEADER_MAJVERSION)
 		return;
+	
 
 	if (_waccess(szChoice, W_OK)) {
 		SendDlgItemMessage(hDlg, IDC_READONLY, BM_SETCHECK, BST_CHECKED, 0);
@@ -178,6 +180,7 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	}
 */
 
+	memcpy(&framerate, movie_header + 0x30, sizeof(double));
 	fread(&total_frames, 1, sizeof(total_frames), fd);
 	fread(&rerecord_count, 1, sizeof(rerecord_count), fd);
 
@@ -211,19 +214,20 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	// file exists and is the corrent format,
 	// so enable the "Ok" button
 	EnableWindow(GetDlgItem(hDlg, IDOK), TRUE);
-
-	// turn nFrames into a length string
-	int nFPS = 60; // TODO: where to get FPS for each driver?
-	int nSeconds = (total_frames * 100 + (nFPS>>1)) / nFPS;
-	int nMinutes = nSeconds / 60;
-	int nHours = nSeconds / 3600;
+	
+	double tempCount = (total_frames / framerate) + 0.005; // +0.005s for rounding
+	int num_seconds = (int)tempCount;
+	int fraction = (int)((tempCount - num_seconds) * 100);
+	int seconds = num_seconds % 60;
+	int minutes = (num_seconds / 60) % 60;
+	int hours = (num_seconds / 60 / 60) % 60;
 
 	// write strings to dialog
 	char szFramesString[32];
 	char szLengthString[32];
 	char szUndoCountString[32];
 	sprintf(szFramesString, "%d", total_frames);
-	sprintf(szLengthString, "%02d:%02d:%02d", nHours, nMinutes % 60, nSeconds % 60);
+	sprintf(szLengthString, "%02d:%02d:%02d.%02d", hours, minutes, seconds, fraction);
 	sprintf(szUndoCountString, "%d", rerecord_count);
 
 	SetDlgItemTextA(hDlg, IDC_LENGTH, szLengthString);
