@@ -113,10 +113,11 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	SetDlgItemTextA(hDlg, IDC_LENGTH, "");
 	SetDlgItemTextA(hDlg, IDC_FRAMES, "");
 	SetDlgItemTextA(hDlg, IDC_UNDO, "");
-//	SetDlgItemTextA(hDlg, IDC_METADATA, "");
-//	SetDlgItemTextA(hDlg, IDC_REPLAYRESET, "");
+	SetDlgItemTextA(hDlg, IDC_EMULATOR, "");
+	SetDlgItemTextA(hDlg, IDC_ROMNAME, "");
+	SetDlgItemTextA(hDlg, IDC_FRAMERATE, "");
 	EnableWindow(GetDlgItem(hDlg, IDC_READONLY), FALSE);
-	SendDlgItemMessage(hDlg, IDC_READONLY, BM_SETCHECK, BST_UNCHECKED, 0);
+	SendDlgItemMessage(hDlg, IDC_READONLY, BM_SETCHECK, BST_CHECKED, 0);
 	EnableWindow(GetDlgItem(hDlg, IDOK), FALSE);
 	if(bClear) {
 		return;
@@ -226,19 +227,23 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	char szFramesString[32];
 	char szLengthString[32];
 	char szUndoCountString[32];
+	char szEmulatorVersionString[32];
+	char szRomNameString[32];
+	char szFramerateString[32];
 	sprintf(szFramesString, "%d", total_frames);
 	sprintf(szLengthString, "%02d:%02d:%02d.%02d", hours, minutes, seconds, fraction);
 	sprintf(szUndoCountString, "%d", rerecord_count);
+	sprintf(szFramerateString, "%.7f", framerate);
+	// since the file is signed MAMETAS, we can assume it was made in MAME-RR
+	sprintf(szEmulatorVersionString, "MAME-RR %s", movie_header + 0x18);
+	strcpy(szRomNameString, (char *)movie_header + 0x0c);
 
-	SetDlgItemTextA(hDlg, IDC_LENGTH, szLengthString);
-	SetDlgItemTextA(hDlg, IDC_FRAMES, szFramesString);
-	SetDlgItemTextA(hDlg, IDC_UNDO, szUndoCountString);
-//	SetDlgItemTextW(hDlg, IDC_METADATA, local_metadata);
-//	if (bStartFromReset)
-//		SetDlgItemTextA(hDlg, IDC_REPLAYRESET, "Power-On");
-//	else
-//		SetDlgItemTextA(hDlg, IDC_REPLAYRESET, "Savestate");
-//	free(local_metadata);
+	SetDlgItemTextA(hDlg, IDC_LENGTH,    szLengthString);
+	SetDlgItemTextA(hDlg, IDC_FRAMES,    szFramesString);
+	SetDlgItemTextA(hDlg, IDC_UNDO,      szUndoCountString);
+	SetDlgItemTextA(hDlg, IDC_EMULATOR,  szEmulatorVersionString);
+	SetDlgItemTextA(hDlg, IDC_ROMNAME,   szRomNameString);
+	SetDlgItemTextA(hDlg, IDC_FRAMERATE, szFramerateString);
 }
 
 static BOOL CALLBACK ReplayDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM)

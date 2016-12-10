@@ -4515,6 +4515,7 @@ static void playback_open_file(running_machine *machine,const char* filename)
 {
 	input_port_private *portdata = machine->input_port_data;
 	UINT32 bytes_to_read;
+	double framerate;
 
 	set_bytes_per_frame(machine);
 
@@ -4533,20 +4534,24 @@ static void playback_open_file(running_machine *machine,const char* filename)
 	if (portdata->movie_header[0x08] != INP_HEADER_MAJVERSION)
 		fatalerror("Input file format version mismatch");
 
-	// read movie lenght and rerecord count
+	/* verify the header against the current game */
+	if (memcmp(machine->gamedrv->name, portdata->movie_header + 0x0c, strlen(machine->gamedrv->name) + 1) != 0)
+		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'.\n", portdata->movie_header + 0x0c, machine->gamedrv->name);
+
+	/* read movie lenght and rerecord count */
 	fread(&portdata->total_frames, 1, sizeof(portdata->total_frames), portdata->playback_file);
 	fread(&portdata->rerecord_count, 1, sizeof(portdata->rerecord_count), portdata->playback_file);
+	memcpy(&framerate, portdata->movie_header + 0x30, sizeof(double));
 
 	/* output info to console */
 	mame_printf_info("Input file: %s\n", filename);
 	mame_printf_info("INP version %d.%d\n", portdata->movie_header[0x08], portdata->movie_header[0x09]);
-	mame_printf_info("Recorded using %s\n", portdata->movie_header + 0x18);
+	/* since the file is signed MAMETAS, we can assume it was made in MAME-RR */
+	mame_printf_info("Recorded using MAME-RR %s\n", portdata->movie_header + 0x18);
+	mame_printf_info("ROM used: %s\n", portdata->movie_header + 0x0c);
+	mame_printf_info("Framerate: %.7f\n", framerate);
 	mame_printf_info("Total frames: %d\n", (UINT32)portdata->total_frames);
 	mame_printf_info("Rerecord count: %d\n", (UINT32)portdata->rerecord_count);
-
-	/* verify the header against the current game */
-	if (memcmp(machine->gamedrv->name, portdata->movie_header + 0x0c, strlen(machine->gamedrv->name) + 1) != 0)
-		fatalerror("Input file is for " GAMENOUN " '%s', not for current " GAMENOUN " '%s'.\n", portdata->movie_header + 0x0c, machine->gamedrv->name);
 
 	// initialize movie
 	movie.pointer = movie.buffer;
