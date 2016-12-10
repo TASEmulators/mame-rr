@@ -42,7 +42,7 @@ static WRITE16_HANDLER(io_w)
 {
 	switch(offset)
 	{
-		case 2: watchdog_reset(space->machine()); break;
+		case 2: watchdog_reset(space->machine); break;
 
 		default: logerror("IO W %x %x %x\n", offset, data, mem_mask);
 	}
@@ -54,14 +54,14 @@ static READ16_HANDLER(io_r)
 
 	switch(offset)
 	{
-		case 0: retval = input_port_read(space->machine(), "IN0") & (clear_hack ? 0xf7ff : 0xffff); break;
-		case 1: retval = input_port_read(space->machine(), "IN1") & (clear_hack ? 0xfff7 : 0xffff); break;
-		default: logerror("IO R %x %x = %x @ %x\n", offset, mem_mask, retval, cpu_get_pc(&space->device()));
+		case 0: retval = input_port_read(space->machine, "IN0") & (clear_hack ? 0xf7ff : 0xffff); break;
+		case 1: retval = input_port_read(space->machine, "IN1") & (clear_hack ? 0xfff7 : 0xffff); break;
+		default: logerror("IO R %x %x = %x @ %x\n", offset, mem_mask, retval, cpu_get_pc(space->cpu));
 	}
 	return retval;
 }
 
-static ADDRESS_MAP_START( parentj_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( parentj_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x01ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM
 	AM_RANGE(0x200000, 0x20000f) AM_READWRITE(io_r, io_w) /* TC0220IOC ? */
@@ -217,7 +217,7 @@ GFXDECODE_END
 
 static INTERRUPT_GEN( parentj_interrupt )
 {
-	device_set_input_line(device, cpu_getiloops(device) ? 4 : 5, HOLD_LINE);
+	cpu_set_input_line(device, cpu_getiloops(device) ? 4 : 5, HOLD_LINE);
 }
 
 static const ym2203_interface ym2203_config =
@@ -240,42 +240,45 @@ static const tc0080vco_interface parentj_intf =
 
 static MACHINE_START( taitoo )
 {
-	taitoo_state *state = machine.driver_data<taitoo_state>();
+	taitoo_state *state = (taitoo_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_tc0080vco = machine.device("tc0080vco");
+	state->maincpu = machine->device("maincpu");
+	state->tc0080vco = machine->device("tc0080vco");
 }
 
-static MACHINE_CONFIG_START( parentj, taitoo_state )
+static MACHINE_DRIVER_START( parentj )
 
-	MCFG_CPU_ADD("maincpu", M68000,12000000 )		/*?? MHz */
-	MCFG_CPU_PROGRAM_MAP(parentj_map)
-	MCFG_CPU_VBLANK_INT_HACK(parentj_interrupt,2)
+	MDRV_DRIVER_DATA(taitoo_state)
 
-	MCFG_MACHINE_START(taitoo)
+	MDRV_CPU_ADD("maincpu", M68000,12000000 )		/*?? MHz */
+	MDRV_CPU_PROGRAM_MAP(parentj_map)
+	MDRV_CPU_VBLANK_INT_HACK(parentj_interrupt,2)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 64*16)
-	MCFG_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 3*16, 31*16-1)
-	MCFG_SCREEN_UPDATE(parentj)
+	MDRV_MACHINE_START(taitoo)
 
-	MCFG_GFXDECODE(parentj)
-	MCFG_PALETTE_LENGTH(33*16)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 64*16)
+	MDRV_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 3*16, 31*16-1)
 
-	MCFG_TC0080VCO_ADD("tc0080vco", parentj_intf)
+	MDRV_GFXDECODE(parentj)
+	MDRV_PALETTE_LENGTH(33*16)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_VIDEO_UPDATE(parentj)
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 2000000) /*?? MHz */
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono",  0.25)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono",  1.0)
-	MCFG_SOUND_ROUTE(2, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_TC0080VCO_ADD("tc0080vco", parentj_intf)
+
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+
+	MDRV_SOUND_ADD("ymsnd", YM2203, 2000000) /*?? MHz */
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono",  0.25)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono",  1.0)
+	MDRV_SOUND_ROUTE(2, "mono", 1.0)
+MACHINE_DRIVER_END
 
 ROM_START( parentj )
 	ROM_REGION( 0x20000, "maincpu", 0 ) /* 68000 Code */

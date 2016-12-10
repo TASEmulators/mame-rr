@@ -189,7 +189,7 @@ Model No. S2000C SALTIRE
 +-+          |  VGA  |           H3                  |
   +----------+-------+-------------------------------+
 
-Basically the same as the VCG-1 SALTIRE below, but the
+Basicly the same as the VCG-1 SALTIRE below, but the
 XILINX chip is socketted and no H1 or H2 connector.
 
 ------------------------------------------------------------
@@ -274,34 +274,26 @@ MH86171 Color Pallete RAMDAC
 #include "pirpok2.lh"
 
 
-class sfbonus_state : public driver_device
-{
-public:
-	sfbonus_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	bitmap_t *m_temp_reel_bitmap;
-	tilemap_t *m_tilemap;
-	tilemap_t *m_reel_tilemap;
-	tilemap_t *m_reel2_tilemap;
-	tilemap_t *m_reel3_tilemap;
-	tilemap_t *m_reel4_tilemap;
-	UINT8 *m_tilemap_ram;
-	UINT8 *m_reel_ram;
-	UINT8 *m_reel2_ram;
-	UINT8 *m_reel3_ram;
-	UINT8 *m_reel4_ram;
-	UINT8* m_videoram;
-	UINT8 *m_vregs;
-	UINT8 *m_nvram;
-	size_t m_nvram_size;
-	UINT8* m_1800_regs;
-	UINT8* m_3800_regs;
-	UINT8* m_3000_regs;
-	UINT8* m_2801_regs;
-	UINT8* m_2c01_regs;
-	struct { int r,g,b,offs,offs_internal; } m_pal;
-};
+static bitmap_t *temp_reel_bitmap;
+static tilemap_t *sfbonus_tilemap;
+static tilemap_t *sfbonus_reel_tilemap;
+static tilemap_t *sfbonus_reel2_tilemap;
+static tilemap_t *sfbonus_reel3_tilemap;
+static tilemap_t *sfbonus_reel4_tilemap;
+static UINT8 *sfbonus_tilemap_ram;
+static UINT8 *sfbonus_reel_ram;
+static UINT8 *sfbonus_reel2_ram;
+static UINT8 *sfbonus_reel3_ram;
+static UINT8 *sfbonus_reel4_ram;
+static UINT8* sfbonus_videoram;
+static UINT8 *sfbonus_vregs;
+static UINT8 *nvram;
+static size_t nvram_size;
+static UINT8* sfbonus_1800_regs;
+static UINT8* sfbonus_3800_regs;
+static UINT8* sfbonus_3000_regs;
+static UINT8* sfbonus_2801_regs;
+static UINT8* sfbonus_2c01_regs;
 
 
 /* 8-liners input define */
@@ -625,10 +617,9 @@ INPUT_PORTS_END
 
 static TILE_GET_INFO( get_sfbonus_tile_info )
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	int code = state->m_tilemap_ram[(tile_index*2)+0] | (state->m_tilemap_ram[(tile_index*2)+1]<<8);
-	int flipx = (state->m_tilemap_ram[(tile_index*2)+1] & 0x80)>>7;
-	int flipy = (state->m_tilemap_ram[(tile_index*2)+1] & 0x40)>>5;
+	int code = sfbonus_tilemap_ram[(tile_index*2)+0] | (sfbonus_tilemap_ram[(tile_index*2)+1]<<8);
+	int flipx = (sfbonus_tilemap_ram[(tile_index*2)+1] & 0x80)>>7;
+	int flipy = (sfbonus_tilemap_ram[(tile_index*2)+1] & 0x40)>>5;
 
 	SET_TILE_INFO(
 			0,
@@ -639,12 +630,11 @@ static TILE_GET_INFO( get_sfbonus_tile_info )
 
 static TILE_GET_INFO( get_sfbonus_reel_tile_info )
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	int code = state->m_reel_ram[(tile_index*2)+0] | (state->m_reel_ram[(tile_index*2)+1]<<8);
-	int flipx = (state->m_reel_ram[(tile_index*2)+1] & 0x80)>>7;
-	int flipy = 0;//(state->m_reel_ram[(tile_index*2)+1] & 0x40)>>5;
+	int code = sfbonus_reel_ram[(tile_index*2)+0] | (sfbonus_reel_ram[(tile_index*2)+1]<<8);
+	int flipx = (sfbonus_reel_ram[(tile_index*2)+1] & 0x80)>>7;
+	int flipy = 0;//(sfbonus_reel_ram[(tile_index*2)+1] & 0x40)>>5;
 
-	int priority = (state->m_reel_ram[(tile_index*2)+1] & 0x40)>>6;
+	int priority = (sfbonus_reel_ram[(tile_index*2)+1] & 0x40)>>6;
 
 	SET_TILE_INFO(
 			1,
@@ -655,12 +645,11 @@ static TILE_GET_INFO( get_sfbonus_reel_tile_info )
 
 static TILE_GET_INFO( get_sfbonus_reel2_tile_info )
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	int code = state->m_reel2_ram[(tile_index*2)+0] | (state->m_reel2_ram[(tile_index*2)+1]<<8);
-	int flipx = (state->m_reel2_ram[(tile_index*2)+1] & 0x80)>>7;
-	int flipy = 0;//(state->m_reel2_ram[(tile_index*2)+1] & 0x40)>>5;
+	int code = sfbonus_reel2_ram[(tile_index*2)+0] | (sfbonus_reel2_ram[(tile_index*2)+1]<<8);
+	int flipx = (sfbonus_reel2_ram[(tile_index*2)+1] & 0x80)>>7;
+	int flipy = 0;//(sfbonus_reel2_ram[(tile_index*2)+1] & 0x40)>>5;
 
-	int priority = (state->m_reel2_ram[(tile_index*2)+1] & 0x40)>>6;
+	int priority = (sfbonus_reel2_ram[(tile_index*2)+1] & 0x40)>>6;
 
 	SET_TILE_INFO(
 			1,
@@ -671,12 +660,11 @@ static TILE_GET_INFO( get_sfbonus_reel2_tile_info )
 
 static TILE_GET_INFO( get_sfbonus_reel3_tile_info )
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	int code = state->m_reel3_ram[(tile_index*2)+0] | (state->m_reel3_ram[(tile_index*2)+1]<<8);
-	int flipx = (state->m_reel3_ram[(tile_index*2)+1] & 0x80)>>7;
-	int flipy = 0;//(state->m_reel3_ram[(tile_index*2)+1] & 0x40)>>5;
+	int code = sfbonus_reel3_ram[(tile_index*2)+0] | (sfbonus_reel3_ram[(tile_index*2)+1]<<8);
+	int flipx = (sfbonus_reel3_ram[(tile_index*2)+1] & 0x80)>>7;
+	int flipy = 0;//(sfbonus_reel3_ram[(tile_index*2)+1] & 0x40)>>5;
 
-	int priority = (state->m_reel3_ram[(tile_index*2)+1] & 0x40)>>6;
+	int priority = (sfbonus_reel3_ram[(tile_index*2)+1] & 0x40)>>6;
 
 	SET_TILE_INFO(
 			1,
@@ -687,12 +675,11 @@ static TILE_GET_INFO( get_sfbonus_reel3_tile_info )
 
 static TILE_GET_INFO( get_sfbonus_reel4_tile_info )
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	int code = state->m_reel4_ram[(tile_index*2)+0] | (state->m_reel4_ram[(tile_index*2)+1]<<8);
-	int flipx = (state->m_reel4_ram[(tile_index*2)+1] & 0x80)>>7;
-	int flipy = 0;//(state->m_reel4_ram[(tile_index*2)+1] & 0x40)>>5;
+	int code = sfbonus_reel4_ram[(tile_index*2)+0] | (sfbonus_reel4_ram[(tile_index*2)+1]<<8);
+	int flipx = (sfbonus_reel4_ram[(tile_index*2)+1] & 0x80)>>7;
+	int flipy = 0;//(sfbonus_reel4_ram[(tile_index*2)+1] & 0x40)>>5;
 
-	int priority = (state->m_reel4_ram[(tile_index*2)+1] & 0x40)>>6;
+	int priority = (sfbonus_reel4_ram[(tile_index*2)+1] & 0x40)>>6;
 
 	SET_TILE_INFO(
 			1,
@@ -704,46 +691,45 @@ static TILE_GET_INFO( get_sfbonus_reel4_tile_info )
 
 static WRITE8_HANDLER( sfbonus_videoram_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
 	if (offset<0x4000) /* 0x0000 - 0x3fff */
 	{
-		state->m_tilemap_ram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_tilemap,offset/2);
+		sfbonus_tilemap_ram[offset] = data;
+		tilemap_mark_tile_dirty(sfbonus_tilemap,offset/2);
 	}
 	else if (offset<0x4800) /* 0x4000 - 0x47ff */
 	{
 		offset-=0x4000;
 
-		state->m_reel_ram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_reel_tilemap,offset/2);
+		sfbonus_reel_ram[offset] = data;
+		tilemap_mark_tile_dirty(sfbonus_reel_tilemap,offset/2);
 	}
 	else if (offset<0x5000)  /* 0x4800 - 0x4fff */
 	{
 		offset-=0x4800;
 
-		state->m_reel2_ram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_reel2_tilemap,offset/2);
+		sfbonus_reel2_ram[offset] = data;
+		tilemap_mark_tile_dirty(sfbonus_reel2_tilemap,offset/2);
 	}
 	else if (offset<0x5800) /* 0x5000 - 0x57ff */
 	{
 		offset-=0x5000;
 
-		state->m_reel3_ram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_reel3_tilemap,offset/2);
+		sfbonus_reel3_ram[offset] = data;
+		tilemap_mark_tile_dirty(sfbonus_reel3_tilemap,offset/2);
 	}
 	else if (offset<0x6000) /* 0x5800 - 0x5fff */
 	{
 		offset-=0x5800;
 
-		state->m_reel4_ram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_reel4_tilemap,offset/2);
+		sfbonus_reel4_ram[offset] = data;
+		tilemap_mark_tile_dirty(sfbonus_reel4_tilemap,offset/2);
 	}
 	else if (offset<0x8000)
 	{
 		offset -=0x6000;
 		// scroll regs etc.
 		//logerror("access vram at [%04x] <- %02x\n",offset,data);
-		state->m_videoram[offset] = data;
+		sfbonus_videoram[offset] = data;
 	}
 	else
 	{
@@ -756,43 +742,41 @@ static WRITE8_HANDLER( sfbonus_videoram_w )
 
 static VIDEO_START(sfbonus)
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	state->m_temp_reel_bitmap = auto_bitmap_alloc(machine,1024,512,BITMAP_FORMAT_INDEXED16);
+	temp_reel_bitmap = auto_bitmap_alloc(machine,1024,512,BITMAP_FORMAT_INDEXED16);
 
-	state->m_tilemap = tilemap_create(machine,get_sfbonus_tile_info,tilemap_scan_rows,8,8, 128, 64);
-	state->m_reel_tilemap = tilemap_create(machine,get_sfbonus_reel_tile_info,tilemap_scan_rows,8,32, 64, 16);
-	state->m_reel2_tilemap = tilemap_create(machine,get_sfbonus_reel2_tile_info,tilemap_scan_rows,8,32, 64, 16);
-	state->m_reel3_tilemap = tilemap_create(machine,get_sfbonus_reel3_tile_info,tilemap_scan_rows,8,32, 64, 16);
-	state->m_reel4_tilemap = tilemap_create(machine,get_sfbonus_reel4_tile_info,tilemap_scan_rows,8,32, 64, 16);
+	sfbonus_tilemap = tilemap_create(machine,get_sfbonus_tile_info,tilemap_scan_rows,8,8, 128, 64);
+	sfbonus_reel_tilemap = tilemap_create(machine,get_sfbonus_reel_tile_info,tilemap_scan_rows,8,32, 64, 16);
+	sfbonus_reel2_tilemap = tilemap_create(machine,get_sfbonus_reel2_tile_info,tilemap_scan_rows,8,32, 64, 16);
+	sfbonus_reel3_tilemap = tilemap_create(machine,get_sfbonus_reel3_tile_info,tilemap_scan_rows,8,32, 64, 16);
+	sfbonus_reel4_tilemap = tilemap_create(machine,get_sfbonus_reel4_tile_info,tilemap_scan_rows,8,32, 64, 16);
 
-	tilemap_set_transparent_pen(state->m_tilemap,0);
-	tilemap_set_transparent_pen(state->m_reel_tilemap,255);
-	tilemap_set_transparent_pen(state->m_reel2_tilemap,255);
-	tilemap_set_transparent_pen(state->m_reel3_tilemap,255);
-	tilemap_set_transparent_pen(state->m_reel4_tilemap,255);
+	tilemap_set_transparent_pen(sfbonus_tilemap,0);
+	tilemap_set_transparent_pen(sfbonus_reel_tilemap,255);
+	tilemap_set_transparent_pen(sfbonus_reel2_tilemap,255);
+	tilemap_set_transparent_pen(sfbonus_reel3_tilemap,255);
+	tilemap_set_transparent_pen(sfbonus_reel4_tilemap,255);
 
-	tilemap_set_scroll_rows(state->m_tilemap,64);
+	tilemap_set_scroll_rows(sfbonus_tilemap,64);
 
-	tilemap_set_scroll_cols(state->m_reel_tilemap, 64);
-	tilemap_set_scroll_cols(state->m_reel2_tilemap, 64);
-	tilemap_set_scroll_cols(state->m_reel3_tilemap, 64);
-	tilemap_set_scroll_cols(state->m_reel4_tilemap, 64);
+	tilemap_set_scroll_cols(sfbonus_reel_tilemap, 64);
+	tilemap_set_scroll_cols(sfbonus_reel2_tilemap, 64);
+	tilemap_set_scroll_cols(sfbonus_reel3_tilemap, 64);
+	tilemap_set_scroll_cols(sfbonus_reel4_tilemap, 64);
 
 
 }
 
 static void sfbonus_draw_reel_layer(screen_device *screen, bitmap_t *bitmap, const rectangle *cliprect, int catagory)
 {
-	sfbonus_state *state = screen->machine().driver_data<sfbonus_state>();
 	int zz;
 	int i;
 	int startclipmin;
 	const rectangle &visarea = screen->visible_area();
-	UINT8* selectbase = &state->m_videoram[0x600];
-	UINT8* bg_scroll = &state->m_videoram[0x000];
-	UINT8* reels_rowscroll = &state->m_videoram[0x400];
-	int globalyscrollreels = (state->m_vregs[6] | state->m_vregs[7]<<8);
-	int globalxscrollreels = (state->m_vregs[4] | state->m_vregs[5]<<8);
+	UINT8* selectbase = &sfbonus_videoram[0x600];
+	UINT8* bg_scroll = &sfbonus_videoram[0x000];
+	UINT8* reels_rowscroll = &sfbonus_videoram[0x400];
+	int globalyscrollreels = (sfbonus_vregs[6] | sfbonus_vregs[7]<<8);
+	int globalxscrollreels = (sfbonus_vregs[4] | sfbonus_vregs[5]<<8);
 	globalyscrollreels += 8;
 	globalxscrollreels += 8;
 
@@ -802,16 +786,16 @@ static void sfbonus_draw_reel_layer(screen_device *screen, bitmap_t *bitmap, con
 	{
 		int scroll;
 		scroll = bg_scroll[(i*2)+0x000] | (bg_scroll[(i*2)+0x001]<<8);
-		tilemap_set_scrolly(state->m_reel_tilemap, i, scroll + globalyscrollreels );
+		tilemap_set_scrolly(sfbonus_reel_tilemap, i, scroll + globalyscrollreels );
 
 		scroll = bg_scroll[(i*2)+0x080] | (bg_scroll[(i*2)+0x081]<<8);
-		tilemap_set_scrolly(state->m_reel2_tilemap, i, scroll + globalyscrollreels);
+		tilemap_set_scrolly(sfbonus_reel2_tilemap, i, scroll + globalyscrollreels);
 
 		scroll = bg_scroll[(i*2)+0x100] | (bg_scroll[(i*2)+0x101]<<8);
-		tilemap_set_scrolly(state->m_reel3_tilemap, i, scroll + globalyscrollreels);
+		tilemap_set_scrolly(sfbonus_reel3_tilemap, i, scroll + globalyscrollreels);
 
 		scroll = bg_scroll[(i*2)+0x180] | (bg_scroll[(i*2)+0x181]<<8);
-		tilemap_set_scrolly(state->m_reel4_tilemap, i, scroll + globalyscrollreels);
+		tilemap_set_scrolly(sfbonus_reel4_tilemap, i, scroll + globalyscrollreels);
 	}
 
 //  printf("------------\n");
@@ -842,73 +826,73 @@ static void sfbonus_draw_reel_layer(screen_device *screen, bitmap_t *bitmap, con
 		{
 			rowscroll = reels_rowscroll[((line/8)*2)+0x000] | (reels_rowscroll[((line/8)*2)+0x001]<<8);
 			xxxscroll = globalxscrollreels + rowscroll;
-			tilemap_set_scrollx(state->m_reel_tilemap, 0, xxxscroll  );
-			tilemap_set_scrollx(state->m_reel2_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel3_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel4_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel_tilemap, 0, xxxscroll  );
+			tilemap_set_scrollx(sfbonus_reel2_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel3_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel4_tilemap, 0, xxxscroll );
 		}
 		else if (rowenable==0x1)
 		{
 			rowscroll = reels_rowscroll[((line/8)*2)+0x080] | (reels_rowscroll[((line/8)*2)+0x081]<<8);
 			xxxscroll = globalxscrollreels + rowscroll;
-			tilemap_set_scrollx(state->m_reel_tilemap, 0, xxxscroll  );
-			tilemap_set_scrollx(state->m_reel2_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel3_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel4_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel_tilemap, 0, xxxscroll  );
+			tilemap_set_scrollx(sfbonus_reel2_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel3_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel4_tilemap, 0, xxxscroll );
 		}
 		else if (rowenable==0x2)
 		{
 			rowscroll = reels_rowscroll[((line/8)*2)+0x100] | (reels_rowscroll[((line/8)*2)+0x101]<<8);
 			xxxscroll = globalxscrollreels + rowscroll;
-			tilemap_set_scrollx(state->m_reel_tilemap, 0, xxxscroll  );
-			tilemap_set_scrollx(state->m_reel2_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel3_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel4_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel_tilemap, 0, xxxscroll  );
+			tilemap_set_scrollx(sfbonus_reel2_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel3_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel4_tilemap, 0, xxxscroll );
 		}
 		else if (rowenable==0x3)
 		{
 			rowscroll = reels_rowscroll[((line/8)*2)+0x180] | (reels_rowscroll[((line/8)*2)+0x181]<<8);
 			xxxscroll = globalxscrollreels + rowscroll;
-			tilemap_set_scrollx(state->m_reel_tilemap, 0, xxxscroll  );
-			tilemap_set_scrollx(state->m_reel2_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel3_tilemap, 0, xxxscroll );
-			tilemap_set_scrollx(state->m_reel4_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel_tilemap, 0, xxxscroll  );
+			tilemap_set_scrollx(sfbonus_reel2_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel3_tilemap, 0, xxxscroll );
+			tilemap_set_scrollx(sfbonus_reel4_tilemap, 0, xxxscroll );
 		}
 
 		if (rowenable2==0)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel_tilemap,TILEMAP_DRAW_CATEGORY(catagory),3);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel_tilemap,TILEMAP_DRAW_CATEGORY(catagory),3);
 		}
 		if (rowenable==0)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel_tilemap,TILEMAP_DRAW_CATEGORY(catagory),3);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel_tilemap,TILEMAP_DRAW_CATEGORY(catagory),3);
 		}
 
 		if (rowenable2==0x1)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel2_tilemap,TILEMAP_DRAW_CATEGORY(catagory),2);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel2_tilemap,TILEMAP_DRAW_CATEGORY(catagory),2);
 		}
 		if (rowenable==0x1)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel2_tilemap,TILEMAP_DRAW_CATEGORY(catagory),2);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel2_tilemap,TILEMAP_DRAW_CATEGORY(catagory),2);
 		}
 
 		if (rowenable2==0x2)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel3_tilemap,TILEMAP_DRAW_CATEGORY(catagory),1);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel3_tilemap,TILEMAP_DRAW_CATEGORY(catagory),1);
 		}
 		if (rowenable==0x2)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel3_tilemap,TILEMAP_DRAW_CATEGORY(catagory),1);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel3_tilemap,TILEMAP_DRAW_CATEGORY(catagory),1);
 		}
 
 		if (rowenable2==0x3)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel4_tilemap,TILEMAP_DRAW_CATEGORY(catagory),4);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel4_tilemap,TILEMAP_DRAW_CATEGORY(catagory),4);
 		}
 		if (rowenable==0x3)
 		{
-			tilemap_draw(state->m_temp_reel_bitmap,&clip,state->m_reel4_tilemap,TILEMAP_DRAW_CATEGORY(catagory),4);
+			tilemap_draw(temp_reel_bitmap,&clip,sfbonus_reel4_tilemap,TILEMAP_DRAW_CATEGORY(catagory),4);
 		}
 
 
@@ -920,25 +904,24 @@ static void sfbonus_draw_reel_layer(screen_device *screen, bitmap_t *bitmap, con
 
 }
 
-static SCREEN_UPDATE(sfbonus)
+static VIDEO_UPDATE(sfbonus)
 {
-	sfbonus_state *state = screen->machine().driver_data<sfbonus_state>();
 
-	int globalyscroll = (state->m_vregs[2] | state->m_vregs[3]<<8);
-	int globalxscroll = (state->m_vregs[0] | state->m_vregs[1]<<8);
-	UINT8* front_rowscroll = &state->m_videoram[0x200];
-	ioport_constructor ipt;
+	int globalyscroll = (sfbonus_vregs[2] | sfbonus_vregs[3]<<8);
+	int globalxscroll = (sfbonus_vregs[0] | sfbonus_vregs[1]<<8);
+	UINT8* front_rowscroll = &sfbonus_videoram[0x200];
+	const input_port_token *ipt;
 	int i;
 
 	// align to 0
 	globalyscroll += 8;
 	globalxscroll += 8;
 
-	bitmap_fill(bitmap,cliprect,screen->machine().pens[0]);
-	bitmap_fill(state->m_temp_reel_bitmap,cliprect,screen->machine().pens[0]);
+	bitmap_fill(bitmap,cliprect,screen->machine->pens[0]);
+	bitmap_fill(temp_reel_bitmap,cliprect,screen->machine->pens[0]);
 
 	/* render reels to bitmap */
-	sfbonus_draw_reel_layer(screen,state->m_temp_reel_bitmap,cliprect,0);
+	sfbonus_draw_reel_layer(screen,temp_reel_bitmap,cliprect,0);
 
 	{
 		int y,x;
@@ -947,7 +930,7 @@ static SCREEN_UPDATE(sfbonus)
 		{
 			for (x=0;x<512;x++)
 			{
-				UINT16* src = BITMAP_ADDR16(state->m_temp_reel_bitmap, y, x);
+				UINT16* src = BITMAP_ADDR16(temp_reel_bitmap, y, x);
 				UINT16* dst = BITMAP_ADDR16(bitmap, y, x);
 
 				if ((src[0]&0x100)==0x000)
@@ -957,14 +940,14 @@ static SCREEN_UPDATE(sfbonus)
 	}
 
 	/* Normal Tilemap */
-	tilemap_set_scrolly(state->m_tilemap, 0, globalyscroll );
+	tilemap_set_scrolly(sfbonus_tilemap, 0, globalyscroll );
 	for (i=0;i<64;i++)
 	{
 		int scroll;
 		scroll = front_rowscroll[(i*2)+0x000] | (front_rowscroll[(i*2)+0x001]<<8);
-		tilemap_set_scrollx(state->m_tilemap, i, scroll+globalxscroll );
+		tilemap_set_scrollx(sfbonus_tilemap, i, scroll+globalxscroll );
 	}
-	tilemap_draw(bitmap,cliprect,state->m_tilemap,0,0);
+	tilemap_draw(bitmap,cliprect,sfbonus_tilemap,0,0);
 
 	{
 		int y,x;
@@ -973,7 +956,7 @@ static SCREEN_UPDATE(sfbonus)
 		{
 			for (x=0;x<512;x++)
 			{
-				UINT16* src = BITMAP_ADDR16(state->m_temp_reel_bitmap, y, x);
+				UINT16* src = BITMAP_ADDR16(temp_reel_bitmap, y, x);
 				UINT16* dst = BITMAP_ADDR16(bitmap, y, x);
 
 				if ((src[0]&0x100)==0x100)
@@ -983,75 +966,75 @@ static SCREEN_UPDATE(sfbonus)
 	}
 #if 0
     popmessage("%02x %02x %02x %02x %02x %02x %02x %02x -- %02x -- %02x %02x -- %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-    state->m_3800_regs[0],
-    state->m_3800_regs[1],
-    state->m_3800_regs[2],
-    state->m_3800_regs[3],
-    state->m_3800_regs[4],
-    state->m_3800_regs[5],
-    state->m_3800_regs[6],
-    state->m_3800_regs[7],
-    state->m_3000_regs[0],
-    state->m_2801_regs[0],
-    state->m_2c01_regs[0],
-    state->m_vregs[8],
-    state->m_vregs[0],
-    state->m_vregs[10],
-    state->m_vregs[11],
-    state->m_vregs[12],
-    state->m_vregs[13],
-    state->m_vregs[14],
-    state->m_vregs[15],
-    state->m_vregs[16],
-    state->m_vregs[17],
-    state->m_vregs[18],
-    state->m_vregs[19],
-    state->m_vregs[20],
-    state->m_vregs[21],
-    state->m_vregs[22],
-    state->m_vregs[23],
-    state->m_vregs[24],
-    state->m_vregs[25],
-    state->m_vregs[26],
-    state->m_vregs[27],
-    state->m_vregs[28],
-    state->m_vregs[29],
-    state->m_vregs[30],
-    state->m_vregs[31]
+    sfbonus_3800_regs[0],
+    sfbonus_3800_regs[1],
+    sfbonus_3800_regs[2],
+    sfbonus_3800_regs[3],
+    sfbonus_3800_regs[4],
+    sfbonus_3800_regs[5],
+    sfbonus_3800_regs[6],
+    sfbonus_3800_regs[7],
+    sfbonus_3000_regs[0],
+    sfbonus_2801_regs[0],
+    sfbonus_2c01_regs[0],
+    sfbonus_vregs[8],
+    sfbonus_vregs[0],
+    sfbonus_vregs[10],
+    sfbonus_vregs[11],
+    sfbonus_vregs[12],
+    sfbonus_vregs[13],
+    sfbonus_vregs[14],
+    sfbonus_vregs[15],
+    sfbonus_vregs[16],
+    sfbonus_vregs[17],
+    sfbonus_vregs[18],
+    sfbonus_vregs[19],
+    sfbonus_vregs[20],
+    sfbonus_vregs[21],
+    sfbonus_vregs[22],
+    sfbonus_vregs[23],
+    sfbonus_vregs[24],
+    sfbonus_vregs[25],
+    sfbonus_vregs[26],
+    sfbonus_vregs[27],
+    sfbonus_vregs[28],
+    sfbonus_vregs[29],
+    sfbonus_vregs[30],
+    sfbonus_vregs[31]
     );
 
     popmessage("-- %02x %02x %02x %02x %02x %02x %02x %02x",
-    state->m_1800_regs[0],
-    state->m_1800_regs[1],
-    state->m_1800_regs[2],
-    state->m_1800_regs[3],
-    state->m_1800_regs[4],
-    state->m_1800_regs[5],
-    state->m_1800_regs[6],
-    state->m_1800_regs[7]);
+    sfbonus_1800_regs[0],
+    sfbonus_1800_regs[1],
+    sfbonus_1800_regs[2],
+    sfbonus_1800_regs[3],
+    sfbonus_1800_regs[4],
+    sfbonus_1800_regs[5],
+    sfbonus_1800_regs[6],
+    sfbonus_1800_regs[7]);
 #endif
 
-	ipt = screen->machine().system().ipt;
+	ipt = screen->machine->gamedrv->ipt;
 	if ((ipt == INPUT_PORTS_NAME(amcoe2_reels3)) || (ipt == INPUT_PORTS_NAME(amcoe2_reels4))
 		|| (ipt == INPUT_PORTS_NAME(amcoe2_poker)))
 	{
 		// based on pirpok2
-		output_set_lamp_value(0, (state->m_1800_regs[6] & 0x1) >> 0);
-		output_set_lamp_value(1, (state->m_1800_regs[6] & 0x4) >> 2);
-		output_set_lamp_value(2, (state->m_1800_regs[5] & 0x4) >> 2);
-		output_set_lamp_value(3, (state->m_1800_regs[5] & 0x1) >> 0);
-		output_set_lamp_value(4, (state->m_1800_regs[4] & 0x4) >> 2);
-		output_set_lamp_value(5, (state->m_1800_regs[4] & 0x1) >> 0);
+		output_set_lamp_value(0, (sfbonus_1800_regs[6] & 0x1) >> 0);
+		output_set_lamp_value(1, (sfbonus_1800_regs[6] & 0x4) >> 2);
+		output_set_lamp_value(2, (sfbonus_1800_regs[5] & 0x4) >> 2);
+		output_set_lamp_value(3, (sfbonus_1800_regs[5] & 0x1) >> 0);
+		output_set_lamp_value(4, (sfbonus_1800_regs[4] & 0x4) >> 2);
+		output_set_lamp_value(5, (sfbonus_1800_regs[4] & 0x1) >> 0);
 	}
 	else if ((ipt == INPUT_PORTS_NAME(amcoe1_reels3)) || (ipt == INPUT_PORTS_NAME(amcoe1_reels4))
 		|| (ipt == INPUT_PORTS_NAME(amcoe1_poker)))
 	{
-		output_set_lamp_value(0, (state->m_1800_regs[0] & 0x2) >> 1);
-		output_set_lamp_value(1, (state->m_1800_regs[4] & 0x2) >> 1);
-		output_set_lamp_value(2, (state->m_1800_regs[3] & 0x2) >> 1);
-		output_set_lamp_value(3, (state->m_1800_regs[6] & 0x4) >> 2);
-		output_set_lamp_value(4, (state->m_1800_regs[4] & 0x4) >> 2);
-		output_set_lamp_value(5, (state->m_1800_regs[3] & 0x4) >> 2);
+		output_set_lamp_value(0, (sfbonus_1800_regs[0] & 0x2) >> 1);
+		output_set_lamp_value(1, (sfbonus_1800_regs[4] & 0x2) >> 1);
+		output_set_lamp_value(2, (sfbonus_1800_regs[3] & 0x2) >> 1);
+		output_set_lamp_value(3, (sfbonus_1800_regs[6] & 0x4) >> 2);
+		output_set_lamp_value(4, (sfbonus_1800_regs[4] & 0x4) >> 2);
+		output_set_lamp_value(5, (sfbonus_1800_regs[3] & 0x4) >> 2);
 	}
 
 	return 0;
@@ -1060,31 +1043,32 @@ static SCREEN_UPDATE(sfbonus)
 
 static WRITE8_HANDLER( paletteram_io_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
+	static int pal_offs,r,g,b,internal_pal_offs;
+
 	switch(offset)
 	{
 		case 0:
-			state->m_pal.offs = data;
+			pal_offs = data;
 			break;
 		case 2:
-			state->m_pal.offs_internal = 0;
+			internal_pal_offs = 0;
 			break;
 		case 1:
-			switch(state->m_pal.offs_internal)
+			switch(internal_pal_offs)
 			{
 				case 0:
-					state->m_pal.r = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
-					state->m_pal.offs_internal++;
+					r = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
+					internal_pal_offs++;
 					break;
 				case 1:
-					state->m_pal.g = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
-					state->m_pal.offs_internal++;
+					g = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
+					internal_pal_offs++;
 					break;
 				case 2:
-					state->m_pal.b = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
-					palette_set_color(space->machine(), state->m_pal.offs, MAKE_RGB(state->m_pal.r, state->m_pal.g, state->m_pal.b));
-					state->m_pal.offs_internal = 0;
-					state->m_pal.offs++;
+					b = ((data & 0x3f) << 2) | ((data & 0x30) >> 4);
+					palette_set_color(space->machine, pal_offs, MAKE_RGB(r, g, b));
+					internal_pal_offs = 0;
+					pal_offs++;
 					break;
 			}
 
@@ -1094,41 +1078,41 @@ static WRITE8_HANDLER( paletteram_io_w )
 
 
 
-static ADDRESS_MAP_START( sfbonus_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sfbonus_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xefff) AM_ROMBANK("bank1") AM_WRITE(sfbonus_videoram_w)
-	AM_RANGE(0xf000, 0xffff) AM_RAM AM_BASE_MEMBER(sfbonus_state, m_nvram) AM_SIZE_MEMBER(sfbonus_state, m_nvram_size)
+	AM_RANGE(0xf000, 0xffff) AM_RAM AM_BASE(&nvram) AM_SIZE(&nvram_size)
 ADDRESS_MAP_END
 
 static WRITE8_HANDLER( sfbonus_bank_w )
 {
-	UINT8 *ROM = space->machine().region("maincpu")->base();
+	UINT8 *ROM = memory_region(space->machine, "maincpu");
 	UINT8 bank;
 
 	bank = data & 7;
 
-	memory_set_bankptr(space->machine(), "bank1", &ROM[bank * 0x10000]);
+	memory_set_bankptr(space->machine, "bank1", &ROM[bank * 0x10000]);
 }
 
 
 
 static READ8_HANDLER( sfbonus_2800_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static READ8_HANDLER( sfbonus_2801_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static READ8_HANDLER( sfbonus_2c00_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static READ8_HANDLER( sfbonus_2c01_r )
 {
-	return space->machine().rand();
+	return mame_rand(space->machine);
 }
 
 static READ8_HANDLER( sfbonus_3800_r )
@@ -1140,36 +1124,31 @@ static READ8_HANDLER( sfbonus_3800_r )
 // lamps and coin counters
 static WRITE8_HANDLER( sfbonus_1800_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
-	state->m_1800_regs[offset] = data;
+	sfbonus_1800_regs[offset] = data;
 }
 
 static WRITE8_HANDLER( sfbonus_3800_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
-	state->m_3800_regs[offset] = data;
+	sfbonus_3800_regs[offset] = data;
 }
 
 static WRITE8_HANDLER( sfbonus_3000_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
-	state->m_3000_regs[offset] = data;
+	sfbonus_3000_regs[offset] = data;
 }
 
 static WRITE8_HANDLER( sfbonus_2801_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
-	state->m_2801_regs[offset] = data;
+	sfbonus_2801_regs[offset] = data;
 }
 
 static WRITE8_HANDLER( sfbonus_2c01_w )
 {
-	sfbonus_state *state = space->machine().driver_data<sfbonus_state>();
-	state->m_2c01_regs[offset] = data;
+	sfbonus_2c01_regs[offset] = data;
 }
 
 
-static ADDRESS_MAP_START( sfbonus_io, AS_IO, 8 )
+static ADDRESS_MAP_START( sfbonus_io, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x0400, 0x0400) AM_READ_PORT("KEY1")
 	AM_RANGE(0x0408, 0x0408) AM_READ_PORT("KEY2")
 	AM_RANGE(0x0410, 0x0410) AM_READ_PORT("KEY3")
@@ -1180,25 +1159,25 @@ static ADDRESS_MAP_START( sfbonus_io, AS_IO, 8 )
 	AM_RANGE(0x0430, 0x0430) AM_READ_PORT("SWITCH4")
 	AM_RANGE(0x0438, 0x0438) AM_READ_PORT("SWITCH5")
 
-	AM_RANGE(0x0800, 0x0800) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0x0800, 0x0800) AM_DEVREADWRITE("oki", okim6295_r, okim6295_w)
 
 	AM_RANGE(0x0c00, 0x0c03) AM_WRITE( paletteram_io_w )
 
-	AM_RANGE(0x1800, 0x1807) AM_WRITE(sfbonus_1800_w) AM_BASE_MEMBER(sfbonus_state, m_1800_regs) // lamps and coin counters
+	AM_RANGE(0x1800, 0x1807) AM_WRITE(sfbonus_1800_w) AM_BASE(&sfbonus_1800_regs) // lamps and coin counters
 
-	AM_RANGE(0x2400, 0x241f) AM_RAM AM_BASE_MEMBER(sfbonus_state, m_vregs)
+	AM_RANGE(0x2400, 0x241f) AM_RAM AM_BASE(&sfbonus_vregs)
 
 	AM_RANGE(0x2800, 0x2800) AM_READ(sfbonus_2800_r)
-	AM_RANGE(0x2801, 0x2801) AM_READ(sfbonus_2801_r) AM_WRITE(sfbonus_2801_w) AM_BASE_MEMBER(sfbonus_state, m_2801_regs)
+	AM_RANGE(0x2801, 0x2801) AM_READ(sfbonus_2801_r) AM_WRITE(sfbonus_2801_w) AM_BASE(&sfbonus_2801_regs)
 
 	AM_RANGE(0x2c00, 0x2c00) AM_READ(sfbonus_2c00_r)
-	AM_RANGE(0x2c01, 0x2c01) AM_READ(sfbonus_2c01_r) AM_WRITE(sfbonus_2c01_w) AM_BASE_MEMBER(sfbonus_state, m_2c01_regs)
+	AM_RANGE(0x2c01, 0x2c01) AM_READ(sfbonus_2c01_r) AM_WRITE(sfbonus_2c01_w) AM_BASE(&sfbonus_2c01_regs)
 
-	AM_RANGE(0x3000, 0x3000) AM_WRITE(sfbonus_3000_w) AM_BASE_MEMBER(sfbonus_state, m_3000_regs)
+	AM_RANGE(0x3000, 0x3000) AM_WRITE(sfbonus_3000_w) AM_BASE(&sfbonus_3000_regs)
 	AM_RANGE(0x3400, 0x3400) AM_WRITE(sfbonus_bank_w)
 	AM_RANGE(0x3800, 0x3800) AM_READ(sfbonus_3800_r)
 
-	AM_RANGE(0x3800, 0x3807) AM_WRITE(sfbonus_3800_w) AM_BASE_MEMBER(sfbonus_state, m_3800_regs)
+	AM_RANGE(0x3800, 0x3807) AM_WRITE(sfbonus_3800_w) AM_BASE(&sfbonus_3800_regs)
 ADDRESS_MAP_END
 
 
@@ -1238,84 +1217,66 @@ GFXDECODE_END
 
 static MACHINE_RESET( sfbonus )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_set_bankptr(machine, "bank1", &ROM[0]);
 }
 
 static NVRAM_HANDLER( sfbonus )
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
 	if (read_or_write)
-		file->write(state->m_nvram,state->m_nvram_size);
+		mame_fwrite(file,nvram,nvram_size);
 	else
 	{
 		if (file)
 		{
-			memset(state->m_nvram,0x00,state->m_nvram_size);
-			file->read(state->m_nvram,state->m_nvram_size);
+			memset(nvram,0x00,nvram_size);
+			mame_fread(file,nvram,nvram_size);
 		}
 		else
 		{
-			UINT8* defaultram = machine.region("defaults")->base();
-			memset(state->m_nvram,0x00,state->m_nvram_size);
+			UINT8* defaultram = memory_region(machine, "defaults");
+			memset(nvram,0x00,nvram_size);
 
 			if (defaultram)
 				if ((defaultram[0x02]==0x00) && (defaultram[0x03]==0x00)) // hack! rom region optional regions get cleared with garbage if no rom is present, this is not good!
-					memcpy(state->m_nvram, machine.region("defaults")->base(), machine.region("defaults")->bytes());
+					memcpy(nvram, memory_region(machine, "defaults"), memory_region_length(machine, "defaults"));
 		}
 	}
 }
 
 
-static MACHINE_CONFIG_START( sfbonus, sfbonus_state )
-	MCFG_CPU_ADD("maincpu", Z80, 6000000) // custom packaged z80 CPU ?? Mhz
-	MCFG_CPU_PROGRAM_MAP(sfbonus_map)
-	MCFG_CPU_IO_MAP(sfbonus_io)
-	MCFG_CPU_VBLANK_INT("screen",irq0_line_hold)
-	//MCFG_CPU_PERIODIC_INT(nmi_line_pulse,100)
+static MACHINE_DRIVER_START( sfbonus )
+	MDRV_CPU_ADD("maincpu", Z80, 6000000) // custom packaged z80 CPU ?? Mhz
+	MDRV_CPU_PROGRAM_MAP(sfbonus_map)
+	MDRV_CPU_IO_MAP(sfbonus_io)
+	MDRV_CPU_VBLANK_INT("screen",irq0_line_hold)
+	//MDRV_CPU_PERIODIC_INT(nmi_line_pulse,100)
 
-	MCFG_MACHINE_RESET( sfbonus )
+	MDRV_MACHINE_RESET( sfbonus )
 
-	MCFG_NVRAM_HANDLER(sfbonus)
+	MDRV_NVRAM_HANDLER(sfbonus)
 
 
-	MCFG_GFXDECODE(sfbonus)
+	MDRV_GFXDECODE(sfbonus)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(128*8, 64*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 512-1, 0*8, 288-1)
-	MCFG_SCREEN_UPDATE(sfbonus)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(128*8, 64*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 512-1, 0*8, 288-1)
 
-	MCFG_PALETTE_LENGTH(0x100*2) // *2 for priority workaraound / custom drawing
+	MDRV_PALETTE_LENGTH(0x100*2) // *2 for priority workaraound / custom drawing
 
-	MCFG_VIDEO_START(sfbonus)
+	MDRV_VIDEO_START(sfbonus)
+	MDRV_VIDEO_UPDATE(sfbonus)
 
 	/* Parrot 3 seems fine at 1 Mhz, but Double Challenge isn't? */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
-MACHINE_CONFIG_END
-
-/* Super Ball */
-ROM_START( suprball )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80  Code */
-	ROM_LOAD( "superball.rom1", 0x00000, 0x40000, CRC(6134ec14) SHA1(4e48c1cac7bba8ec1453d4285cc2adf431b7d3d2) )
-
-	ROM_REGION( 0x040000, "oki", 0 ) /* Samples */
-	ROM_LOAD( "superball.rom2", 0x00000, 0x40000, CRC(8f4512bf) SHA1(e5f44624ba25cef8e38b752cb300a8bc259db3ec) )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "superball.rom3", 0x00000, 0x80000, CRC(087a85a7) SHA1(c6c0945c5c591a20f709b2afff79c5f7bed7fa66) )
-	ROM_LOAD16_BYTE( "superball.rom4", 0x00001, 0x80000, CRC(811a1328) SHA1(ae012dcaf4c953b3f7fd45a70a4385cae4b7363b) )
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "superball.rom5", 0x00000, 0x80000, CRC(86bf2c84) SHA1(b8fdc5942a6f01ccdd41e3461d886bf285666355) )
-	ROM_LOAD16_BYTE( "superball.rom6", 0x00001, 0x80000, CRC(83d1fbb0) SHA1(80d67062a9ac2a28b47302481c3a692ac1a6a280) )
-ROM_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
+MACHINE_DRIVER_END
 
 
 /* Skill Fruit Bonus */
@@ -1395,6 +1356,9 @@ ROM_END
 ROM_START( sfbonuso )
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80  Code */
 	ROM_LOAD( "skfb17.bin", 0x00000, 0x40000, CRC(e28ede82) SHA1(f320c4c9c30ec280ee2437d1ad4d2b6270580916) )
+
+	ROM_REGION( 0x010000, "debugram", ROMREGION_ERASE00 ) /* DEBUG */
+
 
 	ROM_REGION( 0x040000, "oki", 0 ) /* Samples */
 	ROM_LOAD( "skfbrom2.bin", 0x00000, 0x20000, CRC(3823a36e) SHA1(4136e380b63546b9490033ad26d776f326eb9290) )
@@ -3746,6 +3710,8 @@ ROM_START( fb4o2 )
 	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
 	ROM_LOAD( "fb4rom2.bin", 0x00000, 0x3ffff, BAD_DUMP CRC(bf49ba49) SHA1(eea40e34298f7fd98771f0869ef541c5e1514f2a) )
 
+	ROM_REGION( 0x040000, "debugram", ROMREGION_ERASE00 )
+
 	ROM_REGION( 0x100000, "gfx1", 0 )
 	ROM_LOAD16_BYTE( "fb4rom3.bin", 0x00000, 0x80000, CRC(4176937d) SHA1(dbde944a154f648a86628a8165fa27032115c417) )
 	ROM_LOAD16_BYTE( "fb4rom4.bin", 0x00001, 0x80000, CRC(f8c57041) SHA1(ca8f58e89d31563b363a78db89e2711402f3ba80) )
@@ -5025,52 +4991,58 @@ ROM_START( fb6v2 )
 	ROM_LOAD_OPTIONAL( "fb617lt.id", 0x00, 0x20, CRC(9903b0a6) SHA1(840873524b1cc33539926655ef94d23f6b219f76) )
 ROM_END
 
-ROM_START( fb6s1 ) /* Compact PCB version */
+ROM_START( fb6s1 ) /* "Compact" PCB, the surface mounted roms haven't been dumped yet */
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
 	ROM_LOAD( "f06s17r.bin", 0x00000, 0x40000, CRC(679747d1) SHA1(ca702324c436d54f4c23350b1af4f0250915883c) )
 
-	ROM_REGION( 0x080010, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "rom2.bin", 0x00000, 0x080010, CRC(b940a9b1) SHA1(944eb41b9bbf293a476d96fda0ad19710cbc970f) ) /* Surface mounted AMIC A29040BV */
+	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
+	ROM_LOAD( "a29040bv.rom2", 0x00000, 0x40000, BAD_DUMP CRC(f1adbcd5) SHA1(90a8830d000eb634c2db8a09431daba6cdcb2d34) ) /* dump is from a non compact PCB */
 
 	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD( "rom3.bin", 0x00000, 0x080000, CRC(4c2f9729) SHA1(2dd3ef0b90ab22caaafb412fa4bec4aa395bb718) ) /* Surface mounted MX29LV400TTC */
+	ROM_LOAD( "mx29lv400ttc.rom3", 0x00000, 0x080000, NO_DUMP )
+	ROM_LOAD16_BYTE( "fb06rom3.bin", 0x00000, 0x40000, CRC(63159a3a) SHA1(77e5801506ea58df73c406c8675dc8c06ba92313) ) /* Use these for now so we can see something */
+	ROM_LOAD16_BYTE( "fb06rom4.bin", 0x00001, 0x40000, CRC(e4f4f04e) SHA1(412cfec7235455c09cffde5ca05c3e2fe4a040a0) )
 
 	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD( "rom4.bin", 0x00000, 0x080000, CRC(2310a5f1) SHA1(3ca7745f0aa79de03942e87a6a7d669dcd156af3) ) /* Surface mounted MX29LV400TTC */
+	ROM_LOAD( "mx29lv400ttc.rom4", 0x00000, 0x080000, NO_DUMP )
 
 	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
 	ROM_LOAD_OPTIONAL( "fb617re.id", 0x00, 0x20, CRC(132908c4) SHA1(4e4c58327a181c511c8144349432a178936a997f) )
 ROM_END
 
-ROM_START( fb6s2 ) /* Compact PCB version */
+ROM_START( fb6s2 ) /* "Compact" PCB, the surface mounted roms haven't been dumped yet */
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
 	ROM_LOAD( "f06s17lt.bin", 0x00000, 0x40000, CRC(2008a56f) SHA1(1dec4818c49cd63cc29fcb5abdab7a256731ae7b) )
 
-	ROM_REGION( 0x080010, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "rom2.bin", 0x00000, 0x80010, CRC(b940a9b1) SHA1(944eb41b9bbf293a476d96fda0ad19710cbc970f) ) /* Surface mounted AMIC A29040BV */
+	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
+	ROM_LOAD( "a29040bv.rom2", 0x00000, 0x40000, BAD_DUMP CRC(f1adbcd5) SHA1(90a8830d000eb634c2db8a09431daba6cdcb2d34) ) /* dump is from a non compact PCB */
 
 	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD( "rom3.bin", 0x00000, 0x080000, CRC(4c2f9729) SHA1(2dd3ef0b90ab22caaafb412fa4bec4aa395bb718) ) /* Surface mounted MX29LV400TTC */
+	ROM_LOAD( "mx29lv400ttc.rom3", 0x00000, 0x080000, NO_DUMP )
+	ROM_LOAD16_BYTE( "fb06rom3.bin", 0x00000, 0x40000, CRC(63159a3a) SHA1(77e5801506ea58df73c406c8675dc8c06ba92313) ) /* Use these for now so we can see something */
+	ROM_LOAD16_BYTE( "fb06rom4.bin", 0x00001, 0x40000, CRC(e4f4f04e) SHA1(412cfec7235455c09cffde5ca05c3e2fe4a040a0) )
 
 	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD( "rom4.bin", 0x00000, 0x080000, CRC(2310a5f1) SHA1(3ca7745f0aa79de03942e87a6a7d669dcd156af3) ) /* Surface mounted MX29LV400TTC */
+	ROM_LOAD( "mx29lv400ttc.rom4", 0x00000, 0x080000, NO_DUMP )
 
 	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
 	ROM_LOAD_OPTIONAL( "fb617lt.id", 0x00, 0x20, CRC(9903b0a6) SHA1(840873524b1cc33539926655ef94d23f6b219f76) )
 ROM_END
 
-ROM_START( fb6s3 ) /* Compact PCB version */
+ROM_START( fb6s3 ) /* "Compact" PCB, the surface mounted roms haven't been dumped yet */
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
 	ROM_LOAD( "f06s13r.bin", 0x00000, 0x40000, CRC(93ba8c7c) SHA1(905572e98bd01c4db597ee30afbe5f9cb1b114ed) )
 
-	ROM_REGION( 0x080010, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "rom2.bin", 0x00000, 0x080010, CRC(b940a9b1) SHA1(944eb41b9bbf293a476d96fda0ad19710cbc970f) ) /* Surface mounted AMIC A29040BV */
+	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
+	ROM_LOAD( "a29040bv.rom2", 0x00000, 0x40000, BAD_DUMP CRC(f1adbcd5) SHA1(90a8830d000eb634c2db8a09431daba6cdcb2d34) ) /* dump is from a non compact PCB */
 
 	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD( "rom3.bin", 0x00000, 0x080000, CRC(4c2f9729) SHA1(2dd3ef0b90ab22caaafb412fa4bec4aa395bb718) ) /* Surface mounted MX29LV400TTC */
+	ROM_LOAD( "mx29lv400ttc.rom3", 0x00000, 0x080000, NO_DUMP )
+	ROM_LOAD16_BYTE( "fb06rom3.bin", 0x00000, 0x40000, CRC(63159a3a) SHA1(77e5801506ea58df73c406c8675dc8c06ba92313) ) /* Use these for now so we can see something */
+	ROM_LOAD16_BYTE( "fb06rom4.bin", 0x00001, 0x40000, CRC(e4f4f04e) SHA1(412cfec7235455c09cffde5ca05c3e2fe4a040a0) )
 
 	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD( "rom4.bin", 0x00000, 0x080000, CRC(2310a5f1) SHA1(3ca7745f0aa79de03942e87a6a7d669dcd156af3) ) /* Surface mounted MX29LV400TTC */
+	ROM_LOAD( "mx29lv400ttc.rom4", 0x00000, 0x080000, NO_DUMP )
 
 	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
 	ROM_LOAD_OPTIONAL( "fb6130r.id", 0x00, 0x20, CRC(959969d1) SHA1(885b4708fb459c96ead67ae911e5296adc148ee3) )
@@ -5287,67 +5259,8 @@ ROM_START( bugfeverv2 )
 	ROM_LOAD_OPTIONAL( "bf17ex.id", 0x00, 0x20, CRC(38bd8ec4) SHA1(4e6b85348f2fa821934f7666f77ba0f016e200ec) )
 ROM_END
 
-/* Devil Island */
-ROM_START( dvisland )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "did14r.bin", 0x00000, 0x80000, CRC(28c3a7eb) SHA1(5389338ef42e05542e3ff052b2bbc918cf619874) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "dirom2.bin", 0x00000, 0x40000, CRC(9fddeea4) SHA1(6651b70011798a2e58a468b57323da344bd4b2b6) )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "dirom3.bin", 0x00000, 0x80000, CRC(a61036ce) SHA1(d125899ae7d672f258cd383949fffc73bf232ffd) )
-	ROM_LOAD16_BYTE( "dirom4.bin", 0x00001, 0x80000, CRC(4b34ea74) SHA1(9564f65f48354f589e291fc505e187ae8a3b0d71) )
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "dirom5.bin", 0x00000, 0x80000, CRC(041eb83f) SHA1(d50784b52ac3b801cfd83adba9ced0f9eab39890) )
-	ROM_LOAD16_BYTE( "dirom6.bin", 0x00001, 0x80000, CRC(291cbe5c) SHA1(fd15dceff0705c8c8d992e5047c7280247e21520) )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "di24re.id", 0x00, 0x20, CRC(d69c8ee5) SHA1(122c196fe03817b5c507339c7c64d6ee7ae12bad) )
-ROM_END
-
-ROM_START( dvislando )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "did10r.bin", 0x00000, 0x80000, CRC(cfd9f256) SHA1(a7786c47094f8ace2d83bc4d6f1cf4b4367d13ca) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "dirom2.bin", 0x00000, 0x40000, CRC(9fddeea4) SHA1(6651b70011798a2e58a468b57323da344bd4b2b6) )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "dirom3.bin", 0x00000, 0x80000, CRC(a61036ce) SHA1(d125899ae7d672f258cd383949fffc73bf232ffd) )
-	ROM_LOAD16_BYTE( "dirom4.bin", 0x00001, 0x80000, CRC(4b34ea74) SHA1(9564f65f48354f589e291fc505e187ae8a3b0d71) )
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "dirom5.bin", 0x00000, 0x80000, CRC(041eb83f) SHA1(d50784b52ac3b801cfd83adba9ced0f9eab39890) )
-	ROM_LOAD16_BYTE( "dirom6.bin", 0x00001, 0x80000, CRC(291cbe5c) SHA1(fd15dceff0705c8c8d992e5047c7280247e21520) )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "di20re.id", 0x00, 0x20, CRC(8b70dfe9) SHA1(080e9797c766f116e794d6ba48bd38a922da740e) )
-ROM_END
-
 /* Around The World */
 ROM_START( atworld )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "awd14r.bin", 0x00000, 0x80000, CRC(9a40be4f) SHA1(30353d58190c54c6c51e62d6ce101396aba3717a) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "aw_rom2.bin", 0x00000, 0x40000, CRC(aff26a52) SHA1(176fb42d735a85cdc3b74d6dde76fea9115bf36d) )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "aw_rom3.bin", 0x00000, 0x80000, CRC(36db794a) SHA1(a5cb32fc401faf52e221f0a4d8bbfae819e7d08b) )
-	ROM_LOAD16_BYTE( "aw_rom4.bin", 0x00001, 0x80000, CRC(3927d187) SHA1(4d6e509ec6cc33e6985142894bbce547e1ee9f4f) )
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "aw_rom5.bin", 0x00000, 0x80000, CRC(c461c4d5) SHA1(2815511f8ae9b74c44aa9987eebf1a14642b4458) )
-	ROM_LOAD16_BYTE( "aw_rom6.bin", 0x00001, 0x80000, CRC(686c9f2d) SHA1(94da22c775292020aa00c8f12f833a7f5c70ec36) )
-
-	ROM_REGION( 0x1000, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "aw13ex.id", 0x00, 0x1000, CRC(c26305c9) SHA1(ee3aea8926ee4890d45896cf0be175c2262c7341) )
-ROM_END
-
-
-ROM_START( atworlde1 )
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
 	ROM_LOAD( "awd13e.bin", 0x00000, 0x80000, CRC(ec46b48d) SHA1(bfae55520bb36a6dfb55e12b115e818d9cd060e7) )
 
@@ -5385,158 +5298,8 @@ ROM_START( atworldd1 )
 	ROM_LOAD_OPTIONAL( "aw13re.id", 0x00, 0x1000,  CRC(0f9991fb) SHA1(5ea9e49c6b8b00c2c3638cc39e479d6e5e112b7a) )
 ROM_END
 
-/* Fruit Bonus 3G */
-/*
-
-Version 1.0.1 roms need dumping. Board was reflashed (updated) to v1.0.3
-
-   ROM    SUM16 printed on rom label
-   --------------------------------------------
-   ROM1   CDE8  <-- V1.0.1
-   ROM2   65AF
-   ROM3   BEE1  <-- Different then V1.0.3 ROM3?
-   ROM4   D329  <-- Different then V1.0.3 ROM4?
-   ROM5   B0AD
-   ROM6   8660
-*/
-
-ROM_START( fb3g )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "fb3gd103.bin", 0x00000, 0x80000, CRC(5133e739) SHA1(736989716bb5c1821b133e986ba5986425371814) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "fb3grom2.bin", 0x00000, 0x40000, CRC(15b7ec5b) SHA1(8aa4e7744f220c2feeae04fbc93f8e0ef333b062) )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "fb3grom3.bin", 0x00000, 0x80000, CRC(a00404dd) SHA1(cb196e24b493eb1f3e9e234b965f24d1bf99be86) ) /* SUM16 B43A */
-	ROM_LOAD16_BYTE( "fb3grom4.bin", 0x00001, 0x80000, CRC(b9e0fed7) SHA1(1d47cf1e9757d86f3d4b2c30c1c113d87816b66c) ) /* SUM16 D6BE */
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "fb3grom5.bin", 0x00000, 0x80000, CRC(c3121482) SHA1(c0688f28a44f0b9b3406147dd547979ff3b2674a) )
-	ROM_LOAD16_BYTE( "fb3grom6.bin", 0x00001, 0x80000, CRC(41d042b6) SHA1(13139d961dbad1f0743b181ca4692e35ed0909ea) )
-
-	ROM_REGION( 0x1000, "defaults", 0 ) /* default settings */
-	ROM_LOAD( "fb3g103.id", 0x0000, 0x1000, CRC(9d87e807) SHA1(a1eae917a652604deac46b140e31d827672b60d6) )
-ROM_END
-
-
-
 /* Not working sets (due to incomplete dumps) */
 ROM_START( version4 )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "96d43r.bin", 0x00000, 0x40000, CRC(51971502) SHA1(7767a98da2b75d9289b665c648036adb8f31f3dd) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "96rom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "96rom3.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom4.bin", 0x00001, 0x40000, NO_DUMP)
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "96rom5.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom6.bin", 0x00001, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
-ROM_END
-
-ROM_START( version4v )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "96v43r.bin", 0x00000, 0x40000, CRC(83d69d2a) SHA1(99da2b2b67e51980779cdb5213c062f7d0488271) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "96rom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "96rom3.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom4.bin", 0x00001, 0x40000, NO_DUMP)
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "96rom5.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom6.bin", 0x00001, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
-ROM_END
-
-ROM_START( version4d2 )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "96d43e.bin", 0x00000, 0x40000, CRC(b84469fe) SHA1(bdfafe1c70a449333ce19d4076004e9541ff0355) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "96rom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "96rom3.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom4.bin", 0x00001, 0x40000, NO_DUMP)
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "96rom5.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom6.bin", 0x00001, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
-ROM_END
-
-ROM_START( version4v2 )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "96v43e.bin", 0x00000, 0x40000, CRC(d34a500c) SHA1(404219d4d5875615f10241fc2ba8483b1e58d3ee) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "96rom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "96rom3.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom4.bin", 0x00001, 0x40000, NO_DUMP)
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "96rom5.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom6.bin", 0x00001, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
-ROM_END
-
-ROM_START( version4d3 )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "96d43lt.bin", 0x00000, 0x40000, CRC(b424fda6) SHA1(bf1bb9adb52e5c34c6608d41a00000e49ceec59a) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "96rom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "96rom3.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom4.bin", 0x00001, 0x40000, NO_DUMP)
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "96rom5.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom6.bin", 0x00001, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
-ROM_END
-
-ROM_START( version4v3 )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "96v43lt.bin", 0x00000, 0x40000, CRC(a22c28da) SHA1(2a6347adc0a03074e24e4a929aeab37371cc588f) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "96rom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "96rom3.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom4.bin", 0x00001, 0x40000, NO_DUMP)
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "96rom5.bin", 0x00000, 0x40000, NO_DUMP )
-	ROM_LOAD16_BYTE( "96rom6.bin", 0x00001, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
-	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
-ROM_END
-
-ROM_START( version4o )
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
 	ROM_LOAD( "96d42r.bin", 0x00000, 0x40000, CRC(dab5706c) SHA1(9fc37b66942a5e7535b4590f132727d793f9d705) )
 
@@ -5553,6 +5316,25 @@ ROM_START( version4o )
 
 	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
 	ROM_LOAD_OPTIONAL( "fcs40r1.id", 0x00, 0x20, CRC(b3638cdb) SHA1(283824c57f3f62f6e2b505f6e13b100a7d7f33af) )
+ROM_END
+
+ROM_START( dvisland )
+	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
+	ROM_LOAD( "did14r.bin", 0x00000, 0x80000, CRC(28c3a7eb) SHA1(5389338ef42e05542e3ff052b2bbc918cf619874) )
+
+	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
+	ROM_LOAD( "dirom2.bin", 0x00000, 0x40000, NO_DUMP )
+
+	ROM_REGION( 0x100000, "gfx1", 0 )
+	ROM_LOAD16_BYTE( "dirom3.bin", 0x00000, 0x80000, NO_DUMP )
+	ROM_LOAD16_BYTE( "dirom4.bin", 0x00001, 0x80000, NO_DUMP )
+
+	ROM_REGION( 0x100000, "gfx2", 0 )
+	ROM_LOAD16_BYTE( "dirom5.bin", 0x00000, 0x80000, NO_DUMP )
+	ROM_LOAD16_BYTE( "dirom6.bin", 0x00001, 0x80000, NO_DUMP )
+
+	ROM_REGION( 0x20, "defaults", 0 ) /* default settings */
+	ROM_LOAD_OPTIONAL( "di24re.id", 0x00, 0x20, CRC(d69c8ee5) SHA1(122c196fe03817b5c507339c7c64d6ee7ae12bad) )
 ROM_END
 
 ROM_START( funriver )
@@ -5611,22 +5393,6 @@ ROM_END
 
 ROM_START( fbdeluxe )
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "fbd109r.bin", 0x00000, 0x80000, CRC(e5e83752) SHA1(7fb53de0ea24ce402298fba59eb14208cf266f3e) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "fbrom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "fbrom3.bin", 0x00000, 0x80000, NO_DUMP )
-	ROM_LOAD16_BYTE( "fbrom4.bin", 0x00001, 0x80000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "fbrom5.bin", 0x00000, 0x80000, NO_DUMP )
-	ROM_LOAD16_BYTE( "fbrom6.bin", 0x00001, 0x80000, NO_DUMP )
-ROM_END
-
-ROM_START( fbdeluxeo )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
 	ROM_LOAD( "fbd107r.bin", 0x00000, 0x80000, CRC(b29be47d) SHA1(bd3098fa6b914b2f9dcbe36e2cf36f90c67c1424) )
 
 	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
@@ -5640,23 +5406,6 @@ ROM_START( fbdeluxeo )
 	ROM_LOAD16_BYTE( "fbrom5.bin", 0x00000, 0x80000, NO_DUMP )
 	ROM_LOAD16_BYTE( "fbrom6.bin", 0x00001, 0x80000, NO_DUMP )
 ROM_END
-
-ROM_START( getrich )
-	ROM_REGION( 0x80000, "maincpu", 0 ) /* Z80 Code */
-	ROM_LOAD( "grd101r.bin", 0x00000, 0x80000, CRC(4cc1142c) SHA1(321aacea819c43ef0ad38b11286e6d388fb6a179) )
-
-	ROM_REGION( 0x040000, "oki", ROMREGION_ERASE00 ) /* Samples */
-	ROM_LOAD( "grrom2.bin", 0x00000, 0x40000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx1", 0 )
-	ROM_LOAD16_BYTE( "grrom3.bin", 0x00000, 0x80000, NO_DUMP )
-	ROM_LOAD16_BYTE( "grrom4.bin", 0x00001, 0x80000, NO_DUMP )
-
-	ROM_REGION( 0x100000, "gfx2", 0 )
-	ROM_LOAD16_BYTE( "grrom5.bin", 0x00000, 0x80000, NO_DUMP )
-	ROM_LOAD16_BYTE( "grrom6.bin", 0x00001, 0x80000, NO_DUMP )
-ROM_END
-
 
 // diagnostics?
 ROM_START( amclink )
@@ -5675,38 +5424,40 @@ ROM_END
 
 static DRIVER_INIT( sfbonus_common)
 {
-	sfbonus_state *state = machine.driver_data<sfbonus_state>();
-	state->m_tilemap_ram = auto_alloc_array(machine, UINT8, 0x4000);
-	memset(state->m_tilemap_ram, 0xff, 0x4000);
-	state_save_register_global_pointer(machine, state->m_tilemap_ram , 0x4000);
+	sfbonus_tilemap_ram = auto_alloc_array(machine, UINT8, 0x4000);
+	memset(sfbonus_tilemap_ram, 0xff, 0x4000);
+	state_save_register_global_pointer(machine, sfbonus_tilemap_ram , 0x4000);
 
-	state->m_reel_ram = auto_alloc_array(machine, UINT8, 0x0800);
-	memset(state->m_reel_ram, 0xff ,0x0800);
-	state_save_register_global_pointer(machine, state->m_reel_ram , 0x0800);
+	sfbonus_reel_ram = auto_alloc_array(machine, UINT8, 0x0800);
+	memset(sfbonus_reel_ram, 0xff ,0x0800);
+	state_save_register_global_pointer(machine, sfbonus_reel_ram , 0x0800);
 
-	state->m_reel2_ram = auto_alloc_array(machine, UINT8, 0x0800);
-	memset(state->m_reel2_ram, 0xff, 0x0800);
-	state_save_register_global_pointer(machine, state->m_reel2_ram , 0x0800);
+	sfbonus_reel2_ram = auto_alloc_array(machine, UINT8, 0x0800);
+	memset(sfbonus_reel2_ram, 0xff, 0x0800);
+	state_save_register_global_pointer(machine, sfbonus_reel2_ram , 0x0800);
 
-	state->m_reel3_ram = auto_alloc_array(machine, UINT8, 0x0800);
-	memset(state->m_reel3_ram, 0xff, 0x0800);
-	state_save_register_global_pointer(machine, state->m_reel3_ram , 0x0800);
+	sfbonus_reel3_ram = auto_alloc_array(machine, UINT8, 0x0800);
+	memset(sfbonus_reel3_ram, 0xff, 0x0800);
+	state_save_register_global_pointer(machine, sfbonus_reel3_ram , 0x0800);
 
-	state->m_reel4_ram = auto_alloc_array(machine, UINT8, 0x0800);
-	memset(state->m_reel4_ram, 0xff, 0x0800);
-	state_save_register_global_pointer(machine, state->m_reel4_ram , 0x0800);
+	sfbonus_reel4_ram = auto_alloc_array(machine, UINT8, 0x0800);
+	memset(sfbonus_reel4_ram, 0xff, 0x0800);
+	state_save_register_global_pointer(machine, sfbonus_reel4_ram , 0x0800);
 
-	state->m_videoram = auto_alloc_array(machine, UINT8, 0x10000);
+	// hack, because the debugger is broken
+	sfbonus_videoram = memory_region(machine, "debugram");
+	if (!sfbonus_videoram)
+		sfbonus_videoram = auto_alloc_array(machine, UINT8, 0x10000);
 
-	memset(state->m_videoram, 0xff, 0x10000);
+	memset(sfbonus_videoram, 0xff, 0x10000);
 
-	state_save_register_global_pointer(machine, state->m_videoram, 0x10000);
+	state_save_register_global_pointer(machine, sfbonus_videoram, 0x10000);
 
 	// dummy.rom helper
 	{
-		UINT8 *ROM = machine.region("maincpu")->base();
-		int length = machine.region("maincpu")->bytes();
-		UINT8* ROM2 = machine.region("user1")->base();
+		UINT8 *ROM = memory_region(machine, "maincpu");
+		int length = memory_region_length(machine, "maincpu");
+		UINT8* ROM2 = memory_region(machine, "user1");
 
 		if (ROM2)
 		{
@@ -5732,7 +5483,7 @@ static DRIVER_INIT( sfbonus_common)
 			{
 				FILE *fp;
 				char filename[256];
-				sprintf(filename,"decr_%s", machine.system().name);
+				sprintf(filename,"decr_%s", machine->gamedrv->name);
 				fp = fopen(filename, "w+b");
 				if (fp)
 				{
@@ -5744,7 +5495,7 @@ static DRIVER_INIT( sfbonus_common)
 	}
 }
 
-static void sfbonus_bitswap( running_machine& machine,
+static void sfbonus_bitswap( running_machine* machine,
 						UINT8 xor0, UINT8 b00, UINT8 b01, UINT8 b02, UINT8 b03, UINT8 b04, UINT8 b05, UINT8 b06,UINT8 b07,
                         UINT8 xor1, UINT8 b10, UINT8 b11, UINT8 b12, UINT8 b13, UINT8 b14, UINT8 b15, UINT8 b16,UINT8 b17,
 	                    UINT8 xor2, UINT8 b20, UINT8 b21, UINT8 b22, UINT8 b23, UINT8 b24, UINT8 b25, UINT8 b26,UINT8 b27,
@@ -5756,9 +5507,9 @@ static void sfbonus_bitswap( running_machine& machine,
 {
 
 	int i;
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
-	for(i = 0; i < machine.region("maincpu")->bytes(); i++)
+	for(i = 0; i < memory_region_length(machine, "maincpu"); i++)
 	{
 		UINT8 x = ROM[i];
 
@@ -5779,7 +5530,7 @@ static void sfbonus_bitswap( running_machine& machine,
 	DRIVER_INIT_CALL(sfbonus_common);
 }
 
-//static DRIVER_INIT(helper) { sfbonus_bitswap(machine,  0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0, 0xff, 7,6,5,4,3,2,1,0); }
+
 
 static DRIVER_INIT(abnudge) { sfbonus_bitswap(machine,    0x33, 0,3,7,6,5,2,1,4, 0xff, 3,7,6,5,1,0,4,2, 0x36, 4,2,3,7,6,5,1,0, 0xa8, 3,2,4,0,1,7,6,5, 0x2c, 0,1,7,6,5,2,4,3, 0xff, 3,7,6,5,1,0,4,2, 0x26, 2,4,3,7,6,5,1,0, 0xbe, 4,1,3,0,2,7,6,5); }
 static DRIVER_INIT(abnudged) { sfbonus_bitswap(machine,   0x3b, 0,1,7,6,5,4,3,2, 0xef, 0,7,6,5,4,3,2,1, 0x21, 0,2,1,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5, 0x3d, 2,1,7,6,5,4,3,0, 0xed, 2,7,6,5,4,3,1,0, 0x21, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5); }
@@ -5876,7 +5627,6 @@ static DRIVER_INIT(sfruitb) { sfbonus_bitswap(machine,    0x3e, 2,1,7,6,5,4,3,0,
 static DRIVER_INIT(sfruitbd) { sfbonus_bitswap(machine,   0x3e, 1,0,7,6,5,4,3,2, 0xed, 1,7,6,5,4,3,0,2, 0x25, 2,0,1,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5, 0x3c, 0,1,7,6,5,4,3,2, 0xed, 2,7,6,5,4,3,1,0, 0x25, 2,0,1,7,6,5,4,3, 0xae, 4,3,1,2,0,7,6,5); }
 static DRIVER_INIT(sfruitbv) { sfbonus_bitswap(machine,   0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x25, 2,1,0,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xec, 1,7,6,5,4,3,0,2, 0x21, 1,0,2,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(sfruitbv2) { sfbonus_bitswap(machine,  0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x25, 2,1,0,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xee, 1,7,6,5,4,3,0,2, 0x25, 1,0,2,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
-static DRIVER_INIT(suprball) { sfbonus_bitswap(machine,   0x39, 1,2,7,6,5,4,3,0, 0xe7, 4,7,6,5,0,3,1,2, 0x33, 0,2,1,7,6,5,4,3, 0xb3, 0,3,4,2,1,7,6,5, 0x2a, 1,3,7,6,5,2,0,4, 0xe4, 3,7,6,5,2,0,4,1, 0x2d, 4,1,3,7,6,5,2,0, 0xb6, 0,3,2,1,4,7,6,5); }
 static DRIVER_INIT(tighook) { sfbonus_bitswap(machine,    0x33, 0,1,7,6,5,2,3,4, 0xf3, 3,7,6,5,1,0,4,2, 0x2e, 4,0,2,7,6,5,3,1, 0xa7, 1,0,4,2,3,7,6,5, 0x2d, 1,2,7,6,5,3,4,0, 0xff, 2,7,6,5,1,0,3,4, 0x27, 1,0,2,7,6,5,3,4, 0xa7, 1,0,4,2,3,7,6,5); }
 static DRIVER_INIT(tighookd) { sfbonus_bitswap(machine,   0x3d, 0,1,7,6,5,4,3,2, 0xed, 1,7,6,5,4,3,0,2, 0x26, 2,1,0,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5, 0x3c, 1,0,7,6,5,4,3,2, 0xed, 2,7,6,5,4,3,1,0, 0x26, 2,1,0,7,6,5,4,3, 0xae, 4,3,1,2,0,7,6,5); }
 static DRIVER_INIT(tighookv) { sfbonus_bitswap(machine,   0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x26, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xec, 0,7,6,5,4,3,2,1, 0x21, 1,0,2,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
@@ -5885,20 +5635,28 @@ static DRIVER_INIT(bugfever) { sfbonus_bitswap(machine,   0x3c, 1,2,7,6,5,4,3,0,
 static DRIVER_INIT(bugfeverd) { sfbonus_bitswap(machine,  0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x26, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3a, 0,1,7,6,5,4,3,2, 0xe8, 1,7,6,5,4,3,0,2, 0x22, 2,1,0,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(bugfeverv) { sfbonus_bitswap(machine,  0x3c, 1,0,7,6,5,4,3,2, 0xef, 0,7,6,5,4,3,2,1, 0x22, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3a, 0,1,7,6,5,4,3,2, 0xea, 2,7,6,5,4,3,1,0, 0x22, 0,1,2,7,6,5,4,3, 0xa9, 4,3,2,1,0,7,6,5); }
 static DRIVER_INIT(bugfeverv2) { sfbonus_bitswap(machine, 0x3c, 1,2,7,6,5,4,3,0, 0xea, 2,7,6,5,4,3,0,1, 0x23, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xed, 2,7,6,5,4,3,1,0, 0x26, 2,1,0,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5); }
+
 static DRIVER_INIT(version4) { sfbonus_bitswap(machine,   0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x26, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xec, 1,7,6,5,4,3,0,2, 0x22, 2,1,0,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
-static DRIVER_INIT(version4v2) { sfbonus_bitswap(machine, 0x3c, 1,0,7,6,5,4,3,2, 0xef, 0,7,6,5,4,3,2,1, 0x26, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xea, 2,7,6,5,4,3,1,0, 0x22, 0,1,2,7,6,5,4,3, 0xa9, 4,3,2,1,0,7,6,5); }
-static DRIVER_INIT(version4d2) { sfbonus_bitswap(machine, 0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x25, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xe9, 1,7,6,5,4,3,0,2, 0x22, 2,1,0,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
-static DRIVER_INIT(version4v)  { sfbonus_bitswap(machine, 0x3c, 1,2,7,6,5,4,3,0, 0xea, 2,7,6,5,4,3,0,1, 0x26, 2,0,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 1,0,7,6,5,4,3,2, 0xee, 1,7,6,5,4,3,0,2, 0x23, 1,0,2,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(dvisland) { sfbonus_bitswap(machine,   0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x21, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xe9, 1,7,6,5,4,3,0,2, 0x23, 2,1,0,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(funriver) { sfbonus_bitswap(machine,   0x3c, 1,2,7,6,5,4,3,0, 0xea, 2,7,6,5,4,3,0,1, 0x24, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xec, 0,7,6,5,4,3,2,1, 0x23, 1,0,2,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(funriverv) { sfbonus_bitswap(machine,  0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x26, 0,2,1,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 0,1,7,6,5,4,3,2, 0xea, 2,7,6,5,4,3,1,0, 0x22, 2,1,0,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(spooky)    { sfbonus_bitswap(machine,  0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x21, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x39, 1,0,7,6,5,4,3,2, 0xe8, 1,7,6,5,4,3,2,0, 0x23, 0,2,1,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
 static DRIVER_INIT(fbdeluxe)  { sfbonus_bitswap(machine,  0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x21, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 1,0,7,6,5,4,3,2, 0xec, 1,7,6,5,4,3,2,0, 0x26, 0,2,1,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
-static DRIVER_INIT(fb3g)       { sfbonus_bitswap(machine, 0x39, 1,2,7,6,5,4,3,0, 0xef, 2,7,6,5,4,3,0,1, 0x25, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 1,0,7,6,5,4,3,2, 0xec, 1,7,6,5,4,3,2,0, 0x24, 0,2,1,7,6,5,4,3, 0xac, 4,3,0,1,2,7,6,5); }
-static DRIVER_INIT(getrich)   { sfbonus_bitswap(machine,  0x3c, 1,2,7,6,5,4,3,0, 0xea, 2,7,6,5,4,3,0,1, 0x23, 1,0,2,7,6,5,4,3, 0xa8, 4,3,1,2,0,7,6,5, 0x3b, 1,0,7,6,5,4,3,2, 0xec, 1,7,6,5,4,3,2,0, 0x24, 0,2,1,7,6,5,4,3, 0xa9, 4,3,0,1,2,7,6,5); }
 
 
-GAME( 2002, suprball,    0,        sfbonus,    amcoe2_reels3,    suprball,        ROT0,  "Amcoe", "Super Ball (Version 1.3)", 0)
+
+/*
+            case 0: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 1: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 2: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 3: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 4: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 5: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 6: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+            case 7: x = BITSWAP8(x^0xff, 7,6,5,4,3,2,1,0
+
+*/
+
 
 GAME( 2003, sfbonus,     0,        sfbonus,    amcoe2_reels3,    sfbonus,         ROT0,  "Amcoe", "Skill Fruit Bonus (Version 1.9R, set 1)", 0)
 GAME( 2003, sfbonusd1,   sfbonus,  sfbonus,    amcoe1_reels3,    sfbonusd,        ROT0,  "Amcoe", "Skill Fruit Bonus (Version 1.9R, set 2)", 0)
@@ -6120,13 +5878,13 @@ GAME( 2005, fb5v,        fb5,      sfbonus,    amcoe1_reels3,    fb5v,          
 
 GAME( 2006, fb6,         0,        sfbonus,    amcoe1_reels3,    fb6,             ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7E CGA)", 0)
 GAME( 2006, fb6v,        fb6,      sfbonus,    amcoe1_reels3,    fb6v3,           ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7E Dual)", 0)
-GAME( 2006, fb6d1,       fb6,      sfbonus,    amcoe1_reels3,    fb6d,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7R CGA)", 0)
-GAME( 2006, fb6s1,       fb6,      sfbonus,    amcoe1_reels3,    fb6s,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7R CGA, Compact PCB)", 0)
+GAME( 2006, fb6d1,       fb6,      sfbonus,    amcoe1_reels3,    fb6d,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7R CGA, set 1)", 0)
+GAME( 2006, fb6s1,       fb6,      sfbonus,    amcoe1_reels3,    fb6s,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7R CGA, set 2)", GAME_NOT_WORKING) // no reel gfx
 GAME( 2006, fb6v1,       fb6,      sfbonus,    amcoe1_reels3,    fb6v,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7R Dual)", 0)
-GAME( 2006, fb6d2,       fb6,      sfbonus,    amcoe1_reels3,    fb6d,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7LT CGA)", 0)
-GAME( 2006, fb6s2,       fb6,      sfbonus,    amcoe1_reels3,    fb6s,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7LT CGA, Compact PCB)", 0)
+GAME( 2006, fb6d2,       fb6,      sfbonus,    amcoe1_reels3,    fb6d,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7LT CGA, set 1)", 0)
+GAME( 2006, fb6s2,       fb6,      sfbonus,    amcoe1_reels3,    fb6s,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7LT CGA, set 2)", GAME_NOT_WORKING) // no reel gfx
 GAME( 2006, fb6v2,       fb6,      sfbonus,    amcoe1_reels3,    fb6v,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.7LT Dual)", 0)
-GAME( 2006, fb6s3,       fb6,      sfbonus,    amcoe1_reels3,    fb6s,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.3R CGA, Compact PCB)", 0)
+GAME( 2006, fb6s3,       fb6,      sfbonus,    amcoe1_reels3,    fb6s,            ROT0,  "Amcoe", "Fruit Bonus '06 - 10th anniversary (Version 1.3R CGA)", GAME_NOT_WORKING) // no reel gfx
 
 GAME( 2006, fb6se,       0,        sfbonus,    amcoe1_reels3,    fb6,             ROT0,  "Amcoe", "Fruit Bonus 2006 Special Edition (Version 1.4E CGA)", 0) /* Released August 2006 according to Amcoe web site */
 GAME( 2006, fb6sev,      fb6se,    sfbonus,    amcoe1_reels3,    fb6v3,           ROT0,  "Amcoe", "Fruit Bonus 2006 Special Edition (Version 1.4E Dual)", 0)
@@ -6141,41 +5899,20 @@ GAME( 2006, bugfeverd,   bugfever, sfbonus,    amcoe1_reels3,    bugfeverd,     
 GAME( 2006, bugfeverv2,  bugfever, sfbonus,    amcoe1_reels3,    bugfeverv2,      ROT0,  "Amcoe", "Bugs Fever (Version 1.7E Dual)", 0)
 GAME( 2006, bugfevero,   bugfever, sfbonus,    amcoe1_reels3,    bugfever,        ROT0,  "Amcoe", "Bugs Fever (Version 1.6R CGA)", 0)
 
-GAME( 2006, dvisland,    0,        sfbonus,    amcoe1_reels3,    dvisland,        ROT0,  "Amcoe", "Devil Island (Version 1.4R CGA)", 0)
-GAME( 2006, dvislando,   dvisland, sfbonus,    amcoe1_reels3,    dvisland,        ROT0,  "Amcoe", "Devil Island (Version 1.0R CGA)", 0)
-
-GAME( 2007, atworld,     0,        sfbonus,    amcoe1_reels3,    atworldd,        ROT0,  "Amcoe", "Around The World (Version 1.4R CGA)", 0) /* Year according to Amcoe web site */
-// 1.4E also exists, but dump is corrupt
-GAME( 2007, atworlde1,   atworld,  sfbonus,    amcoe1_reels3,    atworld,         ROT0,  "Amcoe", "Around The World (Version 1.3E CGA)", 0) /* Year according to Amcoe web site */
+GAME( 2007, atworld,     0,        sfbonus,    amcoe1_reels3,    atworld,         ROT0,  "Amcoe", "Around The World (Version 1.3E CGA)", 0) /* Year according to Amcoe web site */
 GAME( 2007, atworldd1,   atworld,  sfbonus,    amcoe1_reels3,    atworldd,        ROT0,  "Amcoe", "Around The World (Version 1.3R CGA)", 0) /* Year according to Amcoe web site */
 
-GAME( 200?, fb3g,        0,        sfbonus,    amcoe1_reels3,    fb3g,            ROT0,  "Amcoe", "Fruit Bonus 3G (Version 1.0.3)", 0) /* After Around The World */
-
 // no graphic / sound roms dumped for these sets, but functional program roms & descramble are in place
-GAME( 2005, funriver,    0,        sfbonus,    amcoe1_reels3,    funriver,        ROT0,  "Amcoe", "Fun River (Version 1.4R CGA)", GAME_NOT_WORKING)
-GAME( 2005, funriverv,   funriver, sfbonus,    amcoe1_reels3,    funriverv,       ROT0,  "Amcoe", "Fun River (Version 1.4R Dual)", GAME_NOT_WORKING)
-
-GAME( 2006, version4,    0,        sfbonus,    amcoe1_reels3,    version4,        ROT0,  "Amcoe", "Version 4 (Version 4.3R CGA)",  GAME_NOT_WORKING)
-GAME( 2006, version4v,   version4, sfbonus,    amcoe1_reels3,    version4v,       ROT0,  "Amcoe", "Version 4 (Version 4.3R Dual)", GAME_NOT_WORKING)
-GAME( 2006, version4d2,  version4, sfbonus,    amcoe1_reels3,    version4d2,      ROT0,  "Amcoe", "Version 4 (Version 4.3E CGA)",  GAME_NOT_WORKING)
-GAME( 2006, version4v2,  version4, sfbonus,    amcoe1_reels3,    version4v2,      ROT0,  "Amcoe", "Version 4 (Version 4.3E Dual)", GAME_NOT_WORKING)
-GAME( 2006, version4d3,  version4, sfbonus,    amcoe1_reels3,    version4,        ROT0,  "Amcoe", "Version 4 (Version 4.3LT CGA)", GAME_NOT_WORKING)
-GAME( 2006, version4v3,  version4, sfbonus,    amcoe1_reels3,    version4v,       ROT0,  "Amcoe", "Version 4 (Version 4.3LT Dual)",GAME_NOT_WORKING)
-GAME( 2006, version4o,   version4, sfbonus,    amcoe1_reels3,    version4,        ROT0,  "Amcoe", "Version 4 (Version 4.2R CGA)", GAME_NOT_WORKING)
-
-GAME( 200?, spooky,      0,        sfbonus,    amcoe1_reels3,    spooky,          ROT0,  "Amcoe", "Spooky Night (2nd edition) (Version 2.0.4)", GAME_NOT_WORKING) /* After Around The World */
-
-GAME( 200?, fbdeluxe,    0,        sfbonus,    amcoe1_reels3,    fbdeluxe,        ROT0,  "Amcoe", "Fruit Bonus Deluxe (Version 1.0.9)", GAME_NOT_WORKING) /* After Around The World */
-GAME( 200?, fbdeluxeo,   fbdeluxe, sfbonus,    amcoe1_reels3,    fbdeluxe,        ROT0,  "Amcoe", "Fruit Bonus Deluxe (Version 1.0.7)", GAME_NOT_WORKING) /* After Around The World */
-
-GAME( 200?, getrich,     0,        sfbonus,    amcoe1_reels3,    getrich,         ROT0,  "Amcoe", "Get Rich (Version 1.0.1)", GAME_NOT_WORKING) /* After Around The World */
-
+GAME( 2005, funriver,    0,        sfbonus,    amcoe1_reels3,    funriver,        ROT0,  "Amcoe", "Fun River (set 1)", GAME_NOT_WORKING)
+GAME( 2005, funriverv,   funriver, sfbonus,    amcoe1_reels3,    funriverv,       ROT0,  "Amcoe", "Fun River (set 2)", GAME_NOT_WORKING)
+GAME( 2006, version4,    0,        sfbonus,    amcoe1_reels3,    version4,        ROT0,  "Amcoe", "Version 4 (Version 4.2R)", GAME_NOT_WORKING)
+GAME( 2006, dvisland,    0,        sfbonus,    amcoe1_reels3,    dvisland,        ROT0,  "Amcoe", "Devil Island", GAME_NOT_WORKING)
+GAME( 200?, spooky,      0,        sfbonus,    amcoe1_reels3,    spooky,          ROT0,  "Amcoe", "Spooky Night (Version 2.0.4)", GAME_NOT_WORKING) /* After Around The World */
+GAME( 200?, fbdeluxe,    0,        sfbonus,    amcoe1_reels3,    fbdeluxe,        ROT0,  "Amcoe", "Fruit Bonus Deluxe (Version 1.0.7)", GAME_NOT_WORKING) /* After Around The World */
 
 // Known sets but no roms dumped at all for these:
 // Merry Circus
-// Devil Island - 14 Liner version
-// Fruit Bonus 2010 (or is this on the older goldstar.c style hardware)
-
+// Fruit Bonus 3G
 
 // ?? what is this
 GAME( 200?, amclink,     0,        sfbonus,    amcoe1_reels3,    sfbonus_common,  ROT0,  "Amcoe", "Amcoe Link Control Box (Version 2.2)", GAME_NOT_WORKING)

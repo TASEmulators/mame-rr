@@ -4,35 +4,36 @@
 
 
 
-class jackal_state : public driver_device
+class jackal_state
 {
 public:
-	jackal_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, jackal_state(machine)); }
+
+	jackal_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoctrl;
-	UINT8 *  m_scrollram;
-	UINT8 *  m_paletteram;
+	UINT8 *  videoctrl;
+	UINT8 *  scrollram;
+	UINT8 *  paletteram;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
+	tilemap_t  *bg_tilemap;
 
 	/* misc */
-	int      m_irq_enable;
-	UINT8    *m_rambank;
-	UINT8    *m_spritebank;
+	int      irq_enable;
+	UINT8    *rambank;
+	UINT8    *spritebank;
 
 	/* devices */
-	device_t *m_mastercpu;
-	device_t *m_slavecpu;
+	running_device *mastercpu;
+	running_device *slavecpu;
 };
 
 
 /*----------- defined in video/jackal.c -----------*/
 
-void jackal_mark_tile_dirty(running_machine &machine, int offset);
+void jackal_mark_tile_dirty(running_machine *machine, int offset);
 
 PALETTE_INIT( jackal );
 VIDEO_START( jackal );
-SCREEN_UPDATE( jackal );
+VIDEO_UPDATE( jackal );

@@ -43,7 +43,6 @@
 #include "osdepend.h"
 #include "render.h"
 #include "clifront.h"
-#include "osdmini.h"
 
 
 //============================================================
@@ -93,65 +92,43 @@ static INT32 keyboard_get_state(void *device_internal, void *item_internal);
 
 int main(int argc, char *argv[])
 {
-	// cli_frontend does the heavy lifting; if we have osd-specific options, we
-	// create a derivative of cli_options and add our own
-	cli_options options;
-	mini_osd_interface osd;
-	cli_frontend frontend(options, osd);
-	return frontend.execute(argc, argv);
+	// cli_execute does the heavy lifting; if we have osd-specific options, we
+	// would pass them as the third parameter here
+	return cli_execute(argc, argv, NULL);
 }
 
 
 //============================================================
-//  constructor
+//  osd_init
 //============================================================
 
-mini_osd_interface::mini_osd_interface()
+void osd_init(running_machine *machine)
 {
-}
-
-
-//============================================================
-//  destructor
-//============================================================
-
-mini_osd_interface::~mini_osd_interface()
-{
-}
-
-
-//============================================================
-//  init
-//============================================================
-
-void mini_osd_interface::init(running_machine &machine)
-{
-	// call our parent
-	osd_interface::init(machine);
-
 	// initialize the video system by allocating a rendering target
-	our_target = machine.render().target_alloc();
+	our_target = render_target_alloc(machine, NULL, 0);
+	if (our_target == NULL)
+		fatalerror("Error creating render target");
 
 	// nothing yet to do to initialize sound, since we don't have any
-	// sound updates are handled by update_audio_stream() below
+	// sound updates are handled by osd_update_audio_stream() below
 
 	// initialize the input system by adding devices
 	// let's pretend like we have a keyboard device
-	keyboard_device = machine.input().device_class(DEVICE_CLASS_KEYBOARD).add_device("Keyboard");
+	keyboard_device = input_device_add(machine, DEVICE_CLASS_KEYBOARD, "Keyboard", NULL);
 	if (keyboard_device == NULL)
 		fatalerror("Error creating keyboard device");
 
 	// our faux keyboard only has a couple of keys (corresponding to the
 	// common defaults)
-	keyboard_device->add_item("Esc", ITEM_ID_ESC, keyboard_get_state, &keyboard_state[KEY_ESCAPE]);
-	keyboard_device->add_item("P1", ITEM_ID_1, keyboard_get_state, &keyboard_state[KEY_P1_START]);
-	keyboard_device->add_item("B1", ITEM_ID_LCONTROL, keyboard_get_state, &keyboard_state[KEY_BUTTON_1]);
-	keyboard_device->add_item("B2", ITEM_ID_LALT, keyboard_get_state, &keyboard_state[KEY_BUTTON_2]);
-	keyboard_device->add_item("B3", ITEM_ID_SPACE, keyboard_get_state, &keyboard_state[KEY_BUTTON_3]);
-	keyboard_device->add_item("JoyU", ITEM_ID_UP, keyboard_get_state, &keyboard_state[KEY_JOYSTICK_U]);
-	keyboard_device->add_item("JoyD", ITEM_ID_DOWN, keyboard_get_state, &keyboard_state[KEY_JOYSTICK_D]);
-	keyboard_device->add_item("JoyL", ITEM_ID_LEFT, keyboard_get_state, &keyboard_state[KEY_JOYSTICK_L]);
-	keyboard_device->add_item("JoyR", ITEM_ID_RIGHT, keyboard_get_state, &keyboard_state[KEY_JOYSTICK_R]);
+	input_device_item_add(keyboard_device, "Esc", &keyboard_state[KEY_ESCAPE], ITEM_ID_ESC, keyboard_get_state);
+	input_device_item_add(keyboard_device, "P1", &keyboard_state[KEY_P1_START], ITEM_ID_1, keyboard_get_state);
+	input_device_item_add(keyboard_device, "B1", &keyboard_state[KEY_BUTTON_1], ITEM_ID_LCONTROL, keyboard_get_state);
+	input_device_item_add(keyboard_device, "B2", &keyboard_state[KEY_BUTTON_2], ITEM_ID_LALT, keyboard_get_state);
+	input_device_item_add(keyboard_device, "B3", &keyboard_state[KEY_BUTTON_3], ITEM_ID_SPACE, keyboard_get_state);
+	input_device_item_add(keyboard_device, "JoyU", &keyboard_state[KEY_JOYSTICK_U], ITEM_ID_UP, keyboard_get_state);
+	input_device_item_add(keyboard_device, "JoyD", &keyboard_state[KEY_JOYSTICK_D], ITEM_ID_DOWN, keyboard_get_state);
+	input_device_item_add(keyboard_device, "JoyL", &keyboard_state[KEY_JOYSTICK_L], ITEM_ID_LEFT, keyboard_get_state);
+	input_device_item_add(keyboard_device, "JoyR", &keyboard_state[KEY_JOYSTICK_R], ITEM_ID_RIGHT, keyboard_get_state);
 
 	// hook up the debugger log
 //  add_logerror_callback(machine, output_oslog);
@@ -159,38 +136,49 @@ void mini_osd_interface::init(running_machine &machine)
 
 
 //============================================================
-//  osd_update
+//  osd_wait_for_debugger
 //============================================================
 
-void mini_osd_interface::update(bool skip_redraw)
+void osd_wait_for_debugger(running_device *device, int firststop)
 {
-	// get the minimum width/height for the current layout
-	int minwidth, minheight;
-	our_target->compute_minimum_size(minwidth, minheight);
-
-	// make that the size of our target
-	our_target->set_bounds(minwidth, minheight);
-
-	// get the list of primitives for the target at the current size
-	render_primitive_list &primlist = our_target->get_primitives();
-
-	// lock them, and then render them
-	primlist.acquire_lock();
-
-	// do the drawing here
-	primlist.release_lock();
-
-	// after 5 seconds, exit
-	if (machine().time() > attotime::from_seconds(5))
-		machine().schedule_exit();
+	// we don't have a debugger, so we just return here
 }
 
 
 //============================================================
-//  update_audio_stream
+//  osd_update
 //============================================================
 
-void mini_osd_interface::update_audio_stream(const INT16 *buffer, int samples_this_frame)
+void osd_update(running_machine *machine, int skip_redraw)
+{
+	const render_primitive_list *primlist;
+	int minwidth, minheight;
+
+	// get the minimum width/height for the current layout
+	render_target_get_minimum_size(our_target, &minwidth, &minheight);
+
+	// make that the size of our target
+	render_target_set_bounds(our_target, minwidth, minheight, 0);
+
+	// get the list of primitives for the target at the current size
+	primlist = render_target_get_primitives(our_target);
+
+	// lock them, and then render them
+	osd_lock_acquire(primlist->lock);
+	// do the drawing here
+	osd_lock_release(primlist->lock);
+
+	// after 5 seconds, exit
+	if (attotime_compare(timer_get_time(machine), attotime_make(5, 0)) > 0)
+		machine->schedule_exit();
+}
+
+
+//============================================================
+//  osd_update_audio_stream
+//============================================================
+
+void osd_update_audio_stream(running_machine *machine, INT16 *buffer, int samples_this_frame)
 {
 	// if we had actual sound output, we would copy the
 	// interleaved stereo samples to our sound stream
@@ -198,10 +186,10 @@ void mini_osd_interface::update_audio_stream(const INT16 *buffer, int samples_th
 
 
 //============================================================
-//  set_mastervolume
+//  osd_set_mastervolume
 //============================================================
 
-void mini_osd_interface::set_mastervolume(int attenuation)
+void osd_set_mastervolume(int attenuation)
 {
 	// if we had actual sound output, we would adjust the global
 	// volume in response to this function
@@ -209,10 +197,10 @@ void mini_osd_interface::set_mastervolume(int attenuation)
 
 
 //============================================================
-//  customize_input_type_list
+//  osd_customize_input_type_list
 //============================================================
 
-void mini_osd_interface::customize_input_type_list(simple_list<input_type_entry> &typelist)
+void osd_customize_input_type_list(input_type_desc *typelist)
 {
 	// This function is called on startup, before reading the
 	// configuration from disk. Scan the list, and change the

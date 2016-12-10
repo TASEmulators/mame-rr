@@ -42,13 +42,13 @@ WRITE8_DEVICE_HANDLER( crbaloon_audio_set_music_enable )
 }
 
 
-void crbaloon_audio_set_explosion_enable(device_t *sn, int enabled)
+void crbaloon_audio_set_explosion_enable(running_device *sn, int enabled)
 {
 	sn76477_enable_w(sn, enabled);
 }
 
 
-void crbaloon_audio_set_breath_enable(device_t *sn, int enabled)
+void crbaloon_audio_set_breath_enable(running_device *sn, int enabled)
 {
 	/* changes slf_res to 10k (middle of two 10k resistors)
        it also puts a tantal capacitor against GND on the output,
@@ -57,7 +57,7 @@ void crbaloon_audio_set_breath_enable(device_t *sn, int enabled)
 }
 
 
-void crbaloon_audio_set_appear_enable(device_t *sn, int enabled)
+void crbaloon_audio_set_appear_enable(running_device *sn, int enabled)
 {
 	/* APPEAR is connected to MIXER B */
 	sn76477_mixer_b_w(sn, enabled);
@@ -167,15 +167,15 @@ static const sn76477_interface crbaloon_sn76477_interface =
 
 
 
-MACHINE_CONFIG_FRAGMENT( crbaloon_audio )
+MACHINE_DRIVER_START( crbaloon_audio )
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("snsnd", SN76477, 0)
-	MCFG_SOUND_CONFIG(crbaloon_sn76477_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 2.0)
+	MDRV_SOUND_ADD("snsnd", SN76477, 0)
+	MDRV_SOUND_CONFIG(crbaloon_sn76477_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 2.0)
 
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(crbaloon)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(crbaloon)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END

@@ -48,52 +48,23 @@ enum
 #define APPNAME_LOWER			"mame-rr"
 #define CONFIGNAME				"mame-rr"
 #define APPLONGNAME				"M.A.M.E. Rerecording"
-#define FULLLONGNAME			"Multiple Arcade Machine Emulator Rerecording"
 #define CAPGAMENOUN				"GAME"
 #define CAPSTARTGAMENOUN		"Game"
 #define GAMENOUN				"game"
 #define GAMESNOUN				"games"
+#define HISTORYNAME				"History"
 #define COPYRIGHT				"Copyright Nicola Salmoria\nand the MAME team\nhttp://mamedev.org"
-#define COPYRIGHT_INFO			"Copyright Nicola Salmoria and the MAME team"
-#define DISCLAIMER				"MAME is an emulator: it reproduces, more or less faithfully, the behaviour of\n" \
-								"several arcade machines. But hardware is useless without software, so an image\n" \
-								"of the ROMs which run on that hardware is required. Such ROMs, like any other\n" \
-								"commercial software, are copyrighted material and it is therefore illegal to\n" \
-								"use them if you don't own the original arcade machine. Needless to say, ROMs\n" \
-								"are not distributed together with MAME. Distribution of MAME together with ROM\n" \
-								"images is a violation of copyright law and should be promptly reported to the\n" \
-								"authors so that appropriate legal action can be taken.\n"
-#define USAGE					"Usage:  %s [%s] [options]"
-#define XML_ROOT			    "mame"
-#define XML_TOP 				"game"
-#define STATE_MAGIC_NUM			'M', 'A', 'M', 'E', 'S', 'A', 'V', 'E'
 #else
 #define APPNAME					"MESS-RR"
 #define APPNAME_LOWER			"mess-rr"
 #define CONFIGNAME				"mess-rr"
 #define APPLONGNAME				"M.E.S.S. Rerecording"
-#define FULLLONGNAME			"Multi Emulator Super System Rerecording"
 #define CAPGAMENOUN				"SYSTEM"
 #define CAPSTARTGAMENOUN		"System"
 #define GAMENOUN				"system"
 #define GAMESNOUN				"systems"
+#define HISTORYNAME				"System Info"
 #define COPYRIGHT				"Copyright the MESS team\nhttp://mess.org"
-#define COPYRIGHT_INFO			"Copyright the MESS team\n\n" \
-								"MESS is based on MAME Source code\n" \
-								"Copyright Nicola Salmoria and the MAME team"
-#define DISCLAIMER				"MESS is an emulator: it reproduces, more or less faithfully, the behaviour of\n"\
-								"several computer and console systems. But hardware is useless without software\n" \
-								"so a file dump of the ROM, cartridges, discs, and cassettes which run on that\n" \
-								"hardware is required. Such files, like any other commercial software, are\n" \
-								"copyrighted material and it is therefore illegal to use them if you don't own\n" \
-								"the original media from which the files are derived. Needless to say, these\n" \
-								"files are not distributed together with MESS. Distribution of MESS together\n" \
-								"with these files is a violation of copyright law and should be promptly\n" \
-								"reported to the authors so that appropriate legal action can be taken.\n"
-#define USAGE					"Usage:  %s [%s] [media] [software] [options]"
-#define XML_ROOT			    "mess"
-#define XML_TOP 				"machine"
-#define STATE_MAGIC_NUM			'M', 'E', 'S', 'S', 'S', 'A', 'V', 'E'
 #endif
 
 
@@ -111,6 +82,8 @@ typedef void (*output_callback_func)(void *param, const char *format, va_list ar
 //  GLOBAL VARIABLES
 //**************************************************************************
 
+extern const char mame_disclaimer[];
+
 extern const char build_version[];
 
 
@@ -122,11 +95,14 @@ extern const char build_version[];
 
 /* ----- core system management ----- */
 
-/* execute as configured by the OPTION_SYSTEMNAME option on the specified options */
-int mame_execute(emu_options &options, osd_interface &osd);
+/* execute as configured by the OPTION_GAMENAME option on the specified options */
+int mame_execute(core_options *options);
+
+/* accesses the core_options for the currently running emulation */
+core_options *mame_options(void);
 
 /* return true if the given machine is valid */
-int mame_is_valid_machine(running_machine &machine);
+int mame_is_valid_machine(running_machine *machine);
 
 
 
@@ -155,6 +131,10 @@ void mame_printf_debug(const char *format, ...) ATTR_PRINTF(1,2);
 
 
 /* ----- miscellaneous bits & pieces ----- */
+
+/* parse the configured INI files */
+void mame_parse_ini_files(core_options *options, const game_driver *driver);
+
 
 // pop-up a user visible message
 void CLIB_DECL popmessage(const char *format,...) ATTR_PRINTF(1,2);

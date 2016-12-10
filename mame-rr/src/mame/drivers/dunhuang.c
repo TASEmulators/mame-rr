@@ -58,41 +58,34 @@ Notes:
 #define DUNHUANG_DEBUG	0
 
 
-class dunhuang_state : public driver_device
+class dunhuang_state
 {
 public:
-	dunhuang_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, dunhuang_state(machine)); }
+
+	dunhuang_state(running_machine &machine) { }
+
+	/* memory pointers */
+	UINT16 *        videoram;
+	UINT16 *        videoram2;
+	UINT8	 *        colorram;
+	UINT8  *        colorram2;
+	UINT8  *        paldata;
 
 	/* video-related */
-	tilemap_t         *m_tmap;
-	tilemap_t		*m_tmap2;
-	int             m_written;
-	int				m_written2;
-	UINT8           m_pos_x;
-	UINT8			m_pos_y;
-	UINT8			m_clear_y;
-	UINT8           m_block_x;
-	UINT8			m_block_y;
-	UINT8			m_block_w;
-	UINT8			m_block_h;
-	UINT8           m_block_addr_hi;
-	UINT8			m_block_addr_lo;
-	UINT8           m_block_dest;
-	UINT8           m_block_c;
-	UINT8           m_layers;
-	int             m_paloffs;
+	tilemap_t         *tmap,*tmap2;
+	int             written, written2;
+	UINT8           pos_x, pos_y, clear_y;
+	UINT8           block_x, block_y, block_w, block_h;
+	UINT8           block_addr_hi, block_addr_lo;
+	UINT8           block_dest;
+	UINT8           block_c;
+	UINT8           layers;
+	int             paloffs;
 
 	/* input-related */
-	UINT8           m_input;
-	UINT8           m_hopper;
-
-	/* memory */
-	UINT16         m_videoram[0x40 * 0x20];
-	UINT16         m_videoram2[0x40 * 0x8];
-	UINT8	       m_colorram[0x40 * 0x20];
-	UINT8          m_colorram2[0x40 * 0x8];
-	UINT8          m_paldata[3 * 256];
+	UINT8           input;
+	UINT8           hopper;
 };
 
 
@@ -103,65 +96,73 @@ public:
 
 static TILE_GET_INFO( get_tile_info )
 {
-	dunhuang_state *state = machine.driver_data<dunhuang_state>();
-	UINT16 code = state->m_videoram[tile_index];
-	UINT8 color = state->m_colorram[tile_index] & 0x0f;
+	dunhuang_state *state = (dunhuang_state *)machine->driver_data;
+	UINT16 code = state->videoram[tile_index];
+	UINT8 color = state->colorram[tile_index] & 0x0f;
 	SET_TILE_INFO(0, code, color, 0);
 }
 static TILE_GET_INFO( get_tile_info2 )
 {
-	dunhuang_state *state = machine.driver_data<dunhuang_state>();
-	UINT16 code = state->m_videoram2[tile_index];
-	UINT8 color = state->m_colorram2[tile_index] & 0x0f;
+	dunhuang_state *state = (dunhuang_state *)machine->driver_data;
+	UINT16 code = state->videoram2[tile_index];
+	UINT8 color = state->colorram2[tile_index] & 0x0f;
 	SET_TILE_INFO(1, code, color, 0);
 }
 
 static VIDEO_START(dunhuang)
 {
-	dunhuang_state *state = machine.driver_data<dunhuang_state>();
-	state->m_tmap = tilemap_create(machine, get_tile_info, tilemap_scan_rows, 8,8, 0x40,0x20);
-	state->m_tmap2 = tilemap_create(machine, get_tile_info2, tilemap_scan_rows, 8,32, 0x40,0x8);
+	dunhuang_state *state = (dunhuang_state *)machine->driver_data;
+	state->tmap = tilemap_create(machine, get_tile_info, tilemap_scan_rows, 8,8, 0x40,0x20);
+	state->tmap2 = tilemap_create(machine, get_tile_info2, tilemap_scan_rows, 8,32, 0x40,0x8);
 
-	tilemap_set_transparent_pen(state->m_tmap, 0);
-	tilemap_set_transparent_pen(state->m_tmap2, 0);
+	tilemap_set_transparent_pen(state->tmap, 0);
+	tilemap_set_transparent_pen(state->tmap2, 0);
 
-	state->save_item(NAME(state->m_videoram));
-	state->save_item(NAME(state->m_colorram));
-	state->save_item(NAME(state->m_videoram2));
-	state->save_item(NAME(state->m_colorram2));
-	state->save_item(NAME(state->m_paldata));
+	state->videoram = auto_alloc_array(machine, UINT16, 0x40 * 0x20);
+	state->colorram = auto_alloc_array(machine, UINT8, 0x40 * 0x20);
+
+	state->videoram2 = auto_alloc_array(machine, UINT16, 0x40 * 0x8);
+	state->colorram2 = auto_alloc_array(machine, UINT8, 0x40 * 0x8);
+
+	state->paldata  = auto_alloc_array(machine, UINT8, 3 * 256);
+
+	state_save_register_global_pointer(machine, state->videoram, 0x40 * 0x20);
+	state_save_register_global_pointer(machine, state->colorram, 0x40 * 0x20);
+	state_save_register_global_pointer(machine, state->videoram2, 0x40 * 0x8);
+	state_save_register_global_pointer(machine, state->colorram2, 0x40 * 0x8);
+	state_save_register_global_pointer(machine, state->paldata, 3 * 256);
 }
 
-static SCREEN_UPDATE( dunhuang )
+static VIDEO_UPDATE( dunhuang )
 {
-	dunhuang_state *state = screen->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)screen->machine->driver_data;
 	int layers_ctrl = -1;
 
 #if DUNHUANG_DEBUG
-if (screen->machine().input().code_pressed(KEYCODE_Z))
+if (input_code_pressed(screen->machine, KEYCODE_Z))
 {
 	int msk = 0;
-	if (screen->machine().input().code_pressed(KEYCODE_Q))	msk |= 1;
-	if (screen->machine().input().code_pressed(KEYCODE_W))	msk |= 2;
+	if (input_code_pressed(screen->machine, KEYCODE_Q))	msk |= 1;
+	if (input_code_pressed(screen->machine, KEYCODE_W))	msk |= 2;
 	if (msk != 0) layers_ctrl &= msk;
 }
 #endif
 
-	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
+	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 
-	switch (state->m_layers)
+	switch (state->layers)
 	{
 		case 0x04:	// girl select: bg over fg
-			if (layers_ctrl & 2)	tilemap_draw(bitmap,cliprect, state->m_tmap2, TILEMAP_DRAW_OPAQUE, 0);
-			if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->m_tmap,  0, 0);
+			if (layers_ctrl & 2)	tilemap_draw(bitmap,cliprect, state->tmap2, TILEMAP_DRAW_OPAQUE, 0);
+			if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->tmap,  0, 0);
 			break;
 		case 0x05:	// dips: must hide fg
-			if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->m_tmap,  TILEMAP_DRAW_OPAQUE, 0);
+			if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->tmap,  TILEMAP_DRAW_OPAQUE, 0);
 			break;
 		case 0x07:	// game,demo: fg over bg
 		default:
-			if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->m_tmap,  TILEMAP_DRAW_OPAQUE, 0);
-			if (layers_ctrl & 2)	tilemap_draw(bitmap,cliprect, state->m_tmap2, 0, 0);
+			if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->tmap,  TILEMAP_DRAW_OPAQUE, 0);
+			if (layers_ctrl & 2)	tilemap_draw(bitmap,cliprect, state->tmap2, 0, 0);
 			break;
 	}
 
@@ -172,93 +173,93 @@ if (screen->machine().input().code_pressed(KEYCODE_Z))
 
 static WRITE8_HANDLER( dunhuang_pos_x_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_pos_x = data & 0x3f;
-	state->m_written = 0;
-	state->m_written2 = 0;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->pos_x = data & 0x3f;
+	state->written = 0;
+	state->written2 = 0;
 }
 
 static WRITE8_HANDLER( dunhuang_pos_y_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_pos_y = data;
-	state->m_written = 0;
-	state->m_written2 = 0;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->pos_y = data;
+	state->written = 0;
+	state->written2 = 0;
 }
 
 static WRITE8_HANDLER( dunhuang_tile_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 	int addr;
 
-	if (state->m_written & (1 << offset))
+	if (state->written & (1 << offset))
 	{
-		state->m_written = 0;
-		state->m_pos_x++;
-		if (state->m_pos_x == 0x40)
+		state->written = 0;
+		state->pos_x++;
+		if (state->pos_x == 0x40)
 		{
-			state->m_pos_x = 0;
-			state->m_pos_y++;
+			state->pos_x = 0;
+			state->pos_y++;
 		}
 	}
-	state->m_written |= 1 << offset;
+	state->written |= 1 << offset;
 
-	addr = (state->m_pos_x & 0x3f) + (state->m_pos_y & 0x1f) * 0x40;
+	addr = (state->pos_x & 0x3f) + (state->pos_y & 0x1f) * 0x40;
 	switch (offset)
 	{
-		case 0:	state->m_videoram[addr] = (state->m_videoram[addr] & 0xff00) | data;		break;
-		case 1:	state->m_videoram[addr] = (state->m_videoram[addr] & 0x00ff) | (data<<8);	break;
-		case 2:	state->m_colorram[addr] = data;												break;
+		case 0:	state->videoram[addr] = (state->videoram[addr] & 0xff00) | data;		break;
+		case 1:	state->videoram[addr] = (state->videoram[addr] & 0x00ff) | (data<<8);	break;
+		case 2:	state->colorram[addr] = data;												break;
 	}
-	tilemap_mark_tile_dirty(state->m_tmap, addr);
+	tilemap_mark_tile_dirty(state->tmap, addr);
 }
 
 static WRITE8_HANDLER( dunhuang_tile2_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 	int addr;
 
-	if (state->m_written2 & (1 << offset))
+	if (state->written2 & (1 << offset))
 	{
-		state->m_written2 = 0;
-		state->m_pos_x++;
-		if (state->m_pos_x == 0x40)
+		state->written2 = 0;
+		state->pos_x++;
+		if (state->pos_x == 0x40)
 		{
-			state->m_pos_x = 0;
-			state->m_pos_y++;
+			state->pos_x = 0;
+			state->pos_y++;
 		}
 	}
-	state->m_written2 |= 1 << offset;
+	state->written2 |= 1 << offset;
 
-	addr = (state->m_pos_x & 0x3f) + (state->m_pos_y & 0x07) * 0x40;
+	addr = (state->pos_x & 0x3f) + (state->pos_y & 0x07) * 0x40;
 	switch (offset)
 	{
-		case 0:	state->m_videoram2[addr] = (state->m_videoram2[addr] & 0xff00) | data;		break;
-		case 1:	state->m_videoram2[addr] = (state->m_videoram2[addr] & 0x00ff) | (data<<8);	break;
-		case 2:	state->m_colorram2[addr] = data;											break;
+		case 0:	state->videoram2[addr] = (state->videoram2[addr] & 0xff00) | data;		break;
+		case 1:	state->videoram2[addr] = (state->videoram2[addr] & 0x00ff) | (data<<8);	break;
+		case 2:	state->colorram2[addr] = data;											break;
 	}
-	tilemap_mark_tile_dirty(state->m_tmap2, addr);
+	tilemap_mark_tile_dirty(state->tmap2, addr);
 }
 
 // Clear a row of tiles (videoram)
 
 static WRITE8_HANDLER( dunhuang_clear_y_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_clear_y = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->clear_y = data;
 }
 static WRITE8_HANDLER( dunhuang_horiz_clear_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 	int i;
-//  logerror("%06x: horiz clear, y = %02x, data = %02d\n", cpu_get_pc(&space->device()), state->m_clear_y,data);
+//  logerror("%06x: horiz clear, y = %02x, data = %02d\n", cpu_get_pc(space->cpu), state->clear_y,data);
 	for (i = 0; i < 0x40; i++)
 	{
-		int addr = state->m_clear_y * 0x40 + i;
+		int addr = state->clear_y * 0x40 + i;
 
-		state->m_videoram[addr] = 0;
-		state->m_colorram[addr] = 0;
-		tilemap_mark_tile_dirty(state->m_tmap, addr);
+		state->videoram[addr] = 0;
+		state->colorram[addr] = 0;
+		tilemap_mark_tile_dirty(state->tmap, addr);
 	}
 }
 
@@ -266,16 +267,16 @@ static WRITE8_HANDLER( dunhuang_horiz_clear_w )
 
 static WRITE8_HANDLER( dunhuang_vert_clear_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 	int i;
-//  logerror("%06x: vert clear, x = %02x, y = %02x, data = %02x\n", cpu_get_pc(&space->device()), state->m_pos_x,state->m_pos_y,data);
+//  logerror("%06x: vert clear, x = %02x, y = %02x, data = %02x\n", cpu_get_pc(space->cpu), state->pos_x,state->pos_y,data);
 	for (i = 0; i < 0x08; i++)
 	{
-		int addr = (state->m_pos_x & 0x3f) + (i & 0x07) * 0x40;
+		int addr = (state->pos_x & 0x3f) + (i & 0x07) * 0x40;
 
-		state->m_videoram2[addr] = 1;
-		state->m_colorram2[addr] = 0;
-		tilemap_mark_tile_dirty(state->m_tmap2, addr);
+		state->videoram2[addr] = 1;
+		state->colorram2[addr] = 0;
+		tilemap_mark_tile_dirty(state->tmap2, addr);
 	}
 }
 
@@ -287,93 +288,93 @@ static WRITE8_HANDLER( dunhuang_vert_clear_w )
 
 static WRITE8_HANDLER( dunhuang_block_dest_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_dest = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_dest = data;
 }
 
 static WRITE8_HANDLER( dunhuang_block_x_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_x = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_x = data;
 }
 
 static WRITE8_HANDLER( dunhuang_block_y_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_y = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_y = data;
 }
 
 static WRITE8_HANDLER( dunhuang_block_w_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_w = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_w = data;
 }
 
 static WRITE8_HANDLER( dunhuang_block_c_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_c = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_c = data;
 }
 
 static WRITE8_HANDLER( dunhuang_block_addr_lo_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_addr_lo = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_addr_lo = data;
 }
 
 static WRITE8_HANDLER( dunhuang_block_addr_hi_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_block_addr_hi = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->block_addr_hi = data;
 }
 
 
 static WRITE8_HANDLER( dunhuang_block_h_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 	int i,j, addr;
 	UINT8 *tile_addr;
 
-//  logerror("%06x: block dst %x, src %x, xy %x %x, wh %x %x, clr %x\n", cpu_get_pc(&space->device()), state->m_block_dest, (state->m_block_addr_hi << 8) + state->m_block_addr_lo, state->m_block_x,state->m_block_y,state->m_block_w+1,state->m_block_h+1,state->m_block_c);
+//  logerror("%06x: block dst %x, src %x, xy %x %x, wh %x %x, clr %x\n", cpu_get_pc(space->cpu), state->block_dest, (state->block_addr_hi << 8) + state->block_addr_lo, state->block_x,state->block_y,state->block_w+1,state->block_h+1,state->block_c);
 
-	state->m_block_h = data;
+	state->block_h = data;
 
-	tile_addr = space->machine().region("gfx2")->base() + ((state->m_block_addr_hi << 8) + state->m_block_addr_lo) * 4;
+	tile_addr = memory_region(space->machine, "gfx2") + ((state->block_addr_hi << 8) + state->block_addr_lo) * 4;
 
-	switch (state->m_block_dest)
+	switch (state->block_dest)
 	{
 		case 0x04:	// write to videoram
-			for (j = 0; j <= state->m_block_h; j++)
+			for (j = 0; j <= state->block_h; j++)
 			{
-				for (i = 0; i <= state->m_block_w; i++)
+				for (i = 0; i <= state->block_w; i++)
 				{
-					addr = ((state->m_block_x + i)& 0x3f) + ((state->m_block_y + j) & 0x1f) * 0x40;
+					addr = ((state->block_x + i)& 0x3f) + ((state->block_y + j) & 0x1f) * 0x40;
 
-					state->m_videoram[addr] = (tile_addr[1] << 8) | tile_addr[0];
-					state->m_colorram[addr] = state->m_block_c;
-					tilemap_mark_tile_dirty(state->m_tmap, addr);
+					state->videoram[addr] = (tile_addr[1] << 8) | tile_addr[0];
+					state->colorram[addr] = state->block_c;
+					tilemap_mark_tile_dirty(state->tmap, addr);
 					tile_addr += 4;
 				}
 			}
 			break;
 
 		case 0x08:	// write to videoram2
-			for (j = 0; j <= state->m_block_h; j++)
+			for (j = 0; j <= state->block_h; j++)
 			{
-				for (i = 0; i <= state->m_block_w; i++)
+				for (i = 0; i <= state->block_w; i++)
 				{
-					addr = ((state->m_block_x + i)& 0x3f) + ((state->m_block_y + j) & 0x7) * 0x40;
+					addr = ((state->block_x + i)& 0x3f) + ((state->block_y + j) & 0x7) * 0x40;
 
-					state->m_videoram2[addr] = (tile_addr[1] << 8) | tile_addr[0];
-					state->m_colorram2[addr] = state->m_block_c;
-					tilemap_mark_tile_dirty(state->m_tmap2, addr);
+					state->videoram2[addr] = (tile_addr[1] << 8) | tile_addr[0];
+					state->colorram2[addr] = state->block_c;
+					tilemap_mark_tile_dirty(state->tmap2, addr);
 					tile_addr += 4;
 				}
 			}
 			break;
 
 		default:
-			popmessage("%06x: block dst=%x", cpu_get_pc(&space->device()), state->m_block_dest);
+			popmessage("%06x: block dst=%x", cpu_get_pc(space->cpu), state->block_dest);
 	}
 }
 
@@ -381,38 +382,38 @@ static WRITE8_HANDLER( dunhuang_block_h_w )
 
 static WRITE8_HANDLER( dunhuang_paloffs_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_paloffs = data * 3;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->paloffs = data * 3;
 }
 
 static WRITE8_HANDLER( dunhuang_paldata_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_paldata[state->m_paloffs] = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->paldata[state->paloffs] = data;
 
-	palette_set_color_rgb( space->machine(), state->m_paloffs/3,
-		pal6bit(state->m_paldata[(state->m_paloffs/3)*3+0]),
-		pal6bit(state->m_paldata[(state->m_paloffs/3)*3+1]),
-		pal6bit(state->m_paldata[(state->m_paloffs/3)*3+2])
+	palette_set_color_rgb( space->machine, state->paloffs/3,
+		pal6bit(state->paldata[(state->paloffs/3)*3+0]),
+		pal6bit(state->paldata[(state->paloffs/3)*3+1]),
+		pal6bit(state->paldata[(state->paloffs/3)*3+2])
 	);
 
-	state->m_paloffs = (state->m_paloffs + 1) % (3*256);
+	state->paloffs = (state->paloffs + 1) % (3*256);
 }
 
 // Layers control (not understood)
 
 static WRITE8_HANDLER( dunhuang_layers_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 //  popmessage("layers %02x",data);
-	state->m_layers = data;
+	state->layers = data;
 }
 
 /***************************************************************************
                                 Memory Maps
 ***************************************************************************/
 
-static ADDRESS_MAP_START( dunhuang_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dunhuang_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE( 0x0000, 0x5fff ) AM_ROM
 	AM_RANGE( 0x6000, 0x7fff ) AM_RAM
 	AM_RANGE( 0x8000, 0xffff ) AM_ROMBANK( "bank1" )
@@ -422,54 +423,54 @@ ADDRESS_MAP_END
 
 static WRITE8_HANDLER( dunhuang_input_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	state->m_input = data;
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	state->input = data;
 }
 
 static READ8_HANDLER( dunhuang_service_r )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	return input_port_read(space->machine(), "SERVICE")
-	 | ((state->m_hopper && !(space->machine().primary_screen->frame_number() % 10)) ? 0x00 : 0x08)	// bit 3: hopper sensor
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	return input_port_read(space->machine, "SERVICE")
+	 | ((state->hopper && !(space->machine->primary_screen->frame_number() % 10)) ? 0x00 : 0x08)	// bit 3: hopper sensor
 	 | 0x80																// bit 7 low -> tiles block transferrer busy
 	;
 }
 
 static READ8_DEVICE_HANDLER( dunhuang_dsw_r )
 {
-	dunhuang_state *state = device->machine().driver_data<dunhuang_state>();
-	if (!(state->m_input & 0x01))	return input_port_read(device->machine(), "DSW1");
-	if (!(state->m_input & 0x02))	return input_port_read(device->machine(), "DSW2");
-	if (!(state->m_input & 0x04))	return input_port_read(device->machine(), "DSW3");
-	if (!(state->m_input & 0x08))	return input_port_read(device->machine(), "DSW4");
-	if (!(state->m_input & 0x10))	return input_port_read(device->machine(), "DSW5");
-	logerror("%s: warning, unknown dsw bits read, input = %02x\n", device->machine().describe_context(), state->m_input);
+	dunhuang_state *state = (dunhuang_state *)device->machine->driver_data;
+	if (!(state->input & 0x01))	return input_port_read(device->machine, "DSW1");
+	if (!(state->input & 0x02))	return input_port_read(device->machine, "DSW2");
+	if (!(state->input & 0x04))	return input_port_read(device->machine, "DSW3");
+	if (!(state->input & 0x08))	return input_port_read(device->machine, "DSW4");
+	if (!(state->input & 0x10))	return input_port_read(device->machine, "DSW5");
+	logerror("%s: warning, unknown dsw bits read, state->input = %02x\n", cpuexec_describe_context(device->machine), state->input);
 	return 0xff;
 }
 static READ8_HANDLER( dunhuang_input_r )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
-	if (!(state->m_input & 0x01))	return input_port_read(space->machine(), "IN0");
-	if (!(state->m_input & 0x02))	return input_port_read(space->machine(), "IN1");
-	if (!(state->m_input & 0x04))	return input_port_read(space->machine(), "IN2");
-	if (!(state->m_input & 0x08))	return input_port_read(space->machine(), "IN3");
-	if (!(state->m_input & 0x10))	return input_port_read(space->machine(), "IN4");
-	logerror("%s: warning, unknown input bits read, input = %02x\n", space->machine().describe_context(), state->m_input);
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
+	if (!(state->input & 0x01))	return input_port_read(space->machine, "IN0");
+	if (!(state->input & 0x02))	return input_port_read(space->machine, "IN1");
+	if (!(state->input & 0x04))	return input_port_read(space->machine, "IN2");
+	if (!(state->input & 0x08))	return input_port_read(space->machine, "IN3");
+	if (!(state->input & 0x10))	return input_port_read(space->machine, "IN4");
+	logerror("%s: warning, unknown input bits read, state->input = %02x\n", cpuexec_describe_context(space->machine), state->input);
 	return 0xff;
 }
 
 static WRITE8_HANDLER( dunhuang_rombank_w )
 {
-	dunhuang_state *state = space->machine().driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)space->machine->driver_data;
 
 	// ?                data & 0x01
 	// ?                data & 0x02
 
-	memory_set_bank(space->machine(), "bank1", ((data >> 2) & 0x7));
+	memory_set_bank(space->machine, "bank1", ((data >> 2) & 0x7));
 
 	// COIN OUT:        data & 0x20
-	coin_counter_w(space->machine(), 0,	data & 0x40);
-	state->m_hopper = data & 0x80;
+	coin_counter_w(space->machine, 0,	data & 0x40);
+	state->hopper = data & 0x80;
 }
 
 
@@ -480,7 +481,7 @@ static WRITE8_HANDLER( dunhuang_82_w )
 }
 #endif
 
-static ADDRESS_MAP_START( dunhuang_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( dunhuang_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE( 0x0000, 0x0000 ) AM_WRITE( dunhuang_pos_x_w )
 	AM_RANGE( 0x0001, 0x0001 ) AM_WRITE( dunhuang_pos_y_w )
 	AM_RANGE( 0x0002, 0x0004 ) AM_WRITE( dunhuang_tile_w )
@@ -764,94 +765,97 @@ static const ay8910_interface dunhuang_ay8910_interface =
 
 static MACHINE_START( dunhuang )
 {
-	dunhuang_state *state = machine.driver_data<dunhuang_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	dunhuang_state *state = (dunhuang_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 8, &ROM[0x10000], 0x8000);
 
-	state->save_item(NAME(state->m_written));
-	state->save_item(NAME(state->m_written2));
-	state->save_item(NAME(state->m_pos_x));
-	state->save_item(NAME(state->m_pos_y));
-	state->save_item(NAME(state->m_clear_y));
-	state->save_item(NAME(state->m_block_x));
-	state->save_item(NAME(state->m_block_y));
-	state->save_item(NAME(state->m_block_w));
-	state->save_item(NAME(state->m_block_h));
-	state->save_item(NAME(state->m_block_addr_hi));
-	state->save_item(NAME(state->m_block_addr_lo));
-	state->save_item(NAME(state->m_block_dest));
-	state->save_item(NAME(state->m_block_c));
-	state->save_item(NAME(state->m_layers));
-	state->save_item(NAME(state->m_paloffs));
-	state->save_item(NAME(state->m_input));
-	state->save_item(NAME(state->m_hopper));
+	state_save_register_global(machine, state->written);
+	state_save_register_global(machine, state->written2);
+	state_save_register_global(machine, state->pos_x);
+	state_save_register_global(machine, state->pos_y);
+	state_save_register_global(machine, state->clear_y);
+	state_save_register_global(machine, state->block_x);
+	state_save_register_global(machine, state->block_y);
+	state_save_register_global(machine, state->block_w);
+	state_save_register_global(machine, state->block_h);
+	state_save_register_global(machine, state->block_addr_hi);
+	state_save_register_global(machine, state->block_addr_lo);
+	state_save_register_global(machine, state->block_dest);
+	state_save_register_global(machine, state->block_c);
+	state_save_register_global(machine, state->layers);
+	state_save_register_global(machine, state->paloffs);
+	state_save_register_global(machine, state->input);
+	state_save_register_global(machine, state->hopper);
 }
 
 static MACHINE_RESET( dunhuang )
 {
-	dunhuang_state *state = machine.driver_data<dunhuang_state>();
+	dunhuang_state *state = (dunhuang_state *)machine->driver_data;
 
-	state->m_written = 0;
-	state->m_written2 = 0;
-	state->m_pos_x = 0;
-	state->m_pos_y = 0;
-	state->m_clear_y = 0;
-	state->m_block_x = 0;
-	state->m_block_y = 0;
-	state->m_block_w = 0;
-	state->m_block_h = 0;
-	state->m_block_addr_hi = 0;
-	state->m_block_addr_lo = 0;
-	state->m_block_dest = 0;
-	state->m_block_c = 0;
-	state->m_layers = 0;
-	state->m_paloffs = 0;
-	state->m_input = 0;
-	state->m_hopper = 0;
+	state->written = 0;
+	state->written2 = 0;
+	state->pos_x = 0;
+	state->pos_y = 0;
+	state->clear_y = 0;
+	state->block_x = 0;
+	state->block_y = 0;
+	state->block_w = 0;
+	state->block_h = 0;
+	state->block_addr_hi = 0;
+	state->block_addr_lo = 0;
+	state->block_dest = 0;
+	state->block_c = 0;
+	state->layers = 0;
+	state->paloffs = 0;
+	state->input = 0;
+	state->hopper = 0;
 }
 
 
-static MACHINE_CONFIG_START( dunhuang, dunhuang_state )
+static MACHINE_DRIVER_START( dunhuang )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(dunhuang_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,12000000/2)
-	MCFG_CPU_PROGRAM_MAP(dunhuang_map)
-	MCFG_CPU_IO_MAP(dunhuang_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,12000000/2)
+	MDRV_CPU_PROGRAM_MAP(dunhuang_map)
+	MDRV_CPU_IO_MAP(dunhuang_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_START(dunhuang)
-	MCFG_MACHINE_RESET(dunhuang)
+	MDRV_MACHINE_START(dunhuang)
+	MDRV_MACHINE_RESET(dunhuang)
 
-	MCFG_WATCHDOG_TIME_INIT(attotime::from_seconds(5))
+	MDRV_WATCHDOG_TIME_INIT(SEC(5))
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0+8, 512-8-1, 0+16, 256-16-1)
-	MCFG_SCREEN_UPDATE(dunhuang)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0+8, 512-8-1, 0+16, 256-16-1)
 
-	MCFG_GFXDECODE(dunhuang)
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_GFXDECODE(dunhuang)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_VIDEO_START(dunhuang)
+	MDRV_VIDEO_START(dunhuang)
+	MDRV_VIDEO_UPDATE(dunhuang)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2413, 3579545)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+	MDRV_SOUND_ADD("ymsnd", YM2413, 3579545)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
 
-	MCFG_SOUND_ADD("ay8910", AY8910, 12000000/8)
-	MCFG_SOUND_CONFIG(dunhuang_ay8910_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_SOUND_ADD("ay8910", AY8910, 12000000/8)
+	MDRV_SOUND_CONFIG(dunhuang_ay8910_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_OKIM6295_ADD("oki", 12000000/8, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 12000000/8, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

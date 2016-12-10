@@ -4,47 +4,48 @@
 
 ****************************************************************************/
 
-class astrof_state : public driver_device
+class astrof_state
 {
 public:
-	astrof_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, astrof_state(machine)); }
+
+	astrof_state(running_machine &machine) { }
 
 	/* video-related */
-	UINT8 *    m_videoram;
-	size_t     m_videoram_size;
+	UINT8 *    videoram;
+	size_t     videoram_size;
 
-	UINT8 *    m_colorram;
-	UINT8 *    m_tomahawk_protection;
+	UINT8 *    colorram;
+	UINT8 *    tomahawk_protection;
 
-	UINT8 *    m_astrof_color;
-	UINT8      m_astrof_palette_bank;
-	UINT8      m_red_on;
-	UINT8      m_flipscreen;
-	UINT8      m_screen_off;
-	UINT16     m_abattle_count;
+	UINT8 *    astrof_color;
+	UINT8      astrof_palette_bank;
+	UINT8      red_on;
+	UINT8      flipscreen;
+	UINT8      screen_off;
+	UINT16     abattle_count;
 
 	/* sound-related */
-	UINT8      m_port_1_last;
-	UINT8      m_port_2_last;
-	UINT8      m_astrof_start_explosion;
-	UINT8      m_astrof_death_playing;
-	UINT8      m_astrof_bosskill_playing;
+	UINT8      port_1_last;
+	UINT8      port_2_last;
+	UINT8      astrof_start_explosion;
+	UINT8      astrof_death_playing;
+	UINT8      astrof_bosskill_playing;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_samples;	// astrof & abattle
-	device_t *m_sn;	// tomahawk
+	running_device *maincpu;
+	running_device *samples;	// astrof & abattle
+	running_device *sn;	// tomahawk
 };
 
 /*----------- defined in audio/astrof.c -----------*/
 
-MACHINE_CONFIG_EXTERN( astrof_audio );
+MACHINE_DRIVER_EXTERN( astrof_audio );
 WRITE8_HANDLER( astrof_audio_1_w );
 WRITE8_HANDLER( astrof_audio_2_w );
 
-MACHINE_CONFIG_EXTERN( spfghmk2_audio );
+MACHINE_DRIVER_EXTERN( spfghmk2_audio );
 WRITE8_HANDLER( spfghmk2_audio_w );
 
-MACHINE_CONFIG_EXTERN( tomahawk_audio );
+MACHINE_DRIVER_EXTERN( tomahawk_audio );
 WRITE8_HANDLER( tomahawk_audio_w );

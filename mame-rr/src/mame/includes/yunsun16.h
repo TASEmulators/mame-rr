@@ -4,30 +4,29 @@
 
 *************************************************************************/
 
-class yunsun16_state : public driver_device
+class yunsun16_state
 {
 public:
-	yunsun16_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, yunsun16_state(machine)); }
+
+	yunsun16_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_vram_0;
-	UINT16 *    m_vram_1;
-	UINT16 *    m_scrollram_0;
-	UINT16 *    m_scrollram_1;
-	UINT16 *    m_priorityram;
-//  UINT16 *    m_paletteram; // currently this uses generic palette handling
-	UINT16 *    m_spriteram;
-	size_t      m_spriteram_size;
+	UINT16 *    vram_0;
+	UINT16 *    vram_1;
+	UINT16 *    scrollram_0;
+	UINT16 *    scrollram_1;
+	UINT16 *    priorityram;
+//  UINT16 *    paletteram; // currently this uses generic palette handling
+	UINT16 *    spriteram;
+	size_t      spriteram_size;
 
 	/* other video-related elements */
-	tilemap_t     *m_tilemap_0;
-	tilemap_t     *m_tilemap_1;
-	int         m_sprites_scrolldx;
-	int         m_sprites_scrolldy;
+	tilemap_t     *tilemap_0, *tilemap_1;
+	int         sprites_scrolldx, sprites_scrolldy;
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -37,4 +36,4 @@ WRITE16_HANDLER( yunsun16_vram_0_w );
 WRITE16_HANDLER( yunsun16_vram_1_w );
 
 VIDEO_START( yunsun16 );
-SCREEN_UPDATE( yunsun16 );
+VIDEO_UPDATE( yunsun16 );

@@ -22,11 +22,11 @@
         * The protection is not fully understood(Konami 051733). The
         game is playable, but is not 100% accurate.
         * Missing samples.
-        (both issues above are outdated?)
 
 ***************************************************************************/
 
 #include "emu.h"
+#include "deprecat.h"
 #include "cpu/m6809/m6809.h"
 #include "cpu/hd6309/hd6309.h"
 #include "sound/2203intf.h"
@@ -36,16 +36,19 @@
 #include "includes/bladestl.h"
 
 
-static TIMER_DEVICE_CALLBACK( bladestl_scanline )
+static INTERRUPT_GEN( bladestl_interrupt )
 {
-	bladestl_state *state = timer.machine().driver_data<bladestl_state>();
-	int scanline = param;
+	bladestl_state *state = (bladestl_state *)device->machine->driver_data;
 
-	if(scanline == 240 && k007342_is_int_enabled(state->m_k007342)) // vblank-out irq
-		cputag_set_input_line(timer.machine(), "maincpu", HD6309_FIRQ_LINE, HOLD_LINE);
-
-	if(scanline == 0) // vblank-in or timer irq
-		cputag_set_input_line(timer.machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE);
+	if (cpu_getiloops(device) == 0)
+	{
+		if (k007342_is_int_enabled(state->k007342))
+			cpu_set_input_line(device, HD6309_FIRQ_LINE, HOLD_LINE);
+	}
+	else if (cpu_getiloops(device) % 2)
+	{
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	}
 }
 
 /*************************************
@@ -56,45 +59,45 @@ static TIMER_DEVICE_CALLBACK( bladestl_scanline )
 
 static READ8_HANDLER( trackball_r )
 {
-	bladestl_state *state = space->machine().driver_data<bladestl_state>();
+	bladestl_state *state = (bladestl_state *)space->machine->driver_data;
 	static const char *const port[] = { "TRACKBALL_P1_1", "TRACKBALL_P1_2", "TRACKBALL_P2_1", "TRACKBALL_P1_2" };
 	int curr, delta;
 
-	curr = input_port_read(space->machine(), port[offset]);
-	delta = (curr - state->m_last_track[offset]) & 0xff;
-	state->m_last_track[offset] = curr;
+	curr = input_port_read(space->machine, port[offset]);
+	delta = (curr - state->last_track[offset]) & 0xff;
+	state->last_track[offset] = curr;
 
 	return (delta & 0x80) | (curr >> 1);
 }
 
 static WRITE8_HANDLER( bladestl_bankswitch_w )
 {
-	bladestl_state *state = space->machine().driver_data<bladestl_state>();
+	bladestl_state *state = (bladestl_state *)space->machine->driver_data;
 
 	/* bits 0 & 1 = coin counters */
-	coin_counter_w(space->machine(), 0,data & 0x01);
-	coin_counter_w(space->machine(), 1,data & 0x02);
+	coin_counter_w(space->machine, 0,data & 0x01);
+	coin_counter_w(space->machine, 1,data & 0x02);
 
 	/* bits 2 & 3 = lamps */
-	set_led_status(space->machine(), 0,data & 0x04);
-	set_led_status(space->machine(), 1,data & 0x08);
+	set_led_status(space->machine, 0,data & 0x04);
+	set_led_status(space->machine, 1,data & 0x08);
 
 	/* bit 4 = relay (???) */
 
 	/* bits 5-6 = bank number */
-	memory_set_bank(space->machine(), "bank1", (data & 0x60) >> 5);
+	memory_set_bank(space->machine, "bank1", (data & 0x60) >> 5);
 
 	/* bit 7 = select sprite bank */
-	state->m_spritebank = (data & 0x80) << 3;
+	state->spritebank = (data & 0x80) << 3;
 
 }
 
 static WRITE8_HANDLER( bladestl_sh_irqtrigger_w )
 {
-	bladestl_state *state = space->machine().driver_data<bladestl_state>();
+	bladestl_state *state = (bladestl_state *)space->machine->driver_data;
 
 	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_audiocpu, M6809_IRQ_LINE, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, M6809_IRQ_LINE, HOLD_LINE);
 	//logerror("(sound) write %02x\n", data);
 }
 
@@ -121,11 +124,11 @@ static WRITE8_DEVICE_HANDLER( bladestl_speech_ctrl_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_DEVREADWRITE("k007342", k007342_r, k007342_w)	/* Color RAM + Video RAM */
 	AM_RANGE(0x2000, 0x21ff) AM_DEVREADWRITE("k007420", k007420_r, k007420_w)	/* Sprite RAM */
 	AM_RANGE(0x2200, 0x23ff) AM_DEVREADWRITE("k007342", k007342_scroll_r, k007342_scroll_w)	/* Scroll RAM */
-	AM_RANGE(0x2400, 0x245f) AM_RAM AM_BASE_MEMBER(bladestl_state, m_paletteram)		/* palette */
+	AM_RANGE(0x2400, 0x245f) AM_RAM AM_BASE_MEMBER(bladestl_state, paletteram)		/* palette */
 	AM_RANGE(0x2600, 0x2607) AM_DEVWRITE("k007342", k007342_vreg_w)			/* Video Registers */
 	AM_RANGE(0x2e00, 0x2e00) AM_READ_PORT("COINSW")				/* DIPSW #3, coinsw, startsw */
 	AM_RANGE(0x2e01, 0x2e01) AM_READ_PORT("P1")					/* 1P controls */
@@ -143,7 +146,7 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
 	AM_RANGE(0x1000, 0x1001) AM_DEVREADWRITE("ymsnd", ym2203_r, ym2203_w)	/* YM2203 */
 	AM_RANGE(0x3000, 0x3000) AM_DEVWRITE("upd", bladestl_speech_ctrl_w)	/* UPD7759 */
@@ -303,77 +306,81 @@ static const k007420_interface bladestl_k007420_intf =
 
 static MACHINE_START( bladestl )
 {
-	bladestl_state *state = machine.driver_data<bladestl_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	bladestl_state *state = (bladestl_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x10000], 0x2000);
 
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_k007342 = machine.device("k007342");
-	state->m_k007420 = machine.device("k007420");
+	state->audiocpu = machine->device("audiocpu");
+	state->k007342 = machine->device("k007342");
+	state->k007420 = machine->device("k007420");
 
-	state->save_item(NAME(state->m_spritebank));
-	state->save_item(NAME(state->m_layer_colorbase));
-	state->save_item(NAME(state->m_last_track));
+	state_save_register_global(machine, state->spritebank);
+	state_save_register_global_array(machine, state->layer_colorbase);
+	state_save_register_global_array(machine, state->last_track);
 }
 
 static MACHINE_RESET( bladestl )
 {
-	bladestl_state *state = machine.driver_data<bladestl_state>();
+	bladestl_state *state = (bladestl_state *)machine->driver_data;
 	int i;
 
-	state->m_layer_colorbase[0] = 0;
-	state->m_layer_colorbase[1] = 1;
-	state->m_spritebank = 0;
+	state->layer_colorbase[0] = 0;
+	state->layer_colorbase[1] = 1;
+	state->spritebank = 0;
 
 	for (i = 0; i < 4 ; i++)
-		state->m_last_track[i] = 0;
+		state->last_track[i] = 0;
 }
 
-static MACHINE_CONFIG_START( bladestl, bladestl_state )
+static MACHINE_DRIVER_START( bladestl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(bladestl_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", HD6309, 24000000/2)		/* 24MHz/2 (?) */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_TIMER_ADD_SCANLINE("scantimer", bladestl_scanline, "screen", 0, 1)
+	MDRV_CPU_ADD("maincpu", HD6309, 24000000/2)		/* 24MHz/2 (?) */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT_HACK(bladestl_interrupt,2) /* (1 IRQ + 1 NMI) */
 
-	MCFG_CPU_ADD("audiocpu", M6809, 2000000)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", M6809, 2000000)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_START(bladestl)
-	MCFG_MACHINE_RESET(bladestl)
+	MDRV_MACHINE_START(bladestl)
+	MDRV_MACHINE_RESET(bladestl)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(bladestl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(bladestl)
-	MCFG_PALETTE_INIT(bladestl)
-	MCFG_PALETTE_LENGTH(32 + 16*16)
+	MDRV_GFXDECODE(bladestl)
+	MDRV_PALETTE_INIT(bladestl)
+	MDRV_PALETTE_LENGTH(32 + 16*16)
 
-	MCFG_K007342_ADD("k007342", bladestl_k007342_intf)
-	MCFG_K007420_ADD("k007420", bladestl_k007420_intf)
-	MCFG_K051733_ADD("k051733")
+	MDRV_VIDEO_UPDATE(bladestl)
+
+	MDRV_K007342_ADD("k007342", bladestl_k007342_intf)
+	MDRV_K007420_ADD("k007420", bladestl_k007420_intf)
+	MDRV_K051733_ADD("k051733")
 
 	/* sound hardware */
 	/* the initialization order is important, the port callbacks being
        called at initialization time */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+	MDRV_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 3579545)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.45)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2203, 3579545)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.45)
+MACHINE_DRIVER_END
 
 
 /*************************************

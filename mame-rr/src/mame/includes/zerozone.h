@@ -4,23 +4,24 @@
 
 *************************************************************************/
 
-class zerozone_state : public driver_device
+class zerozone_state
 {
 public:
-	zerozone_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, zerozone_state(machine)); }
+
+	zerozone_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_videoram;
+	UINT16 *    videoram;
 //  UINT16 *    paletteram; // currently this uses generic palette handling
-	size_t      m_videoram_size;
+	size_t      videoram_size;
 
 	/* video-related */
-	UINT16      m_tilebank;
-	tilemap_t     *m_zz_tilemap;
+	UINT16      tilebank;
+	tilemap_t     *zz_tilemap;
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 /*----------- defined in video/zerozone.c -----------*/
@@ -29,4 +30,4 @@ WRITE16_HANDLER( zerozone_tilemap_w );
 WRITE16_HANDLER( zerozone_tilebank_w );
 
 VIDEO_START( zerozone );
-SCREEN_UPDATE( zerozone );
+VIDEO_UPDATE( zerozone );

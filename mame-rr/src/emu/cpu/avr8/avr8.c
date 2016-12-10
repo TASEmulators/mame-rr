@@ -27,10 +27,9 @@ struct _avr8_state
     UINT32 pc;
 
     legacy_cpu_device *device;
-    address_space *program;
-    address_space *io;
+    const address_space *program;
+    const address_space *io;
     int icount;
-	UINT32 addr_mask;
 };
 
 enum
@@ -76,10 +75,10 @@ enum
 #define ZREG            ((READ_IO_8(cpustate, 31) << 8) | READ_IO_8(cpustate, 30))
 #define SPREG           ((READ_IO_8(cpustate, AVR8_IO_SPH) << 8) | READ_IO_8(cpustate, AVR8_IO_SPL))
 
-INLINE avr8_state *get_safe_token(device_t *device)
+INLINE avr8_state *get_safe_token(running_device *device)
 {
     assert(device != NULL);
-    assert(device->type() == ATMEGA88 || device->type() == ATMEGA644);
+    assert(device->type() == AVR8);
     return (avr8_state *)downcast<legacy_cpu_device *>(device)->token();
 }
 
@@ -116,32 +115,32 @@ INLINE bool avr8_is_long_opcode(UINT16 op)
 
 INLINE UINT8 READ_PRG_8(avr8_state *cpustate, UINT32 address)
 {
-    return cpustate->program->read_byte(address);
+    return memory_read_byte_16le(cpustate->program, address);
 }
 
 INLINE UINT16 READ_PRG_16(avr8_state *cpustate, UINT32 address)
 {
-    return cpustate->program->read_word(address << 1);
+    return memory_read_word_16le(cpustate->program, address << 1);
 }
 
 INLINE void WRITE_PRG_8(avr8_state *cpustate, UINT32 address, UINT8 data)
 {
-    cpustate->program->write_byte(address, data);
+    memory_write_byte_16le(cpustate->program, address, data);
 }
 
 INLINE void WRITE_PRG_16(avr8_state *cpustate, UINT32 address, UINT16 data)
 {
-    cpustate->program->write_word(address, data);
+    memory_write_word_16le(cpustate->program, address, data);
 }
 
 INLINE UINT8 READ_IO_8(avr8_state *cpustate, UINT16 address)
 {
-    return cpustate->io->read_byte(address);
+    return memory_read_byte(cpustate->io, address);
 }
 
 INLINE void WRITE_IO_8(avr8_state *cpustate, UINT16 address, UINT8 data)
 {
-    cpustate->io->write_byte(address, data);
+    memory_write_byte(cpustate->io, address, data);
 }
 
 INLINE void PUSH(avr8_state *cpustate, UINT8 val)
@@ -194,7 +193,7 @@ static CPU_INIT( avr8 )
 
     WRITE_IO_8(cpustate, AVR8_IO_SREG, 0);
 
-	device->save_item(NAME(cpustate->pc));
+	state_save_register_device_item(device, 0, cpustate->pc);
 }
 
 static CPU_EXIT( avr8 )
@@ -224,7 +223,7 @@ static CPU_EXECUTE( avr8 )
 
     while (cpustate->icount > 0)
     {
-        cpustate->pc &= cpustate->addr_mask;
+        cpustate->pc &= 0x0fff;
 
         debugger_instruction_hook(device, cpustate->pc << 1);
 
@@ -667,22 +666,21 @@ static CPU_EXECUTE( avr8 )
                                 break;
                             case 0x000c:
                             case 0x000d:    // JMP k
-								offs = KCONST22(op) << 16;
-                                cpustate->pc++;
-                                offs |= READ_PRG_16(cpustate, cpustate->pc);
-                                cpustate->pc = offs;
-								cpustate->pc--;
-								opcycles = 4;
+                                //op <<= 8;
+                                //op |= oprom[pos++];
+                                //op <<= 8;
+                                //op |= oprom[pos++];
+                                //output += sprintf( output, "JMP     0x%06x", KCONST22(op) );
+                                unimplemented_opcode(cpustate, op);
                                 break;
                             case 0x000e:    // CALL k
                             case 0x000f:
-								PUSH(cpustate, ((cpustate->pc + 1) >> 8) & 0x00ff);
-								PUSH(cpustate, (cpustate->pc + 1) & 0x00ff);
-								offs = KCONST22(op) << 16;
-                                cpustate->pc++;
-                                offs |= READ_PRG_16(cpustate, cpustate->pc);
-                                cpustate->pc = offs;
-								cpustate->pc--;
+                                //op <<= 8;
+                                //op |= oprom[pos++];
+                                //op <<= 8;
+                                //op |= oprom[pos++];
+                                //output += sprintf( output, "CALL    0x%06x", KCONST22(op) );
+                                unimplemented_opcode(cpustate, op);
                                 break;
                             default:
                                 unimplemented_opcode(cpustate, op);
@@ -1086,15 +1084,15 @@ CPU_GET_INFO( avr8 )
         case CPUINFO_INT_MIN_CYCLES:            info->i = 1;                    break;
         case CPUINFO_INT_MAX_CYCLES:            info->i = 4;                    break;
 
-        case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM: info->i = 8;                    break;
-        case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 22;                   break;
-        case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;                    break;
-        case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:    info->i = 0;                    break;
-        case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:    info->i = 0;                    break;
-        case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:    info->i = 0;                    break;
-        case DEVINFO_INT_DATABUS_WIDTH + AS_IO:      info->i = 8;                    break;
-        case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:      info->i = 11;                   break;
-        case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:      info->i = 0;                    break;
+        case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 8;                    break;
+        case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 22;                   break;
+        case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;                    break;
+        case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+        case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+        case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+        case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:      info->i = 8;                    break;
+        case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:      info->i = 11;                   break;
+        case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:      info->i = 0;                    break;
 
         case CPUINFO_INT_PC:    /* intentional fallthrough */
         case CPUINFO_INT_REGISTER + AVR8_PC:    info->i = cpustate->pc << 1;                    break;
@@ -1159,47 +1157,4 @@ CPU_GET_INFO( avr8 )
     }
 }
 
-static CPU_INIT( atmega88 )
-{
-	CPU_INIT_CALL(avr8);
-    avr8_state *cpustate = get_safe_token(device);
-	cpustate->addr_mask = 0x0fff;
-}
-
-static CPU_INIT( atmega644 )
-{
-	CPU_INIT_CALL(avr8);
-    avr8_state *cpustate = get_safe_token(device);
-	cpustate->addr_mask = 0xffff;
-}
-
-CPU_GET_INFO( atmega88 )
-{
-	switch (state)
-	{
-		/* --- the following bits of info are returned as pointers to functions --- */
-		case CPUINFO_FCT_INIT:							info->init = CPU_INIT_NAME(atmega88);		break;
-
-		/* --- the following bits of info are returned as NULL-terminated strings --- */
-		case DEVINFO_STR_NAME:							strcpy(info->s, "ATmega88");				break;
-
-		default:										CPU_GET_INFO_CALL(avr8); break;
-	}
-}
-
-CPU_GET_INFO( atmega644 )
-{
-	switch (state)
-	{
-		/* --- the following bits of info are returned as pointers to functions --- */
-		case CPUINFO_FCT_INIT:							info->init = CPU_INIT_NAME(atmega644);		break;
-
-		/* --- the following bits of info are returned as NULL-terminated strings --- */
-		case DEVINFO_STR_NAME:							strcpy(info->s, "ATmega644");				break;
-
-		default:										CPU_GET_INFO_CALL(avr8); break;
-	}
-}
-
-DEFINE_LEGACY_CPU_DEVICE(ATMEGA88, atmega88);
-DEFINE_LEGACY_CPU_DEVICE(ATMEGA644, atmega644);
+DEFINE_LEGACY_CPU_DEVICE(AVR8, avr8);

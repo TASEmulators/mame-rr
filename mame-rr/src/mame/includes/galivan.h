@@ -4,32 +4,26 @@
 
 ***************************************************************************/
 
-class galivan_state : public driver_device
+class galivan_state
 {
 public:
-	galivan_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, galivan_state(machine)); }
+
+	galivan_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *     m_videoram;
-//  UINT8 *     m_colorram;
-	UINT8 *     m_spriteram;
-	size_t      m_videoram_size;
-	size_t      m_spriteram_size;
+	UINT8 *     videoram;
+	UINT8 *     colorram;
+	UINT8 *     spriteram;
+	size_t      videoram_size;
+	size_t      spriteram_size;
 
 	/* video-related */
-	tilemap_t     *m_bg_tilemap;
-	tilemap_t     *m_tx_tilemap;
-	UINT16       m_scrollx;
-	UINT16       m_scrolly;
-	UINT8		m_galivan_scrollx[2],m_galivan_scrolly[2];
-	UINT8       m_flipscreen;
-	UINT8       m_write_layers;
-	UINT8       m_layers;
-	UINT8       m_ninjemak_dispdisable;
-
-	UINT8       m_shift_scroll; //youmab
-	UINT32		m_shift_val;
+	tilemap_t     *bg_tilemap, *tx_tilemap;
+	UINT8       scrollx[2], scrolly[2];
+	UINT8       flipscreen;
+	UINT8       write_layers, layers;
+	UINT8       ninjemak_dispdisable;
 };
 
 
@@ -39,6 +33,7 @@ public:
 WRITE8_HANDLER( galivan_scrollx_w );
 WRITE8_HANDLER( galivan_scrolly_w );
 WRITE8_HANDLER( galivan_videoram_w );
+WRITE8_HANDLER( galivan_colorram_w );
 WRITE8_HANDLER( galivan_gfxbank_w );
 WRITE8_HANDLER( ninjemak_scrollx_w );
 WRITE8_HANDLER( ninjemak_scrolly_w );
@@ -48,5 +43,5 @@ PALETTE_INIT( galivan );
 
 VIDEO_START( galivan );
 VIDEO_START( ninjemak );
-SCREEN_UPDATE( galivan );
-SCREEN_UPDATE( ninjemak );
+VIDEO_UPDATE( galivan );
+VIDEO_UPDATE( ninjemak );

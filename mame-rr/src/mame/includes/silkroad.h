@@ -1,17 +1,18 @@
-class silkroad_state : public driver_device
+class silkroad_state
 {
 public:
-	silkroad_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, silkroad_state(machine)); }
 
-	UINT32 *m_vidram;
-	UINT32 *m_vidram2;
-	UINT32 *m_vidram3;
-	UINT32 *m_sprram;
-	UINT32 *m_regs;
-	tilemap_t *m_fg_tilemap;
-	tilemap_t *m_fg2_tilemap;
-	tilemap_t *m_fg3_tilemap;
+	silkroad_state(running_machine &machine) { }
+
+	UINT32 *vidram;
+	UINT32 *vidram2;
+	UINT32 *vidram3;
+	UINT32 *sprram;
+	UINT32 *regs;
+	tilemap_t *fg_tilemap;
+	tilemap_t *fg2_tilemap;
+	tilemap_t *fg3_tilemap;
 };
 
 
@@ -21,4 +22,4 @@ WRITE32_HANDLER( silkroad_fgram_w );
 WRITE32_HANDLER( silkroad_fgram2_w );
 WRITE32_HANDLER( silkroad_fgram3_w );
 VIDEO_START(silkroad);
-SCREEN_UPDATE(silkroad);
+VIDEO_UPDATE(silkroad);

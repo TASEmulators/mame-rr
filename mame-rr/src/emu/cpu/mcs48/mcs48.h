@@ -87,9 +87,6 @@ enum
     MACROS
 ***************************************************************************/
 
-#define MCS48_ALE_CLOCK(_clock) \
-	attotime::from_hz(_clock/(3*5))
-
 /* Official Intel MCS-48 parts */
 DECLARE_LEGACY_CPU_DEVICE(I8021, i8021);			/* 1k internal ROM,      64 bytes internal RAM */
 DECLARE_LEGACY_CPU_DEVICE(I8022, i8022);			/* 2k internal ROM,     128 bytes internal RAM */
@@ -122,8 +119,8 @@ DECLARE_LEGACY_CPU_DEVICE(M58715, m58715);			/* 8049 clone */
 ***************************************************************************/
 
 /* functions for talking to the input/output buffers on the UPI41-class chips */
-UINT8 upi41_master_r(device_t *device, UINT8 a0);
-void upi41_master_w(device_t *device, UINT8 a0, UINT8 data);
+UINT8 upi41_master_r(running_device *device, UINT8 a0);
+void upi41_master_w(running_device *device, UINT8 a0, UINT8 data);
 
 
 /* disassemblers */

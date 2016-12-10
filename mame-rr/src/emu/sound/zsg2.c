@@ -44,6 +44,7 @@
 */
 
 #include "emu.h"
+#include "streams.h"
 #include "zsg2.h"
 
 // 16 registers per channel, 48 channels
@@ -65,10 +66,10 @@ struct _zsg2_state
 	sound_stream *stream;
 };
 
-INLINE zsg2_state *get_safe_token(device_t *device)
+INLINE zsg2_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == ZSG2);
+	assert(device->type() == SOUND_ZSG2);
 	return (zsg2_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -180,7 +181,7 @@ WRITE16_DEVICE_HANDLER( zsg2_w )
 
 	assert(mem_mask == 0xffff);	// we only support full 16-bit accesses
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	if (adr < 0x600)
 	{
@@ -218,7 +219,7 @@ READ16_DEVICE_HANDLER( zsg2_r )
 
 static DEVICE_START( zsg2 )
 {
-	const zsg2_interface *intf = (const zsg2_interface *)device->static_config();
+	const zsg2_interface *intf = (const zsg2_interface *)device->baseconfig().static_config();
 	zsg2_state *info = get_safe_token(device);
 
 	info->sample_rate = device->clock();
@@ -226,9 +227,9 @@ static DEVICE_START( zsg2 )
 	memset(&info->zc, 0, sizeof(info->zc));
 	memset(&info->act, 0, sizeof(info->act));
 
-	info->stream = device->machine().sound().stream_alloc(*device, 0, 2, info->sample_rate, info, update_stereo);
+	info->stream = stream_create(device, 0, 2, info->sample_rate, info, update_stereo);
 
-	info->bank_samples = device->machine().region(intf->samplergn)->base();
+	info->bank_samples = memory_region(device->machine, intf->samplergn);
 }
 
 /**************************************************************************

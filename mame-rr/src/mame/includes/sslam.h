@@ -1,43 +1,43 @@
-class sslam_state : public driver_device
+class sslam_state
 {
 public:
-	sslam_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, sslam_state(machine)); }
 
-	emu_timer *m_music_timer;
+	sslam_state(running_machine &machine) { }
 
-	int m_sound;
-	int m_melody;
-	int m_bar;
-	int m_track;
-	int m_snd_bank;
+	emu_timer *music_timer;
 
-	UINT16 *m_bg_tileram;
-	UINT16 *m_tx_tileram;
-	UINT16 *m_md_tileram;
-	UINT16 *m_spriteram;
-	UINT16 *m_regs;
+	int sound;
+	int melody;
+	int bar;
+	int track;
+	int snd_bank;
 
-	UINT8 m_oki_control;
-	UINT8 m_oki_command;
-	UINT8 m_oki_bank;
+	UINT16 *bg_tileram;
+	UINT16 *tx_tileram;
+	UINT16 *md_tileram;
+	UINT16 *spriteram;
+	UINT16 *regs;
 
-	tilemap_t *m_bg_tilemap;
-	tilemap_t *m_tx_tilemap;
-	tilemap_t *m_md_tilemap;
+	UINT8 oki_control;
+	UINT8 oki_command;
+	UINT8 oki_bank;
 
-	int m_sprites_x_offset;
+	tilemap_t *bg_tilemap;
+	tilemap_t *tx_tilemap;
+	tilemap_t *md_tilemap;
+
+	int sprites_x_offset;
 };
 
 
 /*----------- defined in video/sslam.c -----------*/
 
-WRITE16_HANDLER( sslam_paletteram_w );
 WRITE16_HANDLER( sslam_tx_tileram_w );
 WRITE16_HANDLER( sslam_md_tileram_w );
 WRITE16_HANDLER( sslam_bg_tileram_w );
 WRITE16_HANDLER( powerbls_bg_tileram_w );
 VIDEO_START(sslam);
 VIDEO_START(powerbls);
-SCREEN_UPDATE(sslam);
-SCREEN_UPDATE(powerbls);
+VIDEO_UPDATE(sslam);
+VIDEO_UPDATE(powerbls);

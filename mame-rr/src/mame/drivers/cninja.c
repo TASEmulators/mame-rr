@@ -51,56 +51,55 @@ Note about version levels using Mutant Fighter as the example:
 #include "sound/2151intf.h"
 #include "sound/okim6295.h"
 #include "video/deco16ic.h"
-#include "video/decospr.h"
-#include "video/decocomn.h"
+
 
 static WRITE16_HANDLER( cninja_sound_w )
 {
-	cninja_state *state = space->machine().driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)space->machine->driver_data;
 
 	soundlatch_w(space, 0, data & 0xff);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
 static WRITE16_HANDLER( stoneage_sound_w )
 {
-	cninja_state *state = space->machine().driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)space->machine->driver_data;
 
 	soundlatch_w(space, 0, data & 0xff);
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static TIMER_DEVICE_CALLBACK( interrupt_gen )
 {
-	cninja_state *state = timer.machine().driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)timer.machine->driver_data;
 
-	device_set_input_line(state->m_maincpu, (state->m_irq_mask & 0x10) ? 3 : 4, ASSERT_LINE);
-	state->m_raster_irq_timer->reset();
+	cpu_set_input_line(state->maincpu, (state->irq_mask & 0x10) ? 3 : 4, ASSERT_LINE);
+	state->raster_irq_timer->reset();
 }
 
 static READ16_HANDLER( cninja_irq_r )
 {
-	cninja_state *state = space->machine().driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
 
 	case 1: /* Raster IRQ scanline position */
-		return state->m_scanline;
+		return state->scanline;
 
 	case 2: /* Raster IRQ ACK - value read is not used */
-		device_set_input_line(state->m_maincpu, 3, CLEAR_LINE);
-		device_set_input_line(state->m_maincpu, 4, CLEAR_LINE);
+		cpu_set_input_line(state->maincpu, 3, CLEAR_LINE);
+		cpu_set_input_line(state->maincpu, 4, CLEAR_LINE);
 		return 0;
 	}
 
-	logerror("%08x:  Unmapped IRQ read %d\n", cpu_get_pc(&space->device()), offset);
+	logerror("%08x:  Unmapped IRQ read %d\n", cpu_get_pc(space->cpu), offset);
 	return 0;
 }
 
 static WRITE16_HANDLER( cninja_irq_w )
 {
-	cninja_state *state = space->machine().driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
@@ -110,24 +109,24 @@ static WRITE16_HANDLER( cninja_irq_w )
             0xc8:   Raster IRQ turned on (68k IRQ level 4)
             0xd8:   Raster IRQ turned on (68k IRQ level 3)
         */
-		logerror("%08x:  IRQ write %d %08x\n", cpu_get_pc(&space->device()), offset, data);
-		state->m_irq_mask = data & 0xff;
+		logerror("%08x:  IRQ write %d %08x\n", cpu_get_pc(space->cpu), offset, data);
+		state->irq_mask = data & 0xff;
 		return;
 
 	case 1: /* Raster IRQ scanline position, only valid for values between 1 & 239 (0 and 240-256 do NOT generate IRQ's) */
-		state->m_scanline = data & 0xff;
+		state->scanline = data & 0xff;
 
-		if (!BIT(state->m_irq_mask, 1) && state->m_scanline > 0 && state->m_scanline < 240)
-			state->m_raster_irq_timer->adjust(space->machine().primary_screen->time_until_pos(state->m_scanline), state->m_scanline);
+		if (!BIT(state->irq_mask, 1) && state->scanline > 0 && state->scanline < 240)
+			state->raster_irq_timer->adjust(space->machine->primary_screen->time_until_pos(state->scanline), state->scanline);
 		else
-			state->m_raster_irq_timer->reset();
+			state->raster_irq_timer->reset();
 		return;
 
 	case 2: /* VBL irq ack */
 		return;
 	}
 
-	logerror("%08x:  Unmapped IRQ write %d %04x\n", cpu_get_pc(&space->device()), offset, data);
+	logerror("%08x:  Unmapped IRQ write %d %04x\n", cpu_get_pc(space->cpu), offset, data);
 }
 
 static READ16_HANDLER( robocop2_prot_r )
@@ -135,16 +134,16 @@ static READ16_HANDLER( robocop2_prot_r )
 	switch (offset << 1)
 	{
 		case 0x41a: /* Player 1 & 2 input ports */
-			return input_port_read(space->machine(), "IN0");
+			return input_port_read(space->machine, "IN0");
 		case 0x320: /* Coins */
-			return input_port_read(space->machine(), "IN1");
+			return input_port_read(space->machine, "IN1");
 		case 0x4e6: /* Dip switches */
-			return input_port_read(space->machine(), "DSW");
+			return input_port_read(space->machine, "DSW");
 		case 0x504: /* PC: 6b6.  b4, 2c, 36 written before read */
-			logerror("Protection PC %06x: warning - read unmapped memory address %04x\n", cpu_get_pc(&space->device()), offset);
+			logerror("Protection PC %06x: warning - read unmapped memory address %04x\n", cpu_get_pc(space->cpu), offset);
 			return 0x84;
 	}
-	logerror("Protection PC %06x: warning - read unmapped memory address %04x\n", cpu_get_pc(&space->device()), offset);
+	logerror("Protection PC %06x: warning - read unmapped memory address %04x\n", cpu_get_pc(space->cpu), offset);
 	return 0;
 }
 
@@ -152,38 +151,38 @@ static READ16_HANDLER( robocop2_prot_r )
 
 static WRITE16_HANDLER( cninja_pf12_control_w )
 {
-	cninja_state *state = space->machine().driver_data<cninja_state>();
-	deco16ic_pf_control_w(state->m_deco_tilegen1, offset, data, mem_mask);
-	space->machine().primary_screen->update_partial(space->machine().primary_screen->vpos());
+	cninja_state *state = (cninja_state *)space->machine->driver_data;
+	deco16ic_pf12_control_w(state->deco16ic, offset, data, mem_mask);
+	space->machine->primary_screen->update_partial(space->machine->primary_screen->vpos());
 }
 
 
 static WRITE16_HANDLER( cninja_pf34_control_w )
 {
-	cninja_state *state = space->machine().driver_data<cninja_state>();
-	deco16ic_pf_control_w(state->m_deco_tilegen2, offset, data, mem_mask);
-	space->machine().primary_screen->update_partial(space->machine().primary_screen->vpos());
+	cninja_state *state = (cninja_state *)space->machine->driver_data;
+	deco16ic_pf34_control_w(state->deco16ic, offset, data, mem_mask);
+	space->machine->primary_screen->update_partial(space->machine->primary_screen->vpos());
 }
 
 
-static ADDRESS_MAP_START( cninja_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( cninja_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0bffff) AM_ROM
 
 	AM_RANGE(0x140000, 0x14000f) AM_WRITE(cninja_pf12_control_w)
-	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x14c000, 0x14c7ff) AM_WRITEONLY AM_BASE_MEMBER(cninja_state, m_pf1_rowscroll)
-	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf2_rowscroll)
+	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
+	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
+	AM_RANGE(0x14c000, 0x14c7ff) AM_WRITEONLY AM_BASE_MEMBER(cninja_state, pf1_rowscroll)
+	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf2_rowscroll)
 
 	AM_RANGE(0x150000, 0x15000f) AM_WRITE(cninja_pf34_control_w)
-	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf3_rowscroll)
-	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf4_rowscroll)
+	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf3_data_r, deco16ic_pf3_data_w)
+	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf4_data_r, deco16ic_pf4_data_w)
+	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf3_rowscroll)
+	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf4_rowscroll)
 
-	AM_RANGE(0x184000, 0x187fff) AM_RAM AM_BASE_MEMBER(cninja_state, m_ram)
+	AM_RANGE(0x184000, 0x187fff) AM_RAM AM_BASE_MEMBER(cninja_state, ram)
 	AM_RANGE(0x190000, 0x190007) AM_READWRITE(cninja_irq_r, cninja_irq_w)
-	AM_RANGE(0x19c000, 0x19dfff) AM_RAM_DEVWRITE("deco_common", decocomn_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
+	AM_RANGE(0x19c000, 0x19dfff) AM_RAM_DEVWRITE("deco_custom", deco16ic_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
 
 	AM_RANGE(0x1a4000, 0x1a47ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)			/* Sprites */
 	AM_RANGE(0x1b4000, 0x1b4001) AM_WRITE(buffer_spriteram16_w) /* DMA flag */
@@ -193,53 +192,58 @@ static ADDRESS_MAP_START( cninja_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x308000, 0x308fff) AM_WRITENOP /* Bootleg only */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cninjabl_map, AS_PROGRAM, 16 )
+static WRITE16_HANDLER( cninjabl_soundlatch_w )
+{
+	// todo:
+}
+
+static ADDRESS_MAP_START( cninjabl_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0bffff) AM_ROM
 
 	AM_RANGE(0x138000, 0x1387ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram) /* bootleg sprite-ram (sprites rewritten here in new format) */
 
 	AM_RANGE(0x140000, 0x14000f) AM_WRITE(cninja_pf12_control_w)
-	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x14c000, 0x14c7ff) AM_WRITEONLY AM_BASE_MEMBER(cninja_state, m_pf1_rowscroll)
-	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf2_rowscroll)
+	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
+	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
+	AM_RANGE(0x14c000, 0x14c7ff) AM_WRITEONLY AM_BASE_MEMBER(cninja_state, pf1_rowscroll)
+	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf2_rowscroll)
 
 	AM_RANGE(0x150000, 0x15000f) AM_WRITE(cninja_pf34_control_w)	// not used / incorrect on this
-	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf3_rowscroll)
-	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf4_rowscroll)
+	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf3_data_r, deco16ic_pf3_data_w)
+	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf4_data_r, deco16ic_pf4_data_w)
+	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf3_rowscroll)
+	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf4_rowscroll)
 
 	AM_RANGE(0x17ff22, 0x17ff23) AM_READ_PORT("DSW")
 	AM_RANGE(0x17ff28, 0x17ff29) AM_READ_PORT("IN1")
-	AM_RANGE(0x17ff2a, 0x17ff2b) AM_WRITE(stoneage_sound_w)
+	AM_RANGE(0x17ff2a, 0x17ff2b) AM_WRITE(cninjabl_soundlatch_w)
 	AM_RANGE(0x17ff2c, 0x17ff2d) AM_READ_PORT("IN0")
 
 	AM_RANGE(0x180000, 0x187fff) AM_RAM // more ram on bootleg?
 
 	AM_RANGE(0x190000, 0x190007) AM_READWRITE(cninja_irq_r, cninja_irq_w)
-	AM_RANGE(0x19c000, 0x19dfff) AM_RAM_DEVWRITE("deco_common", decocomn_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
+	AM_RANGE(0x19c000, 0x19dfff) AM_RAM_DEVWRITE("deco_custom", deco16ic_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
 
 	AM_RANGE(0x1b4000, 0x1b4001) AM_WRITE(buffer_spriteram16_w) /* DMA flag */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( edrandy_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( edrandy_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM
 
 	AM_RANGE(0x140000, 0x14000f) AM_WRITE(cninja_pf12_control_w)
-	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x14c000, 0x14c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf1_rowscroll)
-	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf2_rowscroll)
+	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
+	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
+	AM_RANGE(0x14c000, 0x14c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf1_rowscroll)
+	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf2_rowscroll)
 
 	AM_RANGE(0x150000, 0x15000f) AM_WRITE(cninja_pf34_control_w)
-	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf3_rowscroll)
-	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf4_rowscroll)
+	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf3_data_r, deco16ic_pf3_data_w)
+	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf4_data_r, deco16ic_pf4_data_w)
+	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf3_rowscroll)
+	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf4_rowscroll)
 
-	AM_RANGE(0x188000, 0x189fff) AM_RAM_DEVWRITE("deco_common", decocomn_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x194000, 0x197fff) AM_RAM AM_BASE_MEMBER(cninja_state, m_ram) /* Main ram */
+	AM_RANGE(0x188000, 0x189fff) AM_RAM_DEVWRITE("deco_custom", deco16ic_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
+	AM_RANGE(0x194000, 0x197fff) AM_RAM AM_BASE_MEMBER(cninja_state, ram) /* Main ram */
 	AM_RANGE(0x198000, 0x1987ff) AM_READWRITE(deco16_60_prot_r, deco16_60_prot_w) AM_BASE(&deco16_prot_ram) /* Protection device */
 	AM_RANGE(0x199550, 0x199551) AM_WRITENOP /* Looks like a bug in game code, a protection write is referenced off a5 instead of a6 and ends up here */
 	AM_RANGE(0x199750, 0x199751) AM_WRITENOP /* Looks like a bug in game code, a protection write is referenced off a5 instead of a6 and ends up here */
@@ -251,92 +255,92 @@ static ADDRESS_MAP_START( edrandy_map, AS_PROGRAM, 16 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( robocop2_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( robocop2_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM
 
 	AM_RANGE(0x140000, 0x14000f) AM_WRITE(cninja_pf12_control_w)
-	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x14c000, 0x14c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf1_rowscroll)
-	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf2_rowscroll)
+	AM_RANGE(0x144000, 0x144fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
+	AM_RANGE(0x146000, 0x146fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
+	AM_RANGE(0x14c000, 0x14c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf1_rowscroll)
+	AM_RANGE(0x14e000, 0x14e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf2_rowscroll)
 
 	AM_RANGE(0x150000, 0x15000f) AM_WRITE(cninja_pf34_control_w)
-	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf3_rowscroll)
-	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf4_rowscroll)
+	AM_RANGE(0x154000, 0x154fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf3_data_r, deco16ic_pf3_data_w)
+	AM_RANGE(0x156000, 0x156fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf4_data_r, deco16ic_pf4_data_w)
+	AM_RANGE(0x15c000, 0x15c7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf3_rowscroll)
+	AM_RANGE(0x15e000, 0x15e7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf4_rowscroll)
 
 	AM_RANGE(0x180000, 0x1807ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
 //  AM_RANGE(0x18c000, 0x18c0ff) AM_WRITE(cninja_loopback_w) /* Protection writes */
 	AM_RANGE(0x18c000, 0x18c7ff) AM_READ(robocop2_prot_r) /* Protection device */
 	AM_RANGE(0x18c064, 0x18c065) AM_WRITE(cninja_sound_w)
 	AM_RANGE(0x198000, 0x198001) AM_WRITE(buffer_spriteram16_w) /* DMA flag */
-	AM_RANGE(0x1a8000, 0x1a9fff) AM_RAM_DEVWRITE("deco_common", decocomn_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
+	AM_RANGE(0x1a8000, 0x1a9fff) AM_RAM_DEVWRITE("deco_custom", deco16ic_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x1b0000, 0x1b0007) AM_READWRITE(cninja_irq_r, cninja_irq_w)
-	AM_RANGE(0x1b8000, 0x1bbfff) AM_RAM AM_BASE_MEMBER(cninja_state, m_ram) /* Main ram */
-	AM_RANGE(0x1f0000, 0x1f0001) AM_DEVWRITE("deco_common", decocomn_priority_w)
+	AM_RANGE(0x1b8000, 0x1bbfff) AM_RAM AM_BASE_MEMBER(cninja_state, ram) /* Main ram */
+	AM_RANGE(0x1f0000, 0x1f0001) AM_DEVWRITE("deco_custom", deco16ic_priority_w)
 	AM_RANGE(0x1f8000, 0x1f8001) AM_READ_PORT("DSW3") /* Dipswitch #3 */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mutantf_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mutantf_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x100000, 0x103fff) AM_RAM
 	AM_RANGE(0x120000, 0x1207ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
 	AM_RANGE(0x140000, 0x1407ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram2)
-	AM_RANGE(0x160000, 0x161fff) AM_RAM_DEVWRITE("deco_common", decocomn_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x180000, 0x180001) AM_DEVWRITE("deco_common", decocomn_priority_w)
+	AM_RANGE(0x160000, 0x161fff) AM_RAM_DEVWRITE("deco_custom", deco16ic_nonbuffered_palette_w) AM_BASE_GENERIC(paletteram)
+	AM_RANGE(0x180000, 0x180001) AM_DEVWRITE("deco_custom", deco16ic_priority_w)
 	AM_RANGE(0x180002, 0x180003) AM_WRITENOP /* VBL irq ack */
 	AM_RANGE(0x1a0000, 0x1a07ff) AM_READWRITE(deco16_66_prot_r, deco16_66_prot_w) AM_BASE(&deco16_prot_ram) /* Protection device */
-	AM_RANGE(0x1c0000, 0x1c0001) AM_WRITE(buffer_spriteram16_w) AM_DEVREAD("deco_common", decocomn_71_r)
+	AM_RANGE(0x1c0000, 0x1c0001) AM_WRITE(buffer_spriteram16_w) AM_DEVREAD("deco_custom", deco16ic_71_r)
 	AM_RANGE(0x1e0000, 0x1e0001) AM_WRITE(buffer_spriteram16_2_w)
 
 	AM_RANGE(0x300000, 0x30000f) AM_WRITE(cninja_pf12_control_w)
-	AM_RANGE(0x304000, 0x305fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x306000, 0x307fff) AM_DEVREADWRITE("tilegen1", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x308000, 0x3087ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf1_rowscroll)
-	AM_RANGE(0x30a000, 0x30a7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf2_rowscroll)
+	AM_RANGE(0x304000, 0x305fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
+	AM_RANGE(0x306000, 0x307fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
+	AM_RANGE(0x308000, 0x3087ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf1_rowscroll)
+	AM_RANGE(0x30a000, 0x30a7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf2_rowscroll)
 
 	AM_RANGE(0x310000, 0x31000f) AM_WRITE(cninja_pf34_control_w)
-	AM_RANGE(0x314000, 0x315fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf1_data_r, deco16ic_pf1_data_w)
-	AM_RANGE(0x316000, 0x317fff) AM_DEVREADWRITE("tilegen2", deco16ic_pf2_data_r, deco16ic_pf2_data_w)
-	AM_RANGE(0x318000, 0x3187ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf3_rowscroll)
-	AM_RANGE(0x31a000, 0x31a7ff) AM_RAM AM_BASE_MEMBER(cninja_state, m_pf4_rowscroll)
+	AM_RANGE(0x314000, 0x315fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf3_data_r, deco16ic_pf3_data_w)
+	AM_RANGE(0x316000, 0x317fff) AM_DEVREADWRITE("deco_custom", deco16ic_pf4_data_r, deco16ic_pf4_data_w)
+	AM_RANGE(0x318000, 0x3187ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf3_rowscroll)
+	AM_RANGE(0x31a000, 0x31a7ff) AM_RAM AM_BASE_MEMBER(cninja_state, pf4_rowscroll)
 
 	AM_RANGE(0xad00ac, 0xad00ff) AM_READNOP /* Reads from here seem to be a game code bug */
 ADDRESS_MAP_END
 
 /******************************************************************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x000000, 0x00ffff) AM_ROM
 	AM_RANGE(0x100000, 0x100001) AM_DEVREADWRITE("ym1", ym2203_r, ym2203_w)
 	AM_RANGE(0x110000, 0x110001) AM_DEVREADWRITE("ym2", ym2151_r, ym2151_w)
-	AM_RANGE(0x120000, 0x120001) AM_DEVREADWRITE_MODERN("oki1", okim6295_device, read, write)
-	AM_RANGE(0x130000, 0x130001) AM_DEVREADWRITE_MODERN("oki2", okim6295_device, read, write)
+	AM_RANGE(0x120000, 0x120001) AM_DEVREADWRITE("oki1", okim6295_r, okim6295_w)
+	AM_RANGE(0x130000, 0x130001) AM_DEVREADWRITE("oki2", okim6295_r, okim6295_w)
 	AM_RANGE(0x140000, 0x140001) AM_READ(soundlatch_r)
 	AM_RANGE(0x1f0000, 0x1f1fff) AM_RAMBANK("bank8")
 	AM_RANGE(0x1fec00, 0x1fec01) AM_WRITE(h6280_timer_w)
 	AM_RANGE(0x1ff400, 0x1ff403) AM_WRITE(h6280_irq_status_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map_mutantf, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map_mutantf, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x000000, 0x00ffff) AM_ROM
 	AM_RANGE(0x100000, 0x100001) AM_READNOP AM_WRITENOP
 	AM_RANGE(0x110000, 0x110001) AM_DEVREADWRITE("ymsnd", ym2151_r, ym2151_w)
-	AM_RANGE(0x120000, 0x120001) AM_DEVREADWRITE_MODERN("oki1", okim6295_device, read, write)
-	AM_RANGE(0x130000, 0x130001) AM_DEVREADWRITE_MODERN("oki2", okim6295_device, read, write)
+	AM_RANGE(0x120000, 0x120001) AM_DEVREADWRITE("oki1", okim6295_r, okim6295_w)
+	AM_RANGE(0x130000, 0x130001) AM_DEVREADWRITE("oki2", okim6295_r, okim6295_w)
 	AM_RANGE(0x140000, 0x140001) AM_READ(soundlatch_r)
 	AM_RANGE(0x1f0000, 0x1f1fff) AM_RAMBANK("bank8")
 	AM_RANGE(0x1fec00, 0x1fec01) AM_WRITE(h6280_timer_w)
 	AM_RANGE(0x1ff400, 0x1ff403) AM_WRITE(h6280_irq_status_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( stoneage_s_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( stoneage_s_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x8800, 0x8801) AM_DEVREADWRITE("ymsnd", ym2151_r, ym2151_w)
 	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)
-	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE_MODERN("oki1", okim6295_device, read, write)
+	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE("oki1", okim6295_r, okim6295_w)
 ADDRESS_MAP_END
 
 /***********************************************************
@@ -709,30 +713,30 @@ static GFXDECODE_START( mutantf )
 	GFXDECODE_ENTRY( "gfx1", 0, charlayout,          0, 64 )	/* Characters 8x8 */
 	GFXDECODE_ENTRY( "gfx2", 0, tilelayout,          0, 64 )	/* Tiles 16x16 */
 	GFXDECODE_ENTRY( "gfx3", 0, tilelayout,          0, 64 )	/* Tiles 16x16 */
-	GFXDECODE_ENTRY( "gfx4", 0, spritelayout,      0, 128 )	/* Sprites 16x16 */
-	GFXDECODE_ENTRY( "gfx5", 0, spritelayout,     0, 16 )	/* Sprites 16x16 */
+	GFXDECODE_ENTRY( "gfx4", 0, spritelayout,      256, 128 )	/* Sprites 16x16 */
+	GFXDECODE_ENTRY( "gfx5", 0, spritelayout,     1024+768, 16 )	/* Sprites 16x16 */
 GFXDECODE_END
 
 /**********************************************************************************/
 
-static void sound_irq(device_t *device, int state)
+static void sound_irq(running_device *device, int state)
 {
-	cninja_state *driver_state = device->machine().driver_data<cninja_state>();
-	device_set_input_line(driver_state->m_audiocpu, 1, state); /* IRQ 2 */
+	cninja_state *driver_state = (cninja_state *)device->machine->driver_data;
+	cpu_set_input_line(driver_state->audiocpu, 1, state); /* IRQ 2 */
 }
 
-static void sound_irq2(device_t *device, int state)
+static void sound_irq2(running_device *device, int state)
 {
-	cninja_state *driver_state = device->machine().driver_data<cninja_state>();
-	device_set_input_line(driver_state->m_audiocpu, 0, state);
+	cninja_state *driver_state = (cninja_state *)device->machine->driver_data;
+	cpu_set_input_line(driver_state->audiocpu, 0, state);
 }
 
 static WRITE8_DEVICE_HANDLER( sound_bankswitch_w )
 {
-	cninja_state *state = device->machine().driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)device->machine->driver_data;
 
 	/* the second OKIM6295 ROM is bank switched */
-	state->m_oki2->set_bank_base((data & 1) * 0x40000);
+	state->oki2->set_bank_base((data & 1) * 0x40000);
 }
 
 static const ym2151_interface ym2151_config =
@@ -770,469 +774,379 @@ static int mutantf_2_bank_callback( const int bank )
 	return ((bank >> 5) & 0x1) << 14;
 }
 
-static const decocomn_interface cninja_decocomn_intf =
+static const deco16ic_interface cninja_deco16ic_intf =
 {
 	"screen",
-};
-
-static const deco16ic_interface cninja_deco16ic_tilegen1_intf =
-{
-	"screen",
-	1, 1,
-	0x0f, 0x0f, /* trans masks (default values) */
-	0, 16, /* color base */
-	0x0f, 0x0f,	/* color masks (default values) */
+	0, 1, 1,
+	0x0f, 0x0f, 0x0f, 0x0f,	/* trans masks (default values) */
+	0, 16, 0, 48, /* color base */
+	0x0f, 0x0f, 0x0f, 0x0f,	/* color masks (default values) */
 	NULL,
 	NULL,
-	0, 1,
+	cninja_bank_callback,
+	cninja_bank_callback
 };
 
-static const deco16ic_interface cninja_deco16ic_tilegen2_intf =
+static const deco16ic_interface edrandy_deco16ic_intf =
 {
 	"screen",
-	0, 1,
-	0x0f, 0x0f,	/* trans masks (default values) */
-	0, 48, /* color base */
-	0x0f, 0x0f,	/* color masks (default values) */
-	cninja_bank_callback,
-	cninja_bank_callback,
-	0, 2,
-};
-
-
-
-static const deco16ic_interface edrandy_deco16ic_tilegen1_intf =
-{
-	"screen",
-	0, 1,
-	0x0f, 0x0f, /* trans masks (default values) */
-	0, 16, /* color base  */
-	0x0f, 0x0f, /* color masks (default values) */
+	0, 0, 1,
+	0x0f, 0x0f, 0x0f, 0x0f,	/* trans masks (default values) */
+	0, 16, 0, 48, /* color base  */
+	0x0f, 0x0f, 0x0f, 0x0f,	/* color masks (default values) */
 	NULL,
 	NULL,
-	0,1,
+	cninja_bank_callback,
+	cninja_bank_callback
 };
 
-static const deco16ic_interface edrandy_deco16ic_tilegen2_intf =
+static const deco16ic_interface robocop2_deco16ic_intf =
 {
 	"screen",
-	0, 1,
-	0x0f, 0x0f,	/* trans masks (default values) */
-	0, 48, /* color base  */
-	0x0f, 0x0f,	/* color masks (default values) */
-	cninja_bank_callback,
-	cninja_bank_callback,
-	0,2,
-};
-
-
-static const deco16ic_interface robocop2_deco16ic_tilegen1_intf =
-{
-	"screen",
-	0, 1,
-	0x0f, 0x0f,	/* trans masks (default values) */
-	0, 16, /* color base */
-	0x0f, 0x0f, /* color masks (default values) */
+	0, 0, 1,
+	0x0f, 0x0f, 0x0f, 0x0f,	/* trans masks (default values) */
+	0, 16, 0, 48, /* color base */
+	0x0f, 0x0f, 0x0f, 0x0f,	/* color masks (default values) */
 	NULL,
 	robocop2_bank_callback,
-	0,1,
+	robocop2_bank_callback,
+	robocop2_bank_callback
 };
 
-static const deco16ic_interface robocop2_deco16ic_tilegen2_intf =
+static const deco16ic_interface mutantf_deco16ic_intf =
 {
 	"screen",
-	0, 1,
-	0x0f, 0x0f,	/* trans masks (default values) */
-	0, 48, /* color base */
-	0x0f, 0x0f,	/* color masks (default values) */
-	robocop2_bank_callback,
-	robocop2_bank_callback,
-	0,2,
-};
-
-
-static const deco16ic_interface mutantf_deco16ic_tilegen1_intf =
-{
-	"screen",
-	0, 1,
-	0x0f, 0x0f,	/* trans masks (default values) */
-	0, 0x30, /* color base */
-	0x0f, 0x0f,	/* color masks (default values) */
+	0, 0, 1,
+	0x0f, 0x0f, 0x0f, 0x0f,	/* trans masks (default values) */
+	0, 0x30, 0x20, 0x40, /* color base */
+	0x0f, 0x0f, 0x0f, 0x0f,	/* color masks (default values) */
 	mutantf_1_bank_callback,
 	mutantf_2_bank_callback,
-	0,1,
-};
-
-static const deco16ic_interface mutantf_deco16ic_tilegen2_intf =
-{
-	"screen",
-	0, 1,
-	0x0f, 0x0f,	/* trans masks (default values) */
-	0x20, 0x40, /* color base */
-	0x0f, 0x0f,	/* color masks (default values) */
 	mutantf_1_bank_callback,
-	mutantf_1_bank_callback,
-	0,2,
+	mutantf_1_bank_callback
 };
-
 
 static MACHINE_START( cninja )
 {
-	cninja_state *state = machine.driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_scanline));
-	state->save_item(NAME(state->m_irq_mask));
+	state_save_register_global(machine, state->scanline);
+	state_save_register_global(machine, state->irq_mask);
 }
 
 static MACHINE_RESET( cninja )
 {
-	cninja_state *state = machine.driver_data<cninja_state>();
+	cninja_state *state = (cninja_state *)machine->driver_data;
 
-	state->m_scanline = 0;
-	state->m_irq_mask = 0;
+	state->scanline = 0;
+	state->irq_mask = 0;
 }
 
+static MACHINE_DRIVER_START( cninja )
 
-UINT16 cninja_pri_callback(UINT16 x)
-{
-	/* Sprite/playfield priority */
-	switch (x & 0xc000)
-	{
-		case 0x0000: return 0;
-		case 0x4000: return 0xf0;
-		case 0x8000: return 0xf0 | 0xcc;
-		case 0xc000: return 0xf0 | 0xcc; /* Perhaps 0xf0|0xcc|0xaa (Sprite under bottom layer) */
-	}
-
-	return 0;
-}
-
-
-static MACHINE_CONFIG_START( cninja, cninja_state )
+	/* driver data */
+	MDRV_DRIVER_DATA(cninja_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(cninja_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 12000000)
+	MDRV_CPU_PROGRAM_MAP(cninja_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", H6280,32220000/8)	/* Accurate */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", H6280,32220000/8)	/* Accurate */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(cninja)
-	MCFG_MACHINE_RESET(cninja)
+	MDRV_MACHINE_START(cninja)
+	MDRV_MACHINE_RESET(cninja)
 
-	MCFG_TIMER_ADD("raster_timer", interrupt_gen)
+	MDRV_TIMER_ADD("raster_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(cninja)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(cninja)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(cninja)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_DECOCOMN_ADD("deco_common", cninja_decocomn_intf)
+	MDRV_VIDEO_UPDATE(cninja)
 
-	MCFG_DECO16IC_ADD("tilegen1", cninja_deco16ic_tilegen1_intf)
-	MCFG_DECO16IC_ADD("tilegen2", cninja_deco16ic_tilegen2_intf)
-
-	MCFG_DEVICE_ADD("spritegen", DECO_SPRITE, 0)
-	decospr_device::set_gfx_region(*device, 3);
-	decospr_device::set_pri_callback(*device, cninja_pri_callback);
+	MDRV_DECO16IC_ADD("deco_custom", cninja_deco16ic_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 32220000/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+	MDRV_SOUND_ADD("ym1", YM2203, 32220000/8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
 
-	MCFG_SOUND_ADD("ym2", YM2151, 32220000/9)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.45)
-	MCFG_SOUND_ROUTE(1, "mono", 0.45)
+	MDRV_SOUND_ADD("ym2", YM2151, 32220000/9)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.45)
+	MDRV_SOUND_ROUTE(1, "mono", 0.45)
 
-	MCFG_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+	MDRV_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
 
-	MCFG_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( stoneage, cninja_state )
+static MACHINE_DRIVER_START( stoneage )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(cninja_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(cninja_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 12000000)
+	MDRV_CPU_PROGRAM_MAP(cninja_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3579545)
-	MCFG_CPU_PROGRAM_MAP(stoneage_s_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 3579545)
+	MDRV_CPU_PROGRAM_MAP(stoneage_s_map)
 
-	MCFG_MACHINE_START(cninja)
-	MCFG_MACHINE_RESET(cninja)
+	MDRV_MACHINE_START(cninja)
+	MDRV_MACHINE_RESET(cninja)
 
-	MCFG_TIMER_ADD("raster_timer", interrupt_gen)
+	MDRV_TIMER_ADD("raster_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(cninja)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(cninja)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(cninja)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(stoneage)
+	MDRV_VIDEO_START(stoneage)
+	MDRV_VIDEO_UPDATE(cninja)
 
-	MCFG_DECOCOMN_ADD("deco_common", cninja_decocomn_intf)
-
-	MCFG_DECO16IC_ADD("tilegen1", cninja_deco16ic_tilegen1_intf)
-	MCFG_DECO16IC_ADD("tilegen2", cninja_deco16ic_tilegen2_intf)
-
-	MCFG_DEVICE_ADD("spritegen", DECO_SPRITE, 0)
-	decospr_device::set_gfx_region(*device, 3);
-	decospr_device::set_pri_callback(*device, cninja_pri_callback);
+	MDRV_DECO16IC_ADD("deco_custom", cninja_deco16ic_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 32220000/9)
-	MCFG_SOUND_CONFIG(ym2151_interface2)
-	MCFG_SOUND_ROUTE(0, "mono", 0.45)
-	MCFG_SOUND_ROUTE(1, "mono", 0.45)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 32220000/9)
+	MDRV_SOUND_CONFIG(ym2151_interface2)
+	MDRV_SOUND_ROUTE(0, "mono", 0.45)
+	MDRV_SOUND_ROUTE(1, "mono", 0.45)
 
-	MCFG_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+	MDRV_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
 
-	MCFG_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( cninjabl, cninja_state )
+static MACHINE_DRIVER_START( cninjabl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(cninja_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(cninjabl_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 12000000)
+	MDRV_CPU_PROGRAM_MAP(cninjabl_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3579545)
-	MCFG_CPU_PROGRAM_MAP(stoneage_s_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 3579545)
+	MDRV_CPU_PROGRAM_MAP(stoneage_s_map)
 
-	MCFG_MACHINE_START(cninja)
-	MCFG_MACHINE_RESET(cninja)
+	MDRV_MACHINE_START(cninja)
+	MDRV_MACHINE_RESET(cninja)
 
-	MCFG_TIMER_ADD("raster_timer", interrupt_gen)
+	MDRV_TIMER_ADD("raster_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(cninjabl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(cninjabl)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(cninjabl)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_DECOCOMN_ADD("deco_common", cninja_decocomn_intf)
+	MDRV_VIDEO_UPDATE(cninjabl)
 
-	MCFG_DECO16IC_ADD("tilegen1", cninja_deco16ic_tilegen1_intf)
-	MCFG_DECO16IC_ADD("tilegen2", cninja_deco16ic_tilegen2_intf)
+	MDRV_DECO16IC_ADD("deco_custom", cninja_deco16ic_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 32220000/9)
-	MCFG_SOUND_CONFIG(ym2151_interface2)
-	MCFG_SOUND_ROUTE(0, "mono", 0.45)
-	MCFG_SOUND_ROUTE(1, "mono", 0.45)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 32220000/9)
+	MDRV_SOUND_CONFIG(ym2151_interface2)
+	MDRV_SOUND_ROUTE(0, "mono", 0.45)
+	MDRV_SOUND_ROUTE(1, "mono", 0.45)
 
-	MCFG_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( edrandy, cninja_state )
+static MACHINE_DRIVER_START( edrandy )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(cninja_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(edrandy_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 12000000)
+	MDRV_CPU_PROGRAM_MAP(edrandy_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", H6280,32220000/8)	/* Accurate */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", H6280,32220000/8)	/* Accurate */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(cninja)
-	MCFG_MACHINE_RESET(cninja)
+	MDRV_MACHINE_START(cninja)
+	MDRV_MACHINE_RESET(cninja)
 
-	MCFG_TIMER_ADD("raster_timer", interrupt_gen)
+	MDRV_TIMER_ADD("raster_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(edrandy)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(cninja)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(cninja)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_DECOCOMN_ADD("deco_common", cninja_decocomn_intf)
+	MDRV_VIDEO_UPDATE(edrandy)
 
-	MCFG_DECO16IC_ADD("tilegen1", edrandy_deco16ic_tilegen1_intf)
-	MCFG_DECO16IC_ADD("tilegen2", edrandy_deco16ic_tilegen2_intf)
-
-	MCFG_DEVICE_ADD("spritegen", DECO_SPRITE, 0)
-	decospr_device::set_gfx_region(*device, 3);
-	decospr_device::set_pri_callback(*device, cninja_pri_callback);
+	MDRV_DECO16IC_ADD("deco_custom", edrandy_deco16ic_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 32220000/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+	MDRV_SOUND_ADD("ym1", YM2203, 32220000/8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
 
-	MCFG_SOUND_ADD("ym2", YM2151, 32220000/9)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.45)
-	MCFG_SOUND_ROUTE(1, "mono", 0.45)
+	MDRV_SOUND_ADD("ym2", YM2151, 32220000/9)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.45)
+	MDRV_SOUND_ROUTE(1, "mono", 0.45)
 
-	MCFG_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+	MDRV_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
 
-	MCFG_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.60)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( robocop2, cninja_state )
+static MACHINE_DRIVER_START( robocop2 )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(cninja_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 14000000)
-	MCFG_CPU_PROGRAM_MAP(robocop2_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 14000000)
+	MDRV_CPU_PROGRAM_MAP(robocop2_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", H6280,32220000/8)	/* Accurate */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", H6280,32220000/8)	/* Accurate */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(cninja)
-	MCFG_MACHINE_RESET(cninja)
+	MDRV_MACHINE_START(cninja)
+	MDRV_MACHINE_RESET(cninja)
 
-	MCFG_TIMER_ADD("raster_timer", interrupt_gen)
+	MDRV_TIMER_ADD("raster_timer", interrupt_gen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(robocop2)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(robocop2)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(robocop2)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_DECOCOMN_ADD("deco_common", cninja_decocomn_intf)
+	MDRV_VIDEO_UPDATE(robocop2)
 
-	MCFG_DECO16IC_ADD("tilegen1", robocop2_deco16ic_tilegen1_intf)
-	MCFG_DECO16IC_ADD("tilegen2", robocop2_deco16ic_tilegen2_intf)
-
-	MCFG_DEVICE_ADD("spritegen", DECO_SPRITE, 0)
-	decospr_device::set_gfx_region(*device, 3);
-	decospr_device::set_pri_callback(*device, cninja_pri_callback);
+	MDRV_DECO16IC_ADD("deco_custom", robocop2_deco16ic_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 32220000/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.60)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.60)
+	MDRV_SOUND_ADD("ym1", YM2203, 32220000/8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.60)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.60)
 
-	MCFG_SOUND_ADD("ym2", YM2151, 32220000/9)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.45)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.45)
+	MDRV_SOUND_ADD("ym2", YM2151, 32220000/9)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.45)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.45)
 
-	MCFG_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.75)
+	MDRV_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.75)
 
-	MCFG_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.60)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.60)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.60)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.60)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( mutantf, cninja_state )
+static MACHINE_DRIVER_START( mutantf )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(cninja_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 14000000)
-	MCFG_CPU_PROGRAM_MAP(mutantf_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 14000000)
+	MDRV_CPU_PROGRAM_MAP(mutantf_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", H6280,32220000/8)
-	MCFG_CPU_PROGRAM_MAP(sound_map_mutantf)
+	MDRV_CPU_ADD("audiocpu", H6280,32220000/8)
+	MDRV_CPU_PROGRAM_MAP(sound_map_mutantf)
 
-	MCFG_MACHINE_START(cninja)
-	MCFG_MACHINE_RESET(cninja)
+	MDRV_MACHINE_START(cninja)
+	MDRV_MACHINE_RESET(cninja)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM )
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM )
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(mutantf)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
 
-	MCFG_VIDEO_START(mutantf)
+	MDRV_GFXDECODE(mutantf)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_GFXDECODE(mutantf)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_VIDEO_UPDATE(mutantf)
 
-	MCFG_DECOCOMN_ADD("deco_common", cninja_decocomn_intf)
-
-	MCFG_DECO16IC_ADD("tilegen1", mutantf_deco16ic_tilegen1_intf)
-	MCFG_DECO16IC_ADD("tilegen2", mutantf_deco16ic_tilegen2_intf)
-
-	MCFG_DEVICE_ADD("spritegen1", DECO_SPRITE, 0)
-	decospr_device::set_gfx_region(*device, 3);
-
-	MCFG_DEVICE_ADD("spritegen2", DECO_SPRITE, 0)
-	decospr_device::set_gfx_region(*device, 4);
-
+	MDRV_DECO16IC_ADD("deco_custom", mutantf_deco16ic_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 32220000/9)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.45)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.45)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 32220000/9)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.45)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.45)
 
-	MCFG_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.75)
+	MDRV_OKIM6295_ADD("oki1", 32220000/32, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.75)
 
-	MCFG_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.60)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.60)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki2", 32220000/16, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.60)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.60)
+MACHINE_DRIVER_END
 
 /**********************************************************************************/
 
@@ -1997,9 +1911,9 @@ ROM_END
 
 /**********************************************************************************/
 
-static void cninja_patch( running_machine &machine )
+static void cninja_patch( running_machine *machine )
 {
-	UINT16 *RAM = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *RAM = (UINT16 *)memory_region(machine, "maincpu");
 	int i;
 
 	for (i = 0; i < 0x80000 / 2; i++)
@@ -2027,19 +1941,19 @@ static void cninja_patch( running_machine &machine )
 
 static DRIVER_INIT( cninja )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0x1bc0a8, 0x1bc0a9, FUNC(cninja_sound_w));
+	memory_install_write16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1bc0a8, 0x1bc0a9, 0, 0, cninja_sound_w);
 	cninja_patch(machine);
 }
 
 static DRIVER_INIT( stoneage )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0x1bc0a8, 0x1bc0a9, FUNC(stoneage_sound_w));
+	memory_install_write16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1bc0a8, 0x1bc0a9, 0, 0, stoneage_sound_w);
 }
 
 static DRIVER_INIT( mutantf )
 {
-	const UINT8 *src = machine.region("gfx2")->base();
-	UINT8 *dst = machine.region("gfx1")->base();
+	const UINT8 *src = memory_region(machine, "gfx2");
+	UINT8 *dst = memory_region(machine, "gfx1");
 
 	/* The 16x16 graphic has some 8x8 chars in it - decode them in GFX1 */
 	memcpy(dst + 0x50000, dst + 0x10000, 0x10000);
@@ -2061,7 +1975,7 @@ GAME( 1991, cninja1,  cninja,  cninja,   cninja,  cninja,   ROT0, "Data East Cor
 GAME( 1991, cninjau,  cninja,  cninja,   cninjau, cninja,   ROT0, "Data East Corporation", "Caveman Ninja (US ver 4)", GAME_SUPPORTS_SAVE )
 GAME( 1991, joemac,   cninja,  cninja,   cninja,  cninja,   ROT0, "Data East Corporation", "Tatakae Genshizin Joe & Mac (Japan ver 1)", GAME_SUPPORTS_SAVE )
 GAME( 1991, stoneage, cninja,  stoneage, cninja,  stoneage, ROT0, "bootleg", "Stoneage (bootleg of Caveman Ninja)", GAME_SUPPORTS_SAVE )
-GAME( 1991, cninjabl, cninja,  cninjabl, cninja,  0,        ROT0, "bootleg",               "Caveman Ninja (bootleg)", GAME_SUPPORTS_SAVE )
+GAME( 1991, cninjabl, cninja,  cninjabl, cninja,  0,        ROT0, "bootleg", "Caveman Ninja (bootleg)", GAME_NOT_WORKING | GAME_SUPPORTS_SAVE )
 GAME( 1991, robocop2, 0,       robocop2, robocop2,0,        ROT0, "Data East Corporation", "Robocop 2 (Euro/Asia v0.10)", GAME_SUPPORTS_SAVE )
 GAME( 1991, robocop2u,robocop2,robocop2, robocop2,0,        ROT0, "Data East Corporation", "Robocop 2 (US v0.05)", GAME_SUPPORTS_SAVE )
 GAME( 1991, robocop2j,robocop2,robocop2, robocop2,0,        ROT0, "Data East Corporation", "Robocop 2 (Japan v0.11)", GAME_SUPPORTS_SAVE )

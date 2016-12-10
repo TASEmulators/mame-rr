@@ -34,10 +34,9 @@ struct _i4004_state
 	UINT8	flags; // used for I/O only
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *data;
-	address_space *io;
+	const address_space *program;
+	const address_space *data;
+	const address_space *io;
 	int					icount;
 	int 				pc_pos; // PC possition in ADDR
 	int					addr_mask;
@@ -52,7 +51,7 @@ struct _i4004_state
     INLINE FUNCTIONS
 ***************************************************************************/
 
-INLINE i4004_state *get_safe_token(device_t *device)
+INLINE i4004_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == I4004);
@@ -61,7 +60,7 @@ INLINE i4004_state *get_safe_token(device_t *device)
 
 INLINE UINT8 ROP(i4004_state *cpustate)
 {
-	UINT8 retVal = cpustate->direct->read_decrypted_byte(GET_PC.w.l);
+	UINT8 retVal = memory_decrypted_read_byte(cpustate->program, GET_PC.w.l);
 	GET_PC.w.l = (GET_PC.w.l + 1) & 0x0fff;
 	cpustate->PC = GET_PC;
 	return retVal;
@@ -69,19 +68,19 @@ INLINE UINT8 ROP(i4004_state *cpustate)
 
 INLINE UINT8 READ_ROM(i4004_state *cpustate)
 {
-	return cpustate->direct->read_decrypted_byte((GET_PC.w.l & 0x0f00) | cpustate->R[0]);
+	return memory_decrypted_read_byte(cpustate->program, (GET_PC.w.l & 0x0f00) | cpustate->R[0]);
 }
 
 INLINE void WPM(i4004_state *cpustate)
 {
-	UINT8 t =  (cpustate->program->read_byte(cpustate->RAM.d) << 4) | cpustate->A;
-	cpustate->program->write_byte((GET_PC.w.l & 0x0f00) | cpustate->RAM.d, t);
+	UINT8 t =  (memory_read_byte_8le(cpustate->program, cpustate->RAM.d) << 4) | cpustate->A;
+	memory_write_byte_8le(cpustate->program, (GET_PC.w.l & 0x0f00) | cpustate->RAM.d, t);
 }
 
 
 INLINE UINT8 ARG(i4004_state *cpustate)
 {
-	UINT8 retVal = cpustate->direct->read_raw_byte(GET_PC.w.l);
+	UINT8 retVal = memory_raw_read_byte(cpustate->program, GET_PC.w.l);
 	GET_PC.w.l = (GET_PC.w.l + 1) & 0x0fff;
 	cpustate->PC = GET_PC;
 	return retVal;
@@ -89,40 +88,40 @@ INLINE UINT8 ARG(i4004_state *cpustate)
 
 INLINE UINT8 RM(i4004_state *cpustate)
 {
-	return cpustate->data->read_byte(cpustate->RAM.d) & 0x0f;
+	return memory_read_byte_8le(cpustate->data, cpustate->RAM.d) & 0x0f;
 }
 
 INLINE UINT8 RMS(i4004_state *cpustate, UINT32 a)
 {
-	return cpustate->data->read_byte((cpustate->RAM.d & 0xff0) + a) >> 4;
+	return memory_read_byte_8le(cpustate->data, (cpustate->RAM.d & 0xff0) + a) >> 4;
 }
 
 INLINE void WM(i4004_state *cpustate, UINT8 v)
 {
-	UINT8 t =  cpustate->data->read_byte(cpustate->RAM.d);
-	cpustate->data->write_byte(cpustate->RAM.d, (t & 0xf0) | v);
+	UINT8 t =  memory_read_byte_8le(cpustate->data, cpustate->RAM.d);
+	memory_write_byte_8le(cpustate->data, cpustate->RAM.d, (t & 0xf0) | v);
 }
 
 
 INLINE void WMP(i4004_state *cpustate, UINT8 v)
 {
-	cpustate->io->write_byte((cpustate->RAM.d >> 6) | 0x10, v & 0x0f);
+	memory_write_byte_8le(cpustate->io, (cpustate->RAM.d >> 6) | 0x10, v & 0x0f);
 }
 
 INLINE void WMS(i4004_state *cpustate, UINT32 a, UINT8 v)
 {
-	UINT8 t =  cpustate->data->read_byte((cpustate->RAM.d & 0xff0) + a);
-	cpustate->data->write_byte((cpustate->RAM.d & 0xff0) + a, (t & 0x0f) | (v<<4));
+	UINT8 t =  memory_read_byte_8le(cpustate->data, (cpustate->RAM.d & 0xff0) + a);
+	memory_write_byte_8le(cpustate->data,(cpustate->RAM.d & 0xff0) + a, (t & 0x0f) | (v<<4));
 }
 
 INLINE UINT8 RIO(i4004_state *cpustate)
 {
-	return cpustate->io->read_byte(cpustate->RAM.b.l >> 4) & 0x0f;
+	return memory_read_byte_8le(cpustate->io, cpustate->RAM.b.l >> 4) & 0x0f;
 }
 
 INLINE void WIO(i4004_state *cpustate, UINT8 v)
 {
-	cpustate->io->write_byte(cpustate->RAM.b.l >> 4, v & 0x0f);
+	memory_write_byte_8le(cpustate->io, cpustate->RAM.b.l >> 4, v & 0x0f);
 }
 
 INLINE UINT8 GET_REG(i4004_state *cpustate, UINT8 num)
@@ -155,7 +154,7 @@ INLINE void POP_STACK(i4004_state *cpustate)
 	cpustate->pc_pos = (cpustate->pc_pos - 1) & cpustate->addr_mask;
 }
 
-void i4004_set_test(device_t *device, UINT8 val)
+void i4004_set_test(running_device *device, UINT8 val)
 {
 	i4004_state *cpustate = get_safe_token(device);
 	cpustate->TEST = val;
@@ -464,28 +463,27 @@ static CPU_INIT( i4004 )
 	cpustate->device = device;
 
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->data = device->space(AS_DATA);
 	cpustate->io = device->space(AS_IO);
 
-	device->save_item(NAME(cpustate->PC));
-	device->save_item(NAME(cpustate->A));
-	device->save_item(NAME(cpustate->C));
-	device->save_item(NAME(cpustate->TEST));
-	device->save_item(NAME(cpustate->pc_pos));
-	device->save_item(NAME(cpustate->ADDR[0]));
-	device->save_item(NAME(cpustate->ADDR[1]));
-	device->save_item(NAME(cpustate->ADDR[2]));
-	device->save_item(NAME(cpustate->ADDR[3]));
-	device->save_item(NAME(cpustate->R[0]));
-	device->save_item(NAME(cpustate->R[1]));
-	device->save_item(NAME(cpustate->R[2]));
-	device->save_item(NAME(cpustate->R[3]));
-	device->save_item(NAME(cpustate->R[4]));
-	device->save_item(NAME(cpustate->R[5]));
-	device->save_item(NAME(cpustate->R[6]));
-	device->save_item(NAME(cpustate->R[7]));
-	device->save_item(NAME(cpustate->RAM));
+	state_save_register_device_item(device, 0, cpustate->PC);
+	state_save_register_device_item(device, 0, cpustate->A);
+	state_save_register_device_item(device, 0, cpustate->C);
+	state_save_register_device_item(device, 0, cpustate->TEST);
+	state_save_register_device_item(device, 0, cpustate->pc_pos);
+	state_save_register_device_item(device, 0, cpustate->ADDR[0]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[1]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[2]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[3]);
+	state_save_register_device_item(device, 0, cpustate->R[0]);
+	state_save_register_device_item(device, 0, cpustate->R[1]);
+	state_save_register_device_item(device, 0, cpustate->R[2]);
+	state_save_register_device_item(device, 0, cpustate->R[3]);
+	state_save_register_device_item(device, 0, cpustate->R[4]);
+	state_save_register_device_item(device, 0, cpustate->R[5]);
+	state_save_register_device_item(device, 0, cpustate->R[6]);
+	state_save_register_device_item(device, 0, cpustate->R[7]);
+	state_save_register_device_item(device, 0, cpustate->RAM);
 }
 
 
@@ -585,17 +583,17 @@ CPU_GET_INFO( i4004 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 8;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 16;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:		info->i = 12;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:		info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: 		info->i = 12;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: 		info->i = 0;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:			info->i = 12;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:			info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:			info->i = 12;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:			info->i = 0;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:				info->i = 8;							break; // Only lower 4 bits used
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:				info->i = 6;							break; // 4 I/O for each ROM chip and 4 OUT for each RAM
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:				info->i = 0;							break; // There could be 4 chips in 16 banks for RAM
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break; // Only lower 4 bits used
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 6;							break; // 4 I/O for each ROM chip and 4 OUT for each RAM
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:				info->i = 0;							break; // There could be 4 chips in 16 banks for RAM
 
 		/* --- the following bits of info are returned as pointers to functions --- */
 		case CPUINFO_FCT_SET_INFO:		info->setinfo = CPU_SET_INFO_NAME(i4004);				break;
@@ -616,8 +614,6 @@ CPU_GET_INFO( i4004 )
 		case DEVINFO_STR_VERSION:					strcpy(info->s, "1.0");					break;
 		case DEVINFO_STR_SOURCE_FILE:				strcpy(info->s, __FILE__);				break;
 		case DEVINFO_STR_CREDITS:					strcpy(info->s, "Copyright Miodrag Milanovic"); break;
-
-		case CPUINFO_IS_OCTAL:						info->i = true;							break;
 	}
 }
 

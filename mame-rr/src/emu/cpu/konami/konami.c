@@ -62,12 +62,11 @@ struct _konami_state
 	UINT8	nmi_pending;
 	int		icount;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	konami_set_lines_func setlines_callback;
 };
 
-INLINE konami_state *get_safe_token(device_t *device)
+INLINE konami_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == KONAMI);
@@ -117,12 +116,12 @@ INLINE konami_state *get_safe_token(device_t *device)
 
 #define KONAMI_CWAI		8	/* set when CWAI is waiting for an interrupt */
 #define KONAMI_SYNC		16	/* set when SYNC is waiting for an interrupt */
-#define KONAMI_LDS		32	/* set when LDS occurred at least once */
+#define KONAMI_LDS		32	/* set when LDS occured at least once */
 
-#define RM(cs,Addr)				(cs)->program->read_byte(Addr)
-#define WM(cs,Addr,Value)		(cs)->program->write_byte(Addr,Value)
-#define ROP(cs,Addr)			(cs)->direct->read_decrypted_byte(Addr)
-#define ROP_ARG(cs,Addr)		(cs)->direct->read_raw_byte(Addr)
+#define RM(cs,Addr)				memory_read_byte_8be((cs)->program, Addr)
+#define WM(cs,Addr,Value)		memory_write_byte_8be((cs)->program, Addr,Value)
+#define ROP(cs,Addr)			memory_decrypted_read_byte((cs)->program, Addr)
+#define ROP_ARG(cs,Addr)		memory_raw_read_byte((cs)->program, Addr)
 
 #define SIGNED(a)	(UINT16)(INT16)(INT8)(a)
 
@@ -405,21 +404,20 @@ static CPU_INIT( konami )
 	cpustate->irq_callback = irqcallback;
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 
-	device->save_item(NAME(PC));
-	device->save_item(NAME(U));
-	device->save_item(NAME(S));
-	device->save_item(NAME(X));
-	device->save_item(NAME(Y));
-	device->save_item(NAME(D));
-	device->save_item(NAME(DP));
-	device->save_item(NAME(CC));
-	device->save_item(NAME(cpustate->int_state));
-	device->save_item(NAME(cpustate->nmi_state));
-	device->save_item(NAME(cpustate->nmi_pending));
-	device->save_item(NAME(cpustate->irq_state[0]));
-	device->save_item(NAME(cpustate->irq_state[1]));
+	state_save_register_device_item(device, 0, PC);
+	state_save_register_device_item(device, 0, U);
+	state_save_register_device_item(device, 0, S);
+	state_save_register_device_item(device, 0, X);
+	state_save_register_device_item(device, 0, Y);
+	state_save_register_device_item(device, 0, D);
+	state_save_register_device_item(device, 0, DP);
+	state_save_register_device_item(device, 0, CC);
+	state_save_register_device_item(device, 0, cpustate->int_state);
+	state_save_register_device_item(device, 0, cpustate->nmi_state);
+	state_save_register_device_item(device, 0, cpustate->nmi_pending);
+	state_save_register_device_item(device, 0, cpustate->irq_state[0]);
+	state_save_register_device_item(device, 0, cpustate->irq_state[1]);
 }
 
 static CPU_RESET( konami )
@@ -502,7 +500,7 @@ static CPU_EXECUTE( konami )
 }
 
 
-void konami_configure_set_lines(device_t *device, konami_set_lines_func func)
+void konami_configure_set_lines(running_device *device, konami_set_lines_func func)
 {
 	konami_state *cpustate = get_safe_token(device);
 	cpustate->setlines_callback = func;
@@ -560,15 +558,15 @@ CPU_GET_INFO( konami )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 13;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + KONAMI_IRQ_LINE:	info->i = cpustate->irq_state[KONAMI_IRQ_LINE]; break;
 		case CPUINFO_INT_INPUT_STATE + KONAMI_FIRQ_LINE:info->i = cpustate->irq_state[KONAMI_FIRQ_LINE]; break;

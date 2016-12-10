@@ -6,39 +6,39 @@
 
 #include "machine/atarigen.h"
 
-class atarig42_state : public atarigen_state
+class atarig42_state
 {
 public:
-	atarig42_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, atarig42_state(machine)); }
 
-	UINT16			m_playfield_base;
+	atarig42_state(running_machine &machine) { }
 
-	UINT16			m_current_control;
-	UINT8			m_playfield_tile_bank;
-	UINT8			m_playfield_color_bank;
-	UINT16			m_playfield_xscroll;
-	UINT16			m_playfield_yscroll;
+	atarigen_state	atarigen;
+	UINT16			playfield_base;
+	UINT16			motion_object_base;
+	UINT16			motion_object_mask;
 
-	UINT8			m_analog_data;
-	UINT16 *		m_mo_command;
+	UINT16			current_control;
+	UINT8			playfield_tile_bank;
+	UINT8			playfield_color_bank;
+	UINT16			playfield_xscroll;
+	UINT16			playfield_yscroll;
 
-	int 			m_sloop_bank;
-	int 			m_sloop_next_bank;
-	int 			m_sloop_offset;
-	int 			m_sloop_state;
-	UINT16 *		m_sloop_base;
+	UINT8			analog_data;
+	UINT16 *		mo_command;
 
-	device_t *		m_rle;
-	UINT32			m_last_accesses[8];
+	int 			sloop_bank;
+	int 			sloop_next_bank;
+	int 			sloop_offset;
+	int 			sloop_state;
+	UINT16 *		sloop_base;
 };
 
 
 /*----------- defined in video/atarig42.c -----------*/
 
 VIDEO_START( atarig42 );
-SCREEN_EOF( atarig42 );
-SCREEN_UPDATE( atarig42 );
+VIDEO_UPDATE( atarig42 );
 
 WRITE16_HANDLER( atarig42_mo_control_w );
 

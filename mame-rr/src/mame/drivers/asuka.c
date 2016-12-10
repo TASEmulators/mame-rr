@@ -232,14 +232,14 @@ DIP locations verified for:
 
 static TIMER_CALLBACK( cadash_interrupt5 )
 {
-	asuka_state *state = machine.driver_data<asuka_state>();
-	device_set_input_line(state->m_maincpu, 5, HOLD_LINE);
+	asuka_state *state = (asuka_state *)machine->driver_data;
+	cpu_set_input_line(state->maincpu, 5, HOLD_LINE);
 }
 
 static INTERRUPT_GEN( cadash_interrupt )
 {
-	device->machine().scheduler().timer_set(downcast<cpu_device *>(device)->cycles_to_attotime(500), FUNC(cadash_interrupt5));
-	device_set_input_line(device, 4, HOLD_LINE);  /* interrupt vector 4 */
+	timer_set(device->machine, downcast<cpu_device *>(device)->cycles_to_attotime(500), NULL, 0, cadash_interrupt5);
+	cpu_set_input_line(device, 4, HOLD_LINE);  /* interrupt vector 4 */
 }
 
 
@@ -249,37 +249,37 @@ static INTERRUPT_GEN( cadash_interrupt )
 
 static WRITE8_HANDLER( sound_bankswitch_w )
 {
-	memory_set_bank(space->machine(), "bank1", data & 0x03);
+	memory_set_bank(space->machine, "bank1", data & 0x03);
 }
 
 static WRITE8_DEVICE_HANDLER( sound_bankswitch_2151_w )
 {
-	memory_set_bank(device->machine(),  "bank1", data & 0x03);
+	memory_set_bank(device->machine,  "bank1", data & 0x03);
 }
 
 
 
-static void asuka_msm5205_vck( device_t *device )
+static void asuka_msm5205_vck( running_device *device )
 {
-	asuka_state *state = device->machine().driver_data<asuka_state>();
+	asuka_state *state = (asuka_state *)device->machine->driver_data;
 
-	if (state->m_adpcm_data != -1)
+	if (state->adpcm_data != -1)
 	{
-		msm5205_data_w(device, state->m_adpcm_data & 0x0f);
-		state->m_adpcm_data = -1;
+		msm5205_data_w(device, state->adpcm_data & 0x0f);
+		state->adpcm_data = -1;
 	}
 	else
 	{
-		state->m_adpcm_data = device->machine().region("ymsnd")->base()[state->m_adpcm_pos];
-		state->m_adpcm_pos = (state->m_adpcm_pos + 1) & 0xffff;
-		msm5205_data_w(device, state->m_adpcm_data >> 4);
+		state->adpcm_data = memory_region(device->machine, "ymsnd")[state->adpcm_pos];
+		state->adpcm_pos = (state->adpcm_pos + 1) & 0xffff;
+		msm5205_data_w(device, state->adpcm_data >> 4);
 	}
 }
 
 static WRITE8_HANDLER( asuka_msm5205_address_w )
 {
-	asuka_state *state = space->machine().driver_data<asuka_state>();
-	state->m_adpcm_pos = (state->m_adpcm_pos & 0x00ff) | (data << 8);
+	asuka_state *state = (asuka_state *)space->machine->driver_data;
+	state->adpcm_pos = (state->adpcm_pos & 0x00ff) | (data << 8);
 }
 
 static WRITE8_DEVICE_HANDLER( asuka_msm5205_start_w )
@@ -289,9 +289,9 @@ static WRITE8_DEVICE_HANDLER( asuka_msm5205_start_w )
 
 static WRITE8_DEVICE_HANDLER( asuka_msm5205_stop_w )
 {
-	asuka_state *state = device->machine().driver_data<asuka_state>();
+	asuka_state *state = (asuka_state *)device->machine->driver_data;
 	msm5205_reset_w(device, 1);
-	state->m_adpcm_pos &= 0xff00;
+	state->adpcm_pos &= 0xff00;
 }
 
 static UINT8 *cadash_shared_ram;
@@ -311,7 +311,7 @@ static WRITE16_HANDLER( cadash_share_w )
              MEMORY STRUCTURES
 ***********************************************************/
 
-static ADDRESS_MAP_START( bonzeadv_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( bonzeadv_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x080000, 0x0fffff) AM_ROM
 	AM_RANGE(0x10c000, 0x10ffff) AM_RAM
@@ -331,7 +331,7 @@ static ADDRESS_MAP_START( bonzeadv_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xd00000, 0xd03fff) AM_DEVREADWRITE("pc090oj", pc090oj_word_r, pc090oj_word_w)	/* sprite ram */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( asuka_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( asuka_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM
 	AM_RANGE(0x100000, 0x103fff) AM_RAM
 	AM_RANGE(0x1076f0, 0x1076f1) AM_READNOP	/* Mofflott init does dummy reads here */
@@ -346,7 +346,7 @@ static ADDRESS_MAP_START( asuka_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xd00000, 0xd03fff) AM_DEVREADWRITE("pc090oj", pc090oj_word_r, pc090oj_word_w)	/* sprite ram */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cadash_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( cadash_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x080000, 0x080003) AM_WRITE(asuka_spritectrl_w)
 	AM_RANGE(0x0c0000, 0x0c0001) AM_READNOP AM_DEVWRITE8("tc0140syt", tc0140syt_port_w, 0x00ff)
@@ -360,7 +360,7 @@ static ADDRESS_MAP_START( cadash_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xc20000, 0xc2000f) AM_DEVREADWRITE("tc0100scn", tc0100scn_ctrl_word_r, tc0100scn_ctrl_word_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( eto_map, AS_PROGRAM, 16 )	/* N.B. tc100scn mirror overlaps spriteram */
+static ADDRESS_MAP_START( eto_map, ADDRESS_SPACE_PROGRAM, 16 )	/* N.B. tc100scn mirror overlaps spriteram */
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM
 	AM_RANGE(0x100000, 0x10000f) AM_DEVREADWRITE("tc0110pcr", tc0110pcr_word_r, tc0110pcr_step1_word_w)
 	AM_RANGE(0x200000, 0x203fff) AM_RAM
@@ -378,7 +378,7 @@ ADDRESS_MAP_END
 
 /***************************************************************************/
 
-static ADDRESS_MAP_START( bonzeadv_z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bonzeadv_z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
@@ -392,7 +392,7 @@ static ADDRESS_MAP_START( bonzeadv_z80_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf200, 0xf200) AM_WRITE(sound_bankswitch_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
@@ -406,7 +406,7 @@ static ADDRESS_MAP_START( z80_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 /* no MSM5205 */
-static ADDRESS_MAP_START( cadash_z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cadash_z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
@@ -425,18 +425,18 @@ Right now, the z180 is too fast, so it never checks it properly ... maybe I'm mi
 
 Internal I/O Asynchronous SCI regs are then checked ... we can't emulate this at the current time, needs two MAME instances.
 
-m68k M communicates with z180 M through shared ram, then the z180 M communicates with z180 S through these ASCI regs ... finally, the z180 S
+m68k M communicates with z180 M thru shared ram, then the z180 M communicates with z180 S thru these ASCI regs ... finally, the z180 S
 communicates with m68k S with its own shared ram. In short:
 
 m68k M -> z180 M <-> z180 S <- m68k S
 */
 
-static ADDRESS_MAP_START( cadash_sub_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cadash_sub_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_BASE(&cadash_shared_ram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cadash_sub_io, AS_IO, 8 )
+static ADDRESS_MAP_START( cadash_sub_io, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0x3f) AM_RAM // z180 internal I/O regs
 ADDRESS_MAP_END
 
@@ -769,9 +769,9 @@ GFXDECODE_END
                 SOUND
 **************************************************************/
 
-static void irq_handler(device_t *device, int irq)
+static void irq_handler(running_device *device, int irq)
 {
-	cputag_set_input_line(device->machine(), "audiocpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(device->machine, "audiocpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2610_interface ym2610_config =
@@ -835,49 +835,49 @@ static const tc0110pcr_interface asuka_tc0110pcr_intf =
 
 static MACHINE_START( asuka )
 {
-	asuka_state *state = machine.driver_data<asuka_state>();
+	asuka_state *state = (asuka_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_pc090oj = machine.device("pc090oj");
-	state->m_tc0100scn = machine.device("tc0100scn");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->pc090oj = machine->device("pc090oj");
+	state->tc0100scn = machine->device("tc0100scn");
 
 	/* configure the banks */
-	memory_configure_bank(machine, "bank1", 0, 1, machine.region("audiocpu")->base(), 0);
-	memory_configure_bank(machine, "bank1", 1, 3, machine.region("audiocpu")->base() + 0x10000, 0x04000);
+	memory_configure_bank(machine, "bank1", 0, 1, memory_region(machine, "audiocpu"), 0);
+	memory_configure_bank(machine, "bank1", 1, 3, memory_region(machine, "audiocpu") + 0x10000, 0x04000);
 
-	state->save_item(NAME(state->m_adpcm_pos));
-	state->save_item(NAME(state->m_adpcm_data));
+	state_save_register_global(machine, state->adpcm_pos);
+	state_save_register_global(machine, state->adpcm_data);
 
-	state->save_item(NAME(state->m_current_round));
-	state->save_item(NAME(state->m_current_bank));
-	state->save_item(NAME(state->m_video_ctrl));
-	state->save_item(NAME(state->m_video_mask));
-	state->save_item(NAME(state->m_cc_port));
-	state->save_item(NAME(state->m_restart_status));
-	state->save_item(NAME(state->m_cval));
+	state_save_register_global(machine, state->current_round);
+	state_save_register_global(machine, state->current_bank);
+	state_save_register_global(machine, state->video_ctrl);
+	state_save_register_global(machine, state->video_mask);
+	state_save_register_global(machine, state->cc_port);
+	state_save_register_global(machine, state->restart_status);
+	state_save_register_global_array(machine, state->cval);
 }
 
 static MACHINE_RESET( asuka )
 {
-	asuka_state *state = machine.driver_data<asuka_state>();
+	asuka_state *state = (asuka_state *)machine->driver_data;
 
-	state->m_adpcm_pos = 0;
-	state->m_adpcm_data = -1;
-	state->m_current_round = 0;
-	state->m_current_bank = 0;
-	state->m_video_ctrl = 0;
-	state->m_video_mask = 0;
-	state->m_cc_port = 0;
-	state->m_restart_status = 0;
+	state->adpcm_pos = 0;
+	state->adpcm_data = -1;
+	state->current_round = 0;
+	state->current_bank = 0;
+	state->video_ctrl = 0;
+	state->video_mask = 0;
+	state->cc_port = 0;
+	state->restart_status = 0;
 
-	memset(state->m_cval, 0, 26);
+	memset(state->cval, 0, 26);
 }
 
-static SCREEN_EOF( asuka )
+static VIDEO_EOF( asuka )
 {
-	asuka_state *state = machine.driver_data<asuka_state>();
-	pc090oj_eof_callback(state->m_pc090oj);
+	asuka_state *state = (asuka_state *)machine->driver_data;
+	pc090oj_eof_callback(state->pc090oj);
 }
 
 static const tc0220ioc_interface asuka_io_intf =
@@ -892,286 +892,304 @@ static const tc0140syt_interface asuka_tc0140syt_intf =
 	"maincpu", "audiocpu"
 };
 
-static MACHINE_CONFIG_START( bonzeadv, asuka_state )
+static MACHINE_DRIVER_START( bonzeadv )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(asuka_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 8000000)    /* checked on PCB */
-	MCFG_CPU_PROGRAM_MAP(bonzeadv_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 8000000)    /* checked on PCB */
+	MDRV_CPU_PROGRAM_MAP(bonzeadv_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,4000000)    /* sound CPU, also required for test mode */
-	MCFG_CPU_PROGRAM_MAP(bonzeadv_z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80,4000000)    /* sound CPU, also required for test mode */
+	MDRV_CPU_PROGRAM_MAP(bonzeadv_z80_map)
 
-	MCFG_MACHINE_START(asuka)
-	MCFG_MACHINE_RESET(asuka)
+	MDRV_MACHINE_START(asuka)
+	MDRV_MACHINE_RESET(asuka)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 3*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(bonzeadv)
-	MCFG_SCREEN_EOF(asuka)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 3*8, 31*8-1)
+	MDRV_GFXDECODE(asuka)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_GFXDECODE(asuka)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_VIDEO_EOF(asuka)
+	MDRV_VIDEO_UPDATE(bonzeadv)
 
-	MCFG_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
-	MCFG_TC0100SCN_ADD("tc0100scn", asuka_tc0100scn_intf)
-	MCFG_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
+	MDRV_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
+	MDRV_TC0100SCN_ADD("tc0100scn", asuka_tc0100scn_intf)
+	MDRV_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, 8000000)
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 1.0)
-	MCFG_SOUND_ROUTE(2, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2610, 8000000)
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 1.0)
+	MDRV_SOUND_ROUTE(2, "mono", 1.0)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( asuka, asuka_state )
+static MACHINE_DRIVER_START( asuka )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(asuka_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_16MHz/2)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(asuka_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_16MHz/2)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(asuka_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_16MHz/4)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(z80_map)
 
-	MCFG_MACHINE_START(asuka)
-	MCFG_MACHINE_RESET(asuka)
+	MDRV_MACHINE_START(asuka)
+	MDRV_MACHINE_RESET(asuka)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(asuka)
-	MCFG_SCREEN_EOF(asuka)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
+	MDRV_GFXDECODE(asuka)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_GFXDECODE(asuka)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_VIDEO_EOF(asuka)
+	MDRV_VIDEO_UPDATE(asuka)
 
-	MCFG_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
-	MCFG_TC0100SCN_ADD("tc0100scn", asuka_tc0100scn_intf)
-	MCFG_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
+	MDRV_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
+	MDRV_TC0100SCN_ADD("tc0100scn", asuka_tc0100scn_intf)
+	MDRV_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, XTAL_16MHz/4) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, XTAL_16MHz/4) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_SOUND_ADD("msm", MSM5205, XTAL_384kHz) /* verified on pcb */
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("msm", MSM5205, XTAL_384kHz) /* verified on pcb */
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( cadash, asuka_state )
+static MACHINE_DRIVER_START( cadash )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(asuka_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_32MHz/2)	/* 68000p12 running at 16Mhz, verified on pcb  */
-	MCFG_CPU_PROGRAM_MAP(cadash_map)
-	MCFG_CPU_VBLANK_INT("screen", cadash_interrupt)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_32MHz/2)	/* 68000p12 running at 16Mhz, verified on pcb  */
+	MDRV_CPU_PROGRAM_MAP(cadash_map)
+	MDRV_CPU_VBLANK_INT("screen", cadash_interrupt)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_8MHz/2)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(cadash_z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_8MHz/2)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(cadash_z80_map)
 
-	MCFG_CPU_ADD("subcpu", Z180, 4000000)	/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(cadash_sub_map)
-	MCFG_CPU_IO_MAP(cadash_sub_io)
+	MDRV_CPU_ADD("subcpu", Z180, 4000000)	/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(cadash_sub_map)
+	MDRV_CPU_IO_MAP(cadash_sub_io)
 
-	MCFG_MACHINE_START(asuka)
-	MCFG_MACHINE_RESET(asuka)
+	MDRV_MACHINE_START(asuka)
+	MDRV_MACHINE_RESET(asuka)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(bonzeadv)
-	MCFG_SCREEN_EOF(asuka)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
+	MDRV_GFXDECODE(asuka)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_GFXDECODE(asuka)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_VIDEO_EOF(asuka)
+	MDRV_VIDEO_UPDATE(bonzeadv)
 
-	MCFG_PC090OJ_ADD("pc090oj", cadash_pc090oj_intf)
-	MCFG_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
-	MCFG_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
+	MDRV_PC090OJ_ADD("pc090oj", cadash_pc090oj_intf)
+	MDRV_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
+	MDRV_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, XTAL_8MHz/2)	/* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, XTAL_8MHz/2)	/* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( mofflott, asuka_state )
+static MACHINE_DRIVER_START( mofflott )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(asuka_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 8000000)	/* 8 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(asuka_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 8000000)	/* 8 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(asuka_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(z80_map)
 
-	MCFG_MACHINE_START(asuka)
-	MCFG_MACHINE_RESET(asuka)
+	MDRV_MACHINE_START(asuka)
+	MDRV_MACHINE_RESET(asuka)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(asuka)
-	MCFG_SCREEN_EOF(asuka)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
+	MDRV_GFXDECODE(asuka)
+	MDRV_PALETTE_LENGTH(4096)	/* only Mofflott uses full palette space */
 
-	MCFG_GFXDECODE(asuka)
-	MCFG_PALETTE_LENGTH(4096)	/* only Mofflott uses full palette space */
+	MDRV_VIDEO_EOF(asuka)
+	MDRV_VIDEO_UPDATE(asuka)
 
-	MCFG_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
-	MCFG_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
-	MCFG_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
+	MDRV_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
+	MDRV_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
+	MDRV_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 4000000)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 4000000)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_SOUND_ADD("msm", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( galmedes, asuka_state )
+static MACHINE_DRIVER_START( galmedes )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(asuka_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 8000000)	/* 8 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(asuka_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 8000000)	/* 8 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(asuka_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(cadash_z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(cadash_z80_map)
 
-	MCFG_MACHINE_START(asuka)
-	MCFG_MACHINE_RESET(asuka)
+	MDRV_MACHINE_START(asuka)
+	MDRV_MACHINE_RESET(asuka)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(asuka)
-	MCFG_SCREEN_EOF(asuka)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
+	MDRV_GFXDECODE(asuka)
+	MDRV_PALETTE_LENGTH(4096)	/* only Mofflott uses full palette space */
 
-	MCFG_GFXDECODE(asuka)
-	MCFG_PALETTE_LENGTH(4096)	/* only Mofflott uses full palette space */
+	MDRV_VIDEO_EOF(asuka)
+	MDRV_VIDEO_UPDATE(asuka)
 
-	MCFG_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
-	MCFG_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
-	MCFG_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
+	MDRV_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
+	MDRV_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
+	MDRV_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 4000000)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 4000000)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( eto, asuka_state )
+static MACHINE_DRIVER_START( eto )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(asuka_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 8000000)	/* 8 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(eto_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 8000000)	/* 8 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(eto_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(cadash_z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(cadash_z80_map)
 
-	MCFG_MACHINE_START(asuka)
-	MCFG_MACHINE_RESET(asuka)
+	MDRV_MACHINE_START(asuka)
+	MDRV_MACHINE_RESET(asuka)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", asuka_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(asuka)
-	MCFG_SCREEN_EOF(asuka)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 32*8-1)
+	MDRV_GFXDECODE(asuka)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_GFXDECODE(asuka)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_VIDEO_EOF(asuka)
+	MDRV_VIDEO_UPDATE(asuka)
 
-	MCFG_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
-	MCFG_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
-	MCFG_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
+	MDRV_PC090OJ_ADD("pc090oj", asuka_pc090oj_intf)
+	MDRV_TC0100SCN_ADD("tc0100scn", cadash_tc0100scn_intf)
+	MDRV_TC0110PCR_ADD("tc0110pcr", asuka_tc0110pcr_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 4000000)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.50)
-	MCFG_SOUND_ROUTE(1, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 4000000)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.50)
+	MDRV_SOUND_ROUTE(1, "mono", 0.50)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", asuka_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

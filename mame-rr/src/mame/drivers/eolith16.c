@@ -16,18 +16,8 @@
 #include "sound/okim6295.h"
 #include "includes/eolithsp.h"
 
-
-class eolith16_state : public driver_device
-{
-public:
-	eolith16_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT16 *m_vram;
-	int m_vbuffer;
-};
-
-
+static UINT16 *vram;
+static int vbuffer = 0;
 
 // It's configured for 512 bytes
 static const eeprom_interface eeprom_interface_93C66 =
@@ -43,11 +33,10 @@ static const eeprom_interface eeprom_interface_93C66 =
 
 static WRITE16_HANDLER( eeprom_w )
 {
-	eolith16_state *state = space->machine().driver_data<eolith16_state>();
-	state->m_vbuffer = (data & 0x80) >> 7;
-	coin_counter_w(space->machine(), 0, data & 1);
+	vbuffer = (data & 0x80) >> 7;
+	coin_counter_w(space->machine, 0, data & 1);
 
-	input_port_write(space->machine(), "EEPROMOUT", data, 0xff);
+	input_port_write(space->machine, "EEPROMOUT", data, 0xff);
 
 	//data & 0x100 and data & 0x004 always set
 }
@@ -55,29 +44,27 @@ static WRITE16_HANDLER( eeprom_w )
 static READ16_HANDLER( eolith16_custom_r )
 {
 	eolith_speedup_read(space);
-	return input_port_read(space->machine(), "SPECIAL");
+	return input_port_read(space->machine, "SPECIAL");
 }
 
 
 
 static WRITE16_HANDLER( vram_w )
 {
-	eolith16_state *state = space->machine().driver_data<eolith16_state>();
-	COMBINE_DATA(&state->m_vram[offset + (0x10000/2) * state->m_vbuffer]);
+	COMBINE_DATA(&vram[offset + (0x10000/2) * vbuffer]);
 }
 
 static READ16_HANDLER( vram_r )
 {
-	eolith16_state *state = space->machine().driver_data<eolith16_state>();
-	return state->m_vram[offset + (0x10000/2) * state->m_vbuffer];
+	return vram[offset + (0x10000/2) * vbuffer];
 }
 
-static ADDRESS_MAP_START( eolith16_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( eolith16_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x00000000, 0x001fffff) AM_RAM
 	AM_RANGE(0x50000000, 0x5000ffff) AM_READWRITE(vram_r, vram_w)
 	AM_RANGE(0x90000000, 0x9000002f) AM_WRITENOP //?
 	AM_RANGE(0xff000000, 0xff1fffff) AM_ROM AM_REGION("user2", 0)
-	AM_RANGE(0xffe40000, 0xffe40001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)
+	AM_RANGE(0xffe40000, 0xffe40001) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0x00ff)
 	AM_RANGE(0xffe80000, 0xffe80001) AM_WRITE(eeprom_w)
 	AM_RANGE(0xffea0000, 0xffea0001) AM_READ(eolith16_custom_r)
 	AM_RANGE(0xffea0002, 0xffea0003) AM_READ_PORT("SYSTEM")
@@ -88,7 +75,7 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( eolith16 )
 	PORT_START("SPECIAL")
-	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_SPECIAL ) PORT_CUSTOM(eolith_speedup_getvblank, NULL)
 	PORT_BIT( 0xff6f, IP_ACTIVE_LOW, IPT_UNUSED )
 
@@ -111,20 +98,18 @@ static INPUT_PORTS_START( eolith16 )
 	PORT_BIT( 0xffe0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START( "EEPROMOUT" )
-	PORT_BIT( 0x00000010, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_cs_line)
-	PORT_BIT( 0x00000020, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_clock_line)
-	PORT_BIT( 0x00000040, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, write_bit)
+	PORT_BIT( 0x00000010, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_cs_line)
+	PORT_BIT( 0x00000020, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_clock_line)
+	PORT_BIT( 0x00000040, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_write_bit)
 INPUT_PORTS_END
 
 static VIDEO_START( eolith16 )
 {
-	eolith16_state *state = machine.driver_data<eolith16_state>();
-	state->m_vram = auto_alloc_array(machine, UINT16, 0x10000);
+	vram = auto_alloc_array(machine, UINT16, 0x10000);
 }
 
-static SCREEN_UPDATE( eolith16 )
+static VIDEO_UPDATE( eolith16 )
 {
-	eolith16_state *state = screen->machine().driver_data<eolith16_state>();
 	int x,y,count;
 	int color;
 
@@ -133,10 +118,10 @@ static SCREEN_UPDATE( eolith16 )
 	{
 		for (x=0;x < 320/2;x++)
 		{
-			color = state->m_vram[count + (0x10000/2) * (state->m_vbuffer ^ 1)] & 0xff;
+			color = vram[count + (0x10000/2) * (vbuffer ^ 1)] & 0xff;
 			*BITMAP_ADDR16(bitmap, y, x*2 + 0) = color;
 
-			color = (state->m_vram[count + (0x10000/2) * (state->m_vbuffer ^ 1)] & 0xff00) >> 8;
+			color = (vram[count + (0x10000/2) * (vbuffer ^ 1)] & 0xff00) >> 8;
 			*BITMAP_ADDR16(bitmap, y, x*2 + 1) = color;
 
 			count++;
@@ -172,33 +157,33 @@ static PALETTE_INIT( eolith16 )
 
 
 
-static MACHINE_CONFIG_START( eolith16, eolith16_state )
-	MCFG_CPU_ADD("maincpu", E116T, 60000000)		/* no internal multiplier */
-	MCFG_CPU_PROGRAM_MAP(eolith16_map)
-	MCFG_CPU_VBLANK_INT_HACK(eolith_speedup,262)
+static MACHINE_DRIVER_START( eolith16 )
+	MDRV_CPU_ADD("maincpu", E116T, 60000000)		/* no internal multiplier */
+	MDRV_CPU_PROGRAM_MAP(eolith16_map)
+	MDRV_CPU_VBLANK_INT_HACK(eolith_speedup,262)
 
-	MCFG_EEPROM_ADD("eeprom", eeprom_interface_93C66)
+	MDRV_EEPROM_ADD("eeprom", eeprom_interface_93C66)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 0, 199)
-	MCFG_SCREEN_UPDATE(eolith16)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 512)
+	MDRV_SCREEN_VISIBLE_AREA(0, 319, 0, 199)
 
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(eolith16)
-	MCFG_VIDEO_START(eolith16)
+	MDRV_PALETTE_INIT(eolith16)
+	MDRV_VIDEO_START(eolith16)
+	MDRV_VIDEO_UPDATE(eolith16)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 /*
 

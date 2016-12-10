@@ -6,20 +6,21 @@
 
 ***************************************************************************/
 
-class kangaroo_state : public driver_device
+class kangaroo_state
 {
 public:
-	kangaroo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, kangaroo_state(machine)); }
+
+	kangaroo_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *      m_video_control;
+	UINT8 *      video_control;
 
 	/* video-related */
-	UINT32       *m_videoram;
+	UINT32       *videoram;
 
 	/* misc */
-	UINT8        m_clock;
+	UINT8        clock;
 };
 
 
@@ -28,7 +29,7 @@ public:
 /*----------- defined in video/kangaroo.c -----------*/
 
 VIDEO_START( kangaroo );
-SCREEN_UPDATE( kangaroo );
+VIDEO_UPDATE( kangaroo );
 
 WRITE8_HANDLER( kangaroo_videoram_w );
 WRITE8_HANDLER( kangaroo_video_control_w );

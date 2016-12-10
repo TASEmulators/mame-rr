@@ -4,21 +4,22 @@
 
 ***************************************************************************/
 
-class carjmbre_state : public driver_device
+class carjmbre_state
 {
 public:
-	carjmbre_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, carjmbre_state(machine)); }
+
+	carjmbre_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_videoram;
-	UINT8 * m_spriteram;
-	size_t  m_spriteram_size;
+	UINT8 * videoram;
+	UINT8 * spriteram;
+	size_t  spriteram_size;
 
 	/* video-related */
-	tilemap_t *m_cj_tilemap;
-	UINT8   m_flipscreen;
-	UINT16  m_bgcolor;
+	tilemap_t *cj_tilemap;
+	UINT8   flipscreen;
+	UINT16  bgcolor;
 };
 
 
@@ -27,11 +28,10 @@ public:
 
 WRITE8_HANDLER( carjmbre_flipscreen_w );
 WRITE8_HANDLER( carjmbre_bgcolor_w );
-WRITE8_HANDLER( carjmbre_8806_w );
 WRITE8_HANDLER( carjmbre_videoram_w );
 
 PALETTE_INIT( carjmbre );
 VIDEO_START( carjmbre );
-SCREEN_UPDATE( carjmbre );
+VIDEO_UPDATE( carjmbre );
 
 

@@ -4,49 +4,44 @@
 
 *************************************************************************/
 
-#include "cpu/m6502/m6502.h"
-#include "machine/x2212.h"
-
-class cloud9_state : public driver_device
+class cloud9_state
 {
 public:
-	cloud9_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_maincpu(*this, "maincpu"),
-		  m_nvram(*this, "nvram") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, cloud9_state(machine)); }
+
+	cloud9_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *     m_videoram;
-	UINT8 *     m_spriteram;
-	UINT8 *     m_paletteram;
+	UINT8 *     videoram;
+	UINT8 *     spriteram;
+	UINT8 *     paletteram;
+//  UINT8 *     nvram_stage;    // currently this uses generic nvram handlers
+//  UINT8 *     nvram;      // currently this uses generic nvram handlers
 
 	/* video-related */
-	const UINT8 *m_syncprom;
-	const UINT8 *m_wpprom;
-	const UINT8 *m_priprom;
-	bitmap_t    *m_spritebitmap;
-	double      m_rweights[3];
-	double		m_gweights[3];
-	double		m_bweights[3];
-	UINT8       m_video_control[8];
-	UINT8       m_bitmode_addr[2];
+	const UINT8 *syncprom;
+	const UINT8 *wpprom;
+	const UINT8 *priprom;
+	bitmap_t    *spritebitmap;
+	double      rweights[3], gweights[3], bweights[3];
+	UINT8       video_control[8];
+	UINT8       bitmode_addr[2];
 
 	/* misc */
-	int         m_vblank_start;
-	int         m_vblank_end;
-	emu_timer   *m_irq_timer;
-	UINT8       m_irq_state;
+	int         vblank_start;
+	int         vblank_end;
+	emu_timer   *irq_timer;
+	UINT8       irq_state;
 
 	/* devices */
-	required_device<m6502_device> m_maincpu;
-	required_device<x2212_device> m_nvram;
+	running_device *maincpu;
 };
 
 
 /*----------- defined in video/cloud9.c -----------*/
 
 VIDEO_START( cloud9 );
-SCREEN_UPDATE( cloud9 );
+VIDEO_UPDATE( cloud9 );
 
 WRITE8_HANDLER( cloud9_video_control_w );
 

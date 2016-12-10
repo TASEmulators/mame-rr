@@ -9,6 +9,8 @@ Taito Super Speed Race driver
 #include "sspeedr.lh"
 #include "includes/sspeedr.h"
 
+static UINT8 led_TIME[2];
+static UINT8 led_SCORE[24];
 
 
 static PALETTE_INIT( sspeedr )
@@ -35,7 +37,7 @@ static PALETTE_INIT( sspeedr )
 
 static WRITE8_HANDLER( sspeedr_int_ack_w )
 {
-	cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
+	cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
 }
 
 
@@ -43,7 +45,7 @@ static WRITE8_HANDLER( sspeedr_lamp_w )
 {
 	output_set_value("lampGO", (data >> 0) & 1);
 	output_set_value("lampEP", (data >> 1) & 1);
-	coin_counter_w(space->machine(), 0, data & 8);
+	coin_counter_w(space->machine, 0, data & 8);
 }
 
 
@@ -53,21 +55,19 @@ static const UINT8 ls48_map[16] =
 
 static WRITE8_HANDLER( sspeedr_time_w )
 {
-	sspeedr_state *state = space->machine().driver_data<sspeedr_state>();
 	data = data & 15;
 	output_set_digit_value(0x18 + offset, ls48_map[data]);
-	state->m_led_TIME[offset] = data;
+	led_TIME[offset] = data;
 }
 
 
 static WRITE8_HANDLER( sspeedr_score_w )
 {
-	sspeedr_state *state = space->machine().driver_data<sspeedr_state>();
 	char buf[20];
 	sprintf(buf, "LED%02d", offset);
 	data = ~data & 15;
 	output_set_digit_value(offset, ls48_map[data]);
-	state->m_led_SCORE[offset] = data;
+	led_SCORE[offset] = data;
 }
 
 
@@ -77,14 +77,14 @@ static WRITE8_HANDLER( sspeedr_sound_w )
 }
 
 
-static ADDRESS_MAP_START( sspeedr_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sspeedr_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x2000, 0x21ff) AM_RAM
 	AM_RANGE(0x7f00, 0x7f17) AM_WRITE(sspeedr_score_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( sspeedr_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sspeedr_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("IN0")
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("IN1")
@@ -186,32 +186,32 @@ static GFXDECODE_START( sspeedr )
 GFXDECODE_END
 
 
-static MACHINE_CONFIG_START( sspeedr, sspeedr_state )
+static MACHINE_DRIVER_START( sspeedr )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_19_968MHz/8)
-	MCFG_CPU_PROGRAM_MAP(sspeedr_map)
-	MCFG_CPU_IO_MAP(sspeedr_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_19_968MHz/8)
+	MDRV_CPU_PROGRAM_MAP(sspeedr_map)
+	MDRV_CPU_IO_MAP(sspeedr_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.39)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(16 * 1000000 / 15680))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(376, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 375, 0, 247)
-	MCFG_SCREEN_UPDATE(sspeedr)
-	MCFG_SCREEN_EOF(sspeedr)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.39)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(16 * 1000000 / 15680))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(376, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 375, 0, 247)
 
-	MCFG_GFXDECODE(sspeedr)
-	MCFG_PALETTE_LENGTH(16)
+	MDRV_GFXDECODE(sspeedr)
+	MDRV_PALETTE_LENGTH(16)
 
-	MCFG_PALETTE_INIT(sspeedr)
-	MCFG_VIDEO_START(sspeedr)
+	MDRV_PALETTE_INIT(sspeedr)
+	MDRV_VIDEO_START(sspeedr)
+	MDRV_VIDEO_UPDATE(sspeedr)
+	MDRV_VIDEO_EOF(sspeedr)
 
 	/* sound hardware */
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
 ROM_START( sspeedr )

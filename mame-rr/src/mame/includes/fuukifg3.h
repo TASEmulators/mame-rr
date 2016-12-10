@@ -9,34 +9,38 @@
 /* NOTE: YMF278B_STD_CLOCK is defined in /src/emu/sound/ymf278b.h */
 
 
-class fuuki32_state : public driver_device
+class fuuki32_state
 {
 public:
-	fuuki32_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, fuuki32_state(machine)); }
+
+	fuuki32_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT32 *    m_vram[4];
-	UINT32 *    m_vregs;
-	UINT32 *    m_priority;
-	UINT32 *    m_tilebank;
-	UINT32 *    m_spriteram;
-	UINT32 *    m_buf_spriteram;
-	UINT32 *    m_buf_spriteram2;
-	UINT32 *    m_paletteram;
-	size_t      m_spriteram_size;
+	UINT32 *    vram_0;
+	UINT32 *    vram_1;
+	UINT32 *    vram_2;
+	UINT32 *    vram_3;
+	UINT32 *    vregs;
+	UINT32 *    priority;
+	UINT32 *    tilebank;
+	UINT32 *    spriteram;
+	UINT32 *    buf_spriteram;
+	UINT32 *    buf_spriteram2;
+	UINT32 *    paletteram;
+	size_t      spriteram_size;
 
 	/* video-related */
-	tilemap_t     *m_tilemap[4];
-	UINT32      m_spr_buffered_tilebank[2];
+	tilemap_t     *tilemap_0, *tilemap_1, *tilemap_2, *tilemap_3;
+	UINT32      spr_buffered_tilebank[2];
 
 	/* misc */
-	emu_timer   *m_raster_interrupt_timer;
-	UINT8       m_shared_ram[16];
+	emu_timer   *raster_interrupt_timer;
+	UINT8       shared_ram[16];
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 
@@ -48,5 +52,5 @@ WRITE32_HANDLER( fuuki32_vram_2_w );
 WRITE32_HANDLER( fuuki32_vram_3_w );
 
 VIDEO_START( fuuki32 );
-SCREEN_UPDATE( fuuki32 );
-SCREEN_EOF( fuuki32 );
+VIDEO_UPDATE( fuuki32 );
+VIDEO_EOF( fuuki32 );

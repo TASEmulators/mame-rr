@@ -196,7 +196,7 @@ Notes:
   change the shifter from LO to HI
 
 - Pole Position II reports 'Manual Start' on the Test Mode. This is ok,
-  because they had to accommodate the hardware from Pole Position I to allow
+  because they had to accomodate the hardware from Pole Position I to allow
   track selection.
 
 - Change POLEPOS_TOGGLE to 0 if you are using the original gearshift.
@@ -228,7 +228,6 @@ Todo:
 #include "audio/namco54.h"
 #include "includes/polepos.h"
 #include "sound/tms5220.h"
-#include "machine/nvram.h"
 
 #include "polepos.lh"
 #include "topracer.lh"
@@ -238,46 +237,58 @@ Todo:
 #define POLEPOS_TOGGLE	PORT_TOGGLE
 
 
+static UINT8 steer_last;
+static UINT8 steer_delta;
+static INT16 steer_accum;
+
+
 /*************************************************************************************/
 /* Pole Position II protection                                                       */
 /*************************************************************************************/
 
 static READ16_HANDLER( polepos2_ic25_r )
 {
-	polepos_state *state = space->machine().driver_data<polepos_state>();
 	int result;
 	/* protection states */
+	static INT16 last_result;
+	static INT8 last_signed;
+	static UINT8 last_unsigned;
 
 	offset = offset & 0x1ff;
 	if (offset < 0x100)
 	{
-		state->m_last_signed = offset & 0xff;
-		result = state->m_last_result & 0xff;
+		last_signed = offset & 0xff;
+		result = last_result & 0xff;
 	}
 	else
 	{
-		state->m_last_unsigned = offset & 0xff;
-		result = (state->m_last_result >> 8) & 0xff;
-		state->m_last_result = (INT8)state->m_last_signed * (UINT8)state->m_last_unsigned;
+		last_unsigned = offset & 0xff;
+		result = (last_result >> 8) & 0xff;
+		last_result = (INT8)last_signed * (UINT8)last_unsigned;
 	}
 
-//  logerror("%04X: read IC25 @ %04X = %02X\n", cpu_get_pc(&space->device()), offset, result);
+//  logerror("%04X: read IC25 @ %04X = %02X\n", cpu_get_pc(space->cpu), offset, result);
 
 	return result | (result << 8);
 }
 
 
+
+
+static int adc_input;
+static int auto_start_mask;
+
+
 static READ8_HANDLER( polepos_adc_r )
 {
-	polepos_state *state = space->machine().driver_data<polepos_state>();
-	return input_port_read(space->machine(), state->m_adc_input ? "ACCEL" : "BRAKE");
+	return input_port_read(space->machine, adc_input ? "ACCEL" : "BRAKE");
 }
 
 static READ8_HANDLER( polepos_ready_r )
 {
 	int ret = 0xff;
 
-	if (space->machine().primary_screen->vpos() >= 128)
+	if (space->machine->primary_screen->vpos() >= 128)
 		ret ^= 0x02;
 
 	ret ^= 0x08; /* ADC End Flag */
@@ -288,15 +299,14 @@ static READ8_HANDLER( polepos_ready_r )
 
 static WRITE8_HANDLER( polepos_latch_w )
 {
-	polepos_state *state = space->machine().driver_data<polepos_state>();
 	int bit = data & 1;
 
 	switch (offset)
 	{
 		case 0x00:	/* IRQON */
-			cpu_interrupt_enable(space->machine().device("maincpu"), bit);
+			cpu_interrupt_enable(space->machine->device("maincpu"), bit);
 			if (!bit)
-				cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
+				cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
 			break;
 
 		case 0x01:	/* IOSEL */
@@ -304,28 +314,28 @@ static WRITE8_HANDLER( polepos_latch_w )
 			break;
 
 		case 0x02:	/* CLSON */
-			polepos_sound_enable(space->machine().device("namco"),bit);
+			polepos_sound_enable(space->machine->device("namco"),bit);
 			if (!bit)
 			{
-				polepos_engine_sound_lsb_w(space->machine().device("polepos"), 0, 0);
-				polepos_engine_sound_msb_w(space->machine().device("polepos"), 0, 0);
+				polepos_engine_sound_lsb_w(space, 0, 0);
+				polepos_engine_sound_msb_w(space, 0, 0);
 			}
 			break;
 
 		case 0x03:	/* GASEL */
-			state->m_adc_input = bit;
+			adc_input = bit;
 			break;
 
 		case 0x04:	/* RESB */
-			cputag_set_input_line(space->machine(), "sub", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
+			cputag_set_input_line(space->machine, "sub", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
 			break;
 
 		case 0x05:	/* RESA */
-			cputag_set_input_line(space->machine(), "sub2", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
+			cputag_set_input_line(space->machine, "sub2", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
 			break;
 
 		case 0x06:	/* SB0 */
-			state->m_auto_start_mask = !bit;
+			auto_start_mask = !bit;
 			break;
 
 		case 0x07:	/* CHACL */
@@ -338,32 +348,28 @@ static WRITE16_HANDLER( polepos_z8002_nvi_enable_w )
 {
 	data &= 1;
 
-	cpu_interrupt_enable(&space->device(),data);
+	cpu_interrupt_enable(space->cpu,data);
 	if (!data)
-		device_set_input_line(&space->device(), 0, CLEAR_LINE);
+		cpu_set_input_line(space->cpu, 0, CLEAR_LINE);
 }
 
 
-static CUSTOM_INPUT( high_port_r ) { return input_port_read(field.machine(), (const char *)param) >> 4; }
-static CUSTOM_INPUT( low_port_r ) { return input_port_read(field.machine(), (const char *)param) & 0x0f; }
-static CUSTOM_INPUT( auto_start_r )
-{
-	polepos_state *state = field.machine().driver_data<polepos_state>();
-	return state->m_auto_start_mask;
-}
+static CUSTOM_INPUT( high_port_r ) { return input_port_read(field->port->machine, (const char *)param) >> 4; }
+static CUSTOM_INPUT( low_port_r ) { return input_port_read(field->port->machine, (const char *)param) & 0x0f; }
+static CUSTOM_INPUT( auto_start_r ) { return auto_start_mask; }
 
 static WRITE8_DEVICE_HANDLER( out_0 )
 {
 // no start lamps in pole position
-//  set_led_status(device->machine(), 1,data & 1);
-//  set_led_status(device->machine(), 0,data & 2);
-	coin_counter_w(device->machine(), 1,~data & 4);
-	coin_counter_w(device->machine(), 0,~data & 8);
+//  set_led_status(device->machine, 1,data & 1);
+//  set_led_status(device->machine, 0,data & 2);
+	coin_counter_w(device->machine, 1,~data & 4);
+	coin_counter_w(device->machine, 0,~data & 8);
 }
 
 static WRITE8_DEVICE_HANDLER( out_1 )
 {
-	coin_lockout_global_w(device->machine(), data & 1);
+	coin_lockout_global_w(device->machine, data & 1);
 }
 
 static const namco_51xx_interface namco_51xx_intf =
@@ -383,9 +389,9 @@ static const namco_51xx_interface namco_51xx_intf =
 
 static READ8_DEVICE_HANDLER( namco_52xx_rom_r )
 {
-	UINT32 length = device->machine().region("52xx")->bytes();
+	UINT32 length = memory_region_length(device->machine, "52xx");
 logerror("ROM @ %04X\n", offset);
-	return (offset < length) ? device->machine().region("52xx")->base()[offset] : 0xff;
+	return (offset < length) ? memory_region(device->machine, "52xx")[offset] : 0xff;
 }
 
 static READ8_DEVICE_HANDLER( namco_52xx_si_r )
@@ -412,31 +418,29 @@ static READ8_DEVICE_HANDLER( namco_53xx_k_r )
 
 static READ8_DEVICE_HANDLER( steering_changed_r )
 {
-	polepos_state *state = device->machine().driver_data<polepos_state>();
 	/* read the current steering value and update our delta */
-	UINT8 steer_new = input_port_read(device->machine(), "STEER");
-	state->m_steer_accum += (INT8)(steer_new - state->m_steer_last) * 2;
-	state->m_steer_last = steer_new;
+	UINT8 steer_new = input_port_read(device->machine, "STEER");
+	steer_accum += (INT8)(steer_new - steer_last) * 2;
+	steer_last = steer_new;
 
 	/* if we have delta, clock things */
-	if (state->m_steer_accum < 0)
+	if (steer_accum < 0)
 	{
-		state->m_steer_delta = 0;
-		state->m_steer_accum++;
+		steer_delta = 0;
+		steer_accum++;
 	}
-	else if (state->m_steer_accum > 0)
+	else if (steer_accum > 0)
 	{
-		state->m_steer_delta = 1;
-		state->m_steer_accum--;
+		steer_delta = 1;
+		steer_accum--;
 	}
 
-	return state->m_steer_accum & 1;
+	return steer_accum & 1;
 }
 
 static READ8_DEVICE_HANDLER( steering_delta_r )
 {
-	polepos_state *state = device->machine().driver_data<polepos_state>();
-	return state->m_steer_delta;
+	return steer_delta;
 }
 
 static const namco_53xx_interface namco_53xx_intf =
@@ -452,28 +456,9 @@ static const namco_53xx_interface namco_53xx_intf =
 };
 
 
-static TIMER_DEVICE_CALLBACK( polepos_scanline )
-{
-	int scanline = param;
-	running_machine &machine = timer.machine();
-
-	// irq0_line_assert() checks if irq is enabled - IMPORTANT!
-	// so don't replace with cputag_set_input_line()
-
-	if ((scanline == 64) || (scanline == 192))	// 64V
-		irq0_line_assert(machine.device("maincpu"));
-
-	if (scanline == 240)	// VBLANK
-	{
-		irq0_line_assert(machine.device("sub"));
-		irq0_line_assert(machine.device("sub2"));
-	}
-}
-
-
 static MACHINE_RESET( polepos )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	int i;
 
 	/* Reset all latches */
@@ -481,8 +466,8 @@ static MACHINE_RESET( polepos )
 		polepos_latch_w(space, i, 0);
 
 	/* set the interrupt vectors (this shouldn't be needed) */
-	device_set_input_line_vector(machine.device("sub"), 0, Z8000_NVI);
-	device_set_input_line_vector(machine.device("sub2"), 0, Z8000_NVI);
+	cpu_set_input_line_vector(machine->device("sub"), 0, Z8000_NVI);
+	cpu_set_input_line_vector(machine->device("sub2"), 0, Z8000_NVI);
 }
 
 
@@ -491,40 +476,41 @@ static MACHINE_RESET( polepos )
  * CPU memory structures
  *********************************************************************/
 
-static ADDRESS_MAP_START( z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x2fff) AM_ROM
-	AM_RANGE(0x3000, 0x37ff) AM_MIRROR(0x0800) AM_RAM AM_SHARE("nvram")					/* Battery Backup */
-	AM_RANGE(0x4000, 0x47ff) AM_READWRITE(polepos_sprite_r, polepos_sprite_w)			/* Motion Object */
+	AM_RANGE(0x3000, 0x37ff) AM_MIRROR(0x0800) AM_RAM AM_BASE_SIZE_GENERIC(nvram)	/* Battery Backup */
+	AM_RANGE(0x4000, 0x47ff) AM_READWRITE(polepos_sprite_r, polepos_sprite_w)				/* Motion Object */
 	AM_RANGE(0x4800, 0x4bff) AM_READWRITE(polepos_road_r, polepos_road_w)				/* Road Memory */
 	AM_RANGE(0x4c00, 0x4fff) AM_READWRITE(polepos_alpha_r, polepos_alpha_w)				/* Alphanumeric (char ram) */
 	AM_RANGE(0x5000, 0x57ff) AM_READWRITE(polepos_view_r, polepos_view_w)				/* Background Memory */
 
-	AM_RANGE(0x8000, 0x83bf) AM_MIRROR(0x0c00) AM_RAM									/* Sound Memory */
-	AM_RANGE(0x83c0, 0x83ff) AM_MIRROR(0x0c00) AM_DEVREADWRITE("namco", polepos_sound_r, polepos_sound_w)	/* Sound data */
+	AM_RANGE(0x8000, 0x83ff) AM_MIRROR(0x0c00) AM_READONLY						/* Sound Memory */
+	AM_RANGE(0x8000, 0x83bf) AM_MIRROR(0x0c00) AM_WRITEONLY						/* Sound Memory */
+	AM_RANGE(0x83c0, 0x83ff) AM_MIRROR(0x0c00) AM_DEVWRITE("namco", polepos_sound_w) AM_BASE(&polepos_soundregs)/* Sound data */
 
 	AM_RANGE(0x9000, 0x9000) AM_MIRROR(0x0eff) AM_DEVREADWRITE("06xx", namco_06xx_data_r, namco_06xx_data_w)
 	AM_RANGE(0x9100, 0x9100) AM_MIRROR(0x0eff) AM_DEVREADWRITE("06xx", namco_06xx_ctrl_r, namco_06xx_ctrl_w)
 	AM_RANGE(0xa000, 0xa000) AM_MIRROR(0x0cff) AM_READ(polepos_ready_r)					/* READY */
 	AM_RANGE(0xa000, 0xa007) AM_MIRROR(0x0cf8) AM_WRITE(polepos_latch_w)				/* misc latches */
 	AM_RANGE(0xa100, 0xa100) AM_MIRROR(0x0cff) AM_WRITE(watchdog_reset_w)				/* Watchdog */
-	AM_RANGE(0xa200, 0xa200) AM_MIRROR(0x0cff) AM_DEVWRITE("polepos", polepos_engine_sound_lsb_w)	/* Car Sound ( Lower Nibble ) */
-	AM_RANGE(0xa300, 0xa300) AM_MIRROR(0x0cff) AM_DEVWRITE("polepos", polepos_engine_sound_msb_w)	/* Car Sound ( Upper Nibble ) */
+	AM_RANGE(0xa200, 0xa200) AM_MIRROR(0x0cff) AM_WRITE(polepos_engine_sound_lsb_w) 	/* Car Sound ( Lower Nibble ) */
+	AM_RANGE(0xa300, 0xa300) AM_MIRROR(0x0cff) AM_WRITE(polepos_engine_sound_msb_w) 	/* Car Sound ( Upper Nibble ) */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( z80_io, AS_IO, 8 )
+static ADDRESS_MAP_START( z80_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ(polepos_adc_r) AM_WRITENOP
 ADDRESS_MAP_END
 
 
 /* the same memory map is used by both Z8002 CPUs; all RAM areas are shared */
-static ADDRESS_MAP_START( z8002_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( z8002_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
-	AM_RANGE(0x6000, 0x6001) AM_MIRROR(0x0ffe) AM_WRITE(polepos_z8002_nvi_enable_w)	/* NVI enable - *NOT* shared by the two CPUs */
-	AM_RANGE(0x8000, 0x8fff) AM_READWRITE(polepos_sprite16_r, polepos_sprite16_w) AM_BASE_MEMBER(polepos_state, m_sprite16_memory)	/* Motion Object */
-	AM_RANGE(0x9000, 0x97ff) AM_READWRITE(polepos_road16_r, polepos_road16_w) AM_BASE_MEMBER(polepos_state, m_road16_memory)		/* Road Memory */
-	AM_RANGE(0x9800, 0x9fff) AM_READWRITE(polepos_alpha16_r, polepos_alpha16_w) AM_BASE_MEMBER(polepos_state, m_alpha16_memory)	/* Alphanumeric (char ram) */
-	AM_RANGE(0xa000, 0xafff) AM_READWRITE(polepos_view16_r, polepos_view16_w) AM_BASE_MEMBER(polepos_state, m_view16_memory)		/* Background memory */
+	AM_RANGE(0x6000, 0x6001) AM_MIRROR(0x1ffe) AM_WRITE(polepos_z8002_nvi_enable_w)	/* NVI enable - *NOT* shared by the two CPUs */
+	AM_RANGE(0x8000, 0x8fff) AM_READWRITE(polepos_sprite16_r, polepos_sprite16_w) AM_BASE(&polepos_sprite16_memory)	/* Motion Object */
+	AM_RANGE(0x9000, 0x97ff) AM_READWRITE(polepos_road16_r, polepos_road16_w) AM_BASE(&polepos_road16_memory)		/* Road Memory */
+	AM_RANGE(0x9800, 0x9fff) AM_READWRITE(polepos_alpha16_r, polepos_alpha16_w) AM_BASE(&polepos_alpha16_memory)	/* Alphanumeric (char ram) */
+	AM_RANGE(0xa000, 0xafff) AM_READWRITE(polepos_view16_r, polepos_view16_w) AM_BASE(&polepos_view16_memory)		/* Background memory */
 	AM_RANGE(0xc000, 0xc001) AM_MIRROR(0x38fe) AM_WRITE(polepos_view16_hscroll_w)						/* Background horz scroll position */
 	AM_RANGE(0xc100, 0xc101) AM_MIRROR(0x38fe) AM_WRITE(polepos_road16_vscroll_w)						/* Road vertical position */
 ADDRESS_MAP_END
@@ -877,67 +863,74 @@ static const namco_interface namco_config =
  * Machine driver
  *********************************************************************/
 
-static MACHINE_CONFIG_START( polepos, polepos_state )
+static MACHINE_DRIVER_START( polepos )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/8)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(z80_map)
-	MCFG_CPU_IO_MAP(z80_io)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/8)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_IO_MAP(z80_io)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_assert,2)	/* 64V */
 
-	MCFG_CPU_ADD("sub", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_ADD("sub", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub2", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_ADD("sub2", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/8/2, namco_51xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_52XX_ADD("52xx", MASTER_CLOCK/8/2, namco_52xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_53XX_ADD("53xx", MASTER_CLOCK/8/2, namco_53xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/8/2, "discrete", NODE_01)	/* 1.536 MHz */
+	MDRV_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/8/2, namco_51xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_52XX_ADD("52xx", MASTER_CLOCK/8/2, namco_52xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_53XX_ADD("53xx", MASTER_CLOCK/8/2, namco_53xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/8/2, "discrete", NODE_01)	/* 1.536 MHz */
 
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/8/64, "maincpu", "51xx", "53xx", "52xx", "54xx")
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/8/64, "maincpu", "51xx", "53xx", "52xx", "54xx")
 
-	MCFG_WATCHDOG_VBLANK_INIT(16)	// 128V clocks the same as VBLANK
+	MDRV_WATCHDOG_VBLANK_INIT(16)	// 128V clocks the same as VBLANK
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* some interleaving */
+	MDRV_QUANTUM_TIME(HZ(6000))	/* some interleaving */
 
-	MCFG_MACHINE_RESET(polepos)
-	MCFG_NVRAM_ADD_1FILL("nvram")
-
-	MCFG_TIMER_ADD_SCANLINE("scantimer", polepos_scanline, "screen", 0, 1)
+	MDRV_MACHINE_RESET(polepos)
+	MDRV_NVRAM_HANDLER(generic_1fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/4, 384, 0, 256, 264, 16, 224+16)
-	MCFG_SCREEN_UPDATE(polepos)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE((double)MASTER_CLOCK/4/384/264)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(polepos)
-	MCFG_PALETTE_LENGTH(0x0f00)
-	MCFG_DEFAULT_LAYOUT(layout_polepos)
+	/* should be correct, but makes polepos2 and clones fail to boot */
+//  MDRV_SCREEN_RAW_PARAMS(MASTER_CLOCK/4, 384, 0, 256, 264, 16, 224+16)
 
-	MCFG_PALETTE_INIT(polepos)
-	MCFG_VIDEO_START(polepos)
+	MDRV_GFXDECODE(polepos)
+	MDRV_PALETTE_LENGTH(0x0f00)
+	MDRV_DEFAULT_LAYOUT(layout_polepos)
+
+	MDRV_PALETTE_INIT(polepos)
+	MDRV_VIDEO_START(polepos)
+	MDRV_VIDEO_UPDATE(polepos)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/512)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
+	MDRV_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/512)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
 
 	/* discrete circuit on the 54XX outputs */
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(polepos)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.90)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.90)
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(polepos)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.90)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.90)
 
 	/* engine sound */
-	MCFG_SOUND_ADD("polepos", POLEPOS, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.90 * 0.77)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.90 * 0.77)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("polepos", POLEPOS, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.90 * 0.77)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.90 * 0.77)
+MACHINE_DRIVER_END
 
 /* doesn't exist on the bootleg, but required for now or the game only boots in test mode!
    - they probably simulate some of the logic */
@@ -956,79 +949,84 @@ static const namco_51xx_interface namco_51xx_bl_intf =
 };
 
 
-static MACHINE_CONFIG_START( topracern, polepos_state )
+static MACHINE_DRIVER_START( topracern )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/8)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(z80_map)
-	MCFG_CPU_IO_MAP(z80_io)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/8)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_IO_MAP(z80_io)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_assert,2)	/* 64V */
 
-	MCFG_CPU_ADD("sub", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_ADD("sub", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub2", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_ADD("sub2", Z8002, MASTER_CLOCK/8)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(z8002_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
 	/* todo, remove these devices too, this bootleg doesn't have them, but the emulation doesn't boot without them.. */
-	MCFG_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/8/2, namco_51xx_bl_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/8/64, "maincpu", "51xx", NULL, NULL, NULL)
+	MDRV_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/8/2, namco_51xx_bl_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/8/64, "maincpu", "51xx", NULL, NULL, NULL)
 
-	MCFG_WATCHDOG_VBLANK_INIT(16)	// 128V clocks the same as VBLANK
+	MDRV_WATCHDOG_VBLANK_INIT(16)	// 128V clocks the same as VBLANK
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* some interleaving */
+	MDRV_QUANTUM_TIME(HZ(6000))	/* some interleaving */
 
-	MCFG_MACHINE_RESET(polepos)
-	MCFG_NVRAM_ADD_1FILL("nvram")
-
-	MCFG_TIMER_ADD_SCANLINE("scantimer", polepos_scanline, "screen", 0, 1)
+	MDRV_MACHINE_RESET(polepos)
+	MDRV_NVRAM_HANDLER(generic_1fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/4, 384, 0, 256, 264, 16, 224+16)
-	MCFG_SCREEN_UPDATE(polepos)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE((double)MASTER_CLOCK/4/384/264)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(polepos)
-	MCFG_PALETTE_LENGTH(0x0f00)
-	MCFG_DEFAULT_LAYOUT(layout_topracer)
+	MDRV_GFXDECODE(polepos)
+	MDRV_PALETTE_LENGTH(0x0f00)
+	MDRV_DEFAULT_LAYOUT(layout_topracer)
 
-	MCFG_PALETTE_INIT(polepos)
-	MCFG_VIDEO_START(polepos)
+	MDRV_PALETTE_INIT(polepos)
+	MDRV_VIDEO_START(polepos)
+	MDRV_VIDEO_UPDATE(polepos)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/512)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
+	MDRV_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/512)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
 
 	/* engine sound */
-	MCFG_SOUND_ADD("polepos", POLEPOS, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.90 * 0.77)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.90 * 0.77)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("polepos", POLEPOS, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.90 * 0.77)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.90 * 0.77)
+MACHINE_DRIVER_END
 
 
-static ADDRESS_MAP_START( sound_z80_bootleg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_z80_bootleg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2700, 0x27ff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_z80_bootleg_iomap, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_z80_bootleg_iomap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 ADDRESS_MAP_END
 
-static MACHINE_CONFIG_DERIVED( polepos2bi, topracern )
+static MACHINE_DRIVER_START( polepos2bi )
+	MDRV_IMPORT_FROM(topracern)
 
-	MCFG_CPU_ADD("soundz80bl", Z80, MASTER_CLOCK/8)	/*? MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_z80_bootleg_map)
-	MCFG_CPU_IO_MAP(sound_z80_bootleg_iomap)
+	MDRV_CPU_ADD("soundz80bl", Z80, MASTER_CLOCK/8)	/*? MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_z80_bootleg_map)
+	MDRV_CPU_IO_MAP(sound_z80_bootleg_iomap)
 
-	MCFG_SOUND_ADD("tms", TMS5220, 600000)	/* ? Mhz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("tms", TMS5220, 600000)	/* ? Mhz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
 
 
@@ -1989,15 +1987,15 @@ ROM_END
 static DRIVER_INIT( topracern )
 {
 	/* extra direct mapped inputs read */
-	machine.device("maincpu")->memory().space(AS_IO)->install_read_port(0x02, 0x02, "STEER");
-	machine.device("maincpu")->memory().space(AS_IO)->install_read_port(0x03, 0x03, "IN0");
-	machine.device("maincpu")->memory().space(AS_IO)->install_read_port(0x04, 0x04, "DSWA");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x02, 0x02, 0, 0, "STEER");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x03, 0x03, 0, 0, "IN0");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x04, 0x04, 0, 0, "DSWA");
 }
 
 static DRIVER_INIT( polepos2 )
 {
 	/* note that the bootleg version doesn't need this custom IC; it has a hacked ROM in its place */
-	machine.device("sub")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x4000, 0x5fff, FUNC(polepos2_ic25_r));
+	memory_install_read16_handler(cputag_get_address_space(machine, "sub", ADDRESS_SPACE_PROGRAM), 0x4000, 0x5fff, 0, 0, polepos2_ic25_r);
 }
 
 

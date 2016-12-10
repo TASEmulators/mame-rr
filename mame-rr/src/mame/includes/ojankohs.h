@@ -4,36 +4,35 @@
 
 *************************************************************************/
 
-class ojankohs_state : public driver_device
+class ojankohs_state
 {
 public:
-	ojankohs_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ojankohs_state(machine)); }
+
+	ojankohs_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *   m_videoram;
-	UINT8 *   m_colorram;
-	UINT8 *   m_paletteram;
+	UINT8 *   videoram;
+	UINT8 *   colorram;
+	UINT8 *   paletteram;
 
 	/* video-related */
-	tilemap_t  *m_tilemap;
-	bitmap_t   *m_tmpbitmap;
-	int       m_gfxreg;
-	int       m_flipscreen;
-	int       m_flipscreen_old;
-	int       m_scrollx;
-	int       m_scrolly;
-	int       m_screen_refresh;
+	tilemap_t  *tilemap;
+	bitmap_t   *tmpbitmap;
+	int       gfxreg;
+	int       flipscreen, flipscreen_old;
+	int       scrollx, scrolly;
+	int       screen_refresh;
 
 	/* misc */
-	int       m_portselect;
-	int       m_adpcm_reset;
-	int       m_adpcm_data;
-	int       m_vclk_left;
+	int       portselect;
+	int       adpcm_reset;
+	int       adpcm_data;
+	int       vclk_left;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_msm;
+	running_device *maincpu;
+	running_device *msm;
 };
 
 
@@ -54,8 +53,8 @@ VIDEO_START( ojankohs );
 VIDEO_START( ojankoy );
 VIDEO_START( ojankoc );
 
-SCREEN_UPDATE( ojankohs );
-SCREEN_UPDATE( ojankoc );
+VIDEO_UPDATE( ojankohs );
+VIDEO_UPDATE( ojankoc );
 
-void ojankoc_flipscreen(address_space *space, int data);
+void ojankoc_flipscreen(const address_space *space, int data);
 

@@ -98,13 +98,12 @@ struct _tms32010_state
 	int		addr_mask;
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *data;
-	address_space *io;
+	const	address_space *program;
+	const	address_space *data;
+	const	address_space *io;
 };
 
-INLINE tms32010_state *get_safe_token(device_t *device)
+INLINE tms32010_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TMS32010 ||
@@ -149,21 +148,21 @@ INLINE int add_branch_cycle(tms32010_state *cpustate);
  *  Read the state of the BIO pin
  */
 
-#define TMS32010_BIO_In (cpustate->io->read_word(TMS32010_BIO<<1))
+#define TMS32010_BIO_In (memory_read_word_16be(cpustate->io, TMS32010_BIO<<1))
 
 
 /****************************************************************************
  *  Input a word from given I/O port
  */
 
-#define TMS32010_In(Port) (cpustate->io->read_word((Port)<<1))
+#define TMS32010_In(Port) (memory_read_word_16be(cpustate->io, (Port)<<1))
 
 
 /****************************************************************************
  *  Output a word to given I/O port
  */
 
-#define TMS32010_Out(Port,Value) (cpustate->io->write_word((Port)<<1,Value))
+#define TMS32010_Out(Port,Value) (memory_write_word_16be(cpustate->io, (Port)<<1,Value))
 
 
 
@@ -171,14 +170,14 @@ INLINE int add_branch_cycle(tms32010_state *cpustate);
  *  Read a word from given ROM memory location
  */
 
-#define TMS32010_ROM_RDMEM(A) (cpustate->program->read_word((A)<<1))
+#define TMS32010_ROM_RDMEM(A) (memory_read_word_16be(cpustate->program, (A)<<1))
 
 
 /****************************************************************************
  *  Write a word to given ROM memory location
  */
 
-#define TMS32010_ROM_WRMEM(A,V) (cpustate->program->write_word((A)<<1,V))
+#define TMS32010_ROM_WRMEM(A,V) (memory_write_word_16be(cpustate->program, (A)<<1,V))
 
 
 
@@ -186,14 +185,14 @@ INLINE int add_branch_cycle(tms32010_state *cpustate);
  *  Read a word from given RAM memory location
  */
 
-#define TMS32010_RAM_RDMEM(A) (cpustate->data->read_word((A)<<1))
+#define TMS32010_RAM_RDMEM(A) (memory_read_word_16be(cpustate->data, (A)<<1))
 
 
 /****************************************************************************
  *  Write a word to given RAM memory location
  */
 
-#define TMS32010_RAM_WRMEM(A,V) (cpustate->data->write_word((A)<<1,V))
+#define TMS32010_RAM_WRMEM(A,V) (memory_write_word_16be(cpustate->data, (A)<<1,V))
 
 
 
@@ -203,7 +202,7 @@ INLINE int add_branch_cycle(tms32010_state *cpustate);
  *  used to greatly speed up emulation
  */
 
-#define TMS32010_RDOP(A) (cpustate->direct->read_decrypted_word((A)<<1))
+#define TMS32010_RDOP(A) (memory_decrypted_read_word(cpustate->program, (A)<<1))
 
 
 /****************************************************************************
@@ -212,7 +211,7 @@ INLINE int add_branch_cycle(tms32010_state *cpustate);
  *  that use different encoding mechanisms for opcodes and opcode arguments
  */
 
-#define TMS32010_RDOP_ARG(A) (cpustate->direct->read_raw_word((A)<<1))
+#define TMS32010_RDOP_ARG(A) (memory_raw_read_word(cpustate->program, (A)<<1))
 
 
 /************************************************************************
@@ -807,29 +806,28 @@ static CPU_INIT( tms32010 )
 {
 	tms32010_state *cpustate = get_safe_token(device);
 
-	device->save_item(NAME(cpustate->PC));
-	device->save_item(NAME(cpustate->PREVPC));
-	device->save_item(NAME(cpustate->STR));
-	device->save_item(NAME(cpustate->ACC.d));
-	device->save_item(NAME(cpustate->ALU.d));
-	device->save_item(NAME(cpustate->Preg.d));
-	device->save_item(NAME(cpustate->Treg));
-	device->save_item(NAME(cpustate->AR[0]));
-	device->save_item(NAME(cpustate->AR[1]));
-	device->save_item(NAME(cpustate->STACK[0]));
-	device->save_item(NAME(cpustate->STACK[1]));
-	device->save_item(NAME(cpustate->STACK[2]));
-	device->save_item(NAME(cpustate->STACK[3]));
-	device->save_item(NAME(cpustate->INTF));
-	device->save_item(NAME(cpustate->icount));
-	device->save_item(NAME(cpustate->opcode.d));
-	device->save_item(NAME(cpustate->oldacc.d));
-	device->save_item(NAME(cpustate->memaccess));
-	device->save_item(NAME(cpustate->addr_mask));
+	state_save_register_device_item(device, 0, cpustate->PC);
+	state_save_register_device_item(device, 0, cpustate->PREVPC);
+	state_save_register_device_item(device, 0, cpustate->STR);
+	state_save_register_device_item(device, 0, cpustate->ACC.d);
+	state_save_register_device_item(device, 0, cpustate->ALU.d);
+	state_save_register_device_item(device, 0, cpustate->Preg.d);
+	state_save_register_device_item(device, 0, cpustate->Treg);
+	state_save_register_device_item(device, 0, cpustate->AR[0]);
+	state_save_register_device_item(device, 0, cpustate->AR[1]);
+	state_save_register_device_item(device, 0, cpustate->STACK[0]);
+	state_save_register_device_item(device, 0, cpustate->STACK[1]);
+	state_save_register_device_item(device, 0, cpustate->STACK[2]);
+	state_save_register_device_item(device, 0, cpustate->STACK[3]);
+	state_save_register_device_item(device, 0, cpustate->INTF);
+	state_save_register_device_item(device, 0, cpustate->icount);
+	state_save_register_device_item(device, 0, cpustate->opcode.d);
+	state_save_register_device_item(device, 0, cpustate->oldacc.d);
+	state_save_register_device_item(device, 0, cpustate->memaccess);
+	state_save_register_device_item(device, 0, cpustate->addr_mask);
 
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->data = device->space(AS_DATA);
 	cpustate->io = device->space(AS_IO);
 }
@@ -913,7 +911,7 @@ static CPU_EXECUTE( tms32010 )
  *  TMS32010 Internal Memory Map
  ****************************************************************************/
 
-static ADDRESS_MAP_START( tms32010_ram, AS_DATA, 16 )
+static ADDRESS_MAP_START( tms32010_ram, ADDRESS_SPACE_DATA, 16 )
 	AM_RANGE(0x00, 0x7f) AM_RAM		/* Page 0 */
 	AM_RANGE(0x80, 0x8f) AM_RAM		/* Page 1 */
 ADDRESS_MAP_END
@@ -990,15 +988,15 @@ CPU_GET_INFO( tms32010 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 3;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 12;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -1;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = -1;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 5;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 12;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = -1;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 5;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = -1;					break;
 
 		case CPUINFO_INT_INPUT_STATE + 0:				info->i = (cpustate->INTF & TMS32010_INT_PENDING) ? ASSERT_LINE : CLEAR_LINE;	break;
 
@@ -1025,7 +1023,7 @@ CPU_GET_INFO( tms32010 )
 		case CPUINFO_FCT_BURN:							info->burn = NULL;									break;
 		case CPUINFO_FCT_DISASSEMBLE:					info->disassemble = CPU_DISASSEMBLE_NAME(tms32010);	break;
 		case CPUINFO_PTR_INSTRUCTION_COUNTER:			info->icount = &cpustate->icount;					break;
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_DATA:	info->internal_map16 = ADDRESS_MAP_NAME(tms32010_ram);	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_DATA:	info->internal_map16 = ADDRESS_MAP_NAME(tms32010_ram);	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "TMS32010");					break;
@@ -1074,7 +1072,7 @@ CPU_GET_INFO( tms32010 )
  *  TMS32015 Internal Memory Map
  ****************************************************************************/
 
-static ADDRESS_MAP_START( tms32015_ram, AS_DATA, 16 )
+static ADDRESS_MAP_START( tms32015_ram, ADDRESS_SPACE_DATA, 16 )
 	AM_RANGE(0x00, 0x7f) AM_RAM		/* Page 0 */
 	AM_RANGE(0x80, 0xff) AM_RAM		/* Page 1 */
 ADDRESS_MAP_END
@@ -1089,7 +1087,7 @@ CPU_GET_INFO( tms32015 )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as pointers to data or functions --- */
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_DATA:		info->internal_map16 = ADDRESS_MAP_NAME(tms32015_ram);	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_DATA:		info->internal_map16 = ADDRESS_MAP_NAME(tms32015_ram);	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "TMS32015");	break;
@@ -1123,7 +1121,7 @@ CPU_GET_INFO( tms32016 )
 	{
 		/* --- the following bits of info are returned as pointers to data or functions --- */
 		case CPUINFO_FCT_RESET:							info->reset = CPU_RESET_NAME(tms32016);		break;
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_DATA:		info->internal_map16 = ADDRESS_MAP_NAME(tms32015_ram);	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_DATA:		info->internal_map16 = ADDRESS_MAP_NAME(tms32015_ram);	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "TMS32016");	break;

@@ -4,45 +4,43 @@
 
 *************************************************************************/
 
-class dbz_state : public driver_device
+class dbz_state
 {
 public:
-	dbz_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, dbz_state(machine)); }
+
+	dbz_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *      m_bg1_videoram;
-	UINT16 *      m_bg2_videoram;
-//  UINT16 *      m_paletteram;    // currently this uses generic palette handling
+	UINT16 *      bg1_videoram;
+	UINT16 *      bg2_videoram;
+//  UINT16 *      paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t    *m_bg1_tilemap;
-	tilemap_t    *m_bg2_tilemap;
-	int          m_layer_colorbase[6];
-	int          m_layerpri[5];
-	int          m_sprite_colorbase;
+	tilemap_t    *bg1_tilemap, *bg2_tilemap;
+	int          layer_colorbase[6], layerpri[5], sprite_colorbase;
 
 	/* misc */
-	int           m_control;
+	int           control;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k053246;
-	device_t *m_k053251;
-	device_t *m_k056832;
-	device_t *m_k053936_1;
-	device_t *m_k053936_2;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k053246;
+	running_device *k053251;
+	running_device *k056832;
+	running_device *k053936_1;
+	running_device *k053936_2;
 };
 
 
 /*----------- defined in video/dbz.c -----------*/
 
-extern void dbz_sprite_callback(running_machine &machine, int *code, int *color, int *priority_mask);
-extern void dbz_tile_callback(running_machine &machine, int layer, int *code, int *color, int *flags);
+extern void dbz_sprite_callback(running_machine *machine, int *code, int *color, int *priority_mask);
+extern void dbz_tile_callback(running_machine *machine, int layer, int *code, int *color, int *flags);
 
 WRITE16_HANDLER(dbz_bg1_videoram_w);
 WRITE16_HANDLER(dbz_bg2_videoram_w);
 
 VIDEO_START(dbz);
-SCREEN_UPDATE(dbz);
+VIDEO_UPDATE(dbz);

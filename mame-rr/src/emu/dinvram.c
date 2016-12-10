@@ -42,6 +42,30 @@
 
 
 //**************************************************************************
+//  DEVICE CONFIG NVRAM INTERFACE
+//**************************************************************************
+
+//-------------------------------------------------
+//  device_config_nvram_interface - constructor
+//-------------------------------------------------
+
+device_config_nvram_interface::device_config_nvram_interface(const machine_config &mconfig, device_config &devconfig)
+	: device_config_interface(mconfig, devconfig)
+{
+}
+
+
+//-------------------------------------------------
+//  ~device_config_nvram_interface - destructor
+//-------------------------------------------------
+
+device_config_nvram_interface::~device_config_nvram_interface()
+{
+}
+
+
+
+//**************************************************************************
 //  DEVICE NVRAM INTERFACE
 //**************************************************************************
 
@@ -49,8 +73,9 @@
 //  device_nvram_interface - constructor
 //-------------------------------------------------
 
-device_nvram_interface::device_nvram_interface(const machine_config &mconfig, device_t &device)
-	: device_interface(device)
+device_nvram_interface::device_nvram_interface(running_machine &machine, const device_config &config, device_t &device)
+	: device_interface(machine, config, device),
+	  m_nvram_config(dynamic_cast<const device_config_nvram_interface &>(config))
 {
 }
 

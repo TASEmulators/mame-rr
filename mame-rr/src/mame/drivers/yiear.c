@@ -45,44 +45,6 @@ The 6809 NMI is used for sound timing.
 8000-ffff   R   ROM
 
 
-Additional Information
-----------------------
-
-While the arcade game itself never had them, nor are they really
-mentioned in the manual, the board supports a third button for both
-players.  This button enhances jump height on straight up jumps among
-other different stances in combination with movements.  It is now in
-the emulation, but default mapping is "n/a" and must be manually mapped
-to be used.
-
-This is a chart for the edge connector showing the location of pins for
-"Button 3" for each player.  The manual shows these without a function
-or not used.
-
-(Posted by Matt Osborne @ KLOV Forums)
-
-             Solder Side | Parts Side
-_________________________|___________________________
- NC                  | A | 1 |   +12V
- Speaker             | B | 2 |   Speaker
- 2P Button 2 (Punch) | C | 3 |   2P Button 1 (Kick)
- 2P Left             | D | 4 |   2P Right
- 1P Start            | E | 5 |   2P Start
- 1P Button 1 (Kick)  | F | 6 |   2P Up
- 1P Button 2 (Punch) | H | 7 |   Service
- 1P Right            | J | 8 |   1P Left
- 1P Up               | K | 9 |   2P Down
- Coin 1              | L | 10|   Coin 2
- 1P Down             | M | 11|   Coin Counter 1
- 1P Button 3 (Boost?)| N | 12|   Coin Counter 2
- Video Green         | P | 13|   Video Blue
- Video Red           | R | 14|   Video Sync
- NC                  | S | 15|   2P Button 3 (Boost?)
- GND                 | T | 16|   GND
- GND                 | U | 17|   GND
- +5V                 | V | 18|   +5V
-
-
 ***************************************************************************/
 
 #include "emu.h"
@@ -90,8 +52,7 @@ _________________________|___________________________
 #include "sound/sn76496.h"
 #include "sound/vlm5030.h"
 #include "includes/konamipt.h"
-#include "audio/trackfld.h"
-#include "includes/yiear.h"
+#include "includes/trackfld.h"
 
 
 static READ8_DEVICE_HANDLER( yiear_speech_r )
@@ -111,15 +72,15 @@ static WRITE8_DEVICE_HANDLER( yiear_VLM5030_control_w )
 
 static INTERRUPT_GEN( yiear_nmi_interrupt )
 {
-	yiear_state *state = device->machine().driver_data<yiear_state>();
+	trackfld_state *state = (trackfld_state *)device->machine->driver_data;
 
 	/* can't use nmi_line_pulse() because interrupt_enable_w() effects it */
-	if (state->m_yiear_nmi_enable)
-		device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	if (state->yiear_nmi_enable)
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0000) AM_DEVREAD("vlm", yiear_speech_r)
 	AM_RANGE(0x4000, 0x4000) AM_WRITE(yiear_control_w)
 	AM_RANGE(0x4800, 0x4800) AM_WRITE(konami_SN76496_latch_w)
@@ -133,9 +94,9 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x4e02, 0x4e02) AM_READ_PORT("P2")
 	AM_RANGE(0x4e03, 0x4e03) AM_READ_PORT("DSW3")
 	AM_RANGE(0x4f00, 0x4f00) AM_WRITE(watchdog_reset_w)
-	AM_RANGE(0x5000, 0x502f) AM_RAM AM_BASE_SIZE_MEMBER(yiear_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x5400, 0x542f) AM_RAM AM_BASE_MEMBER(yiear_state, m_spriteram2)
-	AM_RANGE(0x5800, 0x5fff) AM_WRITE(yiear_videoram_w) AM_BASE_MEMBER(yiear_state, m_videoram)
+	AM_RANGE(0x5000, 0x502f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, spriteram, spriteram_size)
+	AM_RANGE(0x5400, 0x542f) AM_RAM AM_BASE_MEMBER(trackfld_state, spriteram2)
+	AM_RANGE(0x5800, 0x5fff) AM_WRITE(yiear_videoram_w) AM_BASE_MEMBER(trackfld_state, videoram)
 	AM_RANGE(0x5000, 0x5fff) AM_RAM
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
@@ -153,24 +114,10 @@ static INPUT_PORTS_START( yiear )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("P1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_PLAYER(1)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT) PORT_8WAY PORT_PLAYER(1)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_8WAY PORT_PLAYER(1)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_8WAY PORT_PLAYER(1)
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1)
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1)
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) /*WTF? PORT_CODE("NONE")*/
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNUSED )
+	KONAMI8_MONO_B12_UNK
 
 	PORT_START("P2")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_COCKTAIL
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_COCKTAIL
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_8WAY PORT_COCKTAIL
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_8WAY PORT_COCKTAIL
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_COCKTAIL
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_COCKTAIL
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_COCKTAIL /*WTF? PORT_CODE("NONE")*/
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNUSED )
+	KONAMI8_COCKTAIL_B12_UNK
 
 	PORT_START("DSW1")
 	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )
@@ -244,55 +191,67 @@ GFXDECODE_END
 
 static MACHINE_START( yiear )
 {
-	yiear_state *state = machine.driver_data<yiear_state>();
+	trackfld_state *state = (trackfld_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_yiear_nmi_enable));
+	state->audiocpu = NULL;
+	state->vlm = machine->device("vlm");
+
+	state_save_register_global(machine, state->yiear_nmi_enable);
+
+	/* sound */
+	state_save_register_global(machine, state->SN76496_latch);
+	state_save_register_global(machine, state->last_addr);
+	state_save_register_global(machine, state->last_irq);
 }
 
 static MACHINE_RESET( yiear )
 {
-	yiear_state *state = machine.driver_data<yiear_state>();
+	trackfld_state *state = (trackfld_state *)machine->driver_data;
 
-	state->m_yiear_nmi_enable = 0;
+	state->yiear_nmi_enable = 0;
+	state->SN76496_latch = 0;
+	state->last_addr = 0;
+	state->last_irq = 0;
 }
 
-static MACHINE_CONFIG_START( yiear, yiear_state )
+static MACHINE_DRIVER_START( yiear )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(trackfld_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809,XTAL_18_432MHz/12)   /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-	MCFG_CPU_PERIODIC_INT(yiear_nmi_interrupt,480)	/* music tempo (correct frequency unknown) */
+	MDRV_CPU_ADD("maincpu", M6809,XTAL_18_432MHz/12)   /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_PERIODIC_INT(yiear_nmi_interrupt,480)	/* music tempo (correct frequency unknown) */
 
-	MCFG_MACHINE_START(yiear)
-	MCFG_MACHINE_RESET(yiear)
+	MDRV_MACHINE_START(yiear)
+	MDRV_MACHINE_RESET(yiear)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60.58)   /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(yiear)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60.58)   /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(yiear)
-	MCFG_PALETTE_LENGTH(32)
+	MDRV_GFXDECODE(yiear)
+	MDRV_PALETTE_LENGTH(32)
 
-	MCFG_PALETTE_INIT(yiear)
-	MCFG_VIDEO_START(yiear)
+	MDRV_PALETTE_INIT(yiear)
+	MDRV_VIDEO_START(yiear)
+	MDRV_VIDEO_UPDATE(yiear)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("trackfld_audio", TRACKFLD_AUDIO, 0)
+	MDRV_SOUND_ADD("snsnd", SN76489A, XTAL_18_432MHz/12)   /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("snsnd", SN76489A, XTAL_18_432MHz/12)   /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-
-	MCFG_SOUND_ADD("vlm", VLM5030, XTAL_3_579545MHz)   /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("vlm", VLM5030, XTAL_3_579545MHz)   /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

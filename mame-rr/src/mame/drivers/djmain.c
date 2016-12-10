@@ -64,17 +64,35 @@ hard drive  3.5 adapter     long 3.5 IDE cable      3.5 adapter   PCB
 */
 
 #include "emu.h"
+#include "deprecat.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/idectrl.h"
 #include "sound/k054539.h"
 #include "video/konicdev.h"
-#include "includes/djmain.h"
 
 
+extern UINT32 *djmain_obj_ram;
+
+VIDEO_UPDATE( djmain );
+VIDEO_START( djmain );
+extern void djmain_tile_callback(running_machine* machine, int layer, int *code, int *color, int *flags);
 
 
+static int sndram_bank;
+static UINT8 *sndram;
 
-#define DISABLE_VB_INT	(!(state->m_v_ctrl & 0x8000))
+static int turntable_select;
+static UINT8 turntable_last_pos[2];
+static UINT16 turntable_pos[2];
+
+static UINT8 pending_vb_int;
+static UINT16 v_ctrl;
+static UINT32 obj_regs[0xa0/4];
+
+static const UINT8 *ide_user_password;
+static const UINT8 *ide_master_password;
+
+#define DISABLE_VB_INT	(!(v_ctrl & 0x8000))
 
 
 
@@ -88,69 +106,65 @@ static WRITE32_HANDLER( paletteram32_w )
 {
 	int r,g,b;
 
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
-	data = space->machine().generic.paletteram.u32[offset];
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
+	data = space->machine->generic.paletteram.u32[offset];
 
 	r = (data >>  0) & 0xff;
 	g = (data >>  8) & 0xff;
 	b = (data >> 16) & 0xff;
 
-	palette_set_color(space->machine(), offset, MAKE_RGB(r, g, b));
+	palette_set_color(space->machine, offset, MAKE_RGB(r, g, b));
 }
 
 
 //---------
 
-static void sndram_set_bank(running_machine &machine)
+static void sndram_set_bank(running_machine *machine)
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
-	state->m_sndram = machine.region("shared")->base() + 0x80000 * state->m_sndram_bank;
+	sndram = memory_region(machine, "shared") + 0x80000 * sndram_bank;
 }
 
 static WRITE32_HANDLER( sndram_bank_w )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
 	if (ACCESSING_BITS_16_31)
 	{
-		state->m_sndram_bank = (data >> 16) & 0x1f;
-		sndram_set_bank(space->machine());
+		sndram_bank = (data >> 16) & 0x1f;
+		sndram_set_bank(space->machine);
 	}
 }
 
 static READ32_HANDLER( sndram_r )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
 	UINT32 data = 0;
 
 	if (ACCESSING_BITS_24_31)
-		data |= state->m_sndram[offset * 4] << 24;
+		data |= sndram[offset * 4] << 24;
 
 	if (ACCESSING_BITS_16_23)
-		data |= state->m_sndram[offset * 4 + 1] << 16;
+		data |= sndram[offset * 4 + 1] << 16;
 
 	if (ACCESSING_BITS_8_15)
-		data |= state->m_sndram[offset * 4 + 2] << 8;
+		data |= sndram[offset * 4 + 2] << 8;
 
 	if (ACCESSING_BITS_0_7)
-		data |= state->m_sndram[offset * 4 + 3];
+		data |= sndram[offset * 4 + 3];
 
 	return data;
 }
 
 static WRITE32_HANDLER( sndram_w )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
 	if (ACCESSING_BITS_24_31)
-		state->m_sndram[offset * 4] = data >> 24;
+		sndram[offset * 4] = data >> 24;
 
 	if (ACCESSING_BITS_16_23)
-		state->m_sndram[offset * 4 + 1] = data >> 16;
+		sndram[offset * 4 + 1] = data >> 16;
 
 	if (ACCESSING_BITS_8_15)
-		state->m_sndram[offset * 4 + 2] = data >> 8;
+		sndram[offset * 4 + 2] = data >> 8;
 
 	if (ACCESSING_BITS_0_7)
-		state->m_sndram[offset * 4 + 3] = data;
+		sndram[offset * 4 + 3] = data;
 }
 
 
@@ -161,9 +175,9 @@ static READ16_HANDLER( dual539_r )
 	UINT16 ret = 0;
 
 	if (ACCESSING_BITS_0_7)
-		ret |= k054539_r(space->machine().device("konami2"), offset);
+		ret |= k054539_r(space->machine->device("konami2"), offset);
 	if (ACCESSING_BITS_8_15)
-		ret |= k054539_r(space->machine().device("konami1"), offset)<<8;
+		ret |= k054539_r(space->machine->device("konami1"), offset)<<8;
 
 	return ret;
 }
@@ -171,9 +185,9 @@ static READ16_HANDLER( dual539_r )
 static WRITE16_HANDLER( dual539_w )
 {
 	if (ACCESSING_BITS_0_7)
-		k054539_w(space->machine().device("konami2"), offset, data);
+		k054539_w(space->machine->device("konami2"), offset, data);
 	if (ACCESSING_BITS_8_15)
-		k054539_w(space->machine().device("konami1"), offset, data>>8);
+		k054539_w(space->machine->device("konami1"), offset, data>>8);
 }
 
 
@@ -181,26 +195,23 @@ static WRITE16_HANDLER( dual539_w )
 
 static READ32_HANDLER( obj_ctrl_r )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
-	// read state->m_obj_regs[0x0c/4]: unknown
-	// read state->m_obj_regs[0x24/4]: unknown
+	// read obj_regs[0x0c/4]: unknown
+	// read obj_regs[0x24/4]: unknown
 
-	return state->m_obj_regs[offset];
+	return obj_regs[offset];
 }
 
 static WRITE32_HANDLER( obj_ctrl_w )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
-	// write state->m_obj_regs[0x28/4]: bank for rom readthrough
+	// write obj_regs[0x28/4]: bank for rom readthrough
 
-	COMBINE_DATA(&state->m_obj_regs[offset]);
+	COMBINE_DATA(&obj_regs[offset]);
 }
 
 static READ32_HANDLER( obj_rom_r )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
-	UINT8 *mem8 = space->machine().region("gfx1")->base();
-	int bank = state->m_obj_regs[0x28/4] >> 16;
+	UINT8 *mem8 = memory_region(space->machine, "gfx1");
+	int bank = obj_regs[0x28/4] >> 16;
 
 	offset += bank * 0x200;
 	offset *= 4;
@@ -219,26 +230,24 @@ static READ32_HANDLER( obj_rom_r )
 
 static WRITE32_HANDLER( v_ctrl_w )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
 	if (ACCESSING_BITS_16_31)
 	{
 		data >>= 16;
 		mem_mask >>= 16;
-		COMBINE_DATA(&state->m_v_ctrl);
+		COMBINE_DATA(&v_ctrl);
 
-		if (state->m_pending_vb_int && !DISABLE_VB_INT)
+		if (pending_vb_int && !DISABLE_VB_INT)
 		{
-			state->m_pending_vb_int = 0;
-			cputag_set_input_line(space->machine(), "maincpu", M68K_IRQ_4, HOLD_LINE);
+			pending_vb_int = 0;
+			cputag_set_input_line(space->machine, "maincpu", M68K_IRQ_4, HOLD_LINE);
 		}
 	}
 }
 
 static READ32_HANDLER( v_rom_r )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
-	device_t *k056832 = space->machine().device("k056832");
-	UINT8 *mem8 = space->machine().region("gfx2")->base();
+	running_device *k056832 = space->machine->device("k056832");
+	UINT8 *mem8 = memory_region(space->machine, "gfx2");
 	int bank = k056832_word_r(k056832, 0x34/2, 0xffff);
 
 	offset *= 2;
@@ -248,7 +257,7 @@ static READ32_HANDLER( v_rom_r )
 
 	offset += bank * 0x800 * 4;
 
-	if (state->m_v_ctrl & 0x020)
+	if (v_ctrl & 0x020)
 		offset += 0x800 * 2;
 
 	return mem8[offset] * 0x01010000;
@@ -260,18 +269,17 @@ static READ32_HANDLER( v_rom_r )
 static READ8_HANDLER( inp1_r )
 {
 	static const char *const portnames[] = { "DSW3", "BTN3", "BTN2", "BTN1" };
-	return input_port_read(space->machine(), portnames[ offset & 0x03 ]);
+	return input_port_read(space->machine, portnames[ offset & 0x03 ]);
 }
 
 static READ8_HANDLER( inp2_r )
 {
 	static const char *const portnames[] = { "DSW1", "DSW2", "UNK2", "UNK1" };
-	return input_port_read(space->machine(), portnames[ offset & 0x03 ]);
+	return input_port_read(space->machine, portnames[ offset & 0x03 ]);
 }
 
 static READ32_HANDLER( turntable_r )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
 	UINT32 result = 0;
 	static const char *const ttnames[] = { "TT1", "TT2" };
 
@@ -280,17 +288,17 @@ static READ32_HANDLER( turntable_r )
 		UINT8 pos;
 		int delta;
 
-		pos = input_port_read_safe(space->machine(), ttnames[state->m_turntable_select], 0);
-		delta = pos - state->m_turntable_last_pos[state->m_turntable_select];
+		pos = input_port_read_safe(space->machine, ttnames[turntable_select], 0);
+		delta = pos - turntable_last_pos[turntable_select];
 		if (delta < -128)
 			delta += 256;
 		if (delta > 128)
 			delta -= 256;
 
-		state->m_turntable_pos[state->m_turntable_select] += delta * 70;
-		state->m_turntable_last_pos[state->m_turntable_select] = pos;
+		turntable_pos[turntable_select] += delta * 70;
+		turntable_last_pos[turntable_select] = pos;
 
-		result |= state->m_turntable_pos[state->m_turntable_select] & 0xff00;
+		result |= turntable_pos[turntable_select] & 0xff00;
 	}
 
 	return result;
@@ -298,9 +306,8 @@ static READ32_HANDLER( turntable_r )
 
 static WRITE32_HANDLER( turntable_select_w )
 {
-	djmain_state *state = space->machine().driver_data<djmain_state>();
 	if (ACCESSING_BITS_16_23)
-		state->m_turntable_select = (data >> 19) & 1;
+		turntable_select = (data >> 19) & 1;
 }
 
 
@@ -391,9 +398,9 @@ static WRITE32_HANDLER( light_ctrl_2_w )
 	{
 		output_set_value("left-ssr",       !!(data & 0x08000000));	// SSR
 		output_set_value("right-ssr",      !!(data & 0x08000000));	// SSR
-		set_led_status(space->machine(), 0, data & 0x00010000);			// 1P START
-		set_led_status(space->machine(), 1, data & 0x00020000);			// 2P START
-		set_led_status(space->machine(), 2, data & 0x00040000);			// EFFECT
+		set_led_status(space->machine, 0, data & 0x00010000);			// 1P START
+		set_led_status(space->machine, 1, data & 0x00020000);			// 2P START
+		set_led_status(space->machine, 2, data & 0x00040000);			// EFFECT
 	}
 }
 
@@ -404,17 +411,17 @@ static WRITE32_HANDLER( light_ctrl_2_w )
 
 static WRITE32_HANDLER( unknown590000_w )
 {
-	//logerror("%08X: unknown 590000 write %08X: %08X & %08X\n", cpu_get_previouspc(&space->device()), offset, data, mem_mask);
+	//logerror("%08X: unknown 590000 write %08X: %08X & %08X\n", cpu_get_previouspc(space->cpu), offset, data, mem_mask);
 }
 
 static WRITE32_HANDLER( unknown802000_w )
 {
-	//logerror("%08X: unknown 802000 write %08X: %08X & %08X\n", cpu_get_previouspc(&space->device()), offset, data, mem_mask);
+	//logerror("%08X: unknown 802000 write %08X: %08X & %08X\n", cpu_get_previouspc(space->cpu), offset, data, mem_mask);
 }
 
 static WRITE32_HANDLER( unknownc02000_w )
 {
-	//logerror("%08X: unknown c02000 write %08X: %08X & %08X\n", cpu_get_previouspc(&space->device()), offset, data, mem_mask);
+	//logerror("%08X: unknown c02000 write %08X: %08X & %08X\n", cpu_get_previouspc(space->cpu), offset, data, mem_mask);
 }
 
 
@@ -427,31 +434,30 @@ static WRITE32_HANDLER( unknownc02000_w )
 
 static INTERRUPT_GEN( vb_interrupt )
 {
-	djmain_state *state = device->machine().driver_data<djmain_state>();
-	state->m_pending_vb_int = 0;
+	pending_vb_int = 0;
 
 	if (DISABLE_VB_INT)
 	{
-		state->m_pending_vb_int = 1;
+		pending_vb_int = 1;
 		return;
 	}
 
 	//logerror("V-Blank interrupt\n");
-	device_set_input_line(device, M68K_IRQ_4, HOLD_LINE);
+	cpu_set_input_line(device, M68K_IRQ_4, HOLD_LINE);
 }
 
 
-static void ide_interrupt(device_t *device, int state)
+static void ide_interrupt(running_device *device, int state)
 {
 	if (state != CLEAR_LINE)
 	{
 		//logerror("IDE interrupt asserted\n");
-		cputag_set_input_line(device->machine(), "maincpu", M68K_IRQ_1, HOLD_LINE);
+		cputag_set_input_line(device->machine, "maincpu", M68K_IRQ_1, HOLD_LINE);
 	}
 	else
 	{
 		//logerror("IDE interrupt cleared\n");
-		cputag_set_input_line(device->machine(), "maincpu", M68K_IRQ_1, CLEAR_LINE);
+		cputag_set_input_line(device->machine, "maincpu", M68K_IRQ_1, CLEAR_LINE);
 	}
 }
 
@@ -464,7 +470,7 @@ static void ide_interrupt(device_t *device, int state)
  *
  *************************************/
 
-static ADDRESS_MAP_START( memory_map, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( memory_map, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM							// PRG ROM
 	AM_RANGE(0x400000, 0x40ffff) AM_RAM							// WORK RAM
 	AM_RANGE(0x480000, 0x48443f) AM_RAM_WRITE(paletteram32_w)		// COLOR RAM
@@ -482,7 +488,7 @@ static ADDRESS_MAP_START( memory_map, AS_PROGRAM, 32 )
 	AM_RANGE(0x5d6000, 0x5d6003) AM_WRITE(sndram_bank_w)					// SOUND RAM bank
 	AM_RANGE(0x5e0000, 0x5e0003) AM_READWRITE(turntable_r, turntable_select_w)		// input port control (turn tables)
 	AM_RANGE(0x600000, 0x601fff) AM_READ(v_rom_r)						// VIDEO ROM readthrough (for POST)
-	AM_RANGE(0x801000, 0x8017ff) AM_RAM AM_BASE_MEMBER(djmain_state, m_obj_ram)				// OBJECT RAM
+	AM_RANGE(0x801000, 0x8017ff) AM_RAM AM_BASE(&djmain_obj_ram)				// OBJECT RAM
 	AM_RANGE(0x802000, 0x802fff) AM_WRITE(unknown802000_w)					// ??
 	AM_RANGE(0x803000, 0x80309f) AM_READWRITE(obj_ctrl_r, obj_ctrl_w)			// OBJECT REGS
 	AM_RANGE(0x803800, 0x803fff) AM_READ(obj_rom_r)						// OBJECT ROM readthrough (for POST)
@@ -1424,30 +1430,33 @@ static const k054539_interface k054539_config =
  *
  *************************************/
 
+static STATE_POSTLOAD( djmain_postload )
+{
+	sndram_set_bank(machine);
+}
+
 static MACHINE_START( djmain )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
-	device_t *ide = machine.device("ide");
+	running_device *ide = machine->device("ide");
 
-	if (ide != NULL && state->m_ide_master_password != NULL)
-		ide_set_master_password(ide, state->m_ide_master_password);
-	if (ide != NULL && state->m_ide_user_password != NULL)
-		ide_set_user_password(ide, state->m_ide_user_password);
+	if (ide != NULL && ide_master_password != NULL)
+		ide_set_master_password(ide, ide_master_password);
+	if (ide != NULL && ide_user_password != NULL)
+		ide_set_user_password(ide, ide_user_password);
 
-	state_save_register_global(machine, state->m_sndram_bank);
-	state_save_register_global(machine, state->m_pending_vb_int);
-	state_save_register_global(machine, state->m_v_ctrl);
-	state_save_register_global_array(machine, state->m_obj_regs);
+	state_save_register_global(machine, sndram_bank);
+	state_save_register_global(machine, pending_vb_int);
+	state_save_register_global(machine, v_ctrl);
+	state_save_register_global_array(machine, obj_regs);
 
-	machine.save().register_postload(save_prepost_delegate(FUNC(sndram_set_bank), &machine));
+	state_save_register_postload(machine, djmain_postload, NULL);
 }
 
 
 static MACHINE_RESET( djmain )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	/* reset sound ram bank */
-	state->m_sndram_bank = 0;
+	sndram_bank = 0;
 	sndram_set_bank(machine);
 
 	/* reset the IDE controller */
@@ -1476,49 +1485,49 @@ static const k056832_interface djmain_k056832_intf =
 	djmain_tile_callback, "none"
 };
 
-static MACHINE_CONFIG_START( djmain, djmain_state )
+static MACHINE_DRIVER_START( djmain )
 
 	/* basic machine hardware */
 	// popn3 works 9.6 MHz or slower in some songs */
-	//MCFG_CPU_ADD("maincpu", M68EC020, 18432000/2)    /*  9.216 MHz!? */
-	MCFG_CPU_ADD("maincpu", M68EC020, 32000000/4)	/*  8.000 MHz!? */
-	MCFG_CPU_PROGRAM_MAP(memory_map)
-	MCFG_CPU_VBLANK_INT("screen", vb_interrupt)
+	//MDRV_CPU_ADD("maincpu", M68EC020, 18432000/2)    /*  9.216 MHz!? */
+	MDRV_CPU_ADD("maincpu", M68EC020, 32000000/4)	/*  8.000 MHz!? */
+	MDRV_CPU_PROGRAM_MAP(memory_map)
+	MDRV_CPU_VBLANK_INT("screen", vb_interrupt)
 
-	MCFG_MACHINE_START(djmain)
-	MCFG_MACHINE_RESET(djmain)
+	MDRV_MACHINE_START(djmain)
+	MDRV_MACHINE_RESET(djmain)
 
-	MCFG_IDE_CONTROLLER_ADD("ide", ide_interrupt)
+	MDRV_IDE_CONTROLLER_ADD("ide", ide_interrupt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(64*8, 64*8)
-	MCFG_SCREEN_VISIBLE_AREA(12, 512-12-1, 0, 384-1)
-	MCFG_SCREEN_UPDATE(djmain)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(64*8, 64*8)
+	MDRV_SCREEN_VISIBLE_AREA(12, 512-12-1, 0, 384-1)
 
-	MCFG_PALETTE_LENGTH(0x4440/4)
-	MCFG_GFXDECODE(djmain)
-	MCFG_VIDEO_START(djmain)
+	MDRV_PALETTE_LENGTH(0x4440/4)
+	MDRV_GFXDECODE(djmain)
+	MDRV_VIDEO_START(djmain)
+	MDRV_VIDEO_UPDATE(djmain)
 
-	MCFG_K056832_ADD("k056832", djmain_k056832_intf)
-	MCFG_K055555_ADD("k055555")
+	MDRV_K056832_ADD("k056832", djmain_k056832_intf)
+	MDRV_K055555_ADD("k055555")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("konami1", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("konami1", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
-	MCFG_SOUND_ADD("konami2", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("konami2", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 
@@ -2030,9 +2039,8 @@ ROM_END
 
 static DRIVER_INIT( beatmania )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
-	state->m_ide_master_password = NULL;
-	state->m_ide_user_password = NULL;
+	ide_master_password = NULL;
+	ide_user_password = NULL;
 }
 
 static const UINT8 beatmania_master_password[2 + 32] =
@@ -2046,7 +2054,6 @@ static const UINT8 beatmania_master_password[2 + 32] =
 
 static DRIVER_INIT( hmcompmx )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 hmcompmx_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2058,13 +2065,12 @@ static DRIVER_INIT( hmcompmx )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = hmcompmx_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = hmcompmx_user_password;
 }
 
 static DRIVER_INIT( bm4thmix )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bm4thmix_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2076,12 +2082,11 @@ static DRIVER_INIT( bm4thmix )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_user_password = bm4thmix_user_password;
+	ide_user_password = bm4thmix_user_password;
 }
 
 static DRIVER_INIT( bm5thmix )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bm5thmix_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2093,13 +2098,12 @@ static DRIVER_INIT( bm5thmix )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bm5thmix_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bm5thmix_user_password;
 }
 
 static DRIVER_INIT( bmclubmx )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bmclubmx_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2111,14 +2115,13 @@ static DRIVER_INIT( bmclubmx )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bmclubmx_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bmclubmx_user_password;
 }
 
 
 static DRIVER_INIT( bmcompm2 )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bmcompm2_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2130,13 +2133,12 @@ static DRIVER_INIT( bmcompm2 )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bmcompm2_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bmcompm2_user_password;
 }
 
 static DRIVER_INIT( hmcompm2 )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 hmcompm2_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2148,13 +2150,12 @@ static DRIVER_INIT( hmcompm2 )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = hmcompm2_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = hmcompm2_user_password;
 }
 
 static DRIVER_INIT( bmdct )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bmdct_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2166,13 +2167,12 @@ static DRIVER_INIT( bmdct )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bmdct_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bmdct_user_password;
 }
 
 static DRIVER_INIT( bmcorerm )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bmcorerm_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2184,13 +2184,12 @@ static DRIVER_INIT( bmcorerm )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bmcorerm_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bmcorerm_user_password;
 }
 
 static DRIVER_INIT( bm6thmix )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bm6thmix_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2202,13 +2201,12 @@ static DRIVER_INIT( bm6thmix )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bm6thmix_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bm6thmix_user_password;
 }
 
 static DRIVER_INIT( bm7thmix )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bm7thmix_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2220,13 +2218,12 @@ static DRIVER_INIT( bm7thmix )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bm7thmix_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bm7thmix_user_password;
 }
 
 static DRIVER_INIT( bmfinal )
 {
-	djmain_state *state = machine.driver_data<djmain_state>();
 	static const UINT8 bmfinal_user_password[2 + 32] =
 	{
 		0x00, 0x00,
@@ -2238,8 +2235,8 @@ static DRIVER_INIT( bmfinal )
 
 	DRIVER_INIT_CALL(beatmania);
 
-	state->m_ide_master_password = beatmania_master_password;
-	state->m_ide_user_password = bmfinal_user_password;
+	ide_master_password = beatmania_master_password;
+	ide_user_password = bmfinal_user_password;
 }
 
 

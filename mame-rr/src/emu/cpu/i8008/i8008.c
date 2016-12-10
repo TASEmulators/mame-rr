@@ -34,9 +34,8 @@ struct _i8008_state
 	UINT8	HALT;
 	UINT8	flags; // temporary I/O only
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 	int					icount;
 	int 				pc_pos; // PC possition in ADDR
 
@@ -55,7 +54,7 @@ struct _i8008_state
     INLINE FUNCTIONS
 ***************************************************************************/
 
-INLINE i8008_state *get_safe_token(device_t *device)
+INLINE i8008_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == I8008);
@@ -75,7 +74,7 @@ INLINE void POP_STACK(i8008_state *cpustate)
 
 INLINE UINT8 ROP(i8008_state *cpustate)
 {
-	UINT8 retVal = cpustate->direct->read_decrypted_byte(GET_PC.w.l);
+	UINT8 retVal = memory_decrypted_read_byte(cpustate->program, GET_PC.w.l);
 	GET_PC.w.l = (GET_PC.w.l + 1) & 0x3fff;
 	cpustate->PC = GET_PC;
 	return retVal;
@@ -92,7 +91,7 @@ INLINE UINT8 GET_REG(i8008_state *cpustate,UINT8 reg)
 		case 4 : retVal = cpustate->E; break;
 		case 5 : retVal = cpustate->H; break;
 		case 6 : retVal = cpustate->L; break;
-		default: retVal = cpustate->program->read_byte((cpustate->H << 8) + cpustate->L); break;
+		default: retVal = memory_read_byte_8le(cpustate->program, (cpustate->H << 8) + cpustate->L); break;
 	}
 	return retVal;
 }
@@ -107,13 +106,13 @@ INLINE void SET_REG(i8008_state *cpustate,UINT8 reg, UINT8 val)
 		case 4 : cpustate->E = val; break;
 		case 5 : cpustate->H = val; break;
 		case 6 : cpustate->L = val; break;
-		default: cpustate->program->write_byte((cpustate->H << 8) + cpustate->L, val); break;
+		default: memory_write_byte_8le(cpustate->program, (cpustate->H << 8) + cpustate->L, val); break;
 	}
 }
 
 INLINE UINT8 ARG(i8008_state *cpustate)
 {
-	UINT8 retVal = cpustate->direct->read_raw_byte(GET_PC.w.l);
+	UINT8 retVal = memory_raw_read_byte(cpustate->program, GET_PC.w.l);
 	GET_PC.w.l = (GET_PC.w.l + 1) & 0x3fff;
 	cpustate->PC = GET_PC;
 	return retVal;
@@ -392,11 +391,11 @@ static void execute_one(i8008_state *cpustate, int opcode)
 							if (((opcode>>4)&3)==0) {
 								// INP
 								cpustate->icount -= 8;
-								cpustate->A = cpustate->io->read_byte((opcode >> 1) & 0x1f);
+								cpustate->A = memory_read_byte_8le(cpustate->io, (opcode >> 1) & 0x1f);
 							} else {
 								// OUT
 								cpustate->icount -= 6;
-								cpustate->io->write_byte((opcode >> 1) & 0x1f, cpustate->A);
+								memory_write_byte_8le(cpustate->io, (opcode >> 1) & 0x1f, cpustate->A);
 							}
 							break;
 					}
@@ -544,36 +543,35 @@ static CPU_INIT( i8008 )
 	cpustate->device = device;
 
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->io = device->space(AS_IO);
 
 	cpustate->irq_callback = irqcallback;
 
 	init_tables();
 
-	device->save_item(NAME(cpustate->PC));
-	device->save_item(NAME(cpustate->A));
-	device->save_item(NAME(cpustate->B));
-	device->save_item(NAME(cpustate->C));
-	device->save_item(NAME(cpustate->D));
-	device->save_item(NAME(cpustate->E));
-	device->save_item(NAME(cpustate->H));
-	device->save_item(NAME(cpustate->L));
-	device->save_item(NAME(cpustate->CF));
-	device->save_item(NAME(cpustate->SF));
-	device->save_item(NAME(cpustate->ZF));
-	device->save_item(NAME(cpustate->PF));
-	device->save_item(NAME(cpustate->pc_pos));
-	device->save_item(NAME(cpustate->ADDR[0]));
-	device->save_item(NAME(cpustate->ADDR[1]));
-	device->save_item(NAME(cpustate->ADDR[2]));
-	device->save_item(NAME(cpustate->ADDR[3]));
-	device->save_item(NAME(cpustate->ADDR[4]));
-	device->save_item(NAME(cpustate->ADDR[5]));
-	device->save_item(NAME(cpustate->ADDR[6]));
-	device->save_item(NAME(cpustate->ADDR[7]));
-	device->save_item(NAME(cpustate->HALT));
-	device->save_item(NAME(cpustate->irq_state));
+	state_save_register_device_item(device, 0, cpustate->PC);
+	state_save_register_device_item(device, 0, cpustate->A);
+	state_save_register_device_item(device, 0, cpustate->B);
+	state_save_register_device_item(device, 0, cpustate->C);
+	state_save_register_device_item(device, 0, cpustate->D);
+	state_save_register_device_item(device, 0, cpustate->E);
+	state_save_register_device_item(device, 0, cpustate->H);
+	state_save_register_device_item(device, 0, cpustate->L);
+	state_save_register_device_item(device, 0, cpustate->CF);
+	state_save_register_device_item(device, 0, cpustate->SF);
+	state_save_register_device_item(device, 0, cpustate->ZF);
+	state_save_register_device_item(device, 0, cpustate->PF);
+	state_save_register_device_item(device, 0, cpustate->pc_pos);
+	state_save_register_device_item(device, 0, cpustate->ADDR[0]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[1]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[2]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[3]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[4]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[5]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[6]);
+	state_save_register_device_item(device, 0, cpustate->ADDR[7]);
+	state_save_register_device_item(device, 0, cpustate->HALT);
+	state_save_register_device_item(device, 0, cpustate->irq_state);
 }
 
 
@@ -688,17 +686,17 @@ CPU_GET_INFO( i8008 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 8;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 16;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:		info->i = 14;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:		info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: 		info->i = 14;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: 		info->i = 0;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:			info->i = 0;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:			info->i = 0;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:			info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:			info->i = 0;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:			info->i = 0;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:			info->i = 0;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:				info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:				info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:				info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:				info->i = 0;							break;
 
 		/* --- the following bits of info are returned as pointers to functions --- */
 		case CPUINFO_FCT_SET_INFO:		info->setinfo = CPU_SET_INFO_NAME(i8008);				break;
@@ -719,8 +717,6 @@ CPU_GET_INFO( i8008 )
 		case DEVINFO_STR_VERSION:					strcpy(info->s, "1.0");					break;
 		case DEVINFO_STR_SOURCE_FILE:				strcpy(info->s, __FILE__);				break;
 		case DEVINFO_STR_CREDITS:					strcpy(info->s, "Copyright Miodrag Milanovic"); break;
-
-		case CPUINFO_IS_OCTAL:						info->i = true;							break;
 	}
 }
 

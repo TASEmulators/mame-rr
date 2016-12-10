@@ -19,6 +19,7 @@
 
 #include "emu.h"
 #include "cpu/m6502/m6502.h"
+#include "deprecat.h"
 #include "includes/subs.h"
 #include "sound/discrete.h"
 #include "rendlay.h"
@@ -45,7 +46,7 @@ static PALETTE_INIT( subs )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0x3fff)
 	AM_RANGE(0x0000, 0x0000) AM_DEVWRITE("discrete", subs_noise_reset_w)
 	AM_RANGE(0x0000, 0x0007) AM_READ(subs_control_r)
@@ -62,9 +63,9 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x006a, 0x006b) AM_DEVWRITE("discrete", subs_crash_w)
 	AM_RANGE(0x006c, 0x006d) AM_WRITE(subs_invert1_w)
 	AM_RANGE(0x006e, 0x006f) AM_WRITE(subs_invert2_w)
-	AM_RANGE(0x0090, 0x009f) AM_BASE_MEMBER(subs_state, m_spriteram)
+	AM_RANGE(0x0090, 0x009f) AM_BASE_GENERIC(spriteram)
 	AM_RANGE(0x0000, 0x01ff) AM_RAM
-	AM_RANGE(0x0800, 0x0bff) AM_RAM AM_BASE_MEMBER(subs_state, m_videoram)
+	AM_RANGE(0x0800, 0x0bff) AM_RAM AM_BASE_GENERIC(videoram) AM_SIZE_GENERIC(videoram)
 	AM_RANGE(0x2000, 0x3fff) AM_ROM
 ADDRESS_MAP_END
 
@@ -174,46 +175,45 @@ GFXDECODE_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( subs, subs_state )
+static MACHINE_DRIVER_START( subs )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6502,12096000/16)		/* clock input is the "4H" signal */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_PERIODIC_INT(subs_interrupt,4*57)
+	MDRV_CPU_ADD("maincpu", M6502,12096000/16)		/* clock input is the "4H" signal */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT_HACK(subs_interrupt,4)
 
-	MCFG_MACHINE_RESET(subs)
+	MDRV_MACHINE_RESET(subs)
 
 	/* video hardware */
-	MCFG_GFXDECODE(subs)
-	MCFG_PALETTE_LENGTH(4)
-	MCFG_DEFAULT_LAYOUT(layout_dualhsxs)
+	MDRV_GFXDECODE(subs)
+	MDRV_PALETTE_LENGTH(4)
+	MDRV_DEFAULT_LAYOUT(layout_dualhsxs)
 
-	MCFG_SCREEN_ADD("lscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(subs)
+	MDRV_SCREEN_ADD("lscreen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
 
-	MCFG_SCREEN_ADD("rscreen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(subs)
+	MDRV_SCREEN_ADD("rscreen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
 
-	MCFG_PALETTE_INIT(subs)
+	MDRV_PALETTE_INIT(subs)
+	MDRV_VIDEO_UPDATE(subs)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(subs)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(subs)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 

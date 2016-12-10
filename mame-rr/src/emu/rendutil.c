@@ -23,8 +23,8 @@
 /* utilities */
 static void resample_argb_bitmap_average(UINT32 *dest, UINT32 drowpixels, UINT32 dwidth, UINT32 dheight, const UINT32 *source, UINT32 srowpixels, UINT32 swidth, UINT32 sheight, const render_color *color, UINT32 dx, UINT32 dy);
 static void resample_argb_bitmap_bilinear(UINT32 *dest, UINT32 drowpixels, UINT32 dwidth, UINT32 dheight, const UINT32 *source, UINT32 srowpixels, UINT32 swidth, UINT32 sheight, const render_color *color, UINT32 dx, UINT32 dy);
-static void copy_png_to_bitmap(bitmap_t *bitmap, const png_info *png, bool *hasalpha);
-static void copy_png_alpha_to_bitmap(bitmap_t *bitmap, const png_info *png, bool *hasalpha);
+static void copy_png_to_bitmap(bitmap_t *bitmap, const png_info *png, int *hasalpha);
+static void copy_png_alpha_to_bitmap(bitmap_t *bitmap, const png_info *png, int *hasalpha);
 
 
 
@@ -560,9 +560,11 @@ void render_line_to_quad(const render_bounds *bounds, float width, render_bounds
     bitmap_t
 -------------------------------------------------*/
 
-bitmap_t *render_load_png(emu_file &file, const char *dirname, const char *filename, bitmap_t *alphadest, bool *hasalpha)
+bitmap_t *render_load_png(const char *path, const char *dirname, const char *filename, bitmap_t *alphadest, int *hasalpha)
 {
 	bitmap_t *bitmap = NULL;
+	file_error filerr;
+	mame_file *file;
 	png_info png;
 	png_error result;
 
@@ -572,13 +574,13 @@ bitmap_t *render_load_png(emu_file &file, const char *dirname, const char *filen
 		fname.cpy(filename);
 	else
 		fname.cpy(dirname).cat(PATH_SEPARATOR).cat(filename);
-	file_error filerr = file.open(fname);
+	filerr = mame_fopen(path, fname, OPEN_FLAG_READ, &file);
 	if (filerr != FILERR_NONE)
 		return NULL;
 
 	/* read the PNG data */
-	result = png_read_file(file, &png);
-	file.close();
+	result = png_read_file(mame_core_file(file), &png);
+	mame_fclose(file);
 	if (result != PNGERR_NONE)
 		return NULL;
 
@@ -634,7 +636,7 @@ bitmap_t *render_load_png(emu_file &file, const char *dirname, const char *filen
     bitmap
 -------------------------------------------------*/
 
-static void copy_png_to_bitmap(bitmap_t *bitmap, const png_info *png, bool *hasalpha)
+static void copy_png_to_bitmap(bitmap_t *bitmap, const png_info *png, int *hasalpha)
 {
 	UINT8 accumalpha = 0xff;
 	UINT8 *src;
@@ -699,7 +701,7 @@ static void copy_png_to_bitmap(bitmap_t *bitmap, const png_info *png, bool *hasa
     to the alpha channel of a bitmap
 -------------------------------------------------*/
 
-static void copy_png_alpha_to_bitmap(bitmap_t *bitmap, const png_info *png, bool *hasalpha)
+static void copy_png_alpha_to_bitmap(bitmap_t *bitmap, const png_info *png, int *hasalpha)
 {
 	UINT8 accumalpha = 0xff;
 	UINT8 *src;

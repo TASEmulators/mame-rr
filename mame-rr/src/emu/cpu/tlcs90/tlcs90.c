@@ -21,7 +21,6 @@ typedef enum	{
 	MODE_MI16,	MODE_MR16,	MODE_MR16D8,	MODE_MR16R8,
 	MODE_R16D8,	MODE_R16R8
 }	e_mode;
-ALLOW_SAVE_TYPE(e_mode); // allow save_item on a non-fundamental type
 
 typedef UINT16 e_r;
 
@@ -33,8 +32,8 @@ typedef struct
 	UINT16		irq_state, irq_mask;
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 	int		icount;
 	int			extra_cycles;		// extra cycles for interrupts
 	UINT8		internal_registers[48];
@@ -61,7 +60,7 @@ typedef struct
 
 }	t90_Regs;
 
-INLINE t90_Regs *get_safe_token(device_t *device)
+INLINE t90_Regs *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TMP90840 ||
@@ -178,16 +177,16 @@ static const char *const cc_names[]	=	{	"f",	"lt",	"le",	"ule",	"ov",	"mi",	"z",
 #define R16D8( N,R,I )		cpustate->mode##N = MODE_R16D8;	cpustate->r##N = R;	cpustate->r##N##b = I;
 #define R16R8( N,R,g )		cpustate->mode##N = MODE_R16R8;	cpustate->r##N = R;	cpustate->r##N##b = g;
 
-INLINE UINT8  RM8 (t90_Regs *cpustate, UINT32 a)	{ return cpustate->program->read_byte( a ); }
+INLINE UINT8  RM8 (t90_Regs *cpustate, UINT32 a)	{ return memory_read_byte_8le( cpustate->program, a ); }
 INLINE UINT16 RM16(t90_Regs *cpustate, UINT32 a)	{ return RM8(cpustate,a) | (RM8( cpustate, (a+1) & 0xffff ) << 8); }
 
-INLINE void WM8 (t90_Regs *cpustate, UINT32 a, UINT8  v)	{ cpustate->program->write_byte( a, v ); }
+INLINE void WM8 (t90_Regs *cpustate, UINT32 a, UINT8  v)	{ memory_write_byte_8le( cpustate->program, a, v ); }
 INLINE void WM16(t90_Regs *cpustate, UINT32 a, UINT16 v)	{ WM8(cpustate,a,v);	WM8( cpustate, (a+1) & 0xffff, v >> 8); }
 
-INLINE UINT8  RX8 (t90_Regs *cpustate, UINT32 a, UINT32 base)	{ return cpustate->program->read_byte( base | a ); }
+INLINE UINT8  RX8 (t90_Regs *cpustate, UINT32 a, UINT32 base)	{ return memory_read_byte_8le( cpustate->program, base | a ); }
 INLINE UINT16 RX16(t90_Regs *cpustate, UINT32 a, UINT32 base)	{ return RX8(cpustate,a,base) | (RX8( cpustate, (a+1) & 0xffff, base ) << 8); }
 
-INLINE void WX8 (t90_Regs *cpustate, UINT32 a, UINT8  v, UINT32 base)	{ cpustate->program->write_byte( base | a, v ); }
+INLINE void WX8 (t90_Regs *cpustate, UINT32 a, UINT8  v, UINT32 base)	{ memory_write_byte_8le( cpustate->program, base | a, v ); }
 INLINE void WX16(t90_Regs *cpustate, UINT32 a, UINT16 v, UINT32 base)	{ WX8(cpustate,a,v,base);	WX8( cpustate, (a+1) & 0xffff, v >> 8, base); }
 
 INLINE UINT8  READ8(t90_Regs *cpustate)	{ UINT8 b0 = RM8( cpustate, cpustate->addr++ ); cpustate->addr &= 0xffff; return b0; }
@@ -2283,9 +2282,9 @@ FFED    BX      R/W     Reset   Description
 
 static READ8_HANDLER( t90_internal_registers_r )
 {
-	t90_Regs *cpustate = get_safe_token(&space->device());
+	t90_Regs *cpustate = get_safe_token(space->cpu);
 
-	#define RIO		cpustate->io->read_byte( T90_IOBASE+offset )
+	#define RIO		memory_read_byte_8le( cpustate->io, T90_IOBASE+offset )
 
 	UINT8 data = cpustate->internal_registers[offset];
 	switch ( T90_IOBASE + offset )
@@ -2353,11 +2352,11 @@ static void t90_start_timer(t90_Regs *cpustate, int i)
 	}
 
 
-	period = cpustate->timer_period * prescaler;
+	period = attotime_mul(cpustate->timer_period, prescaler);
 
-	cpustate->timer[i]->adjust(period, i, period);
+	timer_adjust_periodic(cpustate->timer[i], period, i, period);
 
-	logerror("%04X: CPU Timer %d started at %lf Hz\n", cpustate->pc.w.l, i, 1.0 / period.as_double());
+	logerror("%04X: CPU Timer %d started at %lf Hz\n", cpustate->pc.w.l, i, 1.0 / attotime_to_double(period));
 }
 
 static void t90_start_timer4(t90_Regs *cpustate)
@@ -2375,17 +2374,17 @@ static void t90_start_timer4(t90_Regs *cpustate)
 					return;
 	}
 
-	period = cpustate->timer_period * prescaler;
+	period = attotime_mul(cpustate->timer_period, prescaler);
 
-	cpustate->timer[4]->adjust(period, 4, period);
+	timer_adjust_periodic(cpustate->timer[4], period, 4, period);
 
-	logerror("%04X: CPU Timer 4 started at %lf Hz\n", cpustate->pc.w.l, 1.0 / period.as_double());
+	logerror("%04X: CPU Timer 4 started at %lf Hz\n", cpustate->pc.w.l, 1.0 / attotime_to_double(period));
 }
 
 
 static void t90_stop_timer(t90_Regs *cpustate, int i)
 {
-	cpustate->timer[i]->adjust(attotime::never, i);
+	timer_adjust_oneshot(cpustate->timer[i], attotime_never, i);
 	logerror("%04X: CPU Timer %d stopped\n", cpustate->pc.w.l, i);
 }
 
@@ -2496,9 +2495,9 @@ static TIMER_CALLBACK( t90_timer4_callback )
 
 static WRITE8_HANDLER( t90_internal_registers_w )
 {
-	#define WIO		cpustate->io->write_byte( T90_IOBASE+offset, data )
+	#define WIO		memory_write_byte_8le( cpustate->io, T90_IOBASE+offset, data )
 
-	t90_Regs *cpustate = get_safe_token(&space->device());
+	t90_Regs *cpustate = get_safe_token(space->cpu);
 	UINT8 out_mask;
 	UINT8 old = cpustate->internal_registers[offset];
 	switch ( T90_IOBASE + offset )
@@ -2637,45 +2636,45 @@ static void state_register( legacy_cpu_device *device )
 {
 	t90_Regs *cpustate = get_safe_token(device);
 
-	device->save_item(NAME(cpustate->prvpc.w.l));
-	device->save_item(NAME(cpustate->pc.w.l));
-	device->save_item(NAME(cpustate->sp.w.l));
-	device->save_item(NAME(cpustate->af.w.l));
-	device->save_item(NAME(cpustate->bc.w.l));
-	device->save_item(NAME(cpustate->de.w.l));
-	device->save_item(NAME(cpustate->hl.w.l));
-	device->save_item(NAME(cpustate->ix.w.l));
-	device->save_item(NAME(cpustate->iy.w.l));
-	device->save_item(NAME(cpustate->af2.w.l));
-	device->save_item(NAME(cpustate->bc2.w.l));
-	device->save_item(NAME(cpustate->de2.w.l));
-	device->save_item(NAME(cpustate->hl2.w.l));
-	device->save_item(NAME(cpustate->halt));
-	device->save_item(NAME(cpustate->after_EI));
-	device->save_item(NAME(cpustate->irq_state));
-	device->save_item(NAME(cpustate->irq_mask));
-	device->save_item(NAME(cpustate->icount));
-	device->save_item(NAME(cpustate->extra_cycles));
+	state_save_register_device_item(device, 0, cpustate->prvpc.w.l);
+	state_save_register_device_item(device, 0, cpustate->pc.w.l);
+	state_save_register_device_item(device, 0, cpustate->sp.w.l);
+	state_save_register_device_item(device, 0, cpustate->af.w.l);
+	state_save_register_device_item(device, 0, cpustate->bc.w.l);
+	state_save_register_device_item(device, 0, cpustate->de.w.l);
+	state_save_register_device_item(device, 0, cpustate->hl.w.l);
+	state_save_register_device_item(device, 0, cpustate->ix.w.l);
+	state_save_register_device_item(device, 0, cpustate->iy.w.l);
+	state_save_register_device_item(device, 0, cpustate->af2.w.l);
+	state_save_register_device_item(device, 0, cpustate->bc2.w.l);
+	state_save_register_device_item(device, 0, cpustate->de2.w.l);
+	state_save_register_device_item(device, 0, cpustate->hl2.w.l);
+	state_save_register_device_item(device, 0, cpustate->halt);
+	state_save_register_device_item(device, 0, cpustate->after_EI);
+	state_save_register_device_item(device, 0, cpustate->irq_state);
+	state_save_register_device_item(device, 0, cpustate->irq_mask);
+	state_save_register_device_item(device, 0, cpustate->icount);
+	state_save_register_device_item(device, 0, cpustate->extra_cycles);
 
-	device->save_item(NAME(cpustate->internal_registers));
-	device->save_item(NAME(cpustate->ixbase));
-	device->save_item(NAME(cpustate->iybase));
+	state_save_register_device_item_array(device, 0, cpustate->internal_registers);
+	state_save_register_device_item(device, 0, cpustate->ixbase);
+	state_save_register_device_item(device, 0, cpustate->iybase);
 
-	device->save_item(NAME(cpustate->timer_value));
-	device->save_item(NAME(cpustate->timer4_value));
+	state_save_register_device_item_array(device, 0, cpustate->timer_value);
+	state_save_register_device_item(device, 0, cpustate->timer4_value);
 
 	// Work registers
-	device->save_item(NAME(cpustate->op));
-	device->save_item(NAME(cpustate->mode1));
-	device->save_item(NAME(cpustate->r1));
-	device->save_item(NAME(cpustate->r1b));
-	device->save_item(NAME(cpustate->mode2));
-	device->save_item(NAME(cpustate->r2));
-	device->save_item(NAME(cpustate->r2b));
+	state_save_register_device_item(device, 0, cpustate->op);
+	state_save_register_device_item(device, 0, cpustate->mode1);
+	state_save_register_device_item(device, 0, cpustate->r1);
+	state_save_register_device_item(device, 0, cpustate->r1b);
+	state_save_register_device_item(device, 0, cpustate->mode2);
+	state_save_register_device_item(device, 0, cpustate->r2);
+	state_save_register_device_item(device, 0, cpustate->r2b);
 
-	device->save_item(NAME(cpustate->cyc_t));
-	device->save_item(NAME(cpustate->cyc_f));
-	device->save_item(NAME(cpustate->addr));
+	state_save_register_device_item(device, 0, cpustate->cyc_t);
+	state_save_register_device_item(device, 0, cpustate->cyc_f);
+	state_save_register_device_item(device, 0, cpustate->addr);
 }
 
 
@@ -2716,7 +2715,7 @@ static CPU_INIT( t90 )
 	cpustate->program = device->space(AS_PROGRAM);
 	cpustate->io = device->space(AS_IO);
 
-	cpustate->timer_period = attotime::from_hz(device->unscaled_clock()) * 8;
+	cpustate->timer_period = attotime_mul(ATTOTIME_IN_HZ(device->unscaled_clock()), 8);
 
 	// Reset registers to their initial values
 
@@ -2726,28 +2725,28 @@ static CPU_INIT( t90 )
 	// Timers
 
 	for (i = 0; i < 4; i++)
-		cpustate->timer[i] = device->machine().scheduler().timer_alloc(FUNC(t90_timer_callback), cpustate);
+		cpustate->timer[i] = timer_alloc(device->machine, t90_timer_callback, cpustate);
 
-	cpustate->timer[4] = device->machine().scheduler().timer_alloc(FUNC(t90_timer4_callback), cpustate);
+	cpustate->timer[4] = timer_alloc(device->machine, t90_timer4_callback, cpustate);
 }
 
-static ADDRESS_MAP_START(tmp90840_mem, AS_PROGRAM, 8)
+static ADDRESS_MAP_START(tmp90840_mem, ADDRESS_SPACE_PROGRAM, 8)
 	AM_RANGE(	0x0000,		0x1fff			)	AM_ROM	// 8KB ROM (internal)
 	AM_RANGE(	0xfec0,		0xffc0			)	AM_RAM	// 256b RAM (internal)
 	AM_RANGE(	T90_IOBASE,	T90_IOBASE+47	)	AM_READWRITE( t90_internal_registers_r, t90_internal_registers_w )
 ADDRESS_MAP_END
-static ADDRESS_MAP_START(tmp90841_mem, AS_PROGRAM, 8)
+static ADDRESS_MAP_START(tmp90841_mem, ADDRESS_SPACE_PROGRAM, 8)
 //  AM_RANGE(   0x0000,     0x1fff          )   AM_ROM  // rom-less
 	AM_RANGE(	0xfec0,		0xffc0			)	AM_RAM	// 256b RAM (internal)
 	AM_RANGE(	T90_IOBASE,	T90_IOBASE+47	)	AM_READWRITE( t90_internal_registers_r, t90_internal_registers_w )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START(tmp91640_mem, AS_PROGRAM, 8)
+static ADDRESS_MAP_START(tmp91640_mem, ADDRESS_SPACE_PROGRAM, 8)
 	AM_RANGE(	0x0000,		0x3fff			) AM_ROM	// 16KB ROM (internal)
 	AM_RANGE(	0xfdc0,		0xffc0			) AM_RAM	// 512b RAM (internal)
 	AM_RANGE(	T90_IOBASE, T90_IOBASE+47	) AM_READWRITE( t90_internal_registers_r, t90_internal_registers_w )
 ADDRESS_MAP_END
-static ADDRESS_MAP_START(tmp91641_mem, AS_PROGRAM, 8)
+static ADDRESS_MAP_START(tmp91641_mem, ADDRESS_SPACE_PROGRAM, 8)
 //  AM_RANGE(   0x0000,     0x3fff          ) AM_ROM    // rom-less
 	AM_RANGE(	0xfdc0,		0xffc0			) AM_RAM	// 512b RAM (internal)
 	AM_RANGE(	T90_IOBASE, T90_IOBASE+47	) AM_READWRITE( t90_internal_registers_r, t90_internal_registers_w )
@@ -2805,17 +2804,17 @@ CPU_GET_INFO( tmp90840 )
 		case CPUINFO_INT_MIN_CYCLES:								info->i = 2;					break;
 		case CPUINFO_INT_MAX_CYCLES:								info->i = 26;					break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:		info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:		info->i = 20;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:		info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM:		info->i = 20;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM:		info->i = 0;					break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:		info->i = 0;					break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:			info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:			info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:			info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:			info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:			info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:			info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + INPUT_LINE_NMI:				info->i = cpustate->irq_state & (1 << INTNMI);	break;
 		case CPUINFO_INT_INPUT_STATE + INPUT_LINE_IRQ0:				info->i = cpustate->irq_state & (1 << INT0);		break;
@@ -2851,7 +2850,7 @@ CPU_GET_INFO( tmp90840 )
 		case CPUINFO_FCT_BURN:										info->burn = CPU_BURN_NAME(t90);				break;
 		case CPUINFO_FCT_DISASSEMBLE:								info->disassemble = CPU_DISASSEMBLE_NAME(t90);		break;
 		case CPUINFO_PTR_INSTRUCTION_COUNTER:						info->icount = &cpustate->icount;			break;
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp90840_mem); break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp90840_mem); break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 
@@ -2897,7 +2896,7 @@ CPU_GET_INFO( tmp90841 )
 	{
 		/* --- the following bits of info are returned as 64-bit signed integers --- */
 
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp90841_mem); return;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp90841_mem); return;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 
@@ -2913,7 +2912,7 @@ CPU_GET_INFO( tmp91640 )
 	{
 		/* --- the following bits of info are returned as 64-bit signed integers --- */
 
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp91640_mem); return;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp91640_mem); return;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 
@@ -2929,7 +2928,7 @@ CPU_GET_INFO( tmp91641 )
 	{
 		/* --- the following bits of info are returned as 64-bit signed integers --- */
 
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp91641_mem); return;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM: info->internal_map8 = ADDRESS_MAP_NAME(tmp91641_mem); return;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 

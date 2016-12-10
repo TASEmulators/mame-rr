@@ -137,25 +137,6 @@ device_state_entry &device_state_entry::formatstr(const char *_format)
 
 
 //-------------------------------------------------
-//  format_from_mask - make a format based on
-//  the data mask
-//-------------------------------------------------
-
-void device_state_entry::format_from_mask()
-{
-	// skip if we have a user-provided format
-	if (!m_default_format)
-		return;
-
-	// make up a format based on the mask
-	int width = 0;
-	for (UINT64 tempmask = m_datamask; tempmask != 0; tempmask >>= 4)
-		width++;
-	m_format.printf("%%0%dX", width);
-}
-
-
-//-------------------------------------------------
 //  value - return the current value as a UINT64
 //-------------------------------------------------
 
@@ -374,6 +355,49 @@ void device_state_entry::set_value(const char *string) const
 }
 
 
+//-------------------------------------------------
+//  format_from_mask - make a format based on
+//  the data mask
+//-------------------------------------------------
+
+void device_state_entry::format_from_mask()
+{
+	// skip if we have a user-provided format
+	if (!m_default_format)
+		return;
+
+	// make up a format based on the mask
+	int width = 0;
+	for (UINT64 tempmask = m_datamask; tempmask != 0; tempmask >>= 4)
+		width++;
+	m_format.printf("%%0%dX", width);
+}
+
+
+
+//**************************************************************************
+//  DEVICE CONFIG STATE INTERFACE
+//**************************************************************************
+
+//-------------------------------------------------
+//  device_config_state_interface - constructor
+//-------------------------------------------------
+
+device_config_state_interface::device_config_state_interface(const machine_config &mconfig, device_config &devconfig)
+	: device_config_interface(mconfig, devconfig)
+{
+}
+
+
+//-------------------------------------------------
+//  ~device_config_state_interface - destructor
+//-------------------------------------------------
+
+device_config_state_interface::~device_config_state_interface()
+{
+}
+
+
 
 //**************************************************************************
 //  DEVICE STATE INTERFACE
@@ -383,13 +407,13 @@ void device_state_entry::set_value(const char *string) const
 //  device_state_interface - constructor
 //-------------------------------------------------
 
-device_state_interface::device_state_interface(const machine_config &mconfig, device_t &device)
-	: device_interface(device)
+device_state_interface::device_state_interface(running_machine &machine, const device_config &config, device_t &device)
+	: device_interface(machine, config, device),
+	  m_machine(machine),
+	  m_state_config(dynamic_cast<const device_config_state_interface &>(config)),
+	  m_state_list(NULL)
 {
 	memset(m_fast_state, 0, sizeof(m_fast_state));
-
-	// configure the fast accessor
-	device.m_state = this;
 }
 
 
@@ -506,6 +530,46 @@ void device_state_interface::set_state(int index, const char *string)
 
 
 //-------------------------------------------------
+//  state_import - called after new state is
+//  written to perform any post-processing
+//-------------------------------------------------
+
+void device_state_interface::state_import(const device_state_entry &entry)
+{
+}
+
+
+//-------------------------------------------------
+//  state_export - called prior to new state
+//  reading the state
+//-------------------------------------------------
+
+void device_state_interface::state_export(const device_state_entry &entry)
+{
+}
+
+
+//-------------------------------------------------
+//  state_string_import - called after new state is
+//  written to perform any post-processing
+//-------------------------------------------------
+
+void device_state_interface::state_string_import(const device_state_entry &entry, astring &string)
+{
+}
+
+
+//-------------------------------------------------
+//  state_string_export - called after new state is
+//  written to perform any post-processing
+//-------------------------------------------------
+
+void device_state_interface::state_string_export(const device_state_entry &entry, astring &string)
+{
+}
+
+
+//-------------------------------------------------
 //  state_add - return the value of the given
 //  pieces of indexed state as a UINT64
 //-------------------------------------------------
@@ -517,73 +581,18 @@ device_state_entry &device_state_interface::state_add(int index, const char *sym
 	assert(symbol != NULL);
 
 	// allocate new entry
-	device_state_entry *entry = auto_alloc(device().machine(), device_state_entry(index, symbol, data, size));
+	device_state_entry *entry = auto_alloc(&m_machine, device_state_entry(index, symbol, data, size));
 
 	// append to the end of the list
-	m_state_list.append(*entry);
+	device_state_entry **tailptr;
+	for (tailptr = &m_state_list; *tailptr != NULL; tailptr = &(*tailptr)->m_next) ;
+	*tailptr = entry;
 
 	// set the fast entry if applicable
 	if (index >= k_fast_state_min && index <= k_fast_state_max)
 		m_fast_state[index - k_fast_state_min] = entry;
 
 	return *entry;
-}
-
-
-//-------------------------------------------------
-//  state_import - called after new state is
-//  written to perform any post-processing
-//-------------------------------------------------
-
-void device_state_interface::state_import(const device_state_entry &entry)
-{
-	// do nothing by default
-}
-
-
-//-------------------------------------------------
-//  state_export - called prior to new state
-//  reading the state
-//-------------------------------------------------
-
-void device_state_interface::state_export(const device_state_entry &entry)
-{
-	// do nothing by default
-}
-
-
-//-------------------------------------------------
-//  state_string_import - called after new state is
-//  written to perform any post-processing
-//-------------------------------------------------
-
-void device_state_interface::state_string_import(const device_state_entry &entry, astring &string)
-{
-	// do nothing by default
-}
-
-
-//-------------------------------------------------
-//  state_string_export - called after new state is
-//  written to perform any post-processing
-//-------------------------------------------------
-
-void device_state_interface::state_string_export(const device_state_entry &entry, astring &string)
-{
-	// do nothing by default
-}
-
-
-//-------------------------------------------------
-//  interface_post_start - verify that state was
-//  properly set up
-//-------------------------------------------------
-
-void device_state_interface::interface_post_start()
-{
-	// make sure we got something during startup
-	if (m_state_list.count() == 0)
-		throw emu_fatalerror("No state registered for device '%s' that supports it!", m_device.tag());
 }
 
 
@@ -599,10 +608,23 @@ const device_state_entry *device_state_interface::state_find_entry(int index)
 		return m_fast_state[index - k_fast_state_min];
 
 	// otherwise, scan the first
-	for (const device_state_entry *entry = m_state_list.first(); entry != NULL; entry = entry->m_next)
+	for (const device_state_entry *entry = m_state_list; entry != NULL; entry = entry->m_next)
 		if (entry->m_index == index)
 			return entry;
 
 	// handle failure by returning NULL
 	return NULL;
+}
+
+
+//-------------------------------------------------
+//  interface_post_start - verify that state was
+//  properly set up
+//-------------------------------------------------
+
+void device_state_interface::interface_post_start()
+{
+	// make sure we got something during startup
+	if (m_state_list == NULL)
+		throw emu_fatalerror("No state registered for device '%s' that supports it!", m_device.tag());
 }

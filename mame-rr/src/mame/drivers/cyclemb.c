@@ -74,21 +74,8 @@ Dumped by Chack'n
 #include "sound/ay8910.h"
 #include "machine/tait8741.h"
 
-
-class cyclemb_state : public driver_device
-{
-public:
-	cyclemb_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_vram;
-	UINT8 *m_cram;
-	UINT8 *m_obj1_ram;
-	UINT8 *m_obj2_ram;
-	UINT8 *m_obj3_ram;
-};
-
-
+static UINT8 *cyclemb_vram,*cyclemb_cram;
+static UINT8 *cyclemb_obj1_ram,*cyclemb_obj2_ram,*cyclemb_obj3_ram;
 
 static PALETTE_INIT( cyclemb )
 {
@@ -121,12 +108,11 @@ static VIDEO_START( cyclemb )
 
 }
 
-static SCREEN_UPDATE( cyclemb )
+static VIDEO_UPDATE( cyclemb )
 {
-	cyclemb_state *state = screen->machine().driver_data<cyclemb_state>();
 	int x,y,count;
-	const gfx_element *gfx = screen->machine().gfx[0];
-	UINT8 flip_screen = flip_screen_get(screen->machine());
+	const gfx_element *gfx = screen->machine->gfx[0];
+	UINT8 flip_screen = flip_screen_get(screen->machine);
 
 	count = 0;
 
@@ -134,12 +120,12 @@ static SCREEN_UPDATE( cyclemb )
 	{
 		for (x=0;x<64;x++)
 		{
-			int attr = state->m_cram[count];
-			int tile = (state->m_vram[count]) | ((attr & 3)<<8);
+			int attr = cyclemb_cram[count];
+			int tile = (cyclemb_vram[count]) | ((attr & 3)<<8);
 			int color = ((attr & 0xf8) >> 3) ^ 0x1f;
 			int odd_line = y & 1 ? 0x40 : 0x00;
 //          int sx_offs = flip_screen ? 512 : 0
-			int scrollx = ((state->m_vram[(y/2)+odd_line]) + (state->m_cram[(y/2)+odd_line]<<8) + 48) & 0x1ff;
+			int scrollx = ((cyclemb_vram[(y/2)+odd_line]) + (cyclemb_cram[(y/2)+odd_line]<<8) + 48) & 0x1ff;
 
 			if(flip_screen)
 			{
@@ -184,31 +170,31 @@ static SCREEN_UPDATE( cyclemb )
 
 		for(i=0;i<0x40;i+=2)
 		{
-			y = 0xf1 - state->m_obj2_ram[i];
-			x = state->m_obj2_ram[i+1] - 56;
-			spr_offs = (state->m_obj1_ram[i+0]);
-			col = (state->m_obj1_ram[i+1] & 0x3f);
-			region = ((state->m_obj3_ram[i] & 0x10) >> 4) + 1;
+			y = 0xf1 - cyclemb_obj2_ram[i];
+			x = cyclemb_obj2_ram[i+1] - 56;
+			spr_offs = (cyclemb_obj1_ram[i+0]);
+			col = (cyclemb_obj1_ram[i+1] & 0x3f);
+			region = ((cyclemb_obj3_ram[i] & 0x10) >> 4) + 1;
 			if(region == 2)
 			{
 				spr_offs >>= 2;
-				spr_offs += ((state->m_obj3_ram[i+0] & 3) << 5);
+				spr_offs += ((cyclemb_obj3_ram[i+0] & 3) << 5);
 				y-=16;
 			}
 
-			if(state->m_obj3_ram[i+1] & 1)
+			if(cyclemb_obj3_ram[i+1] & 1)
 				x+=256;
-			//if(state->m_obj3_ram[i+1] & 2)
+			//if(cyclemb_obj3_ram[i+1] & 2)
 //              x-=256;
-			fx = (state->m_obj3_ram[i+0] & 4) >> 2;
-			fy = (state->m_obj3_ram[i+0] & 8) >> 3;
+			fx = (cyclemb_obj3_ram[i+0] & 4) >> 2;
+			fy = (cyclemb_obj3_ram[i+0] & 8) >> 3;
 
 			if(flip_screen)
 			{
 				fx = !fx;
 				fy = !fy;
 			}
-			drawgfx_transpen(bitmap,cliprect,screen->machine().gfx[region],spr_offs,col,fx,fy,x,y,0);
+			drawgfx_transpen(bitmap,cliprect,screen->machine->gfx[region],spr_offs,col,fx,fy,x,y,0);
 		}
 	}
 
@@ -217,14 +203,14 @@ static SCREEN_UPDATE( cyclemb )
 
 static WRITE8_HANDLER( cyclemb_bankswitch_w )
 {
-	memory_set_bank(space->machine(), "bank1", data & 3);
+	memory_set_bank(space->machine, "bank1", data & 3);
 }
 
 #if 0
 static WRITE8_HANDLER( sound_cmd_w )
 {
 	soundlatch_w(space, 0, data & 0xff);
-	cputag_set_input_line(space->machine(), "audiocpu", 0, HOLD_LINE);
+	cputag_set_input_line(space->machine, "audiocpu", 0, HOLD_LINE);
 }
 #endif
 
@@ -238,42 +224,42 @@ static READ8_HANDLER( mcu_status_r )
 static WRITE8_HANDLER( sound_cmd_w ) //actually ciom
 {
 	soundlatch_w(space, 0, data & 0xff);
-	cputag_set_input_line(space->machine(), "audiocpu", 0, HOLD_LINE);
+	cputag_set_input_line(space->machine, "audiocpu", 0, HOLD_LINE);
 }
 #endif
 
 static WRITE8_HANDLER( cyclemb_flip_w )
 {
-	flip_screen_set(space->machine(), data & 1);
+	flip_screen_set(space->machine, data & 1);
 
 	// a bunch of other things are setted here
 }
 
-static ADDRESS_MAP_START( cyclemb_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cyclemb_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x9000, 0x97ff) AM_RAM AM_BASE_MEMBER(cyclemb_state, m_vram)
-	AM_RANGE(0x9800, 0x9fff) AM_RAM AM_BASE_MEMBER(cyclemb_state, m_cram)
-	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_MEMBER(cyclemb_state, m_obj1_ram) //ORAM1 (only a000-a3ff tested)
-	AM_RANGE(0xa800, 0xafff) AM_RAM AM_BASE_MEMBER(cyclemb_state, m_obj2_ram) //ORAM2 (only a800-abff tested)
-	AM_RANGE(0xb000, 0xb7ff) AM_RAM AM_BASE_MEMBER(cyclemb_state, m_obj3_ram) //ORAM3 (only b000-b3ff tested)
+	AM_RANGE(0x9000, 0x97ff) AM_RAM AM_BASE(&cyclemb_vram)
+	AM_RANGE(0x9800, 0x9fff) AM_RAM AM_BASE(&cyclemb_cram)
+	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE(&cyclemb_obj1_ram) //ORAM1 (only a000-a3ff tested)
+	AM_RANGE(0xa800, 0xafff) AM_RAM AM_BASE(&cyclemb_obj2_ram) //ORAM2 (only a800-abff tested)
+	AM_RANGE(0xb000, 0xb7ff) AM_RAM AM_BASE(&cyclemb_obj3_ram) //ORAM3 (only b000-b3ff tested)
 	AM_RANGE(0xb800, 0xbfff) AM_RAM //WRAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cyclemb_io, AS_IO, 8 )
+static ADDRESS_MAP_START( cyclemb_io, ADDRESS_SPACE_IO, 8 )
 //  ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0xc000, 0xc000) AM_WRITE(cyclemb_bankswitch_w)
 	AM_RANGE(0xc09e, 0xc09f) AM_READWRITE(cyclemb_8741_0_r, cyclemb_8741_0_w)
 	AM_RANGE(0xc0bf, 0xc0bf) AM_WRITE(cyclemb_flip_w) //flip screen
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cyclemb_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cyclemb_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x6000, 0x63ff) AM_RAM
 
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cyclemb_sound_io, AS_IO, 8 )
+static ADDRESS_MAP_START( cyclemb_sound_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVREADWRITE("aysnd", ay8910_r, ay8910_address_data_w)
 	AM_RANGE(0x40, 0x40) AM_READ(soundlatch_r) AM_WRITE(soundlatch2_w)
@@ -526,39 +512,38 @@ static GFXDECODE_START( cyclemb )
 	GFXDECODE_ENTRY( "sprite_data_2", 0, spritelayout_32x32,    0x00, 0x40 )
 GFXDECODE_END
 
-static MACHINE_CONFIG_START( cyclemb, cyclemb_state )
+static MACHINE_DRIVER_START( cyclemb )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu",Z80,18000000/4)
-	MCFG_CPU_PROGRAM_MAP(cyclemb_map)
-	MCFG_CPU_IO_MAP(cyclemb_io)
-	MCFG_CPU_VBLANK_INT("screen",irq0_line_hold)
+	MDRV_CPU_ADD("maincpu",Z80,18000000/4)
+	MDRV_CPU_PROGRAM_MAP(cyclemb_map)
+	MDRV_CPU_IO_MAP(cyclemb_io)
+	MDRV_CPU_VBLANK_INT("screen",irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu",Z80,18000000/4)
-	MCFG_CPU_PROGRAM_MAP(cyclemb_sound_map)
-	MCFG_CPU_IO_MAP(cyclemb_sound_io)
+	MDRV_CPU_ADD("audiocpu",Z80,18000000/4)
+	MDRV_CPU_PROGRAM_MAP(cyclemb_sound_map)
+	MDRV_CPU_IO_MAP(cyclemb_sound_io)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(cyclemb)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
+	MDRV_GFXDECODE(cyclemb)
+	MDRV_PALETTE_LENGTH(256)
+	MDRV_PALETTE_INIT(cyclemb)
 
-	MCFG_GFXDECODE(cyclemb)
-	MCFG_PALETTE_LENGTH(256)
-	MCFG_PALETTE_INIT(cyclemb)
+	MDRV_VIDEO_START(cyclemb)
+	MDRV_VIDEO_UPDATE(cyclemb)
 
-	MCFG_VIDEO_START(cyclemb)
-
-	MCFG_MACHINE_RESET(cyclemb)
+	MDRV_MACHINE_RESET(cyclemb)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("aysnd", AY8910, 18000000/16)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("aysnd", AY8910, 18000000/16)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -604,7 +589,7 @@ ROM_END
 
 static DRIVER_INIT( cyclemb )
 {
-	memory_configure_bank(machine, "bank1", 0, 4, machine.region("maincpu")->base() + 0x10000, 0x1000);
+	memory_configure_bank(machine, "bank1", 0, 4, memory_region(machine, "maincpu") + 0x10000, 0x1000);
 }
 
 GAME( 1984, cyclemb,  0,   cyclemb,  cyclemb,  cyclemb, ROT0, "Taito Corporation", "Cycle Mahbou (Japan)", GAME_NOT_WORKING )

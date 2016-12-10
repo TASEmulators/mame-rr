@@ -269,6 +269,7 @@ TODO:
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "cpu/m6800/m6800.h"
+#include "deprecat.h"
 #include "sound/2203intf.h"
 #include "sound/3526intf.h"
 #include "cpu/m6805/m6805.h"
@@ -284,26 +285,26 @@ TODO:
  *
  *************************************/
 
-static ADDRESS_MAP_START( master_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( master_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
-	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, m_videoram, m_videoram_size)
-	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, m_objectram, m_objectram_size)
+	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, videoram, videoram_size)
+	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, objectram, objectram_size)
 	AM_RANGE(0xe000, 0xf7ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xf800, 0xf9ff) AM_RAM_WRITE(paletteram_RRRRGGGGBBBBxxxx_be_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xfa00, 0xfa00) AM_READWRITE(bublbobl_sound_status_r, bublbobl_sound_command_w)
 	AM_RANGE(0xfa03, 0xfa03) AM_WRITE(bublbobl_soundcpu_reset_w)
 	AM_RANGE(0xfa80, 0xfa80) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0xfb40, 0xfb40) AM_WRITE(bublbobl_bankswitch_w)
-	AM_RANGE(0xfc00, 0xffff) AM_RAM AM_BASE_MEMBER(bublbobl_state, m_mcu_sharedram)
+	AM_RANGE(0xfc00, 0xffff) AM_RAM AM_BASE_MEMBER(bublbobl_state, mcu_sharedram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slave_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xe000, 0xf7ff) AM_RAM AM_SHARE("share1")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
 	AM_RANGE(0x9000, 0x9001) AM_DEVREADWRITE("ym1", ym2203_r, ym2203_w)
@@ -314,7 +315,7 @@ static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xe000, 0xffff) AM_ROM	// space for diagnostic ROM?
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mcu_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mcu_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0000) AM_READWRITE(bublbobl_mcu_ddr1_r, bublbobl_mcu_ddr1_w)
 	AM_RANGE(0x0001, 0x0001) AM_READWRITE(bublbobl_mcu_ddr2_r, bublbobl_mcu_ddr2_w)
 	AM_RANGE(0x0002, 0x0002) AM_READWRITE(bublbobl_mcu_port1_r, bublbobl_mcu_port1_w)
@@ -328,7 +329,7 @@ static ADDRESS_MAP_START( mcu_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 // The 68705 is from a bootleg, the original MCU is a 6801U4
-static ADDRESS_MAP_START( bootlegmcu_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bootlegmcu_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0x7ff)
 	AM_RANGE(0x000, 0x000) AM_READWRITE(bublbobl_68705_port_a_r, bublbobl_68705_port_a_w)
 	AM_RANGE(0x001, 0x001) AM_READWRITE(bublbobl_68705_port_b_r, bublbobl_68705_port_b_w)
@@ -340,11 +341,11 @@ static ADDRESS_MAP_START( bootlegmcu_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x080, 0x7ff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( bootleg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bootleg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
-	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, m_videoram, m_videoram_size)
-	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, m_objectram, m_objectram_size)
+	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, videoram, videoram_size)
+	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, objectram, objectram_size)
 	AM_RANGE(0xe000, 0xf7ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xf800, 0xf9ff) AM_RAM_WRITE(paletteram_RRRRGGGGBBBBxxxx_be_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xfa00, 0xfa00) AM_READWRITE(bublbobl_sound_status_r, bublbobl_sound_command_w)
@@ -364,11 +365,11 @@ static ADDRESS_MAP_START( bootleg_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( tokio_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tokio_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
-	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, m_videoram, m_videoram_size)
-	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, m_objectram, m_objectram_size)
+	AM_RANGE(0xc000, 0xdcff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, videoram, videoram_size)
+	AM_RANGE(0xdd00, 0xdfff) AM_RAM AM_BASE_SIZE_MEMBER(bublbobl_state, objectram, objectram_size)
 	AM_RANGE(0xe000, 0xf7ff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xf800, 0xf9ff) AM_RAM_WRITE(paletteram_RRRRGGGGBBBBxxxx_be_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xfa00, 0xfa00) AM_WRITE(watchdog_reset_w)
@@ -384,12 +385,12 @@ static ADDRESS_MAP_START( tokio_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xfe00, 0xfe00) AM_READ(tokio_mcu_r) AM_WRITENOP // ???
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tokio_slave_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tokio_slave_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x97ff) AM_RAM AM_SHARE("share1")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tokio_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tokio_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
 	AM_RANGE(0x9000, 0x9000) AM_READWRITE(soundlatch_r, bublbobl_sound_status_w)
@@ -696,10 +697,10 @@ GFXDECODE_END
  *************************************/
 
 // handler called by the 2203 emulator when the internal timers cause an IRQ
-static void irqhandler(device_t *device, int irq)
+static void irqhandler(running_device *device, int irq)
 {
-	bublbobl_state *state = device->machine().driver_data<bublbobl_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	bublbobl_state *state = (bublbobl_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2203_interface ym2203_config =
@@ -722,246 +723,256 @@ static const ym2203_interface ym2203_config =
 
 static MACHINE_START( common )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_mcu = machine.device("mcu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_slave = machine.device("slave");
+	state->maincpu = machine->device("maincpu");
+	state->mcu = machine->device("mcu");
+	state->audiocpu = machine->device("audiocpu");
+	state->slave = machine->device("slave");
 
-	state->save_item(NAME(state->m_sound_nmi_enable));
-	state->save_item(NAME(state->m_pending_nmi));
-	state->save_item(NAME(state->m_sound_status));
-	state->save_item(NAME(state->m_video_enable));
+	state_save_register_global(machine, state->sound_nmi_enable);
+	state_save_register_global(machine, state->pending_nmi);
+	state_save_register_global(machine, state->sound_status);
+	state_save_register_global(machine, state->video_enable);
 }
 
 static MACHINE_RESET( common )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
-	state->m_sound_nmi_enable = 0;
-	state->m_pending_nmi = 0;
-	state->m_sound_status = 0;
+	state->sound_nmi_enable = 0;
+	state->pending_nmi = 0;
+	state->sound_status = 0;
 }
 
 
 static MACHINE_START( tokio )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_START_CALL(common);
 
-	state->save_item(NAME(state->m_tokio_prot_count));
+	state_save_register_global(machine, state->tokio_prot_count);
 }
 
 static MACHINE_RESET( tokio )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_RESET_CALL(common);
 
-	state->m_tokio_prot_count = 0;
+	state->tokio_prot_count = 0;
 }
 
-static MACHINE_CONFIG_START( tokio, bublbobl_state )
+static MACHINE_DRIVER_START( tokio )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(bublbobl_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MAIN_XTAL/4)	// 6 MHz
-	MCFG_CPU_PROGRAM_MAP(tokio_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, MAIN_XTAL/4)	// 6 MHz
+	MDRV_CPU_PROGRAM_MAP(tokio_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("slave", Z80, MAIN_XTAL/4)	// 6 MHz
-	MCFG_CPU_PROGRAM_MAP(tokio_slave_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("slave", Z80, MAIN_XTAL/4)	// 6 MHz
+	MDRV_CPU_PROGRAM_MAP(tokio_slave_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, MAIN_XTAL/8)	// 3 MHz
-	MCFG_CPU_PROGRAM_MAP(tokio_sound_map) // NMIs are triggered by the main CPU, IRQs are triggered by the YM2203
+	MDRV_CPU_ADD("audiocpu", Z80, MAIN_XTAL/8)	// 3 MHz
+	MDRV_CPU_PROGRAM_MAP(tokio_sound_map) // NMIs are triggered by the main CPU, IRQs are triggered by the YM2203
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) // 100 CPU slices per frame - a high value to ensure proper synchronization of the CPUs
+	MDRV_QUANTUM_TIME(HZ(6000)) // 100 CPU slices per frame - a high value to ensure proper synchronization of the CPUs
 
-	MCFG_MACHINE_START(tokio)
-	MCFG_MACHINE_RESET(tokio)
+	MDRV_MACHINE_START(tokio)
+	MDRV_MACHINE_RESET(tokio)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MAIN_XTAL/4, 384, 0, 256, 264, 16, 240)
-	MCFG_SCREEN_UPDATE(bublbobl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(MAIN_XTAL/4, 384, 0, 256, 264, 16, 240)
 
-	MCFG_GFXDECODE(bublbobl)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(bublbobl)
+	MDRV_PALETTE_LENGTH(256)
+
+	MDRV_VIDEO_UPDATE(bublbobl)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, MAIN_XTAL/8)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.08)
-	MCFG_SOUND_ROUTE(1, "mono", 0.08)
-	MCFG_SOUND_ROUTE(2, "mono", 0.08)
-	MCFG_SOUND_ROUTE(3, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2203, MAIN_XTAL/8)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.08)
+	MDRV_SOUND_ROUTE(1, "mono", 0.08)
+	MDRV_SOUND_ROUTE(2, "mono", 0.08)
+	MDRV_SOUND_ROUTE(3, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 static MACHINE_START( bublbobl )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_START_CALL(common);
 
-	state->save_item(NAME(state->m_ddr1));
-	state->save_item(NAME(state->m_ddr2));
-	state->save_item(NAME(state->m_ddr3));
-	state->save_item(NAME(state->m_ddr4));
-	state->save_item(NAME(state->m_port1_in));
-	state->save_item(NAME(state->m_port2_in));
-	state->save_item(NAME(state->m_port3_in));
-	state->save_item(NAME(state->m_port4_in));
-	state->save_item(NAME(state->m_port1_out));
-	state->save_item(NAME(state->m_port2_out));
-	state->save_item(NAME(state->m_port3_out));
-	state->save_item(NAME(state->m_port4_out));
+	state_save_register_global(machine, state->ddr1);
+	state_save_register_global(machine, state->ddr2);
+	state_save_register_global(machine, state->ddr3);
+	state_save_register_global(machine, state->ddr4);
+	state_save_register_global(machine, state->port1_in);
+	state_save_register_global(machine, state->port2_in);
+	state_save_register_global(machine, state->port3_in);
+	state_save_register_global(machine, state->port4_in);
+	state_save_register_global(machine, state->port1_out);
+	state_save_register_global(machine, state->port2_out);
+	state_save_register_global(machine, state->port3_out);
+	state_save_register_global(machine, state->port4_out);
 }
 
 static MACHINE_RESET( bublbobl )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_RESET_CALL(common);
 
-	state->m_ddr1 = 0;
-	state->m_ddr2 = 0;
-	state->m_ddr3 = 0;
-	state->m_ddr4 = 0;
-	state->m_port1_in = 0;
-	state->m_port2_in = 0;
-	state->m_port3_in = 0;
-	state->m_port4_in = 0;
-	state->m_port1_out = 0;
-	state->m_port2_out = 0;
-	state->m_port3_out = 0;
-	state->m_port4_out = 0;
+	state->ddr1 = 0;
+	state->ddr2 = 0;
+	state->ddr3 = 0;
+	state->ddr4 = 0;
+	state->port1_in = 0;
+	state->port2_in = 0;
+	state->port3_in = 0;
+	state->port4_in = 0;
+	state->port1_out = 0;
+	state->port2_out = 0;
+	state->port3_out = 0;
+	state->port4_out = 0;
 }
 
-static MACHINE_CONFIG_START( bublbobl, bublbobl_state )
+static MACHINE_DRIVER_START( bublbobl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(bublbobl_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MAIN_XTAL/4)	// 6 MHz
-	MCFG_CPU_PROGRAM_MAP(master_map)
+	MDRV_CPU_ADD("maincpu", Z80, MAIN_XTAL/4)	// 6 MHz
+	MDRV_CPU_PROGRAM_MAP(master_map)
 	// IRQs are triggered by the MCU
 
-	MCFG_CPU_ADD("slave", Z80, MAIN_XTAL/4)	// 6 MHz
-	MCFG_CPU_PROGRAM_MAP(slave_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("slave", Z80, MAIN_XTAL/4)	// 6 MHz
+	MDRV_CPU_PROGRAM_MAP(slave_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, MAIN_XTAL/8)	// 3 MHz
-	MCFG_CPU_PROGRAM_MAP(sound_map) // IRQs are triggered by the YM2203
+	MDRV_CPU_ADD("audiocpu", Z80, MAIN_XTAL/8)	// 3 MHz
+	MDRV_CPU_PROGRAM_MAP(sound_map) // IRQs are triggered by the YM2203
 
-	MCFG_CPU_ADD("mcu", M6801, 4000000)	// actually 6801U4  // xtal is 4MHz, divided by 4 internally
-	MCFG_CPU_PROGRAM_MAP(mcu_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_pulse) // comes from the same clock that latches the INT pin on the second Z80
+	MDRV_CPU_ADD("mcu", M6801, 4000000)	// actually 6801U4  // xtal is 4MHz, divided by 4 internally
+	MDRV_CPU_PROGRAM_MAP(mcu_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_pulse) // comes from the same clock that latches the INT pin on the second Z80
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) // 100 CPU slices per frame - a high value to ensure proper synchronization of the CPUs
+	MDRV_QUANTUM_TIME(HZ(6000)) // 100 CPU slices per frame - a high value to ensure proper synchronization of the CPUs
 
-	MCFG_MACHINE_START(bublbobl)
-	MCFG_MACHINE_RESET(bublbobl)
+	MDRV_MACHINE_START(bublbobl)
+	MDRV_MACHINE_RESET(bublbobl)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MAIN_XTAL/4, 384, 0, 256, 264, 16, 240)
-	MCFG_SCREEN_UPDATE(bublbobl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(MAIN_XTAL/4, 384, 0, 256, 264, 16, 240)
 
-	MCFG_GFXDECODE(bublbobl)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(bublbobl)
+	MDRV_PALETTE_LENGTH(256)
+
+	MDRV_VIDEO_UPDATE(bublbobl)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, MAIN_XTAL/8)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ym1", YM2203, MAIN_XTAL/8)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ym2", YM3526, MAIN_XTAL/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM3526, MAIN_XTAL/8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 static MACHINE_START( boblbobl )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_START_CALL(common);
 
-	state->save_item(NAME(state->m_ic43_a));
-	state->save_item(NAME(state->m_ic43_b));
+	state_save_register_global(machine, state->ic43_a);
+	state_save_register_global(machine, state->ic43_b);
 }
 
 static MACHINE_RESET( boblbobl )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_RESET_CALL(common);
 
-	state->m_ic43_a = 0;
-	state->m_ic43_b = 0;
+	state->ic43_a = 0;
+	state->ic43_b = 0;
 }
 
-static MACHINE_CONFIG_DERIVED( boblbobl, bublbobl )
+static MACHINE_DRIVER_START( boblbobl )
+	MDRV_IMPORT_FROM(bublbobl)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(bootleg_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)	// interrupt mode 1, unlike Bubble Bobble
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(bootleg_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)	// interrupt mode 1, unlike Bubble Bobble
 
-	MCFG_MACHINE_START(boblbobl)
-	MCFG_MACHINE_RESET(boblbobl)
+	MDRV_MACHINE_START(boblbobl)
+	MDRV_MACHINE_RESET(boblbobl)
 
-	MCFG_DEVICE_REMOVE("mcu")
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("mcu")
+MACHINE_DRIVER_END
 
 
 static MACHINE_START( bub68705 )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_START_CALL(common);
 
-	state->save_item(NAME(state->m_port_a_in));
-	state->save_item(NAME(state->m_port_a_out));
-	state->save_item(NAME(state->m_ddr_a));
-	state->save_item(NAME(state->m_port_b_in));
-	state->save_item(NAME(state->m_port_b_out));
-	state->save_item(NAME(state->m_ddr_b));
-	state->save_item(NAME(state->m_address));
-	state->save_item(NAME(state->m_latch));
+	state_save_register_global(machine, state->port_a_in);
+	state_save_register_global(machine, state->port_a_out);
+	state_save_register_global(machine, state->ddr_a);
+	state_save_register_global(machine, state->port_b_in);
+	state_save_register_global(machine, state->port_b_out);
+	state_save_register_global(machine, state->ddr_b);
+	state_save_register_global(machine, state->address);
+	state_save_register_global(machine, state->latch);
 }
 
 static MACHINE_RESET( bub68705 )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	MACHINE_RESET_CALL(common);
 
-	state->m_port_a_in = 0;
-	state->m_port_a_out = 0;
-	state->m_ddr_a = 0;
-	state->m_port_b_in = 0;
-	state->m_port_b_out = 0;
-	state->m_ddr_b = 0;
-	state->m_address = 0;
-	state->m_latch = 0;
+	state->port_a_in = 0;
+	state->port_a_out = 0;
+	state->ddr_a = 0;
+	state->port_b_in = 0;
+	state->port_b_out = 0;
+	state->ddr_b = 0;
+	state->address = 0;
+	state->latch = 0;
 }
 
-static MACHINE_CONFIG_DERIVED( bub68705, bublbobl )
-	MCFG_DEVICE_REMOVE("mcu")
+static MACHINE_DRIVER_START( bub68705 )
+	MDRV_IMPORT_FROM(bublbobl)
+	MDRV_DEVICE_REMOVE("mcu")
 
-	MCFG_CPU_ADD("mcu", M68705, 4000000)	// xtal is 4MHz, divided by 4 internally
-	MCFG_CPU_PROGRAM_MAP(bootlegmcu_map)
-	MCFG_CPU_VBLANK_INT("screen",bublbobl_m68705_interrupt) // ??? should come from the same clock which latches the INT pin on the second Z80
+	MDRV_CPU_ADD("mcu", M68705, 4000000)	// xtal is 4MHz, divided by 4 internally
+	MDRV_CPU_PROGRAM_MAP(bootlegmcu_map)
+	MDRV_CPU_VBLANK_INT_HACK(bublbobl_m68705_interrupt, 2) // ??? should come from the same clock which latches the INT pin on the second Z80
 
-	MCFG_MACHINE_START(bub68705)
-	MCFG_MACHINE_RESET(bub68705)
-MACHINE_CONFIG_END
+	MDRV_MACHINE_START(bub68705)
+	MDRV_MACHINE_RESET(bub68705)
+MACHINE_DRIVER_END
 
 
 
@@ -1524,44 +1535,44 @@ ROM_END
  *
  *************************************/
 
-static void configure_banks( running_machine& machine )
+static void configure_banks( running_machine* machine )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 	memory_configure_bank(machine, "bank1", 0, 8, &ROM[0x10000], 0x4000);
 }
 
 static DRIVER_INIT( bublbobl )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 
 	configure_banks(machine);
 
 	/* we init this here, so that it does not conflict with tokio init, below */
-	state->m_video_enable = 0;
+	state->video_enable = 0;
 }
 
 static DRIVER_INIT( tokio )
 {
-	bublbobl_state *state = machine.driver_data<bublbobl_state>();
+	bublbobl_state *state = (bublbobl_state *)machine->driver_data;
 	configure_banks(machine);
 
 	/* preemptively enable video, the bit is not mapped for this game and */
 	/* I don't know if it even has it. */
-	state->m_video_enable = 1;
+	state->video_enable = 1;
 }
 
 static DRIVER_INIT( tokiob )
 {
 	DRIVER_INIT_CALL(tokio);
 
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0xfe00, 0xfe00, FUNC(tokiob_mcu_r) );
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xfe00, 0xfe00, 0, 0, tokiob_mcu_r );
 }
 
 static DRIVER_INIT( dland )
 {
 	// rearrange gfx to original format
 	int i;
-	UINT8* src = machine.region("gfx1")->base();
+	UINT8* src = memory_region(machine,"gfx1");
 	for (i = 0; i < 0x40000; i++)
 		src[i] = BITSWAP8(src[i],7,6,5,4,0,1,2,3);
 

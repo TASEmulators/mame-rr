@@ -6,27 +6,27 @@
 
 ***************************************************************************/
 
-class arabian_state : public driver_device
+class arabian_state
 {
 public:
-	arabian_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, arabian_state(machine)); }
+
+	arabian_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_blitter;
-	UINT8 *  m_custom_cpu_ram;
+	UINT8 *  blitter;
+	UINT8 *  custom_cpu_ram;
 
-	UINT8 *  m_main_bitmap;
-	UINT8 *  m_converted_gfx;
+	UINT8 *  main_bitmap;
+	UINT8 *  converted_gfx;
 
 	/* video-related */
-	UINT8    m_video_control;
-	UINT8    m_flip_screen;
+	UINT8    video_control;
+	UINT8    flip_screen;
 
-	/* MCU */
-	UINT8    m_mcu_port_o;
-	UINT8    m_mcu_port_p;
-	UINT8    m_mcu_port_r[4];
+	/* misc */
+	UINT8    custom_cpu_reset;
+	UINT8    custom_cpu_busy;
 };
 
 
@@ -37,4 +37,4 @@ WRITE8_HANDLER( arabian_videoram_w );
 
 PALETTE_INIT( arabian );
 VIDEO_START( arabian );
-SCREEN_UPDATE( arabian );
+VIDEO_UPDATE( arabian );

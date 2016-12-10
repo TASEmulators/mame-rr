@@ -173,16 +173,17 @@ Notes:
  *
  *************************************/
 
-class spaceg_state : public driver_device
+class spaceg_state
 {
 public:
-	spaceg_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, spaceg_state(machine)); }
 
-	UINT8 *  m_videoram;
-	UINT8 *  m_colorram;
-	UINT8 *  m_io9400;
-	UINT8 *  m_io9401;
+	spaceg_state(running_machine &machine) { }
+
+	UINT8 *  videoram;
+	UINT8 *  unkram;
+	UINT8 *  io9400;
+	UINT8 *  io9401;
 };
 
 /*************************************
@@ -198,7 +199,7 @@ static PALETTE_INIT( spaceg )
 	for (i = 0; i < 128; i++)
 		palette_set_color (machine, i, MAKE_RGB(0x00,0x00,0x00));
 
-	// proms are currently undumped...
+
 	palette_set_color (machine, 0, MAKE_RGB(0x00,0x00,0x00));	//ok czarny
 	palette_set_color (machine, 1, MAKE_RGB(0x7f,0x00,0x00));//???
 	palette_set_color (machine, 2, MAKE_RGB(0xff,0xff,0xff));	//ok+ bialy
@@ -216,97 +217,92 @@ static PALETTE_INIT( spaceg )
 	palette_set_color (machine, 13, MAKE_RGB(0x7f,0xbf,0xff));	//ok j.niebieski (jasniejszy od 9)
 	palette_set_color (machine, 14, MAKE_RGB(0x00,0xff,0xff));//???
 	palette_set_color (machine, 15, MAKE_RGB(0x7f,0x7f,0x7f));//???
+
 }
 
 static WRITE8_HANDLER( zvideoram_w )
 {
-	spaceg_state *state = space->machine().driver_data<spaceg_state>();
-	int col = state->m_colorram[0x400];
-	int xoff = *state->m_io9400 >> 5 & 7;
-	UINT16 offset2 = (offset + 0x100) & 0x1fff;
-	UINT16 sdata = data << (8 - xoff);
-	UINT16 vram_data = state->m_videoram[offset] << 8 | (state->m_videoram[offset2]);
+	spaceg_state *state = (spaceg_state *)space->machine->driver_data;
+	int col;
 
-	if (col > 0x0f) popmessage("color > 0x0f = %2d", col);
+	col = state->unkram[0x400];
+
+	if (col > 0x0f)
+		popmessage("color > 0x0f = %2d", col);
+
 	col &= 0x0f;
 
-	switch (*state->m_io9401)
+	switch (*state->io9401)
 	{
-		// draw
-		case 0:
-			vram_data &= ~(0xff00 >> xoff);
-			// (fall through)
-		case 1:
-			vram_data |= sdata;
+	case 0x0d:	/* 1101 */
+		state->videoram[offset] &= ~data;
+		data = state->videoram[offset];
+		break;
 
-			// update colorram
-			if (sdata&0xff00) state->m_colorram[offset] = col;
-			if (sdata&0x00ff) state->m_colorram[offset2] = col;
-			break;
+	case 0x01:	/* 0001 */
+	case 0x00:	/* 0000 */
+		state->videoram[offset] = data;
+		break;
 
-		// erase
-		case 0xd:
-			vram_data &= ~sdata;
-			break;
-
-		default:
-			logerror("mode = %02x pc = %04x\n", *state->m_io9401, cpu_get_pc(&space->device()));
-			popmessage("mode = %02x pc = %04x\n", *state->m_io9401, cpu_get_pc(&space->device()));
-			return;
+	default:
+		logerror("mode = %02x pc = %04x\n", *state->io9401, cpu_get_pc(space->cpu));
+		popmessage("mode = %02x pc = %04x\n", *state->io9401, cpu_get_pc(space->cpu));
+		return;
 	}
 
-	state->m_videoram[offset]=vram_data>>8;
-	state->m_videoram[offset2]=vram_data&0xff;
+
+	state->unkram[offset] = col;
 }
 
 
 static READ8_HANDLER(spaceg_colorram_r)
 {
-	spaceg_state *state = space->machine().driver_data<spaceg_state>();
+	spaceg_state *state = (spaceg_state *)space->machine->driver_data;
 	int rgbcolor;
 
 	if (offset < 0x400)
 	{
-		rgbcolor = (state->m_colorram[offset] << 1) | ((offset &0x100) >> 8);
+		rgbcolor = (state->unkram[offset] << 1) | ((offset &0x100) >> 8);
 
 		if ((offset >= 0x200) && (offset < 0x220)) /* 0xa200- 0xa21f */
 		{
 			/* palette 1 */
 			int col_ind = offset & 0x1f;
-			palette_set_color_rgb(space->machine(), 0x10 + 0x00 + col_ind, pal3bit(rgbcolor >> 0), pal3bit(rgbcolor >> 6), pal3bit(rgbcolor >> 3));
+			palette_set_color_rgb(space->machine, 0x10 + 0x00 + col_ind, pal3bit(rgbcolor >> 0), pal3bit(rgbcolor >> 6), pal3bit(rgbcolor >> 3));
 		}
 		else if ((offset >= 0x300) && (offset < 0x320)) /* 0xa300- 0xa31f */
 		{
 			/* palette 2 */
 			int col_ind = offset & 0x1f;
-			palette_set_color_rgb(space->machine(), 0x10 + 0x00 + col_ind, pal3bit(rgbcolor >> 0), pal3bit(rgbcolor >> 6), pal3bit(rgbcolor >> 3));
+			palette_set_color_rgb(space->machine, 0x10 + 0x00 + col_ind, pal3bit(rgbcolor >> 0), pal3bit(rgbcolor >> 6), pal3bit(rgbcolor >> 3));
 		}
 		else
-			logerror("palette? read from colorram offset = %04x\n",offset);
+			logerror("palette? read from unkram offset = %04x\n",offset);
 	}
 
-	if (*state->m_io9401 != 0x40)
-		logerror("colorram read in mode: 9401 = %02x (offset = %04x)\n", *state->m_io9401, offset);
+	if (*state->io9401 != 0x40)
+		logerror("unkram read in mode: 9401 = %02x (offset = %04x)\n", *state->io9401, offset);
 
-	return state->m_colorram[offset];
+	return state->unkram[offset];
 }
 
 
-static SCREEN_UPDATE( spaceg )
+static VIDEO_UPDATE( spaceg )
 {
-	spaceg_state *state = screen->machine().driver_data<spaceg_state>();
+	spaceg_state *state = (spaceg_state *)screen->machine->driver_data;
 	offs_t offs;
 
 	for (offs = 0; offs < 0x2000; offs++)
 	{
 		int i;
-		UINT8 data = state->m_videoram[offs];
+		UINT8 data = state->videoram[offs];
+
 		int y = offs & 0xff;
-		int x = (offs >> 8) << 3;
+		UINT8 x = ((offs >> 8) << 3) - ((*state->io9400 & 0xe0) >> 5);
 
 		for (i = 0; i < 8; i++)
 		{
-			*BITMAP_ADDR16(bitmap, y, x) = (data & 0x80) ? state->m_colorram[offs] : 0;
+			*BITMAP_ADDR16(bitmap, y, x) = (data & 0x80) ? state->unkram[offs] : 0;
 
 			x++;
 			data <<= 1;
@@ -323,16 +319,16 @@ static SCREEN_UPDATE( spaceg )
  *
  *************************************/
 
-static ADDRESS_MAP_START( spaceg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spaceg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x3000, 0x3fff) AM_ROM
 	AM_RANGE(0x7000, 0x77ff) AM_RAM
 
-	AM_RANGE(0xa000, 0xbfff) AM_RAM_READ(spaceg_colorram_r) AM_BASE_MEMBER(spaceg_state, m_colorram)
-	AM_RANGE(0xc000, 0xdfff) AM_RAM_WRITE(zvideoram_w) AM_BASE_MEMBER(spaceg_state, m_videoram)
+	AM_RANGE(0xa000, 0xbfff) AM_RAM_READ(spaceg_colorram_r) AM_BASE_MEMBER(spaceg_state, unkram)
+	AM_RANGE(0xc000, 0xdfff) AM_RAM_WRITE(zvideoram_w) AM_BASE_MEMBER(spaceg_state, videoram)
 
-	AM_RANGE(0x9400, 0x9400) AM_WRITEONLY AM_BASE_MEMBER(spaceg_state, m_io9400) /* gfx ctrl */
-	AM_RANGE(0x9401, 0x9401) AM_WRITEONLY AM_BASE_MEMBER(spaceg_state, m_io9401) /* gfx ctrl */
+	AM_RANGE(0x9400, 0x9400) AM_WRITEONLY AM_BASE_MEMBER(spaceg_state, io9400) /* gfx ctrl */
+	AM_RANGE(0x9401, 0x9401) AM_WRITEONLY AM_BASE_MEMBER(spaceg_state, io9401) /* gfx ctrl */
 	/* 9402 -
         bits 0 and 1 probably control the lamps under the player 1 and player 2 start buttons
         bit 2 - unknown -
@@ -386,55 +382,58 @@ static INPUT_PORTS_START( spaceg )
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START2 )
 
 	PORT_START("9805")    /* player 1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT  ) PORT_2WAY PORT_PLAYER(1)
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_2WAY PORT_PLAYER(1)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT  ) PORT_8WAY PORT_PLAYER(1)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_PLAYER(1)
 
 	PORT_START("9806")    /* player 2 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT  ) PORT_2WAY PORT_PLAYER(2)
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_2WAY PORT_PLAYER(2)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT  ) PORT_8WAY PORT_PLAYER(2)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_PLAYER(2)
 INPUT_PORTS_END
 
 
 /*************************************
  *
- *  Machine config
+ *  Machine driver
  *
  *************************************/
 
-static MACHINE_CONFIG_START( spaceg, spaceg_state )
+static MACHINE_DRIVER_START( spaceg )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(spaceg_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,2500000)		 /* 2.5 MHz */
-	MCFG_CPU_PROGRAM_MAP(spaceg_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)	/* 60 Hz NMIs (verified) */
+	MDRV_CPU_ADD("maincpu", Z80,2500000)		 /* 2.5 MHz */
+	MDRV_CPU_PROGRAM_MAP(spaceg_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)	/* 60 Hz NMIs (verified) */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 255, 32, 255)
-	MCFG_SCREEN_UPDATE( spaceg )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 255, 32, 255)
 
-	MCFG_PALETTE_LENGTH(16+128-16)
-	MCFG_PALETTE_INIT( spaceg )
+	MDRV_PALETTE_LENGTH(16+128-16)
+	MDRV_PALETTE_INIT( spaceg )
+	MDRV_VIDEO_UPDATE( spaceg )
 
 	/* sound hardware */
-//  MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-//  MCFG_SOUND_ADD("sn1", SN76496, 15468480/4)
-//  MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+//  MDRV_SOUND_ADD("sn1", SN76496, 15468480/4)
+//  MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-//  MCFG_SOUND_ADD("sn2", SN76496, 15468480/4)
-//  MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+//  MDRV_SOUND_ADD("sn2", SN76496, 15468480/4)
+//  MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-//  MCFG_SOUND_ADD("sn3", SN76496, 15468480/4)
-//  MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+//  MDRV_SOUND_ADD("sn3", SN76496, 15468480/4)
+//  MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-//  MCFG_SOUND_ADD("dac", DAC, 0)
-//  MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+//  MDRV_SOUND_ADD("dac", DAC, 0)
+//  MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************************
@@ -457,10 +456,6 @@ ROM_START( spaceg )
 	ROM_LOAD( "14.8g", 0x3400, 0x0400, CRC(dc9a10c2) SHA1(8fb2316d6e8aeef558d0da5029e2932abf47a6b4) )
 	ROM_LOAD( "15.9h", 0x3800, 0x0400, CRC(55e2950d) SHA1(2241c3620c9a6df8b8bd234ccee9af5d3d19a5d4) )
 	ROM_LOAD( "16.8h", 0x3c00, 0x0400, CRC(567259c4) SHA1(b2c3f7aaceabea075af6a43b89fb7331732278c8) )
-
-	ROM_REGION( 0x40, "proms", 0 )
-	ROM_LOAD( "prom1", 0x0000, 0x0020, NO_DUMP )
-	ROM_LOAD( "prom2", 0x0020, 0x0020, NO_DUMP )
 ROM_END
 
 
@@ -470,4 +465,4 @@ ROM_END
  *
  *************************************/
 
-GAME( 1979, spaceg, 0, spaceg, spaceg, 0, ROT270, "Omori Electric Co., Ltd.", "Space Guerrilla", GAME_IMPERFECT_GRAPHICS | GAME_NO_SOUND | GAME_SUPPORTS_SAVE )
+GAME( 1979, spaceg, 0, spaceg, spaceg, 0, ROT270, "Omori", "Space Guerrilla", GAME_IMPERFECT_GRAPHICS | GAME_NO_SOUND | GAME_SUPPORTS_SAVE )

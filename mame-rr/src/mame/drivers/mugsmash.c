@@ -48,16 +48,16 @@ behavior we use .
 
 static WRITE16_HANDLER( mugsmash_reg2_w )
 {
-	mugsmash_state *state = space->machine().driver_data<mugsmash_state>();
+	mugsmash_state *state = (mugsmash_state *)space->machine->driver_data;
 
-	state->m_regs2[offset] = data;
-	//popmessage ("Regs2 %04x, %04x, %04x, %04x", state->m_regs2[0], state->m_regs2[1], state->m_regs2[2], state->m_regs2[3]);
+	state->regs2[offset] = data;
+	//popmessage ("Regs2 %04x, %04x, %04x, %04x", state->regs2[0], state->regs2[1], state->regs2[2], state->regs2[3]);
 
 	switch (offset)
 	{
 	case 1:
 		soundlatch_w(space, 1, data & 0xff);
-		device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE );
+		cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE );
 		break;
 
 	default:
@@ -155,16 +155,16 @@ static READ16_HANDLER ( mugsmash_input_ports_r )
 	switch (offset)
 	{
 		case 0 :
-			data = (input_port_read(space->machine(), "P1") & 0xff) | ((input_port_read(space->machine(), "DSW1") & 0xc0) << 6) | ((input_port_read(space->machine(), "IN0") & 0x03) << 8);
+			data = (input_port_read(space->machine, "P1") & 0xff) | ((input_port_read(space->machine, "DSW1") & 0xc0) << 6) | ((input_port_read(space->machine, "IN0") & 0x03) << 8);
 			break;
 		case 1 :
-			data = (input_port_read(space->machine(), "P2") & 0xff) | ((input_port_read(space->machine(), "DSW1") & 0x3f) << 8);
+			data = (input_port_read(space->machine, "P2") & 0xff) | ((input_port_read(space->machine, "DSW1") & 0x3f) << 8);
 			break;
 		case 2 :
-			data = ((input_port_read(space->machine(), "DSW2") & 0x3f) << 8);
+			data = ((input_port_read(space->machine, "DSW2") & 0x3f) << 8);
 			break;
 		case 3 :
-			data = ((input_port_read(space->machine(), "DSW2") & 0xc0) << 2);
+			data = ((input_port_read(space->machine, "DSW2") & 0xc0) << 2);
 			break;
 	}
 
@@ -172,16 +172,16 @@ static READ16_HANDLER ( mugsmash_input_ports_r )
 }
 #endif
 
-static ADDRESS_MAP_START( mugsmash_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mugsmash_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
-	AM_RANGE(0x080000, 0x080fff) AM_RAM_WRITE(mugsmash_videoram1_w) AM_BASE_MEMBER(mugsmash_state, m_videoram1)
-	AM_RANGE(0x082000, 0x082fff) AM_RAM_WRITE(mugsmash_videoram2_w) AM_BASE_MEMBER(mugsmash_state, m_videoram2)
-	AM_RANGE(0x0c0000, 0x0c0007) AM_WRITE(mugsmash_reg_w) AM_BASE_MEMBER(mugsmash_state, m_regs1)	/* video registers*/
+	AM_RANGE(0x080000, 0x080fff) AM_RAM_WRITE(mugsmash_videoram1_w) AM_BASE_MEMBER(mugsmash_state, videoram1)
+	AM_RANGE(0x082000, 0x082fff) AM_RAM_WRITE(mugsmash_videoram2_w) AM_BASE_MEMBER(mugsmash_state, videoram2)
+	AM_RANGE(0x0c0000, 0x0c0007) AM_WRITE(mugsmash_reg_w) AM_BASE_MEMBER(mugsmash_state, regs1)	/* video registers*/
 	AM_RANGE(0x100000, 0x1005ff) AM_RAM_WRITE(paletteram16_xRRRRRGGGGGBBBBB_word_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x140000, 0x140007) AM_WRITE(mugsmash_reg2_w) AM_BASE_MEMBER(mugsmash_state, m_regs2) /* sound + ? */
+	AM_RANGE(0x140000, 0x140007) AM_WRITE(mugsmash_reg2_w) AM_BASE_MEMBER(mugsmash_state, regs2) /* sound + ? */
 	AM_RANGE(0x1c0000, 0x1c3fff) AM_RAM /* main ram? */
 	AM_RANGE(0x1c4000, 0x1cffff) AM_RAM
-	AM_RANGE(0x200000, 0x203fff) AM_RAM AM_BASE_MEMBER(mugsmash_state, m_spriteram) /* sprite ram */
+	AM_RANGE(0x200000, 0x203fff) AM_RAM AM_BASE_MEMBER(mugsmash_state, spriteram) /* sprite ram */
 #if USE_FAKE_INPUT_PORTS
 	AM_RANGE(0x180000, 0x180007) AM_READ(mugsmash_input_ports_r)
 #else
@@ -192,11 +192,11 @@ static ADDRESS_MAP_START( mugsmash_map, AS_PROGRAM, 16 )
 #endif
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mugsmash_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mugsmash_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x8800, 0x8801) AM_DEVREADWRITE("ymsnd", ym2151_r,ym2151_w)
-	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE("oki", okim6295_r,okim6295_w)
 	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
@@ -389,10 +389,10 @@ static GFXDECODE_START( mugsmash )
 	GFXDECODE_ENTRY( "gfx2", 0, mugsmash2_layout,  0x100, 256  ) /* bg tiles */
 GFXDECODE_END
 
-static void irq_handler(device_t *device, int irq)
+static void irq_handler(running_device *device, int irq)
 {
-	mugsmash_state *state = device->machine().driver_data<mugsmash_state>();
-	device_set_input_line(state->m_audiocpu, 0 , irq ? ASSERT_LINE : CLEAR_LINE );
+	mugsmash_state *state = (mugsmash_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0 , irq ? ASSERT_LINE : CLEAR_LINE );
 }
 
 static const ym2151_interface ym2151_config =
@@ -402,47 +402,49 @@ static const ym2151_interface ym2151_config =
 
 static MACHINE_START( mugsmash )
 {
-	mugsmash_state *state = machine.driver_data<mugsmash_state>();
+	mugsmash_state *state = (mugsmash_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
 }
 
-static MACHINE_CONFIG_START( mugsmash, mugsmash_state )
+static MACHINE_DRIVER_START( mugsmash )
 
-	MCFG_CPU_ADD("maincpu", M68000, 12000000)
-	MCFG_CPU_PROGRAM_MAP(mugsmash_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_DRIVER_DATA( mugsmash_state )
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	/* Guess */
-	MCFG_CPU_PROGRAM_MAP(mugsmash_sound_map)
+	MDRV_CPU_ADD("maincpu", M68000, 12000000)
+	MDRV_CPU_PROGRAM_MAP(mugsmash_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
-	MCFG_MACHINE_START(mugsmash)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	/* Guess */
+	MDRV_CPU_PROGRAM_MAP(mugsmash_sound_map)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(mugsmash)
-	MCFG_GFXDECODE(mugsmash)
+	MDRV_MACHINE_START(mugsmash)
 
-	MCFG_PALETTE_LENGTH(0x300)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
+	MDRV_GFXDECODE(mugsmash)
 
-	MCFG_VIDEO_START(mugsmash)
+	MDRV_PALETTE_LENGTH(0x300)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_VIDEO_START(mugsmash)
+	MDRV_VIDEO_UPDATE(mugsmash)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 3579545)
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.00)	/* music */
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.00)
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_OKIM6295_ADD("oki", 1122000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)	/* sound fx */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, 3579545)
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.00)	/* music */
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.00)
+
+	MDRV_OKIM6295_ADD("oki", 1122000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)	/* sound fx */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
+MACHINE_DRIVER_END
 
 ROM_START( mugsmash )
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* 68000 Code */

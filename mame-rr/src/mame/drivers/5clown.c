@@ -446,55 +446,40 @@
 #include "cpu/m6502/m6502.h"
 #include "video/mc6845.h"
 #include "machine/6821pia.h"
-#include "machine/nvram.h"
 #include "sound/ay8910.h"
 #include "sound/okim6295.h"
 
-
-class _5clown_state : public driver_device
-{
-public:
-	_5clown_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 m_main_latch_d800;
-	UINT8 m_snd_latch_0800;
-	UINT8 m_snd_latch_0a02;
-	UINT8 m_ay8910_addr;
-	device_t *m_ay8910;
-	UINT8 *m_videoram;
-	UINT8 *m_colorram;
-	tilemap_t *m_bg_tilemap;
-	int m_mux_data;
-};
-
-
+static UINT8 main_latch_d800;
+static UINT8 snd_latch_0800;
+static UINT8 snd_latch_0a02;
+static UINT8 ay8910_addr;
+static running_device *ay8910;
 
 
 /*************************
 *     Video Hardware     *
 *************************/
 
+static UINT8 *videoram;
+static UINT8 *colorram;
+static tilemap_t *bg_tilemap;
 
 
 static WRITE8_HANDLER( fclown_videoram_w )
 {
-	_5clown_state *state = space->machine().driver_data<_5clown_state>();
-	state->m_videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	videoram[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap, offset);
 }
 
 static WRITE8_HANDLER( fclown_colorram_w )
 {
-	_5clown_state *state = space->machine().driver_data<_5clown_state>();
-	state->m_colorram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	colorram[offset] = data;
+	tilemap_mark_tile_dirty(bg_tilemap, offset);
 }
 
 
 static TILE_GET_INFO( get_fclown_tile_info )
 {
-	_5clown_state *state = machine.driver_data<_5clown_state>();
 
 /*  - bits -
     7654 3210
@@ -505,8 +490,8 @@ static TILE_GET_INFO( get_fclown_tile_info )
     x--- ----   Extra color for 7's.
 */
 
-	int attr = state->m_colorram[tile_index];
-	int code = ((attr & 0x01) << 8) | ((attr & 0x40) << 2) | state->m_videoram[tile_index];	/* bit 8 for extended char set */
+	int attr = colorram[tile_index];
+	int code = ((attr & 0x01) << 8) | ((attr & 0x40) << 2) | videoram[tile_index];	/* bit 8 for extended char set */
 	int bank = (attr & 0x02) >> 1;													/* bit 1 switch the gfx banks */
 	int color = (attr & 0x3c) >> 2 | ((attr & 0x80) >> 3);							/* bits 2-3-4-5-7 for color */
 
@@ -516,15 +501,13 @@ static TILE_GET_INFO( get_fclown_tile_info )
 
 static VIDEO_START(fclown)
 {
-	_5clown_state *state = machine.driver_data<_5clown_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_fclown_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
+	bg_tilemap = tilemap_create(machine, get_fclown_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
 }
 
 
-static SCREEN_UPDATE( fclown )
+static VIDEO_UPDATE( fclown )
 {
-	_5clown_state *state = screen->machine().driver_data<_5clown_state>();
-	tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, bg_tilemap, 0, 0);
 	return 0;
 }
 
@@ -544,7 +527,7 @@ static PALETTE_INIT( fclown )
 
 	if (color_prom == 0) return;
 
-	for (i = 0;i < machine.total_colors();i++)
+	for (i = 0;i < machine->total_colors();i++)
 	{
 		int bit0, bit1, bit2, bit3, r, g, b, bk;
 
@@ -573,6 +556,7 @@ static PALETTE_INIT( fclown )
 *         R/W Handlers        *
 ******************************/
 
+static int mux_data = 0;
 
 /* Inputs (buttons) are multiplexed.
    There are 4 sets of 5 bits each and are connected to PIA0, portA.
@@ -580,13 +564,12 @@ static PALETTE_INIT( fclown )
 */
 static READ8_DEVICE_HANDLER( mux_port_r )
 {
-	_5clown_state *state = device->machine().driver_data<_5clown_state>();
-	switch( state->m_mux_data & 0xf0 )		/* bits 4-7 */
+	switch( mux_data & 0xf0 )		/* bits 4-7 */
 	{
-		case 0x10: return input_port_read(device->machine(), "IN0-0");
-		case 0x20: return input_port_read(device->machine(), "IN0-1");
-		case 0x40: return input_port_read(device->machine(), "IN0-2");
-		case 0x80: return input_port_read(device->machine(), "IN0-3");
+		case 0x10: return input_port_read(device->machine, "IN0-0");
+		case 0x20: return input_port_read(device->machine, "IN0-1");
+		case 0x40: return input_port_read(device->machine, "IN0-2");
+		case 0x80: return input_port_read(device->machine, "IN0-3");
 	}
 
 	return 0xff;
@@ -595,8 +578,7 @@ static READ8_DEVICE_HANDLER( mux_port_r )
 
 static WRITE8_DEVICE_HANDLER( mux_w )
 {
-	_5clown_state *state = device->machine().driver_data<_5clown_state>();
-	state->m_mux_data = data ^ 0xff;	/* Inverted */
+	mux_data = data ^ 0xff;	/* Inverted */
 }
 
 
@@ -611,10 +593,10 @@ static WRITE8_DEVICE_HANDLER( counters_w )
     -x-- ----   Unknown (increments at start).
     x--- ----   Unknown (increments at start).
 */
-	coin_counter_w(device->machine(), 0, data & 0x10);	/* Key In */
-	coin_counter_w(device->machine(), 1, data & 0x20);	/* Payout */
-	coin_counter_w(device->machine(), 2, data & 0x40);	/* unknown */
-	coin_counter_w(device->machine(), 3, data & 0x80);	/* unknown */
+	coin_counter_w(device->machine, 0, data & 0x10);	/* Key In */
+	coin_counter_w(device->machine, 1, data & 0x20);	/* Payout */
+	coin_counter_w(device->machine, 2, data & 0x40);	/* unknown */
+	coin_counter_w(device->machine, 3, data & 0x80);	/* unknown */
 
 }
 
@@ -627,12 +609,12 @@ static WRITE8_DEVICE_HANDLER( trigsnd_w )
 
 	if ( (data & 0x0f) == 0x07 )
 	{
-		cputag_set_input_line(device->machine(), "audiocpu", INPUT_LINE_NMI, ASSERT_LINE );
+		cputag_set_input_line(device->machine, "audiocpu", INPUT_LINE_NMI, ASSERT_LINE );
 	}
 
 	else
 	{
-		cputag_set_input_line(device->machine(), "audiocpu", INPUT_LINE_NMI, CLEAR_LINE );
+		cputag_set_input_line(device->machine, "audiocpu", INPUT_LINE_NMI, CLEAR_LINE );
 	}
 
 }
@@ -660,9 +642,8 @@ static WRITE8_HANDLER( cpu_c048_w)
 
 static WRITE8_HANDLER( cpu_d800_w )
 {
-	_5clown_state *state = space->machine().driver_data<_5clown_state>();
 	logerror("Main: Write to $D800: %02x\n", data);
-	state->m_main_latch_d800 = data;
+	main_latch_d800 = data;
 }
 
 
@@ -683,32 +664,29 @@ static WRITE8_DEVICE_HANDLER( fclown_ay8910_w )
 
 static READ8_HANDLER( snd_e06_r )
 {
-	_5clown_state *state = space->machine().driver_data<_5clown_state>();
 	logerror("Sound: Read from $0E06 \n");
-	return state->m_main_latch_d800;
+	return main_latch_d800;
 }
 
 static WRITE8_HANDLER( snd_800_w )
 {
-	_5clown_state *state = space->machine().driver_data<_5clown_state>();
-	state->m_snd_latch_0800 = data;
+	snd_latch_0800 = data;
 
-	if (state->m_snd_latch_0a02 == 0xc0)
+	if (snd_latch_0a02 == 0xc0)
 	{
-		state->m_ay8910_addr = state->m_snd_latch_0800;
+		ay8910_addr = snd_latch_0800;
 	}
 
-	if (state->m_snd_latch_0a02 == 0x00)
+	if (snd_latch_0a02 == 0x00)
 	{
-		fclown_ay8910_w( state->m_ay8910, state->m_ay8910_addr, state->m_snd_latch_0800);
+		fclown_ay8910_w( ay8910, ay8910_addr, snd_latch_0800);
 	}
 }
 
 static WRITE8_HANDLER( snd_a02_w )
 {
-	_5clown_state *state = space->machine().driver_data<_5clown_state>();
-	state->m_snd_latch_0a02 = data & 0xff;
-	logerror("Sound: Write to $0A02: %02x\n", state->m_snd_latch_0a02);
+	snd_latch_0a02 = data & 0xff;
+	logerror("Sound: Write to $0A02: %02x\n", snd_latch_0a02);
 }
 
 
@@ -716,14 +694,14 @@ static WRITE8_HANDLER( snd_a02_w )
 * Memory map information *
 *************************/
 
-static ADDRESS_MAP_START( fclown_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x07ff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0x0800, 0x0800) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0x0801, 0x0801) AM_DEVREADWRITE_MODERN("crtc", mc6845_device, register_r, register_w)
-	AM_RANGE(0x0844, 0x0847) AM_DEVREADWRITE_MODERN("pia0", pia6821_device, read, write)
-	AM_RANGE(0x0848, 0x084b) AM_DEVREADWRITE_MODERN("pia1", pia6821_device, read, write)
-	AM_RANGE(0x1000, 0x13ff) AM_RAM_WRITE(fclown_videoram_w) AM_BASE_MEMBER(_5clown_state, m_videoram)	/* Init'ed at $2042 */
-	AM_RANGE(0x1800, 0x1bff) AM_RAM_WRITE(fclown_colorram_w) AM_BASE_MEMBER(_5clown_state, m_colorram)	/* Init'ed at $2054 */
+static ADDRESS_MAP_START( fclown_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x07ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0x0800, 0x0800) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0x0801, 0x0801) AM_DEVREADWRITE("crtc", mc6845_register_r, mc6845_register_w)
+	AM_RANGE(0x0844, 0x0847) AM_DEVREADWRITE("pia0", pia6821_r, pia6821_w)
+	AM_RANGE(0x0848, 0x084b) AM_DEVREADWRITE("pia1", pia6821_r, pia6821_w)
+	AM_RANGE(0x1000, 0x13ff) AM_RAM_WRITE(fclown_videoram_w) AM_BASE(&videoram)	/* Init'ed at $2042 */
+	AM_RANGE(0x1800, 0x1bff) AM_RAM_WRITE(fclown_colorram_w) AM_BASE(&colorram)	/* Init'ed at $2054 */
 	AM_RANGE(0x2000, 0x7fff) AM_ROM					/* ROM space */
 
 	AM_RANGE(0xc048, 0xc048) AM_WRITE(cpu_c048_w )
@@ -791,12 +769,12 @@ ADDRESS_MAP_END
 
 */
 
-static ADDRESS_MAP_START( fcaudio_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fcaudio_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
 	AM_RANGE(0x0800, 0x0800) AM_WRITE(snd_800_w)
 	AM_RANGE(0x0a02, 0x0a02) AM_WRITE(snd_a02_w)
-	AM_RANGE(0x0c04, 0x0c04) AM_DEVWRITE_MODERN("oki6295", okim6295_device, write)
-	AM_RANGE(0x0c06, 0x0c06) AM_DEVREAD_MODERN("oki6295", okim6295_device, read)
+	AM_RANGE(0x0c04, 0x0c04) AM_DEVWRITE("oki6295", okim6295_w)
+	AM_RANGE(0x0c06, 0x0c06) AM_DEVREAD("oki6295", okim6295_r)
 	AM_RANGE(0x0e06, 0x0e06) AM_READ(snd_e06_r)
 	AM_RANGE(0xe000, 0xffff) AM_ROM					/* ROM space */
 ADDRESS_MAP_END
@@ -1049,49 +1027,49 @@ static const ay8910_interface ay8910_config =
 *    Machine Drivers     *
 *************************/
 
-static MACHINE_CONFIG_START( fclown, _5clown_state )
+static MACHINE_DRIVER_START( fclown )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6502, MASTER_CLOCK/8)	/* guess, seems ok */
-	MCFG_CPU_PROGRAM_MAP(fclown_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", M6502, MASTER_CLOCK/8)	/* guess, seems ok */
+	MDRV_CPU_PROGRAM_MAP(fclown_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_CPU_ADD("audiocpu", M6502, MASTER_CLOCK/8)	/* guess, seems ok */
-	MCFG_CPU_PROGRAM_MAP(fcaudio_map)
+	MDRV_CPU_ADD("audiocpu", M6502, MASTER_CLOCK/8)	/* guess, seems ok */
+	MDRV_CPU_PROGRAM_MAP(fcaudio_map)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-	MCFG_PIA6821_ADD("pia0", fclown_pia0_intf)
-	MCFG_PIA6821_ADD("pia1", fclown_pia1_intf)
+	MDRV_PIA6821_ADD("pia0", fclown_pia0_intf)
+	MDRV_PIA6821_ADD("pia1", fclown_pia1_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE((39+1)*8, (31+1)*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(fclown)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE((39+1)*8, (31+1)*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
 
-	MCFG_GFXDECODE(fclown)
-	MCFG_PALETTE_LENGTH(256)
-	MCFG_PALETTE_INIT(fclown)
+	MDRV_GFXDECODE(fclown)
+	MDRV_PALETTE_LENGTH(256)
+	MDRV_PALETTE_INIT(fclown)
 
-	MCFG_VIDEO_START(fclown)
+	MDRV_VIDEO_START(fclown)
+	MDRV_VIDEO_UPDATE(fclown)
 
-	MCFG_MC6845_ADD("crtc", MC6845, MASTER_CLOCK/16, mc6845_intf) /* guess */
+	MDRV_MC6845_ADD("crtc", MC6845, MASTER_CLOCK/16, mc6845_intf) /* guess */
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay8910", AY8910, MASTER_CLOCK/8)		/* guess, seems ok */
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
+	MDRV_SOUND_ADD("ay8910", AY8910, MASTER_CLOCK/8)		/* guess, seems ok */
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
 
-	MCFG_OKIM6295_ADD("oki6295", MASTER_CLOCK/12, OKIM6295_PIN7_LOW)	/* guess, seems ok; pin7 guessed, seems ok */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.20)
+	MDRV_OKIM6295_ADD("oki6295", MASTER_CLOCK/12, OKIM6295_PIN7_LOW)	/* guess, seems ok; pin7 guessed, seems ok */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.20)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
 /*************************
@@ -1198,11 +1176,10 @@ ROM_END
 
 static DRIVER_INIT( fclown )
 {
-	_5clown_state *state = machine.driver_data<_5clown_state>();
     /* Decrypting main program */
 
 	int x;
-	UINT8 *src = machine.region( "maincpu" )->base();
+	UINT8 *src = memory_region( machine, "maincpu" );
 
 	for (x = 0x0000; x < 0x10000; x++)
 	{
@@ -1212,8 +1189,8 @@ static DRIVER_INIT( fclown )
 
     /* Decrypting GFX by segments */
 
-	UINT8 *gfx1_src = machine.region( "gfx1" )->base();
-	UINT8 *gfx2_src = machine.region( "gfx2" )->base();
+	UINT8 *gfx1_src = memory_region( machine, "gfx1" );
+	UINT8 *gfx2_src = memory_region( machine, "gfx2" );
 
 	for (x = 0x2000; x < 0x3000; x++)
 	{
@@ -1233,7 +1210,7 @@ static DRIVER_INIT( fclown )
 
     /* Decrypting sound samples */
 
-	UINT8 *samples_src = machine.region( "oki6295" )->base();
+	UINT8 *samples_src = memory_region( machine, "oki6295" );
 
 	for (x = 0x0000; x < 0x10000; x++)
 	{
@@ -1251,7 +1228,7 @@ static DRIVER_INIT( fclown )
 
 	/* Assigning AY-3-8910 sound device */
 
-	state->m_ay8910 = machine.device("ay8910");
+	ay8910 = machine->device("ay8910");
 }
 
 

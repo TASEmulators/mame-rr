@@ -4,43 +4,38 @@
 
 ***************************************************************************/
 
-class firetrap_state : public driver_device
+class firetrap_state
 {
 public:
-	firetrap_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, firetrap_state(machine)); }
+
+	firetrap_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *       m_bg1videoram;
-	UINT8 *       m_bg2videoram;
-	UINT8 *       m_fgvideoram;
-	UINT8 *       m_spriteram;
-	size_t        m_spriteram_size;
+	UINT8 *       bg1videoram;
+	UINT8 *       bg2videoram;
+	UINT8 *       fgvideoram;
+	UINT8 *       spriteram;
+	size_t        spriteram_size;
 
 	/* video-related */
-	tilemap_t       *m_fg_tilemap;
-	tilemap_t       *m_bg1_tilemap;
-	tilemap_t       *m_bg2_tilemap;
-	UINT8         m_scroll1_x[2];
-	UINT8         m_scroll1_y[2];
-	UINT8         m_scroll2_x[2];
-	UINT8         m_scroll2_y[2];
+	tilemap_t       *fg_tilemap, *bg1_tilemap, *bg2_tilemap;
+	UINT8         scroll1_x[2], scroll1_y[2];
+	UINT8         scroll2_x[2], scroll2_y[2];
 
 	/* misc */
-	int           m_irq_enable;
-	int           m_nmi_enable;
-	int           m_i8751_return;
-	int           m_i8751_current_command;
-	int           m_i8751_init_ptr;
-	int           m_msm5205next;
-	int           m_adpcm_toggle;
-	int           m_int_latch;
-	int           m_coin_command_pending;
+	int           irq_enable, nmi_enable;
+	int           i8751_return, i8751_current_command;
+	int           i8751_init_ptr;
+	int           msm5205next;
+	int           adpcm_toggle;
+	int           int_latch;
+	int           coin_command_pending;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_msm;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *msm;
 };
 
 
@@ -56,4 +51,4 @@ WRITE8_HANDLER( firetrap_bg2_scrolly_w );
 
 PALETTE_INIT( firetrap );
 VIDEO_START( firetrap );
-SCREEN_UPDATE( firetrap );
+VIDEO_UPDATE( firetrap );

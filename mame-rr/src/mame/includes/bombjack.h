@@ -4,26 +4,26 @@
 
 *************************************************************************/
 
-class bombjack_state : public driver_device
+class bombjack_state
 {
 public:
-	bombjack_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, bombjack_state(machine)); }
+
+	bombjack_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
-	UINT8 *    m_spriteram;
-//  UINT8 *    m_paletteram;  // currently this uses generic palette handling
-	size_t     m_spriteram_size;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
+	UINT8 *    spriteram;
+//  UINT8 *    paletteram;  // currently this uses generic palette handling
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t    *m_fg_tilemap;
-	tilemap_t    *m_bg_tilemap;
-	UINT8      m_background_image;
+	tilemap_t    *fg_tilemap, *bg_tilemap;
+	UINT8      background_image;
 
 	/* sound-related */
-	UINT8      m_latch;
+	UINT8      latch;
 };
 
 
@@ -35,4 +35,4 @@ WRITE8_HANDLER( bombjack_background_w );
 WRITE8_HANDLER( bombjack_flipscreen_w );
 
 VIDEO_START( bombjack );
-SCREEN_UPDATE( bombjack );
+VIDEO_UPDATE( bombjack );

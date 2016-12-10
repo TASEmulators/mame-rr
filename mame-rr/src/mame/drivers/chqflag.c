@@ -3,9 +3,9 @@
     Chequered Flag / Checkered Flag (GX717) (c) Konami 1988
 
     Notes:
+    - Position counter doesn't behave correctly because of the K051733
+      protection.
     - 007232 volume & panning control is almost certainly wrong.
-    - Needs HW tests or side-by-side tests to determine if the protection
-      is 100% ok now;
 
     2008-07
     Dip locations and recommended settings verified with manual
@@ -13,56 +13,61 @@
 ***************************************************************************/
 
 #include "emu.h"
+#include "deprecat.h"
 #include "cpu/z80/z80.h"
 #include "cpu/konami/konami.h"
 #include "video/konicdev.h"
 #include "sound/2151intf.h"
 #include "sound/k007232.h"
 #include "includes/chqflag.h"
-#include "includes/konamipt.h"
 
 #include "chqflag.lh"
 
 
 static WRITE8_DEVICE_HANDLER( k007232_extvolume_w );
 
-static TIMER_DEVICE_CALLBACK( chqflag_scanline )
+static INTERRUPT_GEN( chqflag_interrupt )
 {
-	chqflag_state *state = timer.machine().driver_data<chqflag_state>();
-	int scanline = param;
+	chqflag_state *state = (chqflag_state *)device->machine->driver_data;
 
-	if(scanline == 240 && k051960_is_irq_enabled(state->m_k051960)) // vblank irq
-		cputag_set_input_line(timer.machine(), "maincpu", KONAMI_IRQ_LINE, HOLD_LINE);
-	else if(((scanline % 32) == 0) && (k051960_is_nmi_enabled(state->m_k051960))) // timer irq
-		cputag_set_input_line(timer.machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE);
+	if (cpu_getiloops(device) == 0)
+	{
+		if (k051960_is_irq_enabled(state->k051960))
+			cpu_set_input_line(device, KONAMI_IRQ_LINE, HOLD_LINE);
+	}
+	else if (cpu_getiloops(device) % 2)
+	{
+		if (k051960_is_nmi_enabled(state->k051960))
+			cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	}
 }
 
 static WRITE8_HANDLER( chqflag_bankswitch_w )
 {
-	chqflag_state *state = space->machine().driver_data<chqflag_state>();
+	chqflag_state *state = (chqflag_state *)space->machine->driver_data;
 	int bankaddress;
-	UINT8 *RAM = space->machine().region("maincpu")->base();
+	UINT8 *RAM = memory_region(space->machine, "maincpu");
 
 	/* bits 0-4 = ROM bank # (0x00-0x11) */
 	bankaddress = 0x10000 + (data & 0x1f) * 0x4000;
-	memory_set_bankptr(space->machine(), "bank4", &RAM[bankaddress]);
+	memory_set_bankptr(space->machine, "bank4", &RAM[bankaddress]);
 
 	/* bit 5 = memory bank select */
 	if (data & 0x20)
 	{
-		space->install_read_bank(0x1800, 0x1fff, "bank5");
-		space->install_legacy_write_handler(0x1800, 0x1fff, FUNC(paletteram_xBBBBBGGGGGRRRRR_be_w));
-		memory_set_bankptr(space->machine(), "bank5", space->machine().generic.paletteram.v);
+		memory_install_read_bank(space, 0x1800, 0x1fff, 0, 0, "bank5");
+		memory_install_write8_handler(space, 0x1800, 0x1fff, 0, 0, paletteram_xBBBBBGGGGGRRRRR_be_w);
+		memory_set_bankptr(space->machine, "bank5", space->machine->generic.paletteram.v);
 
-		if (state->m_k051316_readroms)
-			space->install_legacy_readwrite_handler(*state->m_k051316_1, 0x1000, 0x17ff, FUNC(k051316_rom_r), FUNC(k051316_w));	/* 051316 #1 (ROM test) */
+		if (state->k051316_readroms)
+			memory_install_readwrite8_device_handler(space, state->k051316_1, 0x1000, 0x17ff, 0, 0, k051316_rom_r, k051316_w);	/* 051316 #1 (ROM test) */
 		else
-			space->install_legacy_readwrite_handler(*state->m_k051316_1, 0x1000, 0x17ff, FUNC(k051316_r), FUNC(k051316_w));		/* 051316 #1 */
+			memory_install_readwrite8_device_handler(space, state->k051316_1, 0x1000, 0x17ff, 0, 0, k051316_r, k051316_w);		/* 051316 #1 */
 	}
 	else
 	{
-		space->install_readwrite_bank(0x1000, 0x17ff, "bank1");				/* RAM */
-		space->install_readwrite_bank(0x1800, 0x1fff, "bank2");				/* RAM */
+		memory_install_readwrite_bank(space, 0x1000, 0x17ff, 0, 0, "bank1");				/* RAM */
+		memory_install_readwrite_bank(space, 0x1800, 0x1fff, 0, 0, "bank2");				/* RAM */
 	}
 
 	/* other bits unknown/unused */
@@ -70,19 +75,19 @@ static WRITE8_HANDLER( chqflag_bankswitch_w )
 
 static WRITE8_HANDLER( chqflag_vreg_w )
 {
-	chqflag_state *state = space->machine().driver_data<chqflag_state>();
+	chqflag_state *state = (chqflag_state *)space->machine->driver_data;
 
 	/* bits 0 & 1 = coin counters */
-	coin_counter_w(space->machine(), 1, data & 0x01);
-	coin_counter_w(space->machine(), 0, data & 0x02);
+	coin_counter_w(space->machine, 1, data & 0x01);
+	coin_counter_w(space->machine, 0, data & 0x02);
 
-	/* bit 4 = enable rom reading through K051316 #1 & #2 */
-	state->m_k051316_readroms = (data & 0x10);
+	/* bit 4 = enable rom reading thru K051316 #1 & #2 */
+	state->k051316_readroms = (data & 0x10);
 
-	if (state->m_k051316_readroms)
-		space->install_legacy_read_handler(*state->m_k051316_2, 0x2800, 0x2fff, FUNC(k051316_rom_r));	/* 051316 (ROM test) */
+	if (state->k051316_readroms)
+		memory_install_read8_device_handler(space, state->k051316_2, 0x2800, 0x2fff, 0, 0, k051316_rom_r);	/* 051316 (ROM test) */
 	else
-		space->install_legacy_read_handler(*state->m_k051316_2, 0x2800, 0x2fff, FUNC(k051316_r));		/* 051316 */
+		memory_install_read8_device_handler(space, state->k051316_2, 0x2800, 0x2fff, 0, 0, k051316_r);		/* 051316 */
 
 	/* Bits 3-7 probably control palette dimming in a similar way to TMNT2/Sunset Riders, */
 	/* however I don't have enough evidence to determine the exact behaviour. */
@@ -90,20 +95,20 @@ static WRITE8_HANDLER( chqflag_vreg_w )
 	/* the headlight (which have the shadow bit set) become highlights */
 	/* Maybe one of the bits inverts the SHAD line while the other darkens the background. */
 	if (data & 0x08)
-		palette_set_shadow_factor(space->machine(), 1 / PALETTE_DEFAULT_SHADOW_FACTOR);
+		palette_set_shadow_factor(space->machine, 1 / PALETTE_DEFAULT_SHADOW_FACTOR);
 	else
-		palette_set_shadow_factor(space->machine(), PALETTE_DEFAULT_SHADOW_FACTOR);
+		palette_set_shadow_factor(space->machine, PALETTE_DEFAULT_SHADOW_FACTOR);
 
-	if ((data & 0x80) != state->m_last_vreg)
+	if ((data & 0x80) != state->last_vreg)
 	{
 		double brt = (data & 0x80) ? PALETTE_DEFAULT_SHADOW_FACTOR : 1.0;
 		int i;
 
-		state->m_last_vreg = data & 0x80;
+		state->last_vreg = data & 0x80;
 
 		/* only affect the background */
 		for (i = 512; i < 1024; i++)
-			palette_set_pen_contrast(space->machine(), i, brt);
+			palette_set_pen_contrast(space->machine, i, brt);
 	}
 
 //if ((data & 0xf8) && (data & 0xf8) != 0x88)
@@ -115,19 +120,19 @@ static WRITE8_HANDLER( chqflag_vreg_w )
 
 static WRITE8_HANDLER( select_analog_ctrl_w )
 {
-	chqflag_state *state = space->machine().driver_data<chqflag_state>();
-	state->m_analog_ctrl = data;
+	chqflag_state *state = (chqflag_state *)space->machine->driver_data;
+	state->analog_ctrl = data;
 }
 
 static READ8_HANDLER( analog_read_r )
 {
-	chqflag_state *state = space->machine().driver_data<chqflag_state>();
-	switch (state->m_analog_ctrl & 0x03)
+	chqflag_state *state = (chqflag_state *)space->machine->driver_data;
+	switch (state->analog_ctrl & 0x03)
 	{
-		case 0x00: return (state->m_accel = input_port_read(space->machine(), "IN3"));	/* accelerator */
-		case 0x01: return (state->m_wheel = input_port_read(space->machine(), "IN4"));	/* steering */
-		case 0x02: return state->m_accel;						/* accelerator (previous?) */
-		case 0x03: return state->m_wheel;						/* steering (previous?) */
+		case 0x00: return (state->accel = input_port_read(space->machine, "IN3"));	/* accelerator */
+		case 0x01: return (state->wheel = input_port_read(space->machine, "IN4"));	/* steering */
+		case 0x02: return state->accel;						/* accelerator (previous?) */
+		case 0x03: return state->wheel;						/* steering (previous?) */
 	}
 
 	return 0xff;
@@ -135,15 +140,15 @@ static READ8_HANDLER( analog_read_r )
 
 static WRITE8_HANDLER( chqflag_sh_irqtrigger_w )
 {
-	chqflag_state *state = space->machine().driver_data<chqflag_state>();
+	chqflag_state *state = (chqflag_state *)space->machine->driver_data;
 	soundlatch2_w(space, 0, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
 
 /****************************************************************************/
 
-static ADDRESS_MAP_START( chqflag_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( chqflag_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_RAM												/* RAM */
 	AM_RANGE(0x1000, 0x17ff) AM_RAMBANK("bank1")								/* banked RAM (RAM/051316 (chip 1)) */
 	AM_RANGE(0x1800, 0x1fff) AM_RAMBANK("bank2")								/* palette + RAM */
@@ -171,21 +176,21 @@ ADDRESS_MAP_END
 
 static WRITE8_HANDLER( k007232_bankswitch_w )
 {
-	chqflag_state *state = space->machine().driver_data<chqflag_state>();
+	chqflag_state *state = (chqflag_state *)space->machine->driver_data;
 	int bank_A, bank_B;
 
 	/* banks # for the 007232 (chip 1) */
 	bank_A = ((data >> 4) & 0x03);
 	bank_B = ((data >> 6) & 0x03);
-	k007232_set_bank(state->m_k007232_1, bank_A, bank_B);
+	k007232_set_bank(state->k007232_1, bank_A, bank_B);
 
 	/* banks # for the 007232 (chip 2) */
 	bank_A = ((data >> 0) & 0x03);
 	bank_B = ((data >> 2) & 0x03);
-	k007232_set_bank(state->m_k007232_2, bank_A, bank_B);
+	k007232_set_bank(state->k007232_2, bank_A, bank_B);
 }
 
-static ADDRESS_MAP_START( chqflag_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( chqflag_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM /* ROM */
 	AM_RANGE(0x8000, 0x87ff) AM_RAM /* RAM */
 	AM_RANGE(0x9000, 0x9000) AM_WRITE(k007232_bankswitch_w)	/* 007232 bankswitch */
@@ -201,15 +206,48 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( chqflag )
 	PORT_START("DSW1")
-	KONAMI_COINAGE_LOC(DEF_STR( Free_Play ), "Invalid", SW1)
+	PORT_DIPNAME( 0x0f, 0x0f, DEF_STR( Coin_A ) ) PORT_DIPLOCATION("SW1:1,2,3,4")
+	PORT_DIPSETTING(    0x02, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x05, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( 3C_2C ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( 4C_3C ) )
+	PORT_DIPSETTING(    0x0f, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x03, DEF_STR( 3C_4C ) )
+	PORT_DIPSETTING(    0x07, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0x0e, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x06, DEF_STR( 2C_5C ) )
+	PORT_DIPSETTING(    0x0d, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0x0b, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0x0a, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x09, DEF_STR( 1C_7C ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Free_Play ) )
+	PORT_DIPNAME( 0xf0, 0xf0, DEF_STR( Coin_B ) ) PORT_DIPLOCATION("SW1:5,6,7,8")
+	PORT_DIPSETTING(    0x20, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x50, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( 3C_2C ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( 4C_3C ) )
+	PORT_DIPSETTING(    0xf0, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x30, DEF_STR( 3C_4C ) )
+	PORT_DIPSETTING(    0x70, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0xe0, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x60, DEF_STR( 2C_5C ) )
+	PORT_DIPSETTING(    0xd0, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0xc0, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0xb0, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0xa0, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x90, DEF_STR( 1C_7C ) )
+	PORT_DIPSETTING(    0x00, "Invalid" )
 	/* Invalid = both coin slots disabled */
 
 	PORT_START("DSW2")
-	PORT_DIPUNUSED_DIPLOC( 0x01, IP_ACTIVE_LOW, "SW2:1" )	/* Manual says it's not used */
-	PORT_DIPUNUSED_DIPLOC( 0x02, IP_ACTIVE_LOW, "SW2:2" )	/* Manual says it's not used */
-	PORT_DIPUNUSED_DIPLOC( 0x04, IP_ACTIVE_LOW, "SW2:3" )	/* Manual says it's not used */
-	PORT_DIPUNUSED_DIPLOC( 0x08, IP_ACTIVE_LOW, "SW2:4" )	/* Manual says it's not used */
-	PORT_DIPUNUSED_DIPLOC( 0x10, IP_ACTIVE_LOW, "SW2:5" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "SW2:1" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x02, 0x02, "SW2:2" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )	/* Manual says it's not used */
 	PORT_DIPNAME( 0x60, 0x40, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SW2:6,7")
 	PORT_DIPSETTING(	0x60, DEF_STR( Easy ) )
 	PORT_DIPSETTING(	0x40, DEF_STR( Normal ) )
@@ -221,7 +259,7 @@ static INPUT_PORTS_START( chqflag )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x7f, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_DIPUNUSED_DIPLOC( 0x80, IP_ACTIVE_LOW, "SW3:4" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW3:4" )	/* Manual says it's not used */
 
 	PORT_START("IN1")
 	/* COINSW + STARTSW */
@@ -231,7 +269,7 @@ static INPUT_PORTS_START( chqflag )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	/* DIPSW #3 */
-	PORT_DIPUNUSED_DIPLOC( 0x20, IP_ACTIVE_LOW, "SW3:1" )	/* Manual says it's not used */
+	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW3:1" )	/* Manual says it's not used */
 	PORT_DIPNAME( 0x40, 0x40, "Title" ) PORT_DIPLOCATION("SW3:2")
 	PORT_DIPSETTING(	0x40, "Chequered Flag" )
 	PORT_DIPSETTING(	0x00, "Checkered Flag" )
@@ -250,23 +288,12 @@ static INPUT_PORTS_START( chqflag )
 	PORT_BIT( 0xff, 0x80, IPT_PADDLE ) PORT_MINMAX(0x10,0xef) PORT_SENSITIVITY(80) PORT_KEYDELTA(8)
 INPUT_PORTS_END
 
-static INPUT_PORTS_START( chqflagj )
-	PORT_INCLUDE( chqflag )
-
-	PORT_MODIFY("DSW1")
-	KONAMI_COINAGE_LOC(DEF_STR( Free_Play ), " 1 Coin/1 Credit", SW1)
-	// Manual says 1-5, 1-6, 1-7 and 1-8 are not used, but they work
-
-	PORT_MODIFY("IN1")
-	PORT_DIPUNUSED_DIPLOC( 0x40, IP_ACTIVE_LOW, "SW3:2" )	/* Manual says it's not used */
-INPUT_PORTS_END
 
 
-
-static void chqflag_ym2151_irq_w( device_t *device, int data )
+static void chqflag_ym2151_irq_w( running_device *device, int data )
 {
-	chqflag_state *state = device->machine().driver_data<chqflag_state>();
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, data ? ASSERT_LINE : CLEAR_LINE);
+	chqflag_state *state = (chqflag_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, data ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
@@ -275,7 +302,7 @@ static const ym2151_interface ym2151_config =
 	chqflag_ym2151_irq_w
 };
 
-static void volume_callback0( device_t *device, int v )
+static void volume_callback0( running_device *device, int v )
 {
 	k007232_set_volume(device, 0, (v & 0x0f) * 0x11, 0);
 	k007232_set_volume(device, 1, 0, (v >> 4) * 0x11);
@@ -286,7 +313,7 @@ static WRITE8_DEVICE_HANDLER( k007232_extvolume_w )
 	k007232_set_volume(device, 1, (data & 0x0f) * 0x11/2, (data >> 4) * 0x11/2);
 }
 
-static void volume_callback1( device_t *device, int v )
+static void volume_callback1( running_device *device, int v )
 {
 	k007232_set_volume(device, 0, (v & 0x0f) * 0x11/2, (v >> 4) * 0x11/2);
 }
@@ -327,93 +354,95 @@ static const k051316_interface chqflag_k051316_intf_2 =
 
 static MACHINE_START( chqflag )
 {
-	chqflag_state *state = machine.driver_data<chqflag_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	chqflag_state *state = (chqflag_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x10000], 0x2000);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_k051316_1 = machine.device("k051316_1");
-	state->m_k051316_2 = machine.device("k051316_2");
-	state->m_k051960 = machine.device("k051960");
-	state->m_k007232_1 = machine.device("k007232_1");
-	state->m_k007232_2 = machine.device("k007232_2");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->k051316_1 = machine->device("k051316_1");
+	state->k051316_2 = machine->device("k051316_2");
+	state->k051960 = machine->device("k051960");
+	state->k007232_1 = machine->device("k007232_1");
+	state->k007232_2 = machine->device("k007232_2");
 
-	state->save_item(NAME(state->m_k051316_readroms));
-	state->save_item(NAME(state->m_last_vreg));
-	state->save_item(NAME(state->m_analog_ctrl));
-	state->save_item(NAME(state->m_accel));
-	state->save_item(NAME(state->m_wheel));
+	state_save_register_global(machine, state->k051316_readroms);
+	state_save_register_global(machine, state->last_vreg);
+	state_save_register_global(machine, state->analog_ctrl);
+	state_save_register_global(machine, state->accel);
+	state_save_register_global(machine, state->wheel);
 }
 
 static MACHINE_RESET( chqflag )
 {
-	chqflag_state *state = machine.driver_data<chqflag_state>();
+	chqflag_state *state = (chqflag_state *)machine->driver_data;
 
-	state->m_k051316_readroms = 0;
-	state->m_last_vreg = 0;
-	state->m_analog_ctrl = 0;
-	state->m_accel = 0;
-	state->m_wheel = 0;
+	state->k051316_readroms = 0;
+	state->last_vreg = 0;
+	state->analog_ctrl = 0;
+	state->accel = 0;
+	state->wheel = 0;
 }
 
-static MACHINE_CONFIG_START( chqflag, chqflag_state )
+static MACHINE_DRIVER_START( chqflag )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(chqflag_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", KONAMI,XTAL_24MHz/8)	/* 052001 (verified on pcb) */
-	MCFG_CPU_PROGRAM_MAP(chqflag_map)
-	MCFG_TIMER_ADD_SCANLINE("scantimer", chqflag_scanline, "screen", 0, 1)
+	MDRV_CPU_ADD("maincpu", KONAMI,XTAL_24MHz/8)	/* 052001 (verified on pcb) */
+	MDRV_CPU_PROGRAM_MAP(chqflag_map)
+	MDRV_CPU_VBLANK_INT_HACK(chqflag_interrupt,16)	/* ? */
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(chqflag_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(chqflag_sound_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_START(chqflag)
-	MCFG_MACHINE_RESET(chqflag)
+	MDRV_MACHINE_START(chqflag)
+	MDRV_MACHINE_RESET(chqflag)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	//TODO: Vsync 59.17hz Hsync 15.13 / 15.19khz
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(12*8, (64-14)*8-1, 2*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(chqflag)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(12*8, (64-14)*8-1, 2*8, 30*8-1 )
 
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(chqflag)
+	MDRV_VIDEO_START(chqflag)
+	MDRV_VIDEO_UPDATE(chqflag)
 
-	MCFG_K051960_ADD("k051960", chqflag_k051960_intf)
-	MCFG_K051316_ADD("k051316_1", chqflag_k051316_intf_1)
-	MCFG_K051316_ADD("k051316_2", chqflag_k051316_intf_2)
-	MCFG_K051733_ADD("k051733")
+	MDRV_K051960_ADD("k051960", chqflag_k051960_intf)
+	MDRV_K051316_ADD("k051316_1", chqflag_k051316_intf_1)
+	MDRV_K051316_ADD("k051316_2", chqflag_k051316_intf_2)
+	MDRV_K051733_ADD("k051733")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2151_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
+	MDRV_SOUND_ADD("ymsnd", YM2151, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2151_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
 
-	MCFG_SOUND_ADD("k007232_1", K007232, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_CONFIG(k007232_interface_1)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.20)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 0.20)
-	MCFG_SOUND_ROUTE(1, "lspeaker", 0.20)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.20)
+	MDRV_SOUND_ADD("k007232_1", K007232, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_CONFIG(k007232_interface_1)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.20)
+	MDRV_SOUND_ROUTE(0, "rspeaker", 0.20)
+	MDRV_SOUND_ROUTE(1, "lspeaker", 0.20)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.20)
 
-	MCFG_SOUND_ADD("k007232_2", K007232, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_CONFIG(k007232_interface_2)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.20)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.20)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("k007232_2", K007232, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_CONFIG(k007232_interface_2)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.20)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.20)
+MACHINE_DRIVER_END
 
 ROM_START( chqflag )
 	ROM_REGION( 0x58000, "maincpu", 0 )	/* 052001 code */
@@ -476,6 +505,5 @@ ROM_START( chqflagj )
 ROM_END
 
 
-//     YEAR, NAME,     PARENT,  MACHINE, INPUT,    INIT,MONITOR,COMPANY,FULLNAME,FLAGS
-GAMEL( 1988, chqflag,  0,       chqflag, chqflag,  0,   ROT90,  "Konami", "Chequered Flag", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_chqflag )
-GAMEL( 1988, chqflagj, chqflag, chqflag, chqflagj, 0,   ROT90,  "Konami", "Chequered Flag (Japan)", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_chqflag )
+GAMEL( 1988, chqflag,  0,       chqflag, chqflag, 0, ROT90, "Konami", "Chequered Flag", GAME_UNEMULATED_PROTECTION | GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_chqflag )
+GAMEL( 1988, chqflagj, chqflag, chqflag, chqflag, 0, ROT90, "Konami", "Chequered Flag (Japan)", GAME_UNEMULATED_PROTECTION | GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE, layout_chqflag )

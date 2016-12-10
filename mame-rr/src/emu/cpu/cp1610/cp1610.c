@@ -47,20 +47,20 @@ struct _cp1610_state
 	int		intrm_pending;
 	int		mask_interrupts;
 	legacy_cpu_device *device;
-	address_space *program;
+	const address_space *program;
 	int icount;
 };
 
-INLINE cp1610_state *get_safe_token(device_t *device)
+INLINE cp1610_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == CP1610);
 	return (cp1610_state *)downcast<legacy_cpu_device *>(device)->token();
 }
 
-#define cp1610_readop(A) cpustate->program->read_word((A)<<1)
-#define cp1610_readmem16(A) cpustate->program->read_word((A)<<1)
-#define cp1610_writemem16(A,B) cpustate->program->write_word((A)<<1,B)
+#define cp1610_readop(A) memory_read_word_16be(cpustate->program, (A)<<1)
+#define cp1610_readmem16(A) memory_read_word_16be(cpustate->program, (A)<<1)
+#define cp1610_writemem16(A,B) memory_write_word_16be(cpustate->program, (A)<<1,B)
 
 /* clear all flags */
 #define CLR_SZOC                \
@@ -1561,7 +1561,7 @@ static void cp1610_xori(cp1610_state *cpustate, int d)
 static CPU_RESET( cp1610 )
 {
 	/* This is how we set the reset vector */
-	device_set_input_line(device, CP1610_RESET, PULSE_LINE);
+	cpu_set_input_line(device, CP1610_RESET, PULSE_LINE);
 }
 
 /***************************************************
@@ -3391,17 +3391,17 @@ static CPU_INIT( cp1610 )
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
 
-	device->save_item(NAME(cpustate->r));
-	device->save_item(NAME(cpustate->flags));
-	device->save_item(NAME(cpustate->intr_enabled));
-	device->save_item(NAME(cpustate->intr_vector));
-	device->save_item(NAME(cpustate->reset_state));
-	device->save_item(NAME(cpustate->intr_state));
-	device->save_item(NAME(cpustate->intrm_state));
-	device->save_item(NAME(cpustate->reset_pending));
-	device->save_item(NAME(cpustate->intr_pending));
-	device->save_item(NAME(cpustate->intrm_pending));
-	device->save_item(NAME(cpustate->mask_interrupts));
+	state_save_register_device_item_array(device, 0, cpustate->r);
+	state_save_register_device_item(device, 0, cpustate->flags);
+	state_save_register_device_item(device, 0, cpustate->intr_enabled);
+	state_save_register_device_item(device, 0, cpustate->intr_vector);
+	state_save_register_device_item(device, 0, cpustate->reset_state);
+	state_save_register_device_item(device, 0, cpustate->intr_state);
+	state_save_register_device_item(device, 0, cpustate->intrm_state);
+	state_save_register_device_item(device, 0, cpustate->reset_pending);
+	state_save_register_device_item(device, 0, cpustate->intr_pending);
+	state_save_register_device_item(device, 0, cpustate->intrm_pending);
+	state_save_register_device_item(device, 0, cpustate->mask_interrupts);
 }
 
 static void cp1610_set_irq_line(cp1610_state *cpustate, UINT32 irqline, int state)
@@ -3409,7 +3409,8 @@ static void cp1610_set_irq_line(cp1610_state *cpustate, UINT32 irqline, int stat
 	switch(irqline)
 	{
 		case CP1610_INT_INTRM:
-			cpustate->intrm_pending = (state == ASSERT_LINE);
+			if (state == ASSERT_LINE)
+				cpustate->intrm_pending = 1;
 			cpustate->intrm_state = state;
 			break;
 		case CP1610_RESET:
@@ -3468,15 +3469,15 @@ CPU_GET_INFO( cp1610 )
 	case CPUINFO_INT_MIN_CYCLES:					info->i = 1;			break;
 	case CPUINFO_INT_MAX_CYCLES:					info->i = 7;			break;
 
-	case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 16;	break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 16;	break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -1;	break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;	break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;	break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;	break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;	break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;	break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;	break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 16;	break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;	break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -1;	break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;	break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;	break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;	break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;	break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;	break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;	break;
 
 	case CPUINFO_INT_PREVIOUSPC:		info->i = 0;	/* TODO??? */		break;
 

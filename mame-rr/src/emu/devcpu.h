@@ -46,12 +46,18 @@
 #ifndef __DEVCPU_H__
 #define __DEVCPU_H__
 
-#include "devlegcy.h"
-
 
 //**************************************************************************
 //  CONSTANTS
 //**************************************************************************
+
+// alternate address space names for common use
+enum
+{
+	ADDRESS_SPACE_PROGRAM = ADDRESS_SPACE_0,	// program address space
+	ADDRESS_SPACE_DATA = ADDRESS_SPACE_1,		// data address space
+	ADDRESS_SPACE_IO = ADDRESS_SPACE_2			// I/O address space
+};
 
 // CPU information constants
 const int MAX_REGS = 256;
@@ -72,14 +78,14 @@ enum
 		CPUINFO_INT_MAX_CYCLES,								// R/O: maximum cycles for a single instruction
 
 		CPUINFO_INT_LOGADDR_WIDTH,							// R/O: address bus size for logical accesses in each space (0=same as physical)
-		CPUINFO_INT_LOGADDR_WIDTH_PROGRAM = CPUINFO_INT_LOGADDR_WIDTH + AS_PROGRAM,
-		CPUINFO_INT_LOGADDR_WIDTH_DATA = CPUINFO_INT_LOGADDR_WIDTH + AS_DATA,
-		CPUINFO_INT_LOGADDR_WIDTH_IO = CPUINFO_INT_LOGADDR_WIDTH + AS_IO,
+		CPUINFO_INT_LOGADDR_WIDTH_PROGRAM = CPUINFO_INT_LOGADDR_WIDTH + ADDRESS_SPACE_PROGRAM,
+		CPUINFO_INT_LOGADDR_WIDTH_DATA = CPUINFO_INT_LOGADDR_WIDTH + ADDRESS_SPACE_DATA,
+		CPUINFO_INT_LOGADDR_WIDTH_IO = CPUINFO_INT_LOGADDR_WIDTH + ADDRESS_SPACE_IO,
 		CPUINFO_INT_LOGADDR_WIDTH_LAST = CPUINFO_INT_LOGADDR_WIDTH + ADDRESS_SPACES - 1,
 		CPUINFO_INT_PAGE_SHIFT,								// R/O: size of a page log 2 (i.e., 12=4096), or 0 if paging not supported
-		CPUINFO_INT_PAGE_SHIFT_PROGRAM = CPUINFO_INT_PAGE_SHIFT + AS_PROGRAM,
-		CPUINFO_INT_PAGE_SHIFT_DATA = CPUINFO_INT_PAGE_SHIFT + AS_DATA,
-		CPUINFO_INT_PAGE_SHIFT_IO = CPUINFO_INT_PAGE_SHIFT + AS_IO,
+		CPUINFO_INT_PAGE_SHIFT_PROGRAM = CPUINFO_INT_PAGE_SHIFT + ADDRESS_SPACE_PROGRAM,
+		CPUINFO_INT_PAGE_SHIFT_DATA = CPUINFO_INT_PAGE_SHIFT + ADDRESS_SPACE_DATA,
+		CPUINFO_INT_PAGE_SHIFT_IO = CPUINFO_INT_PAGE_SHIFT + ADDRESS_SPACE_IO,
 		CPUINFO_INT_PAGE_SHIFT_LAST = CPUINFO_INT_PAGE_SHIFT + ADDRESS_SPACES - 1,
 
 		CPUINFO_INT_INPUT_STATE,							// R/W: states for each input line
@@ -88,9 +94,6 @@ enum
 		CPUINFO_INT_SP = CPUINFO_INT_REGISTER + STATE_GENSP,		// R/W: the current stack pointer value
 		CPUINFO_INT_PC = CPUINFO_INT_REGISTER + STATE_GENPC,		// R/W: the current PC value
 		CPUINFO_INT_PREVIOUSPC = CPUINFO_INT_REGISTER + STATE_GENPCBASE,	// R/W: the previous PC value
-
-		CPUINFO_IS_OCTAL = CPUINFO_INT_REGISTER + MAX_REGS - 2,				// R/O: determine if default is octal or hexadecimal
-
 		CPUINFO_INT_REGISTER_LAST = CPUINFO_INT_REGISTER + MAX_REGS - 1,
 
 	CPUINFO_INT_CPU_SPECIFIC = 0x08000,						// R/W: CPU-specific values start here
@@ -115,9 +118,9 @@ enum
 		CPUINFO_FCT_EXECUTE,								// R/O: int (*execute)(legacy_cpu_device *device, int cycles)
 		CPUINFO_FCT_BURN,									// R/O: void (*burn)(legacy_cpu_device *device, int cycles)
 		CPUINFO_FCT_DISASSEMBLE,							// R/O: offs_t (*disassemble)(legacy_cpu_device *device, char *buffer, offs_t pc, const UINT8 *oprom, const UINT8 *opram, int options)
-		CPUINFO_FCT_TRANSLATE,								// R/O: int (*translate)(legacy_cpu_device *device, address_spacenum space, int intention, offs_t *address)
-		CPUINFO_FCT_READ,									// R/O: int (*read)(legacy_cpu_device *device, address_spacenum space, UINT32 offset, int size, UINT64 *value)
-		CPUINFO_FCT_WRITE,									// R/O: int (*write)(legacy_cpu_device *device, address_spacenum space, UINT32 offset, int size, UINT64 value)
+		CPUINFO_FCT_TRANSLATE,								// R/O: int (*translate)(legacy_cpu_device *device, int space, int intention, offs_t *address)
+		CPUINFO_FCT_READ,									// R/O: int (*read)(legacy_cpu_device *device, int space, UINT32 offset, int size, UINT64 *value)
+		CPUINFO_FCT_WRITE,									// R/O: int (*write)(legacy_cpu_device *device, int space, UINT32 offset, int size, UINT64 value)
 		CPUINFO_FCT_READOP,									// R/O: int (*readop)(legacy_cpu_device *device, UINT32 offset, int size, UINT64 *value)
 		CPUINFO_FCT_DEBUG_INIT,								// R/O: void (*debug_init)(legacy_cpu_device *device)
 		CPUINFO_FCT_IMPORT_STATE,							// R/O: void (*import_state)(legacy_cpu_device *device, const device_state_entry &entry)
@@ -144,19 +147,19 @@ enum
 //  CPU DEVICE CONFIGURATION MACROS
 //**************************************************************************
 
-#define MCFG_CPU_ADD MCFG_DEVICE_ADD
-#define MCFG_CPU_MODIFY MCFG_DEVICE_MODIFY
-#define MCFG_CPU_REPLACE MCFG_DEVICE_REPLACE
+#define MDRV_CPU_ADD MDRV_DEVICE_ADD
+#define MDRV_CPU_MODIFY MDRV_DEVICE_MODIFY
+#define MDRV_CPU_REPLACE MDRV_DEVICE_REPLACE
 
-#define MCFG_CPU_CLOCK MCFG_DEVICE_CLOCK
-#define MCFG_CPU_CONFIG MCFG_DEVICE_CONFIG
+#define MDRV_CPU_CLOCK MDRV_DEVICE_CLOCK
+#define MDRV_CPU_CONFIG MDRV_DEVICE_CONFIG
 
-#define MCFG_CPU_PROGRAM_MAP MCFG_DEVICE_PROGRAM_MAP
-#define MCFG_CPU_DATA_MAP MCFG_DEVICE_DATA_MAP
-#define MCFG_CPU_IO_MAP MCFG_DEVICE_IO_MAP
+#define MDRV_CPU_PROGRAM_MAP MDRV_DEVICE_PROGRAM_MAP
+#define MDRV_CPU_DATA_MAP MDRV_DEVICE_DATA_MAP
+#define MDRV_CPU_IO_MAP MDRV_DEVICE_IO_MAP
 
-#define MCFG_CPU_VBLANK_INT MCFG_DEVICE_VBLANK_INT
-#define MCFG_CPU_PERIODIC_INT MCFG_DEVICE_PERIODIC_INT
+#define MDRV_CPU_VBLANK_INT MDRV_DEVICE_VBLANK_INT
+#define MDRV_CPU_PERIODIC_INT MDRV_DEVICE_PERIODIC_INT
 
 
 
@@ -169,30 +172,54 @@ enum
 																							\
 CPU_GET_INFO( basename );																	\
 																							\
+class basename##_device_config;																\
+																							\
 class basename##_device : public legacy_cpu_device											\
 {																							\
-public:																						\
-	basename##_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, UINT32 clock);	\
+	friend class basename##_device_config;													\
+	basename##_device(running_machine &_machine, const basename##_device_config &config);	\
 };																							\
 																							\
-extern const device_type name;
+class basename##_device_config : public legacy_cpu_device_config							\
+{																							\
+	basename##_device_config(const machine_config &mconfig, device_type type, const char *tag, const device_config *owner, UINT32 clock); \
+																							\
+public:																						\
+	static device_config *static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock); \
+	virtual device_t *alloc_device(running_machine &machine) const; 						\
+};																							\
+																							\
+extern const device_type name
 
 // macro for defining the implementation needed for configuration and device classes
 #define DEFINE_LEGACY_CPU_DEVICE(name, basename)											\
 																							\
-basename##_device::basename##_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, UINT32 clock)	\
-	: legacy_cpu_device(mconfig, type, tag, owner, clock, CPU_GET_INFO_NAME(basename))		\
+basename##_device::basename##_device(running_machine &_machine, const basename##_device_config &config)	\
+	: legacy_cpu_device(_machine, config)													\
 {																							\
 }																							\
 																							\
-const device_type name = &legacy_device_creator<basename##_device>
-
+basename##_device_config::basename##_device_config(const machine_config &mconfig, device_type type, const char *tag, const device_config *owner, UINT32 clock) \
+	: legacy_cpu_device_config(mconfig, type, tag, owner, clock, CPU_GET_INFO_NAME(basename)) \
+{																							\
+}																							\
+																							\
+device_config *basename##_device_config::static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock) \
+{																							\
+	return global_alloc(basename##_device_config(mconfig, static_alloc_device_config, tag, owner, clock)); \
+}																							\
+																							\
+device_t *basename##_device_config::alloc_device(running_machine &machine) const			\
+{																							\
+	return pool_alloc(machine_get_pool(machine), basename##_device(machine, *this));		\
+}																							\
+const device_type name = basename##_device_config::static_alloc_device_config
 
 
 // CPU interface functions
 #define CPU_GET_INFO_NAME(name)			cpu_get_info_##name
-#define CPU_GET_INFO(name)				void CPU_GET_INFO_NAME(name)(legacy_cpu_device *device, UINT32 state, cpuinfo *info)
-#define CPU_GET_INFO_CALL(name)			CPU_GET_INFO_NAME(name)(device, state, info)
+#define CPU_GET_INFO(name)				void CPU_GET_INFO_NAME(name)(const device_config *devconfig, legacy_cpu_device *device, UINT32 state, cpuinfo *info)
+#define CPU_GET_INFO_CALL(name)			CPU_GET_INFO_NAME(name)(devconfig, device, state, info)
 
 #define CPU_SET_INFO_NAME(name)			cpu_set_info_##name
 #define CPU_SET_INFO(name)				void CPU_SET_INFO_NAME(name)(legacy_cpu_device *device, UINT32 state, cpuinfo *info)
@@ -219,15 +246,15 @@ const device_type name = &legacy_device_creator<basename##_device>
 #define CPU_BURN_CALL(name)				CPU_BURN_NAME(name)(device, cycles)
 
 #define CPU_TRANSLATE_NAME(name)		cpu_translate_##name
-#define CPU_TRANSLATE(name)				int CPU_TRANSLATE_NAME(name)(legacy_cpu_device *device, address_spacenum space, int intention, offs_t *address)
+#define CPU_TRANSLATE(name)				int CPU_TRANSLATE_NAME(name)(legacy_cpu_device *device, int space, int intention, offs_t *address)
 #define CPU_TRANSLATE_CALL(name)		CPU_TRANSLATE_NAME(name)(device, space, intention, address)
 
 #define CPU_READ_NAME(name)				cpu_read_##name
-#define CPU_READ(name)					int CPU_READ_NAME(name)(legacy_cpu_device *device, address_spacenum space, UINT32 offset, int size, UINT64 *value)
+#define CPU_READ(name)					int CPU_READ_NAME(name)(legacy_cpu_device *device, int space, UINT32 offset, int size, UINT64 *value)
 #define CPU_READ_CALL(name)				CPU_READ_NAME(name)(device, space, offset, size, value)
 
 #define CPU_WRITE_NAME(name)			cpu_write_##name
-#define CPU_WRITE(name)					int CPU_WRITE_NAME(name)(legacy_cpu_device *device, address_spacenum space, UINT32 offset, int size, UINT64 value)
+#define CPU_WRITE(name)					int CPU_WRITE_NAME(name)(legacy_cpu_device *device, int space, UINT32 offset, int size, UINT64 value)
 #define CPU_WRITE_CALL(name)			CPU_WRITE_NAME(name)(device, space, offset, size, value)
 
 #define CPU_READOP_NAME(name)			cpu_readop_##name
@@ -255,7 +282,32 @@ const device_type name = &legacy_device_creator<basename##_device>
 #define CPU_EXPORT_STRING_CALL(name)	CPU_EXPORT_STRING_NAME(name)(device, entry, string)
 
 
+// helpers for accessing common CPU state
+
+// CPU scheduling
+#define cpu_suspend							device_suspend
+#define cpu_resume							device_resume
+
+// synchronization helpers
+#define cpu_yield							device_yield
+#define cpu_spin							device_spin
+#define cpu_spinuntil_trigger				device_spin_until_trigger
+#define cpu_spinuntil_time					device_spin_until_time
+#define cpu_spinuntil_int					device_spin_until_interrupt
+
 // CPU timing
+#define cpu_eat_cycles						device_eat_cycles
+#define cpu_adjust_icount					device_adjust_icount
+
+#define cpu_triggerint						device_triggerint
+#define cpu_set_input_line					device_set_input_line
+#define cpu_set_input_line_vector			device_set_input_line_vector
+#define cpu_set_input_line_and_vector		device_set_input_line_and_vector
+#define cpu_set_irq_callback				device_set_irq_callback
+#define cpu_spin_until_int					device_spin_until_int
+
+#define cpu_get_address_space				device_get_space
+
 #define cpu_get_reg(cpu, _reg)				device_state(cpu)->state(_reg)
 #define	cpu_get_previouspc(cpu)				((offs_t)device_state(cpu)->state(STATE_GENPCBASE))
 #define	cpu_get_pc(cpu)						((offs_t)device_state(cpu)->state(STATE_GENPC))
@@ -265,8 +317,17 @@ const device_type name = &legacy_device_creator<basename##_device>
 #define INTERRUPT_GEN(func)		void func(device_t *device)
 
 // helpers for using machine/cputag instead of cpu objects
-#define cputag_set_input_line(mach, tag, line, state)					device_execute((mach).device(tag))->set_input_line(line, state)
-#define cputag_set_input_line_and_vector(mach, tag, line, state, vec)	device_execute((mach).device(tag))->set_input_line_and_vector(line, state, vec)
+#define cputag_get_address_space(mach, tag, spc)						downcast<cpu_device *>((mach)->device(tag))->space(spc)
+#define cputag_get_clock(mach, tag)										(mach)->device(tag)->unscaled_clock()
+#define cputag_set_clock(mach, tag, clock)								(mach)->device(tag)->set_unscaled_clock(clock)
+#define cputag_clocks_to_attotime(mach, tag, clocks)					(mach)->device(tag)->clocks_to_attotime(clocks)
+#define cputag_attotime_to_clocks(mach, tag, duration)					(mach)->device(tag)->attotime_to_clocks(duration)
+
+#define cputag_suspend(mach, tag, reason, eat)							device_suspend((mach)->device(tag), reason, eat)
+#define cputag_resume(mach, tag, reason)								device_resume((mach)->device(tag), reason)
+
+#define cputag_set_input_line(mach, tag, line, state)					downcast<cpu_device *>((mach)->device(tag))->set_input_line(line, state)
+#define cputag_set_input_line_and_vector(mach, tag, line, state, vec)	downcast<cpu_device *>((mach)->device(tag))->set_input_line_and_vector(line, state, vec)
 
 
 
@@ -281,16 +342,16 @@ class legacy_cpu_device;
 
 
 // CPU interface functions
-typedef void (*cpu_get_info_func)(legacy_cpu_device *device, UINT32 state, cpuinfo *info);
+typedef void (*cpu_get_info_func)(const device_config *devconfig, legacy_cpu_device *device, UINT32 state, cpuinfo *info);
 typedef void (*cpu_set_info_func)(legacy_cpu_device *device, UINT32 state, cpuinfo *info);
 typedef void (*cpu_init_func)(legacy_cpu_device *device, device_irq_callback irqcallback);
 typedef void (*cpu_reset_func)(legacy_cpu_device *device);
 typedef void (*cpu_exit_func)(legacy_cpu_device *device);
 typedef void (*cpu_execute_func)(legacy_cpu_device *device);
 typedef void (*cpu_burn_func)(legacy_cpu_device *device, int cycles);
-typedef int	(*cpu_translate_func)(legacy_cpu_device *device, address_spacenum space, int intention, offs_t *address);
-typedef int	(*cpu_read_func)(legacy_cpu_device *device, address_spacenum space, UINT32 offset, int size, UINT64 *value);
-typedef int	(*cpu_write_func)(legacy_cpu_device *device, address_spacenum space, UINT32 offset, int size, UINT64 value);
+typedef int	(*cpu_translate_func)(legacy_cpu_device *device, int space, int intention, offs_t *address);
+typedef int	(*cpu_read_func)(legacy_cpu_device *device, int space, UINT32 offset, int size, UINT64 *value);
+typedef int	(*cpu_write_func)(legacy_cpu_device *device, int space, UINT32 offset, int size, UINT64 value);
 typedef int	(*cpu_readop_func)(legacy_cpu_device *device, UINT32 offset, int size, UINT64 *value);
 typedef void (*cpu_debug_init_func)(legacy_cpu_device *device);
 typedef offs_t (*cpu_disassemble_func)(legacy_cpu_device *device, char *buffer, offs_t pc, const UINT8 *oprom, const UINT8 *opram, int options);
@@ -323,14 +384,75 @@ union cpuinfo
 	cpu_string_io_func		import_string;				// CPUINFO_FCT_IMPORT_STRING
 	cpu_string_io_func		export_string;				// CPUINFO_FCT_EXPORT_STRING
 	int *					icount;						// CPUINFO_PTR_INSTRUCTION_COUNTER
-	address_map_constructor	internal_map8;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
-	address_map_constructor	internal_map16;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
-	address_map_constructor	internal_map32;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
-	address_map_constructor	internal_map64;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
-	address_map_constructor	default_map8;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
-	address_map_constructor	default_map16;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
-	address_map_constructor	default_map32;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
-	address_map_constructor	default_map64;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
+	const addrmap8_token *	internal_map8;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
+	const addrmap16_token *	internal_map16;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
+	const addrmap32_token *	internal_map32;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
+	const addrmap64_token *	internal_map64;				// DEVINFO_PTR_INTERNAL_MEMORY_MAP
+	const addrmap8_token *	default_map8;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
+	const addrmap16_token *	default_map16;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
+	const addrmap32_token *	default_map32;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
+	const addrmap64_token *	default_map64;				// DEVINFO_PTR_DEFAULT_MEMORY_MAP
+};
+
+
+
+// ======================> cpu_device_config
+
+class cpu_device_config :	public device_config,
+							public device_config_execute_interface,
+							public device_config_memory_interface,
+							public device_config_state_interface,
+							public device_config_disasm_interface
+{
+	friend class cpu_device;
+
+protected:
+	// construction/destruction
+	cpu_device_config(const machine_config &mconfig, device_type type, const char *name, const char *tag, const device_config *owner, UINT32 clock);
+};
+
+
+
+// ======================> legacy_cpu_device_config
+
+class legacy_cpu_device_config : public cpu_device_config
+{
+	friend class legacy_cpu_device;
+
+protected:
+	// construction/destruction
+	legacy_cpu_device_config(const machine_config &mconfig, device_type _type, const char *_tag, const device_config *_owner, UINT32 _clock, cpu_get_info_func get_info);
+
+public:
+	// basic information getters
+	virtual const rom_entry *rom_region() const { return reinterpret_cast<const rom_entry *>(get_legacy_config_ptr(DEVINFO_PTR_ROM_REGION)); }
+	virtual const machine_config_token *machine_config_tokens() const { return reinterpret_cast<const machine_config_token *>(get_legacy_config_ptr(DEVINFO_PTR_MACHINE_CONFIG)); }
+
+protected:
+	// device_config_execute_interface overrides
+	virtual UINT64 execute_clocks_to_cycles(UINT64 clocks) const;
+	virtual UINT64 execute_cycles_to_clocks(UINT64 cycles) const;
+	virtual UINT32 execute_min_cycles() const { return get_legacy_config_int(CPUINFO_INT_MIN_CYCLES); }
+	virtual UINT32 execute_max_cycles() const { return get_legacy_config_int(CPUINFO_INT_MAX_CYCLES); }
+	virtual UINT32 execute_input_lines() const { return get_legacy_config_int(CPUINFO_INT_INPUT_LINES); }
+	virtual UINT32 execute_default_irq_vector() const { return get_legacy_config_int(CPUINFO_INT_DEFAULT_IRQ_VECTOR); }
+
+	// device_config_memory_interface overrides
+	virtual const address_space_config *memory_space_config(int spacenum = 0) const { return (spacenum < ARRAY_LENGTH(m_space_config) && m_space_config[spacenum].m_addrbus_width != 0) ? &m_space_config[spacenum] : NULL; }
+
+	// device_config_disasm_interface overrides
+	virtual UINT32 disasm_min_opcode_bytes() const { return get_legacy_config_int(CPUINFO_INT_MIN_INSTRUCTION_BYTES); }
+	virtual UINT32 disasm_max_opcode_bytes() const { return get_legacy_config_int(CPUINFO_INT_MAX_INSTRUCTION_BYTES); }
+
+	// legacy interface helpers
+	INT64 get_legacy_config_int(UINT32 state) const;
+	void *get_legacy_config_ptr(UINT32 state) const;
+	genf *get_legacy_config_fct(UINT32 state) const;
+	const char *get_legacy_config_string(UINT32 state) const;
+
+	// internal state
+	cpu_get_info_func	m_get_info;
+	address_space_config m_space_config[3];				// array of address space configs
 };
 
 
@@ -343,11 +465,12 @@ class cpu_device :	public device_t,
 					public device_state_interface,
 					public device_disasm_interface
 {
+	friend class cpu_device_config;
 	friend resource_pool_object<cpu_device>::~resource_pool_object();
 
 protected:
 	// construction/destruction
-	cpu_device(const machine_config &mconfig, device_type type, const char *name, const char *tag, device_t *owner, UINT32 clock);
+	cpu_device(running_machine &machine, const cpu_device_config &config);
 	virtual ~cpu_device();
 };
 
@@ -357,11 +480,12 @@ protected:
 
 class legacy_cpu_device : public cpu_device
 {
+	friend class legacy_cpu_device_config;
 	friend resource_pool_object<legacy_cpu_device>::~resource_pool_object();
 
 protected:
 	// construction/destruction
-	legacy_cpu_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, UINT32 clock, cpu_get_info_func info);
+	legacy_cpu_device(running_machine &machine, const legacy_cpu_device_config &config);
 	virtual ~legacy_cpu_device();
 
 public:
@@ -369,30 +493,19 @@ public:
 
 protected:
 	// device-level overrides
-	virtual const rom_entry *device_rom_region() const { return reinterpret_cast<const rom_entry *>(get_legacy_ptr(DEVINFO_PTR_ROM_REGION)); }
-	virtual machine_config_constructor device_mconfig_additions() const { return reinterpret_cast<machine_config_constructor>(get_legacy_ptr(DEVINFO_PTR_MACHINE_CONFIG)); }
-	virtual ioport_constructor device_input_ports() const { return reinterpret_cast<ioport_constructor>(get_legacy_ptr(DEVINFO_PTR_INPUT_PORTS)); }
 	virtual void device_start();
 	virtual void device_reset();
-	virtual void device_stop();
 	virtual void device_debug_setup();
 
 	// device_execute_interface overrides
-	virtual UINT64 execute_clocks_to_cycles(UINT64 clocks) const;
-	virtual UINT64 execute_cycles_to_clocks(UINT64 cycles) const;
-	virtual UINT32 execute_min_cycles() const { return get_legacy_int(CPUINFO_INT_MIN_CYCLES); }
-	virtual UINT32 execute_max_cycles() const { return get_legacy_int(CPUINFO_INT_MAX_CYCLES); }
-	virtual UINT32 execute_input_lines() const { return get_legacy_int(CPUINFO_INT_INPUT_LINES); }
-	virtual UINT32 execute_default_irq_vector() const { return get_legacy_int(CPUINFO_INT_DEFAULT_IRQ_VECTOR); }
 	virtual void execute_run();
 	virtual void execute_burn(INT32 cycles);
-	virtual void execute_set_input(int inputnum, int state) { set_legacy_int(CPUINFO_INT_INPUT_STATE + inputnum, state); }
+	virtual void execute_set_input(int inputnum, int state) { set_legacy_runtime_int(CPUINFO_INT_INPUT_STATE + inputnum, state); }
 
 	// device_memory_interface overrides
-	virtual const address_space_config *memory_space_config(address_spacenum spacenum = AS_0) const { return (spacenum < ARRAY_LENGTH(m_space_config) && m_space_config[spacenum].m_addrbus_width != 0) ? &m_space_config[spacenum] : NULL; }
-	virtual bool memory_translate(address_spacenum spacenum, int intention, offs_t &address);
-	virtual bool memory_read(address_spacenum spacenum, offs_t offset, int size, UINT64 &value);
-	virtual bool memory_write(address_spacenum spacenum, offs_t offset, int size, UINT64 value);
+	virtual bool memory_translate(int spacenum, int intention, offs_t &address);
+	virtual bool memory_read(int spacenum, offs_t offset, int size, UINT64 &value);
+	virtual bool memory_write(int spacenum, offs_t offset, int size, UINT64 value);
 	virtual bool memory_readop(offs_t offset, int size, UINT64 &value);
 
 	// device_state_interface overrides
@@ -401,21 +514,17 @@ protected:
 	virtual void state_string_export(const device_state_entry &entry, astring &string);
 
 	// device_disasm_interface overrides
-	virtual UINT32 disasm_min_opcode_bytes() const { return get_legacy_int(CPUINFO_INT_MIN_INSTRUCTION_BYTES); }
-	virtual UINT32 disasm_max_opcode_bytes() const { return get_legacy_int(CPUINFO_INT_MAX_INSTRUCTION_BYTES); }
 	virtual offs_t disasm_disassemble(char *buffer, offs_t pc, const UINT8 *oprom, const UINT8 *opram, UINT32 options);
 
 	// helpers to access data via the legacy get_info functions
-	INT64 get_legacy_int(UINT32 state) const;
-	void *get_legacy_ptr(UINT32 state) const;
-	genf *get_legacy_fct(UINT32 state) const;
-	const char *get_legacy_string(UINT32 state) const;
-	void set_legacy_int(UINT32 state, INT64 value);
+	INT64 get_legacy_runtime_int(UINT32 state);
+	void *get_legacy_runtime_ptr(UINT32 state);
+	const char *get_legacy_runtime_string(UINT32 state);
+	void set_legacy_runtime_int(UINT32 state, INT64 value);
 
 protected:
 	// internal state
-	cpu_get_info_func		m_get_info;
-	address_space_config	m_space_config[3];			// array of address space configs
+	const legacy_cpu_device_config &m_cpu_config;		// reference to the config
 	void *					m_token;					// pointer to our state
 
 	cpu_set_info_func		m_set_info;					// extracted legacy function pointers
@@ -433,7 +542,6 @@ protected:
 
 	UINT64					m_state_io;					// temporary buffer for state I/O
 	bool					m_using_legacy_state;		// true if we are using the old-style state access
-	bool					m_inited;
 };
 
 

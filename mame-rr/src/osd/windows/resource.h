@@ -31,6 +31,9 @@
 #define RW_MENU_FIRST_RECENT_FILE       11810
 #define RW_MENU_LAST_RECENT_FILE        11811
 #define IDC_CHOOSE_LIST                 20076
+#define IDC_EMULATOR                    20200
+#define IDC_ROMNAME                     20201
+#define IDC_FRAMERATE                   20202
 #define IDC_LENGTH                      20255
 #define IDC_FRAMES                      20256
 #define IDC_UNDO                        20257

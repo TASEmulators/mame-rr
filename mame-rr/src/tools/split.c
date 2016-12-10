@@ -98,6 +98,7 @@ static int split_file(const char *filename, const char *basename, UINT32 splitsi
 	void *splitbuffer = NULL;
 	int index, partnum;
 	UINT64 totallength;
+	UINT32 totalparts;
 	file_error filerr;
 	int error = 1;
 
@@ -129,6 +130,7 @@ static int split_file(const char *filename, const char *basename, UINT32 splitsi
 		fprintf(stderr, "Fatal error: too many splits (maximum is %d)\n", MAX_PARTS);
 		goto cleanup;
 	}
+	totalparts = totallength / splitsize;
 
 	// allocate a buffer for reading
 	splitbuffer = malloc(splitsize);
@@ -377,7 +379,7 @@ static int join_file(const char *filename, const char *outname, int write_output
 			printf(" verified\n");
 
 		// release allocated memory
-		osd_free(splitbuffer);
+		free(splitbuffer);
 		splitbuffer = NULL;
 	}
 	if (write_output)
@@ -400,7 +402,7 @@ cleanup:
 			remove(astring_c(outfilename));
 	}
 	if (splitbuffer != NULL)
-		osd_free(splitbuffer);
+		free(splitbuffer);
 	astring_free(outfilename);
 	astring_free(infilename);
 	astring_free(basepath);

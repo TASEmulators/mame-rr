@@ -65,7 +65,7 @@ Known issues:
 
 History:
     KT - 14-Jun-2000 - Improved Interrupt setting/clearing
-    KT - moved into separate file so it can be used in Super I/O emulation and
+    KT - moved into seperate file so it can be used in Super I/O emulation and
         any other system which uses a PC type COM port
     KT - 24-Jun-2000 - removed pc specific input port tests. More compatible
         with PCW16 and PCW16 doesn't requre the PC input port definitions
@@ -79,12 +79,9 @@ History:
 
 #define LOG(LEVEL,N,M,A)  \
 	do { \
-		if(LEVEL>=N) \
-		{ \
-			if( M ) \
-				logerror("%-24s",(char*)M ); \
-			logerror A; \
-		} \
+		if( M ) \
+			logerror("%-24s",(char*)M ); \
+		logerror A; \
 	} while (0)
 
 
@@ -109,7 +106,6 @@ static const char * const device_tags[NUM_TYPES] = { "ins8250", "ins8250a", "ns1
 #define COM_LOG(n,m,a) LOG(VERBOSE_COM,n,m,a)
 
 typedef struct {
-	devcb_resolved_write_line	out_intr_func;
 	const ins8250_interface *interface;
 	int	device_type;
 
@@ -143,7 +139,7 @@ typedef struct {
 #define COM_INT_PENDING_MODEM_STATUS_REGISTER 0x0008
 
 
-INLINE ins8250_t *get_safe_token(device_t *device)
+INLINE ins8250_t *get_safe_token(running_device *device)
 {
 	assert( device != NULL );
 	assert( ( device->type() == INS8250 ) ||
@@ -157,7 +153,7 @@ INLINE ins8250_t *get_safe_token(device_t *device)
 
 
 /* setup iir with the priority id */
-static void ins8250_setup_iir(device_t *device)
+static void ins8250_setup_iir(running_device *device)
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 
@@ -187,7 +183,7 @@ static void ins8250_setup_iir(device_t *device)
 
 
 /* ints will continue to be set for as long as there are ints pending */
-static void ins8250_update_interrupt(device_t *device)
+static void ins8250_update_interrupt(running_device *device)
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 	int state;
@@ -216,13 +212,14 @@ static void ins8250_update_interrupt(device_t *device)
 	}
 
 	/* set or clear the int */
-	ins8250->out_intr_func(state);
+	if (ins8250->interface->interrupt)
+		ins8250->interface->interrupt(device, state);
 }
 
 
 
 /* set pending bit and trigger int */
-static void ins8250_trigger_int(device_t *device, int flag)
+static void ins8250_trigger_int(running_device *device, int flag)
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 
@@ -234,7 +231,7 @@ static void ins8250_trigger_int(device_t *device, int flag)
 
 /* clear pending bit, if any ints are pending, then int will be triggered, otherwise it
 will be cleared */
-static void ins8250_clear_int(device_t *device, int flag)
+static void ins8250_clear_int(running_device *device, int flag)
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 
@@ -437,7 +434,7 @@ READ8_DEVICE_HANDLER( ins8250_r )
 		case 5:
 
 #if 0
-			if (ins8250->send.active && (machine.time()-ins8250->send.time>uart_byte_time(n)))
+			if (ins8250->send.active && (timer_get_time(machine)-ins8250->send.time>uart_byte_time(n)))
 			{
 				// currently polling is enough for pc1512
 				ins8250->lsr |= 0x40; /* set TSRE */
@@ -449,7 +446,7 @@ READ8_DEVICE_HANDLER( ins8250_r )
 				}
 			}
 #endif
-			ins8250->lsr |= 0x60; /* set THRE */
+			ins8250->lsr |= 0x20; /* set THRE */
 			data = ins8250->lsr;
 			if( ins8250->lsr & 0x1f )
 			{
@@ -484,7 +481,7 @@ READ8_DEVICE_HANDLER( ins8250_r )
 
 
 
-void ins8250_receive(device_t *device, int data)
+void ins8250_receive(running_device *device, int data)
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 
@@ -518,7 +515,7 @@ void ins8250_receive(device_t *device, int data)
 /**************************************************************************
  *  change the modem status register
  **************************************************************************/
-void ins8250_handshake_in(device_t *device, int new_msr)
+void ins8250_handshake_in(running_device *device, int new_msr)
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 
@@ -543,14 +540,12 @@ void ins8250_handshake_in(device_t *device, int new_msr)
 }
 
 
-static void common_start( device_t *device, int device_type )
+static void common_start( running_device *device, int device_type )
 {
 	ins8250_t	*ins8250 = get_safe_token(device);
 
-	ins8250->interface = (const ins8250_interface*)device->static_config();
+	ins8250->interface = (const ins8250_interface*)device->baseconfig().static_config();
 	ins8250->device_type = device_type;
-
-	ins8250->out_intr_func.resolve(ins8250->interface->out_intr_cb, *device);
 }
 
 

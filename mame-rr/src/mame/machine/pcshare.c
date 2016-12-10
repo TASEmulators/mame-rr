@@ -27,15 +27,14 @@
 #include "machine/pic8259.h"
 #include "machine/pit8253.h"
 #include "machine/8042kbdc.h"
-#include "machine/mc146818.h"
 
 #define VERBOSE_DBG 0       /* general debug messages */
 #define DBG_LOG(N,M,A) \
-	if(VERBOSE_DBG>=N){ if( M )logerror("%11.6f: %-24s",pc_keyb.machine().time().as_double(),(char*)M ); logerror A; }
+	if(VERBOSE_DBG>=N){ if( M )logerror("%11.6f: %-24s",attotime_to_double(timer_get_time(pc_keyb.machine)),(char*)M ); logerror A; }
 
 #define VERBOSE_JOY 0		/* JOY (joystick port) */
 #define JOY_LOG(N,M,A) \
-	if(VERBOSE_JOY>=N){ if( M )logerror("%11.6f: %-24s",pc_keyb.machine().time().as_double(),(char*)M ); logerror A; }
+	if(VERBOSE_JOY>=N){ if( M )logerror("%11.6f: %-24s",attotime_to_double(timer_get_time(pc_keyb.machine)),(char*)M ); logerror A; }
 
 
 static TIMER_CALLBACK( pc_keyb_timer );
@@ -47,10 +46,8 @@ static TIMER_CALLBACK( pc_keyb_timer );
 */
 
 static struct {
-	running_machine &machine() const { assert(m_machine != NULL); return *m_machine; }
-
-	running_machine *m_machine;
-	void (*int_cb)(running_machine &, int);
+	running_machine *machine;
+	void (*int_cb)(running_machine *, int);
 	emu_timer *timer;
 	UINT8 data;
 	int on;
@@ -59,7 +56,7 @@ static struct {
 
 
 
-void init_pc_common(running_machine &machine, UINT32 flags, void (*set_keyb_int_func)(running_machine &, int))
+void init_pc_common(running_machine *machine, UINT32 flags, void (*set_keyb_int_func)(running_machine *, int))
 {
 	/* PC-XT keyboard */
 	if (flags & PCCOMMON_KEYBOARD_AT)
@@ -69,9 +66,9 @@ void init_pc_common(running_machine &machine, UINT32 flags, void (*set_keyb_int_
 	at_keyboard_set_scan_code_set(1);
 
 	memset(&pc_keyb, 0, sizeof(pc_keyb));
-	pc_keyb.m_machine = &machine;
+	pc_keyb.machine = machine;
 	pc_keyb.int_cb = set_keyb_int_func;
-	pc_keyb.timer = machine.scheduler().timer_alloc(FUNC(pc_keyb_timer));
+	pc_keyb.timer = timer_alloc(machine, pc_keyb_timer, NULL);
 }
 
 UINT8 pc_keyb_read(void)
@@ -101,14 +98,14 @@ void pc_keyb_set_clock(int on)
 	if (pc_keyb.on != on)
 	{
 		if (!on)
-			pc_keyb.timer->adjust(attotime::from_msec(5));
+			timer_adjust_oneshot(pc_keyb.timer, ATTOTIME_IN_MSEC(5), 0);
 		else {
 			if ( pc_keyb.self_test ) {
 				/* The self test of the keyboard takes some time. 2 msec seems to work. */
 				/* This still needs to verified against a real keyboard. */
-				pc_keyb.timer->adjust(attotime::from_msec( 2 ));
+				timer_adjust_oneshot(pc_keyb.timer, ATTOTIME_IN_MSEC( 2 ), 0);
 			} else {
-				pc_keyb.timer->reset();
+				timer_reset(pc_keyb.timer, attotime_never);
 				pc_keyb.self_test = 0;
 			}
 		}
@@ -121,7 +118,7 @@ void pc_keyb_clear(void)
 {
 	pc_keyb.data = 0;
 	if ( pc_keyb.int_cb ) {
-		pc_keyb.int_cb(pc_keyb.machine(), 0);
+		pc_keyb.int_cb(pc_keyb.machine, 0);
 	}
 }
 
@@ -137,7 +134,7 @@ void pc_keyboard(void)
 			pc_keyb.data = data;
 			DBG_LOG(1,"KB_scancode",("$%02x\n", pc_keyb.data));
 			if ( pc_keyb.int_cb ) {
-				pc_keyb.int_cb(pc_keyb.machine(), 1);
+				pc_keyb.int_cb(pc_keyb.machine, 1);
 			}
 			pc_keyb.self_test = 0;
 		}
@@ -154,7 +151,7 @@ static UINT8 at_pages[0x10];
 
 static WRITE_LINE_DEVICE_HANDLER( pc_dma_hrq_changed )
 {
-	cputag_set_input_line(device->machine(), "maincpu", INPUT_LINE_HALT, state ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(device->machine, "maincpu", INPUT_LINE_HALT, state ? ASSERT_LINE : CLEAR_LINE);
 
 	/* Assert HLDA */
 	i8237_hlda_w( device, state );
@@ -166,7 +163,7 @@ static READ8_HANDLER( pc_dma_read_byte )
 	offs_t page_offset = (((offs_t) dma_offset[0][dma_channel]) << 16)
 		& 0xFF0000;
 
-	return space->read_byte(page_offset + offset);
+	return memory_read_byte(space, page_offset + offset);
 }
 
 
@@ -175,7 +172,7 @@ static WRITE8_HANDLER( pc_dma_write_byte )
 	offs_t page_offset = (((offs_t) dma_offset[0][dma_channel]) << 16)
 		& 0xFF0000;
 
-	space->write_byte(page_offset + offset, data);
+	memory_write_byte(space, page_offset + offset, data);
 }
 
 static READ8_HANDLER(dma_page_select_r)
@@ -222,7 +219,7 @@ static WRITE8_HANDLER(dma_page_select_w)
 	}
 }
 
-static void set_dma_channel(device_t *device, int channel, int state)
+static void set_dma_channel(running_device *device, int channel, int state)
 {
 	if (!state) dma_channel = channel;
 }
@@ -261,41 +258,35 @@ static I8237_INTERFACE( dma8237_2_config )
 
 static WRITE_LINE_DEVICE_HANDLER( pic8259_1_set_int_line )
 {
-	cputag_set_input_line(device->machine(), "maincpu", 0, state ? HOLD_LINE : CLEAR_LINE);
-}
-
-static READ8_DEVICE_HANDLER( get_slave_ack )
-{
-	if (offset==2) { // IRQ = 2
-		return pic8259_acknowledge(device->machine().device("pic8259_2"));
-	}
-	return 0x00;
+	cputag_set_input_line(device->machine, "maincpu", 0, state ? HOLD_LINE : CLEAR_LINE);
 }
 
 static const struct pic8259_interface pic8259_1_config =
 {
-	DEVCB_LINE(pic8259_1_set_int_line),
-	DEVCB_LINE_VCC,
-	DEVCB_HANDLER(get_slave_ack)
+	DEVCB_LINE(pic8259_1_set_int_line)
 };
 
 static const struct pic8259_interface pic8259_2_config =
 {
-	DEVCB_DEVICE_LINE("pic8259_1", pic8259_ir2_w),
-	DEVCB_LINE_GND,
-	DEVCB_NULL
+	DEVCB_DEVICE_LINE("pic8259_1", pic8259_ir2_w)
 };
 
 IRQ_CALLBACK(pcat_irq_callback)
 {
-	return pic8259_acknowledge(device->machine().device("pic8259_1"));
+	int r = 0;
+	r = pic8259_acknowledge(device->machine->device("pic8259_2"));
+	if (r==0)
+	{
+		r = pic8259_acknowledge(device->machine->device("pic8259_1"));
+	}
+	return r;
 }
 
 static WRITE_LINE_DEVICE_HANDLER( at_pit8254_out0_changed )
 {
-	if ( device->machine().device("pic8259_1") )
+	if ( device->machine->device("pic8259_1") )
 	{
-		pic8259_ir0_w(device->machine().device("pic8259_1"), state);
+		pic8259_ir0_w(device->machine->device("pic8259_1"), state);
 	}
 }
 
@@ -325,22 +316,21 @@ static const struct pit8253_config at_pit8254_config =
 	}
 };
 
-ADDRESS_MAP_START( pcat32_io_common, AS_IO, 32 )
+ADDRESS_MAP_START( pcat32_io_common, ADDRESS_SPACE_IO, 32 )
 	AM_RANGE(0x0000, 0x001f) AM_DEVREADWRITE8("dma8237_1", i8237_r, i8237_w, 0xffffffff)
 	AM_RANGE(0x0020, 0x003f) AM_DEVREADWRITE8("pic8259_1", pic8259_r, pic8259_w, 0xffffffff)
 	AM_RANGE(0x0040, 0x005f) AM_DEVREADWRITE8("pit8254", pit8253_r, pit8253_w, 0xffffffff)
 	AM_RANGE(0x0060, 0x006f) AM_READWRITE8(kbdc8042_8_r, kbdc8042_8_w, 0xffffffff)
-	AM_RANGE(0x0070, 0x007f) AM_RAM //AM_DEVREADWRITE8_MODERN("rtc", mc146818_device, read, write, 0xffffffff)
+	AM_RANGE(0x0070, 0x007f) AM_RAM//READWRITE(mc146818_port32le_r,     mc146818_port32le_w)
 	AM_RANGE(0x0080, 0x009f) AM_READWRITE8(dma_page_select_r,dma_page_select_w, 0xffffffff)//TODO
 	AM_RANGE(0x00a0, 0x00bf) AM_DEVREADWRITE8("pic8259_2", pic8259_r, pic8259_w, 0xffffffff)
 	AM_RANGE(0x00c0, 0x00df) AM_DEVREADWRITE8("dma8237_2", i8237_r, i8237_w, 0xffff)
 ADDRESS_MAP_END
 
-MACHINE_CONFIG_FRAGMENT(pcat_common)
-	MCFG_PIC8259_ADD( "pic8259_1", pic8259_1_config )
-	MCFG_PIC8259_ADD( "pic8259_2", pic8259_2_config )
-	MCFG_I8237_ADD( "dma8237_1", XTAL_14_31818MHz/3, dma8237_1_config )
-	MCFG_I8237_ADD( "dma8237_2", XTAL_14_31818MHz/3, dma8237_2_config )
-	MCFG_PIT8254_ADD( "pit8254", at_pit8254_config )
-//  MCFG_MC146818_ADD( "rtc", MC146818_STANDARD )
-MACHINE_CONFIG_END
+MACHINE_DRIVER_START(pcat_common)
+	MDRV_PIC8259_ADD( "pic8259_1", pic8259_1_config )
+	MDRV_PIC8259_ADD( "pic8259_2", pic8259_2_config )
+	MDRV_I8237_ADD( "dma8237_1", XTAL_14_31818MHz/3, dma8237_1_config )
+	MDRV_I8237_ADD( "dma8237_2", XTAL_14_31818MHz/3, dma8237_2_config )
+	MDRV_PIT8254_ADD( "pit8254", at_pit8254_config )
+MACHINE_DRIVER_END

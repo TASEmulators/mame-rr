@@ -78,10 +78,9 @@ static WRITE16_DEVICE_HANDLER( eeprom_w )
 {
 	if( ACCESSING_BITS_0_7 )
 	{
-		eeprom_device *eeprom = downcast<eeprom_device *>(device);
-		eeprom->write_bit(data & 0x01);
-		eeprom->set_cs_line((data & 0x02) ? CLEAR_LINE : ASSERT_LINE );
-		eeprom->set_clock_line((data & 0x04) ? ASSERT_LINE : CLEAR_LINE );
+		eeprom_write_bit(device, data & 0x01);
+		eeprom_set_cs_line(device, (data & 0x02) ? CLEAR_LINE : ASSERT_LINE );
+		eeprom_set_clock_line(device, (data & 0x04) ? ASSERT_LINE : CLEAR_LINE );
 	}
 }
 
@@ -90,27 +89,27 @@ static WRITE16_DEVICE_HANDLER( oki_bank_w )
 	downcast<okim6295_device *>(device)->set_bank_base(0x40000 * ((data>>8) & 3));
 }
 
-static ADDRESS_MAP_START( stlforce_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( stlforce_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
-	AM_RANGE(0x100000, 0x1007ff) AM_RAM_WRITE(stlforce_bg_videoram_w) AM_BASE_MEMBER(stlforce_state,m_bg_videoram)
-	AM_RANGE(0x100800, 0x100fff) AM_RAM_WRITE(stlforce_mlow_videoram_w) AM_BASE_MEMBER(stlforce_state,m_mlow_videoram)
-	AM_RANGE(0x101000, 0x1017ff) AM_RAM_WRITE(stlforce_mhigh_videoram_w) AM_BASE_MEMBER(stlforce_state,m_mhigh_videoram)
-	AM_RANGE(0x101800, 0x1027ff) AM_RAM_WRITE(stlforce_tx_videoram_w) AM_BASE_MEMBER(stlforce_state,m_tx_videoram)
+	AM_RANGE(0x100000, 0x1007ff) AM_RAM_WRITE(stlforce_bg_videoram_w) AM_BASE_MEMBER(stlforce_state,bg_videoram)
+	AM_RANGE(0x100800, 0x100fff) AM_RAM_WRITE(stlforce_mlow_videoram_w) AM_BASE_MEMBER(stlforce_state,mlow_videoram)
+	AM_RANGE(0x101000, 0x1017ff) AM_RAM_WRITE(stlforce_mhigh_videoram_w) AM_BASE_MEMBER(stlforce_state,mhigh_videoram)
+	AM_RANGE(0x101800, 0x1027ff) AM_RAM_WRITE(stlforce_tx_videoram_w) AM_BASE_MEMBER(stlforce_state,tx_videoram)
 	AM_RANGE(0x102800, 0x102fff) AM_RAM /* unknown / ram */
-	AM_RANGE(0x103000, 0x1033ff) AM_RAM AM_BASE_MEMBER(stlforce_state,m_bg_scrollram)
-	AM_RANGE(0x103400, 0x1037ff) AM_RAM AM_BASE_MEMBER(stlforce_state,m_mlow_scrollram)
-	AM_RANGE(0x103800, 0x103bff) AM_RAM AM_BASE_MEMBER(stlforce_state,m_mhigh_scrollram)
-	AM_RANGE(0x103c00, 0x103fff) AM_RAM AM_BASE_MEMBER(stlforce_state,m_vidattrram)
+	AM_RANGE(0x103000, 0x1033ff) AM_RAM AM_BASE_MEMBER(stlforce_state,bg_scrollram)
+	AM_RANGE(0x103400, 0x1037ff) AM_RAM AM_BASE_MEMBER(stlforce_state,mlow_scrollram)
+	AM_RANGE(0x103800, 0x103bff) AM_RAM AM_BASE_MEMBER(stlforce_state,mhigh_scrollram)
+	AM_RANGE(0x103c00, 0x103fff) AM_RAM AM_BASE_MEMBER(stlforce_state,vidattrram)
 	AM_RANGE(0x104000, 0x104fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x105000, 0x107fff) AM_RAM /* unknown / ram */
-	AM_RANGE(0x108000, 0x108fff) AM_RAM AM_BASE_MEMBER(stlforce_state,m_spriteram)
+	AM_RANGE(0x108000, 0x108fff) AM_RAM AM_BASE_MEMBER(stlforce_state,spriteram)
 	AM_RANGE(0x109000, 0x11ffff) AM_RAM
 	AM_RANGE(0x400000, 0x400001) AM_READ_PORT("INPUT")
 	AM_RANGE(0x400002, 0x400003) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x400010, 0x400011) AM_DEVWRITE("eeprom", eeprom_w)
 	AM_RANGE(0x400012, 0x400013) AM_DEVWRITE("oki", oki_bank_w)
 	AM_RANGE(0x40001e, 0x40001f) AM_WRITENOP // sprites buffer commands
-	AM_RANGE(0x410000, 0x410001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)
+	AM_RANGE(0x410000, 0x410001) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0x00ff)
 ADDRESS_MAP_END
 
 static INPUT_PORTS_START( stlforce )
@@ -139,7 +138,7 @@ static INPUT_PORTS_START( stlforce )
 	PORT_SERVICE_NO_TOGGLE( 0x0008, IP_ACTIVE_LOW )
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit) /* eeprom */
+	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit) /* eeprom */
 	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0xff00, IP_ACTIVE_LOW, IPT_UNUSED )
 INPUT_PORTS_END
@@ -184,45 +183,47 @@ static GFXDECODE_START( stlforce )
 GFXDECODE_END
 
 
-static MACHINE_CONFIG_START( stlforce, stlforce_state )
+static MACHINE_DRIVER_START( stlforce )
+
+	MDRV_DRIVER_DATA( stlforce_state )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 15000000)
-	MCFG_CPU_PROGRAM_MAP(stlforce_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 15000000)
+	MDRV_CPU_PROGRAM_MAP(stlforce_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
+	MDRV_EEPROM_93C46_ADD("eeprom")
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(58)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 47*8-1, 0*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(stlforce)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(58)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 47*8-1, 0*8, 30*8-1)
 
-	MCFG_GFXDECODE(stlforce)
-	MCFG_PALETTE_LENGTH(0x800)
+	MDRV_GFXDECODE(stlforce)
+	MDRV_PALETTE_LENGTH(0x800)
 
-	MCFG_VIDEO_START(stlforce)
+	MDRV_VIDEO_START(stlforce)
+	MDRV_VIDEO_UPDATE(stlforce)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 937500 , OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 937500 , OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( twinbrat, stlforce )
-
+static MACHINE_DRIVER_START( twinbrat )
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_CLOCK(14745600)
+	MDRV_IMPORT_FROM(stlforce)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_CLOCK(14745600)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(3*8, 45*8-1, 0*8, 30*8-1)
-MACHINE_CONFIG_END
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_VISIBLE_AREA(3*8, 45*8-1, 0*8, 30*8-1)
+MACHINE_DRIVER_END
 
 ROM_START( stlforce )
 	ROM_REGION( 0x80000, "maincpu", 0 ) /* 68000 code */
@@ -363,16 +364,16 @@ ROM_END
 
 static DRIVER_INIT(stlforce)
 {
-	stlforce_state *state = machine.driver_data<stlforce_state>();
+	stlforce_state *state = (stlforce_state *)machine->driver_data;
 
-	state->m_sprxoffs = 0;
+	state->sprxoffs = 0;
 }
 
 static DRIVER_INIT(twinbrat)
 {
-	stlforce_state *state = machine.driver_data<stlforce_state>();
+	stlforce_state *state = (stlforce_state *)machine->driver_data;
 
-	state->m_sprxoffs = 9;
+	state->sprxoffs = 9;
 }
 
 

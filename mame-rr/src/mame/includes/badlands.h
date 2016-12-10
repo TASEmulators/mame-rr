@@ -6,18 +6,21 @@
 
 #include "machine/atarigen.h"
 
-class badlands_state : public atarigen_state
+class badlands_state
 {
 public:
-	badlands_state(const machine_config &mconfig, device_type type, const char *tag)
-		: atarigen_state(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, badlands_state(machine)); }
 
-	UINT8			m_pedal_value[2];
+	badlands_state(running_machine &machine) { }
 
-	UINT8 *			m_bank_base;
-	UINT8 *			m_bank_source_data;
+	atarigen_state	atarigen;
 
-	UINT8			m_playfield_tile_bank;
+	UINT8			pedal_value[2];
+
+	UINT8 *			bank_base;
+	UINT8 *			bank_source_data;
+
+	UINT8			playfield_tile_bank;
 };
 
 
@@ -26,4 +29,4 @@ public:
 WRITE16_HANDLER( badlands_pf_bank_w );
 
 VIDEO_START( badlands );
-SCREEN_UPDATE( badlands );
+VIDEO_UPDATE( badlands );

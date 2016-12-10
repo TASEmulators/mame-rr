@@ -4,31 +4,32 @@
 
 *************************************************************************/
 
-class battlnts_state : public driver_device
+class battlnts_state
 {
 public:
-	battlnts_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, battlnts_state(machine)); }
+
+	battlnts_state(running_machine &machine) { }
 
 	/* memory pointers */
 //  UINT8 *      paletteram;    // this currently uses generic palette handling
 
 	/* video-related */
-	int m_spritebank;
-	int m_layer_colorbase[2];
+	int spritebank;
+	int layer_colorbase[2];
 
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_k007342;
-	device_t *m_k007420;
+	running_device *audiocpu;
+	running_device *k007342;
+	running_device *k007420;
 };
 
 /*----------- defined in video/battlnts.c -----------*/
 
 WRITE8_HANDLER( battlnts_spritebank_w );
 
-SCREEN_UPDATE( battlnts );
+VIDEO_UPDATE( battlnts );
 
-void battlnts_tile_callback(running_machine &machine, int layer, int bank, int *code, int *color, int *flags);
-void battlnts_sprite_callback(running_machine &machine, int *code, int *color);
+void battlnts_tile_callback(running_machine *machine, int layer, int bank, int *code, int *color, int *flags);
+void battlnts_sprite_callback(running_machine *machine, int *code, int *color);

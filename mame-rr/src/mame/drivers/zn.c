@@ -10,12 +10,11 @@
 
 #include "emu.h"
 #include "cpu/m68000/m68000.h"
-#include "cpu/psx/psx.h"
+#include "deprecat.h"
+#include "cpu/mips/psx.h"
 #include "cpu/z80/z80.h"
-#include "video/psx.h"
 #include "includes/psx.h"
 #include "machine/at28c16.h"
-#include "machine/nvram.h"
 #include "machine/mb3773.h"
 #include "machine/znsec.h"
 #include "machine/idectrl.h"
@@ -23,41 +22,13 @@
 #include "sound/2610intf.h"
 #include "sound/ymz280b.h"
 #include "sound/qsound.h"
-#include "sound/spu.h"
+#include "sound/psx.h"
 #include "sound/ymf271.h"
 #include "audio/taito_zm.h"
 
 #define VERBOSE_LEVEL ( 0 )
 
-class zn_state : public psx_state
-{
-public:
-	zn_state(const machine_config &mconfig, device_type type, const char *tag)
-		: psx_state(mconfig, type, tag) { }
-
-	UINT32 m_n_znsecsel;
-	UINT32 m_b_znsecport;
-	int m_n_dip_bit;
-	int m_b_lastclock;
-	emu_timer *m_dip_timer;
-
-	size_t m_taitofx1_eeprom_size1;
-	UINT8 *m_taitofx1_eeprom1;
-	size_t m_taitofx1_eeprom_size2;
-	UINT8 *m_taitofx1_eeprom2;
-
-	UINT32 m_bam2_mcu_command;
-	int m_jdredd_gun_mux;
-
-	size_t m_nbajamex_eeprom_size;
-	UINT8 *m_nbajamex_eeprom;
-
-	int m_cbaj_to_z80;
-	int m_cbaj_to_r3k;
-	int m_latch_to_z80;
-};
-
-INLINE void ATTR_PRINTF(3,4) verboselog( running_machine &machine, int n_level, const char *s_fmt, ... )
+INLINE void ATTR_PRINTF(3,4) verboselog( running_machine *machine, int n_level, const char *s_fmt, ... )
 {
 	if( VERBOSE_LEVEL >= n_level )
 	{
@@ -66,20 +37,18 @@ INLINE void ATTR_PRINTF(3,4) verboselog( running_machine &machine, int n_level, 
 		va_start( v, s_fmt );
 		vsprintf( buf, s_fmt, v );
 		va_end( v );
-		logerror( "%s: %s", machine.describe_context(), buf );
+		logerror( "%s: %s", cpuexec_describe_context(machine), buf );
 	}
 }
 
-#ifdef UNUSED_FUNCTION
-INLINE UINT8 psxreadbyte( UINT32 *p_n_psxram, UINT32 n_address )
+INLINE UINT8 psxreadbyte( UINT32 n_address )
 {
-	return *( (UINT8 *)p_n_psxram + BYTE4_XOR_LE( n_address ) );
+	return *( (UINT8 *)g_p_n_psxram + BYTE4_XOR_LE( n_address ) );
 }
-#endif
 
-INLINE void psxwritebyte( UINT32 *p_n_psxram, UINT32 n_address, UINT8 n_data )
+INLINE void psxwritebyte( UINT32 n_address, UINT8 n_data )
 {
-	*( (UINT8 *)p_n_psxram + BYTE4_XOR_LE( n_address ) ) = n_data;
+	*( (UINT8 *)g_p_n_psxram + BYTE4_XOR_LE( n_address ) ) = n_data;
 }
 
 static const UINT8 ac01[ 8 ] = { 0x80, 0x1c, 0xe2, 0xfa, 0xf9, 0xf1, 0x30, 0xc0 };
@@ -234,134 +203,127 @@ static const struct
 	{ NULL, NULL, NULL }
 };
 
+static UINT32 m_n_znsecsel;
+static UINT32 m_b_znsecport;
+static int m_n_dip_bit;
+static int m_b_lastclock;
+static emu_timer *dip_timer;
+
 static READ32_HANDLER( znsecsel_r )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-
-	verboselog( space->machine(), 2, "znsecsel_r( %08x, %08x )\n", offset, mem_mask );
-	return state->m_n_znsecsel;
+	verboselog( space->machine, 2, "znsecsel_r( %08x, %08x )\n", offset, mem_mask );
+	return m_n_znsecsel;
 }
 
-static void sio_znsec0_handler( running_machine &machine, int n_data )
+static void sio_znsec0_handler( running_machine *machine, int n_data )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-
 	if( ( n_data & PSX_SIO_OUT_CLOCK ) == 0 )
 	{
-		if( state->m_b_lastclock )
+		if( m_b_lastclock )
 		{
 			psx_sio_input( machine, 0, PSX_SIO_IN_DATA, ( znsec_step( 0, ( n_data & PSX_SIO_OUT_DATA ) != 0 ) != 0 ) * PSX_SIO_IN_DATA );
 		}
-		state->m_b_lastclock = 0;
+		m_b_lastclock = 0;
 	}
 	else
 	{
-		state->m_b_lastclock = 1;
+		m_b_lastclock = 1;
 	}
 }
 
-static void sio_znsec1_handler( running_machine &machine, int n_data )
+static void sio_znsec1_handler( running_machine *machine, int n_data )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-
 	if( ( n_data & PSX_SIO_OUT_CLOCK ) == 0 )
 	{
-		if( state->m_b_lastclock )
+		if( m_b_lastclock )
 		{
 			psx_sio_input( machine, 0, PSX_SIO_IN_DATA, ( znsec_step( 1, ( n_data & PSX_SIO_OUT_DATA ) != 0 ) != 0 ) * PSX_SIO_IN_DATA );
 		}
-		state->m_b_lastclock = 0;
+		m_b_lastclock = 0;
 	}
 	else
 	{
-		state->m_b_lastclock = 1;
+		m_b_lastclock = 1;
 	}
 }
 
-static void sio_pad_handler( running_machine &machine, int n_data )
+static void sio_pad_handler( running_machine *machine, int n_data )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-
 	if( ( n_data & PSX_SIO_OUT_DTR ) != 0 )
 	{
-		state->m_b_znsecport = 1;
+		m_b_znsecport = 1;
 	}
 	else
 	{
-		state->m_b_znsecport = 0;
+		m_b_znsecport = 0;
 	}
 
-	verboselog( machine, 2, "read pad %04x %04x %02x\n", state->m_n_znsecsel, state->m_b_znsecport, n_data );
+	verboselog( machine, 2, "read pad %04x %04x %02x\n", m_n_znsecsel, m_b_znsecport, n_data );
 	psx_sio_input( machine, 0, PSX_SIO_IN_DATA | PSX_SIO_IN_DSR, PSX_SIO_IN_DATA | PSX_SIO_IN_DSR );
 }
 
-static void sio_dip_handler( running_machine &machine, int n_data )
+static void sio_dip_handler( running_machine *machine, int n_data )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-
 	if( ( n_data & PSX_SIO_OUT_CLOCK ) == 0 )
 	{
-		if( state->m_b_lastclock )
+		if( m_b_lastclock )
 		{
-			int bit = ( ( input_port_read(machine, "DSW") >> state->m_n_dip_bit ) & 1 );
+			int bit = ( ( input_port_read(machine, "DSW") >> m_n_dip_bit ) & 1 );
 			verboselog( machine, 2, "read dip %02x -> %02x\n", n_data, bit * PSX_SIO_IN_DATA );
 			psx_sio_input( machine, 0, PSX_SIO_IN_DATA, bit * PSX_SIO_IN_DATA );
-			state->m_n_dip_bit++;
-			state->m_n_dip_bit &= 7;
+			m_n_dip_bit++;
+			m_n_dip_bit &= 7;
 		}
-		state->m_b_lastclock = 0;
+		m_b_lastclock = 0;
 	}
 	else
 	{
-		state->m_b_lastclock = 1;
+		m_b_lastclock = 1;
 	}
 }
 
 static WRITE32_HANDLER( znsecsel_w )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
+	COMBINE_DATA( &m_n_znsecsel );
 
-	COMBINE_DATA( &state->m_n_znsecsel );
-
-	if( ( state->m_n_znsecsel & 0x80 ) == 0 )
+	if( ( m_n_znsecsel & 0x80 ) == 0 )
 	{
-		psx_sio_install_handler( space->machine(), 0, sio_pad_handler );
-		psx_sio_input( space->machine(), 0, PSX_SIO_IN_DSR, 0 );
+		psx_sio_install_handler( 0, sio_pad_handler );
+		psx_sio_input( space->machine, 0, PSX_SIO_IN_DSR, 0 );
 	}
-	else if( ( state->m_n_znsecsel & 0x08 ) == 0 )
+	else if( ( m_n_znsecsel & 0x08 ) == 0 )
 	{
 		znsec_start( 1 );
-		psx_sio_install_handler( space->machine(), 0, sio_znsec1_handler );
-		psx_sio_input( space->machine(), 0, PSX_SIO_IN_DSR, 0 );
+		psx_sio_install_handler( 0, sio_znsec1_handler );
+		psx_sio_input( space->machine, 0, PSX_SIO_IN_DSR, 0 );
 	}
-	else if( ( state->m_n_znsecsel & 0x04 ) == 0 )
+	else if( ( m_n_znsecsel & 0x04 ) == 0 )
 	{
 		znsec_start( 0 );
-		psx_sio_install_handler( space->machine(), 0, sio_znsec0_handler );
-		psx_sio_input( space->machine(), 0, PSX_SIO_IN_DSR, 0 );
+		psx_sio_install_handler( 0, sio_znsec0_handler );
+		psx_sio_input( space->machine, 0, PSX_SIO_IN_DSR, 0 );
 	}
 	else
 	{
-		state->m_n_dip_bit = 0;
-		state->m_b_lastclock = 1;
+		m_n_dip_bit = 0;
+		m_b_lastclock = 1;
 
-		psx_sio_install_handler( space->machine(), 0, sio_dip_handler );
-		psx_sio_input( space->machine(), 0, PSX_SIO_IN_DSR, 0 );
+		psx_sio_install_handler( 0, sio_dip_handler );
+		psx_sio_input( space->machine, 0, PSX_SIO_IN_DSR, 0 );
 
-		state->m_dip_timer->adjust( downcast<cpu_device *>(&space->device())->cycles_to_attotime( 100 ), 1 );
+		timer_adjust_oneshot( dip_timer, downcast<cpu_device *>(space->cpu)->cycles_to_attotime( 100 ), 1 );
 	}
 
-	verboselog( space->machine(), 2, "znsecsel_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 2, "znsecsel_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
 }
 
 static TIMER_CALLBACK( dip_timer_fired )
 {
-	zn_state *state = machine.driver_data<zn_state>();
 	psx_sio_input( machine, 0, PSX_SIO_IN_DSR, param * PSX_SIO_IN_DSR );
 
 	if( param )
 	{
-		state->m_dip_timer->adjust( machine.device<cpu_device>( "maincpu" )->cycles_to_attotime(50 ) );
+		timer_adjust_oneshot( dip_timer, cputag_clocks_to_attotime( machine, "maincpu", 50 ), 0 );
 	}
 }
 
@@ -386,7 +348,7 @@ static READ32_HANDLER( boardconfig_r )
     111----- rev=5
     */
 
-	if( space->machine().primary_screen->height() == 1024 )
+	if( space->machine->primary_screen->height() == 1024 )
 	{
 		return 64|32|8;
 	}
@@ -398,7 +360,7 @@ static READ32_HANDLER( boardconfig_r )
 
 static READ32_HANDLER( unknown_r )
 {
-	verboselog( space->machine(), 0, "unknown_r( %08x, %08x )\n", offset, mem_mask );
+	verboselog( space->machine, 0, "unknown_r( %08x, %08x )\n", offset, mem_mask );
 	return 0xffffffff;
 }
 
@@ -412,13 +374,30 @@ static WRITE32_HANDLER( coin_w )
     */
 	if( ( data & ~0x23 ) != 0 )
 	{
-		verboselog( space->machine(), 0, "coin_w %08x\n", data );
+		verboselog( space->machine, 0, "coin_w %08x\n", data );
 	}
 }
 
-static ADDRESS_MAP_START( zn_map, AS_PROGRAM, 32 )
-	AM_RANGE(0x00000000, 0x003fffff) AM_RAM	AM_SHARE("share1") /* ram */
+static ADDRESS_MAP_START( zn_map, ADDRESS_SPACE_PROGRAM, 32 )
+	AM_RANGE(0x00000000, 0x003fffff) AM_RAM	AM_SHARE("share1") AM_BASE(&g_p_n_psxram) AM_SIZE(&g_n_psxramsize) /* ram */
 	AM_RANGE(0x00400000, 0x007fffff) AM_RAM AM_SHARE("share1") /* ram mirror */
+	AM_RANGE(0x1f800000, 0x1f8003ff) AM_RAM /* scratchpad */
+	AM_RANGE(0x1f801000, 0x1f80100f) AM_RAM /* ?? */
+	AM_RANGE(0x1f801010, 0x1f801013) AM_NOP
+	AM_RANGE(0x1f801014, 0x1f801017) AM_DEVREADWRITE("spu", psx_spu_delay_r, psx_spu_delay_w)
+	AM_RANGE(0x1f801018, 0x1f80101f) AM_NOP
+	AM_RANGE(0x1f801020, 0x1f801023) AM_READWRITE(psx_com_delay_r, psx_com_delay_w)
+	AM_RANGE(0x1f801024, 0x1f80102f) AM_NOP
+	AM_RANGE(0x1f801040, 0x1f80105f) AM_READWRITE(psx_sio_r, psx_sio_w)
+	AM_RANGE(0x1f801060, 0x1f80106f) AM_RAM
+	AM_RANGE(0x1f801070, 0x1f801077) AM_READWRITE(psx_irq_r, psx_irq_w)
+	AM_RANGE(0x1f801080, 0x1f8010ff) AM_READWRITE(psx_dma_r, psx_dma_w)
+	AM_RANGE(0x1f801100, 0x1f80112f) AM_READWRITE(psx_counter_r, psx_counter_w)
+	AM_RANGE(0x1f801810, 0x1f801817) AM_READWRITE(psx_gpu_r, psx_gpu_w)
+	AM_RANGE(0x1f801820, 0x1f801827) AM_READWRITE(psx_mdec_r, psx_mdec_w)
+	AM_RANGE(0x1f801c00, 0x1f801dff) AM_DEVREADWRITE("spu", psx_spu_r, psx_spu_w)
+	AM_RANGE(0x1f802020, 0x1f802033) AM_RAM /* ?? */
+	AM_RANGE(0x1f802040, 0x1f802043) AM_WRITENOP
 	AM_RANGE(0x1fa00000, 0x1fa00003) AM_READ_PORT("P1")
 	AM_RANGE(0x1fa00100, 0x1fa00103) AM_READ_PORT("P2")
 	AM_RANGE(0x1fa00200, 0x1fa00203) AM_READ_PORT("SERVICE")
@@ -442,12 +421,11 @@ static ADDRESS_MAP_START( zn_map, AS_PROGRAM, 32 )
 	AM_RANGE(0xfffe0130, 0xfffe0133) AM_WRITENOP
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( link_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( link_map, ADDRESS_SPACE_PROGRAM, 8 )
 ADDRESS_MAP_END
 
-static void zn_driver_init( running_machine &machine )
+static void zn_driver_init( running_machine *machine )
 {
-	zn_state *state = machine.driver_data<zn_state>();
 	int n_game;
 
 	psx_driver_init(machine);
@@ -455,74 +433,107 @@ static void zn_driver_init( running_machine &machine )
 	n_game = 0;
 	while( zn_config_table[ n_game ].s_name != NULL )
 	{
-		if( strcmp( machine.system().name, zn_config_table[ n_game ].s_name ) == 0 )
+		if( strcmp( machine->gamedrv->name, zn_config_table[ n_game ].s_name ) == 0 )
 		{
 			znsec_init( 0, zn_config_table[ n_game ].p_n_mainsec );
 			znsec_init( 1, zn_config_table[ n_game ].p_n_gamesec );
-			psx_sio_install_handler( machine, 0, sio_pad_handler );
+			psx_sio_install_handler( 0, sio_pad_handler );
 			break;
 		}
 		n_game++;
 	}
 
-	state->m_dip_timer = machine.scheduler().timer_alloc( FUNC(dip_timer_fired), NULL );
+	dip_timer = timer_alloc(machine,  dip_timer_fired, NULL );
 }
 
-static void psx_spu_irq(device_t *device, UINT32 data)
+static void psx_spu_irq(running_device *device, UINT32 data)
 {
-	if (data)
-	{
-		psx_irq_set(device->machine(), 1<<9);
-	}
+	psx_irq_set(device->machine, data);
 }
 
-static void zn_machine_init( running_machine &machine )
+static const psx_spu_interface psxspu_interface =
 {
-	zn_state *state = machine.driver_data<zn_state>();
+	&g_p_n_psxram,
+	psx_spu_irq,
+	psx_dma_install_read_handler,
+	psx_dma_install_write_handler
+};
 
-	state->m_n_dip_bit = 0;
-	state->m_b_lastclock = 1;
+static void zn_machine_init( running_machine *machine )
+{
+	m_n_dip_bit = 0;
+	m_b_lastclock = 1;
+	psx_machine_init(machine);
 }
 
-static MACHINE_CONFIG_START( zn1_1mb_vram, zn_state )
+static MACHINE_DRIVER_START( zn1_1mb_vram )
 	/* basic machine hardware */
-	MCFG_CPU_ADD( "maincpu", CXD8530CQ, XTAL_67_7376MHz )
-	MCFG_CPU_PROGRAM_MAP( zn_map)
+	MDRV_CPU_ADD( "maincpu", PSXCPU, XTAL_67_7376MHz )
+	MDRV_CPU_PROGRAM_MAP( zn_map)
+	MDRV_CPU_VBLANK_INT("screen", psx_vblank)
 
 	/* video hardware */
-	MCFG_PSXGPU_ADD( "maincpu", "gpu", CXD8561Q, 0x100000, XTAL_53_693175MHz )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( 60 )
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE( 1024, 512 )
+	MDRV_SCREEN_VISIBLE_AREA( 0, 639, 0, 479 )
+
+	MDRV_PALETTE_LENGTH( 65536 )
+
+	MDRV_PALETTE_INIT( psx )
+	MDRV_VIDEO_START( psx_type2 )
+	MDRV_VIDEO_UPDATE( psx )
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SPU_ADD( "spu", XTAL_67_7376MHz/2, &psx_spu_irq )
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.35)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.35)
+	MDRV_SOUND_ADD( "spu", PSXSPU, 0 )
+	MDRV_SOUND_CONFIG( psxspu_interface )
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.35)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.35)
 
-	MCFG_AT28C16_ADD( "at28c16", NULL )
-MACHINE_CONFIG_END
+	MDRV_AT28C16_ADD( "at28c16", NULL )
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( zn1_2mb_vram, zn1_1mb_vram )
-	MCFG_PSXGPU_REPLACE( "maincpu", "gpu", CXD8561Q, 0x200000, XTAL_53_693175MHz )
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( zn1_2mb_vram )
+	MDRV_IMPORT_FROM( zn1_1mb_vram )
 
-static MACHINE_CONFIG_START( zn2, zn_state )
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_SIZE( 1024, 1024 )
+MACHINE_DRIVER_END
+
+static MACHINE_DRIVER_START( zn2 )
 	/* basic machine hardware */
-	MCFG_CPU_ADD( "maincpu", CXD8661R, XTAL_100MHz )
-	MCFG_CPU_PROGRAM_MAP( zn_map)
+	MDRV_CPU_ADD( "maincpu", PSXCPU, XTAL_100MHz )
+	MDRV_CPU_PROGRAM_MAP( zn_map)
+	MDRV_CPU_VBLANK_INT("screen", psx_vblank)
 
 	/* video hardware */
-	MCFG_PSXGPU_ADD( "maincpu", "gpu", CXD8654Q, 0x200000, XTAL_53_693175MHz )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( 60 )
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE( 1024, 1024 )
+	MDRV_SCREEN_VISIBLE_AREA( 0, 639, 0, 479 )
+
+	MDRV_PALETTE_LENGTH( 65536 )
+
+	MDRV_PALETTE_INIT( psx )
+	MDRV_VIDEO_START( psx_type2 )
+	MDRV_VIDEO_UPDATE( psx )
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SPU_ADD( "spu", XTAL_67_7376MHz/2, &psx_spu_irq )
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.35)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.35)
+	MDRV_SOUND_ADD( "spu", PSXSPU, 0 )
+	MDRV_SOUND_CONFIG( psxspu_interface )
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.35)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.35)
 
-	MCFG_AT28C16_ADD( "at28c16", NULL )
-MACHINE_CONFIG_END
+	MDRV_AT28C16_ADD( "at28c16", NULL )
+MACHINE_DRIVER_END
 
 /*
 Capcom ZN1 generic PCB Layout
@@ -640,62 +651,62 @@ Notes:
 static READ32_HANDLER( capcom_kickharness_r )
 {
 	/* required for buttons 4,5&6 */
-	verboselog( space->machine(), 2, "capcom_kickharness_r( %08x, %08x )\n", offset, mem_mask );
+	verboselog( space->machine, 2, "capcom_kickharness_r( %08x, %08x )\n", offset, mem_mask );
 	return 0xffffffff;
 }
 
 static WRITE32_HANDLER( bank_coh1000c_w )
 {
-	memory_set_bankptr( space->machine(), "bank2", space->machine().region( "user2" )->base() + 0x400000 + ( data * 0x400000 ) );
+	memory_set_bankptr(space->machine,  "bank2", memory_region( space->machine, "user2" ) + 0x400000 + ( data * 0x400000 ) );
 }
 
 static WRITE8_HANDLER( qsound_bankswitch_w )
 {
-	memory_set_bankptr( space->machine(), "bank10", space->machine().region( "audiocpu" )->base() + 0x10000 + ( ( data & 0x0f ) * 0x4000 ) );
+	memory_set_bankptr(space->machine,  "bank10", memory_region( space->machine, "audiocpu" ) + 0x10000 + ( ( data & 0x0f ) * 0x4000 ) );
 }
 
 static INTERRUPT_GEN( qsound_interrupt )
 {
-	device_set_input_line(device, 0, HOLD_LINE);
+	cpu_set_input_line(device, 0, HOLD_LINE);
 }
 
 static WRITE32_HANDLER( zn_qsound_w )
 {
 	soundlatch_w(space, 0, data);
-	cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_NMI, PULSE_LINE);
+	cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static DRIVER_INIT( coh1000c )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f3fffff, "bank1" );     /* fixed game rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f400000, 0x1f7fffff, "bank2" );     /* banked game rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb00000, 0x1fb00003, FUNC(bank_coh1000c_w) ); /* bankswitch */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler ( 0x1fb40010, 0x1fb40013, FUNC(capcom_kickharness_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler ( 0x1fb40020, 0x1fb40023, FUNC(capcom_kickharness_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1fb80000, 0x1fbfffff, "bank3" );     /* country rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb60000, 0x1fb60003, FUNC(zn_qsound_w) );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f3fffff, 0, 0, "bank1" );     /* fixed game rom */
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f400000, 0x1f7fffff, 0, 0, "bank2" );     /* banked game rom */
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00003, 0, 0, bank_coh1000c_w ); /* bankswitch */
+	memory_install_read32_handler ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb40010, 0x1fb40013, 0, 0, capcom_kickharness_r );
+	memory_install_read32_handler ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb40020, 0x1fb40023, 0, 0, capcom_kickharness_r );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb80000, 0x1fbfffff, 0, 0, "bank3" );     /* country rom */
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb60000, 0x1fb60003, 0, 0, zn_qsound_w );
 
 	zn_driver_init(machine);
 
-	if( strcmp( machine.system().name, "glpracr" ) == 0 ||
-		strcmp( machine.system().name, "glpracr2l" ) == 0 )
+	if( strcmp( machine->gamedrv->name, "glpracr" ) == 0 ||
+		strcmp( machine->gamedrv->name, "glpracr2l" ) == 0 )
 	{
 		/* disable:
             the QSound CPU for glpracr as it doesn't have any roms &
             the link cpu for glprac2l as the h/w is not emulated yet. */
-		machine.device<cpu_device>( "audiocpu" )->suspend(SUSPEND_REASON_DISABLE, 1 );
+		cputag_suspend( machine, "audiocpu", SUSPEND_REASON_DISABLE, 1 );
 	}
 }
 
 static MACHINE_RESET( coh1000c )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* fixed game rom */
-	memory_set_bankptr( machine, "bank2", machine.region( "user2" )->base() + 0x400000 ); /* banked game rom */
-	memory_set_bankptr( machine, "bank3", machine.region( "user3" )->base() ); /* country rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* fixed game rom */
+	memory_set_bankptr(machine,  "bank2", memory_region( machine, "user2" ) + 0x400000 ); /* banked game rom */
+	memory_set_bankptr(machine,  "bank3", memory_region( machine, "user3" ) ); /* country rom */
 	zn_machine_init(machine);
 }
 
-static ADDRESS_MAP_START( qsound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( qsound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank10")		/* banked (contains music data) */
 	AM_RANGE(0xd000, 0xd002) AM_DEVWRITE("qsound", qsound_w)
@@ -704,38 +715,40 @@ static ADDRESS_MAP_START( qsound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( qsound_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( qsound_portmap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
-static MACHINE_CONFIG_DERIVED( coh1000c, zn1_1mb_vram )
+static MACHINE_DRIVER_START( coh1000c )
+	MDRV_IMPORT_FROM( zn1_1mb_vram )
 
-	MCFG_CPU_ADD( "audiocpu", Z80, 8000000 )  /* 8MHz ?? */
-	MCFG_CPU_PROGRAM_MAP( qsound_map)
-	MCFG_CPU_IO_MAP( qsound_portmap)
-	MCFG_CPU_PERIODIC_INT( qsound_interrupt, 60*4 ) /* 4 interrupts per frame ?? */
+	MDRV_CPU_ADD("audiocpu",  Z80, 8000000 )  /* 8MHz ?? */
+	MDRV_CPU_PROGRAM_MAP( qsound_map)
+	MDRV_CPU_IO_MAP( qsound_portmap)
+	MDRV_CPU_VBLANK_INT_HACK( qsound_interrupt, 4 ) /* 4 interrupts per frame ?? */
 
-	MCFG_MACHINE_RESET( coh1000c )
+	MDRV_MACHINE_RESET( coh1000c )
 
-	MCFG_SOUND_ADD( "qsound", QSOUND, QSOUND_CLOCK )
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD( "qsound", QSOUND, QSOUND_CLOCK )
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( coh1002c, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1002c )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_CPU_ADD( "audiocpu", Z80, 8000000 )  /* 8MHz ?? */
-	MCFG_CPU_PROGRAM_MAP( qsound_map)
-	MCFG_CPU_IO_MAP( qsound_portmap)
-	MCFG_CPU_PERIODIC_INT( qsound_interrupt, 60*4 ) /* 4 interrupts per frame ?? */
+	MDRV_CPU_ADD("audiocpu",  Z80, 8000000 )  /* 8MHz ?? */
+	MDRV_CPU_PROGRAM_MAP( qsound_map)
+	MDRV_CPU_IO_MAP( qsound_portmap)
+	MDRV_CPU_VBLANK_INT_HACK( qsound_interrupt, 4 ) /* 4 interrupts per frame ?? */
 
-	MCFG_MACHINE_RESET( coh1000c )
+	MDRV_MACHINE_RESET( coh1000c )
 
-	MCFG_SOUND_ADD( "qsound", QSOUND, QSOUND_CLOCK )
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD( "qsound", QSOUND, QSOUND_CLOCK )
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 /*
 
@@ -879,43 +892,44 @@ Notes:
 
 static WRITE32_HANDLER( bank_coh3002c_w )
 {
-	memory_set_bankptr( space->machine(), "bank2", space->machine().region( "user2" )->base() + 0x400000 + ( data * 0x400000 ) );
+	memory_set_bankptr(space->machine,  "bank2", memory_region( space->machine, "user2" ) + 0x400000 + ( data * 0x400000 ) );
 }
 
 static DRIVER_INIT( coh3002c )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f3fffff, "bank1" );     /* fixed game rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f400000, 0x1f7fffff, "bank2" );     /* banked game rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler ( 0x1fb40010, 0x1fb40013, FUNC(capcom_kickharness_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler ( 0x1fb40020, 0x1fb40023, FUNC(capcom_kickharness_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb00000, 0x1fb00003, FUNC(bank_coh3002c_w) ); /* bankswitch */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1fb80000, 0x1fbfffff, "bank3" );     /* country rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb60000, 0x1fb60003, FUNC(zn_qsound_w) );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f3fffff, 0, 0, "bank1" );     /* fixed game rom */
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f400000, 0x1f7fffff, 0, 0, "bank2" );     /* banked game rom */
+	memory_install_read32_handler ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb40010, 0x1fb40013, 0, 0, capcom_kickharness_r );
+	memory_install_read32_handler ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb40020, 0x1fb40023, 0, 0, capcom_kickharness_r );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00003, 0, 0, bank_coh3002c_w ); /* bankswitch */
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb80000, 0x1fbfffff, 0, 0, "bank3" );     /* country rom */
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb60000, 0x1fb60003, 0, 0, zn_qsound_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh3002c )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* fixed game rom */
-	memory_set_bankptr( machine, "bank2", machine.region( "user2" )->base() + 0x400000 ); /* banked game rom */
-	memory_set_bankptr( machine, "bank3", machine.region( "user3" )->base() ); /* country rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* fixed game rom */
+	memory_set_bankptr(machine,  "bank2", memory_region( machine, "user2" ) + 0x400000 ); /* banked game rom */
+	memory_set_bankptr(machine,  "bank3", memory_region( machine, "user3" ) ); /* country rom */
 	zn_machine_init(machine);
 }
 
-static MACHINE_CONFIG_DERIVED( coh3002c, zn2 )
+static MACHINE_DRIVER_START( coh3002c )
+	MDRV_IMPORT_FROM( zn2 )
 
-	MCFG_CPU_ADD("audiocpu", Z80, 8000000 )	/* 8MHz ?? */
-	MCFG_CPU_PROGRAM_MAP( qsound_map)
-	MCFG_CPU_IO_MAP( qsound_portmap)
-	MCFG_CPU_PERIODIC_INT( qsound_interrupt, 60*4 ) /* 4 interrupts per frame ?? */
+	MDRV_CPU_ADD("audiocpu", Z80, 8000000 )	/* 8MHz ?? */
+	MDRV_CPU_PROGRAM_MAP( qsound_map)
+	MDRV_CPU_IO_MAP( qsound_portmap)
+	MDRV_CPU_VBLANK_INT_HACK( qsound_interrupt, 4 ) /* 4 interrupts per frame ?? */
 
-	MCFG_MACHINE_RESET( coh3002c )
+	MDRV_MACHINE_RESET( coh3002c )
 
-	MCFG_SOUND_ADD( "qsound", QSOUND, QSOUND_CLOCK )
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD( "qsound", QSOUND, QSOUND_CLOCK )
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 /*
 
@@ -1135,28 +1149,33 @@ Notes:
       FM1208S        - RAMTRON 4096bit Nonvolatile Ferroelectric RAM (512w x 8b)
 */
 
+static size_t taitofx1_eeprom_size1 = 0;
+static UINT8 *taitofx1_eeprom1 = NULL;
+static size_t taitofx1_eeprom_size2 = 0;
+static UINT8 *taitofx1_eeprom2 = NULL;
+
 static WRITE32_HANDLER( bank_coh1000t_w )
 {
-	device_t *mb3773 = space->machine().device("mb3773");
+	running_device *mb3773 = space->machine->device("mb3773");
 	mb3773_set_ck(mb3773, (data & 0x20) >> 5);
-	verboselog( space->machine(), 1, "bank_coh1000t_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
-	memory_set_bankptr( space->machine(), "bank1", space->machine().region( "user2" )->base() + ( ( data & 3 ) * 0x800000 ) );
+	verboselog( space->machine, 1, "bank_coh1000t_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	memory_set_bankptr(space->machine,  "bank1", memory_region( space->machine, "user2" ) + ( ( data & 3 ) * 0x800000 ) );
 }
 
 static WRITE8_HANDLER( fx1a_sound_bankswitch_w )
 {
-	memory_set_bankptr( space->machine(), "bank10", space->machine().region( "audiocpu" )->base() + 0x10000 + ( ( ( data - 1 ) & 0x07 ) * 0x4000 ) );
+	memory_set_bankptr(space->machine,  "bank10", memory_region( space->machine, "audiocpu" ) + 0x10000 + ( ( ( data - 1 ) & 0x07 ) * 0x4000 ) );
 }
 
 static READ32_HANDLER( taitofx1a_ymsound_r )
 {
-	device_t *tc0140syt = space->machine().device("tc0140syt");
+	running_device *tc0140syt = space->machine->device("tc0140syt");
 	return tc0140syt_comm_r(tc0140syt, 0) << 16;
 }
 
 static WRITE32_HANDLER( taitofx1a_ymsound_w )
 {
-	device_t *tc0140syt = space->machine().device("tc0140syt");
+	running_device *tc0140syt = space->machine->device("tc0140syt");
 
 	if (mem_mask == 0x0000ffff)
 	{
@@ -1170,27 +1189,40 @@ static WRITE32_HANDLER( taitofx1a_ymsound_w )
 
 static DRIVER_INIT( coh1000ta )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-	state->m_taitofx1_eeprom_size1 = 0x200; state->m_taitofx1_eeprom1 = auto_alloc_array( machine, UINT8, state->m_taitofx1_eeprom_size1 );
-	machine.device<nvram_device>("eeprom1")->set_base(state->m_taitofx1_eeprom1, state->m_taitofx1_eeprom_size1);
+	taitofx1_eeprom_size1 = 0x200; taitofx1_eeprom1 = auto_alloc_array(machine, UINT8,  taitofx1_eeprom_size1 );
 
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank     ( 0x1f000000, 0x1f7fffff, "bank1" );     /* banked game rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler    ( 0x1fb40000, 0x1fb40003, FUNC(bank_coh1000t_w) ); /* bankswitch */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler( 0x1fb80000, 0x1fb80003, FUNC(taitofx1a_ymsound_r), FUNC(taitofx1a_ymsound_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_readwrite_bank( 0x1fbe0000, 0x1fbe0000 + ( state->m_taitofx1_eeprom_size1 - 1 ), "bank2" );
+	memory_install_read_bank     ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f7fffff, 0, 0, "bank1" );     /* banked game rom */
+	memory_install_write32_handler    ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb40000, 0x1fb40003, 0, 0, bank_coh1000t_w ); /* bankswitch */
+	memory_install_readwrite32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb80000, 0x1fb80003, 0, 0, taitofx1a_ymsound_r, taitofx1a_ymsound_w );
+	memory_install_readwrite_bank( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbe0000, 0x1fbe0000 + ( taitofx1_eeprom_size1 - 1 ), 0, 0, "bank2" );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1000ta )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* banked game rom */
-	memory_set_bankptr( machine, "bank2", state->m_taitofx1_eeprom1 );
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* banked game rom */
+	memory_set_bankptr(machine,  "bank2", taitofx1_eeprom1 );
 	zn_machine_init(machine);
 }
 
-static ADDRESS_MAP_START( fx1a_sound_map, AS_PROGRAM, 8 )
+static NVRAM_HANDLER( coh1000ta )
+{
+	if (read_or_write)
+	{
+		mame_fwrite(file, taitofx1_eeprom1, taitofx1_eeprom_size1);
+	}
+	else if (file)
+	{
+		mame_fread(file, taitofx1_eeprom1, taitofx1_eeprom_size1);
+	}
+	else
+	{
+		memset(taitofx1_eeprom1, 0, taitofx1_eeprom_size1);
+	}
+}
+
+static ADDRESS_MAP_START( fx1a_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank10")	/* Fallthrough */
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
@@ -1204,9 +1236,9 @@ static ADDRESS_MAP_START( fx1a_sound_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 /* handler called by the YM2610 emulator when the internal timers cause an IRQ */
-static void irq_handler(device_t *device, int irq)
+static void irq_handler(running_device *device, int irq)
 {
-	cputag_set_input_line(device->machine(), "audiocpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(device->machine, "audiocpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2610_interface ym2610_config =
@@ -1219,83 +1251,97 @@ static const tc0140syt_interface coh1000ta_tc0140syt_intf =
 	"maincpu", "audiocpu"
 };
 
-static MACHINE_CONFIG_DERIVED( coh1000ta, zn1_1mb_vram )
+static MACHINE_DRIVER_START( coh1000ta )
+	MDRV_IMPORT_FROM( zn1_1mb_vram )
 
-	MCFG_CPU_ADD("audiocpu", Z80, 16000000 / 4 )	/* 4 MHz */
-	MCFG_CPU_PROGRAM_MAP( fx1a_sound_map)
-	MCFG_MACHINE_RESET( coh1000ta )
-	MCFG_NVRAM_ADD_0FILL("eeprom1")
+	MDRV_CPU_ADD("audiocpu", Z80, 16000000 / 4 )	/* 4 MHz */
+	MDRV_CPU_PROGRAM_MAP( fx1a_sound_map)
+	MDRV_MACHINE_RESET( coh1000ta )
+	MDRV_NVRAM_HANDLER( coh1000ta )
 
-	MCFG_SOUND_ADD("ymsnd", YM2610B, 16000000/2)
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.25)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 0.25)
-	MCFG_SOUND_ROUTE(1, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(2, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2610B, 16000000/2)
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker",  0.25)
+	MDRV_SOUND_ROUTE(0, "rspeaker", 0.25)
+	MDRV_SOUND_ROUTE(1, "lspeaker",  1.0)
+	MDRV_SOUND_ROUTE(2, "rspeaker", 1.0)
 
-	MCFG_MB3773_ADD("mb3773")
+	MDRV_MB3773_ADD("mb3773")
 
-	MCFG_TC0140SYT_ADD("tc0140syt", coh1000ta_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", coh1000ta_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 static WRITE32_HANDLER( taitofx1b_volume_w )
 {
-	verboselog( space->machine(), 1, "taitofx1_volume_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 1, "taitofx1_volume_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
 }
 
 static WRITE32_HANDLER( taitofx1b_sound_w )
 {
-	verboselog( space->machine(), 1, "taitofx1_sound_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 1, "taitofx1_sound_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
 }
 
 static READ32_HANDLER( taitofx1b_sound_r )
 {
 	UINT32 data = 0; // bit 0 = busy?
-	verboselog( space->machine(), 1, "taitofx1_sound_r( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 1, "taitofx1_sound_r( %08x, %08x, %08x )\n", offset, data, mem_mask );
 	return data;
 }
 
 static DRIVER_INIT( coh1000tb )
 {
-	zn_state *state = machine.driver_data<zn_state>();
+	taitofx1_eeprom_size1 = 0x400; taitofx1_eeprom1 = auto_alloc_array(machine, UINT8,  taitofx1_eeprom_size1 );
+	taitofx1_eeprom_size2 = 0x200; taitofx1_eeprom2 = auto_alloc_array(machine, UINT8,  taitofx1_eeprom_size2 );
 
-	state->m_taitofx1_eeprom_size1 = 0x400; state->m_taitofx1_eeprom1 = auto_alloc_array( machine, UINT8, state->m_taitofx1_eeprom_size1 );
-	state->m_taitofx1_eeprom_size2 = 0x200; state->m_taitofx1_eeprom2 = auto_alloc_array( machine, UINT8, state->m_taitofx1_eeprom_size2 );
-
-	machine.device<nvram_device>("eeprom1")->set_base(state->m_taitofx1_eeprom1, state->m_taitofx1_eeprom_size1);
-	machine.device<nvram_device>("eeprom2")->set_base(state->m_taitofx1_eeprom2, state->m_taitofx1_eeprom_size2);
-
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank     ( 0x1f000000, 0x1f7fffff, "bank1" ); /* banked game rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_readwrite_bank( 0x1fb00000, 0x1fb00000 + ( state->m_taitofx1_eeprom_size1 - 1 ), "bank2" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler    ( 0x1fb40000, 0x1fb40003, FUNC(bank_coh1000t_w) ); /* bankswitch */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler    ( 0x1fb80000, 0x1fb8ffff, FUNC(taitofx1b_volume_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler    ( 0x1fba0000, 0x1fbaffff, FUNC(taitofx1b_sound_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler     ( 0x1fbc0000, 0x1fbc0003, FUNC(taitofx1b_sound_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_readwrite_bank( 0x1fbe0000, 0x1fbe0000 + ( state->m_taitofx1_eeprom_size2 - 1 ), "bank3" );
+	memory_install_read_bank     ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f7fffff, 0, 0, "bank1" ); /* banked game rom */
+	memory_install_readwrite_bank( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00000 + ( taitofx1_eeprom_size1 - 1 ), 0, 0, "bank2" );
+	memory_install_write32_handler    ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb40000, 0x1fb40003, 0, 0, bank_coh1000t_w ); /* bankswitch */
+	memory_install_write32_handler    ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb80000, 0x1fb80003, 0, 0, taitofx1b_volume_w );
+	memory_install_write32_handler    ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fba0000, 0x1fba0003, 0, 0, taitofx1b_sound_w );
+	memory_install_read32_handler     ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbc0000, 0x1fbc0003, 0, 0, taitofx1b_sound_r );
+	memory_install_readwrite_bank( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbe0000, 0x1fbe0000 + ( taitofx1_eeprom_size2 - 1 ), 0, 0, "bank3" );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1000tb )
 {
-	zn_state *state = machine.driver_data<zn_state>();
-
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* banked game rom */
-	memory_set_bankptr( machine, "bank2", state->m_taitofx1_eeprom1 );
-	memory_set_bankptr( machine, "bank3", state->m_taitofx1_eeprom2 );
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* banked game rom */
+	memory_set_bankptr(machine,  "bank2", taitofx1_eeprom1 );
+	memory_set_bankptr(machine,  "bank3", taitofx1_eeprom2 );
 	zn_machine_init(machine);
 }
 
-static MACHINE_CONFIG_DERIVED( coh1000tb, zn1_2mb_vram )
+static NVRAM_HANDLER( coh1000tb )
+{
+	if (read_or_write)
+	{
+		mame_fwrite(file, taitofx1_eeprom1, taitofx1_eeprom_size1);
+		mame_fwrite(file, taitofx1_eeprom2, taitofx1_eeprom_size2);
+	}
+	else if (file)
+	{
+		mame_fread(file, taitofx1_eeprom1, taitofx1_eeprom_size1);
+		mame_fread(file, taitofx1_eeprom2, taitofx1_eeprom_size2);
+	}
+	else
+	{
+		memset(taitofx1_eeprom1, 0, taitofx1_eeprom_size1);
+		memset(taitofx1_eeprom2, 0, taitofx1_eeprom_size2);
+	}
+}
 
-	MCFG_MACHINE_RESET( coh1000tb )
-	MCFG_NVRAM_ADD_0FILL("eeprom1")
-	MCFG_NVRAM_ADD_0FILL("eeprom2")
 
-	MCFG_MB3773_ADD("mb3773")
+static MACHINE_DRIVER_START( coh1000tb )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_FRAGMENT_ADD( taito_zoom_sound )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( coh1000tb )
+	MDRV_NVRAM_HANDLER( coh1000tb )
+
+	MDRV_MB3773_ADD("mb3773")
+
+	MDRV_IMPORT_FROM( taito_zoom_sound )
+MACHINE_DRIVER_END
 
 /*
 
@@ -1400,7 +1446,7 @@ Also printed on the board near the ROMs is....
 Notes:
       CAT702              - protection chip labelled 'TW02' (DIP20)
       JGUN1, JGUN2        - Connector for optional gun controllers
-      ROMs U14 to U17     - 27C040 EPROM
+      ROMs U14 thru U17   - 27C040 EPROM
       DS1232S             - Dallas DS1232 (reset IC, SOIC16)
       VT83C461            - VIA VT83C461 (IDE Hard Drive controller, QFP100)
       EPM7160ELC84        - Altera MAX EPM7160ELC84-10 (PLCC84 CPLD, labelled 'PSX PiD 9-19-96 2FDA')
@@ -1413,18 +1459,17 @@ Notes:
       *2                  - Unpopulated DIP28 socket
 */
 
-static void atpsx_interrupt(device_t *device, int state)
+static void atpsx_interrupt(running_device *device, int state)
 {
 	if (state)
 	{
-		psx_irq_set(device->machine(), 0x400);
+		psx_irq_set(device->machine, 0x400);
 	}
 }
 
-static void atpsx_dma_read( zn_state *state, UINT32 n_address, INT32 n_size )
+static void atpsx_dma_read( running_machine *machine, UINT32 n_address, INT32 n_size )
 {
-	UINT32 *p_n_psxram = state->m_p_n_psxram;
-	device_t *ide = state->machine().device("ide");
+	running_device *ide = machine->device("ide");
 
 	logerror("DMA read: %d bytes (%d words) to %08x\n", n_size<<2, n_size, n_address);
 
@@ -1439,45 +1484,47 @@ static void atpsx_dma_read( zn_state *state, UINT32 n_address, INT32 n_size )
 	n_size <<= 2;
 	while( n_size > 0 )
 	{
-		psxwritebyte( p_n_psxram, n_address, ide_controller32_r( ide, 0x1f0 / 4, 0x000000ff ) );
+		psxwritebyte( n_address, ide_controller32_r( ide, 0x1f0 / 4, 0x000000ff ) );
 		n_address++;
 		n_size--;
 	}
 }
 
-static void atpsx_dma_write( zn_state *state, UINT32 n_address, INT32 n_size )
+static void atpsx_dma_write( running_machine *machine, UINT32 n_address, INT32 n_size )
 {
 	logerror("DMA write from %08x for %d bytes\n", n_address, n_size<<2);
 }
 
 static DRIVER_INIT( coh1000w )
 {
-	device_t *ide = machine.device("ide");
+	running_device *ide = machine->device("ide");
 
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank         ( 0x1f000000, 0x1f1fffff, "bank1" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->nop_write                         ( 0x1f000000, 0x1f000003);
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler( *ide, 0x1f7e4000, 0x1f7e4fff, FUNC(ide_controller32_r), FUNC(ide_controller32_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->nop_readwrite                     ( 0x1f7e8000, 0x1f7e8003);
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler( *ide, 0x1f7f4000, 0x1f7f4fff, FUNC(ide_controller32_r), FUNC(ide_controller32_w) );
+	memory_install_read_bank         ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f1fffff, 0, 0, "bank1" );
+	memory_nop_write                         ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f000003, 0, 0 );
+	memory_install_readwrite32_device_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), ide, 0x1f7e4000, 0x1f7e4fff, 0, 0, ide_controller32_r, ide_controller32_w );
+	memory_nop_readwrite                     ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f7e8000, 0x1f7e8003, 0, 0 );
+	memory_install_readwrite32_device_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), ide, 0x1f7f4000, 0x1f7f4fff, 0, 0, ide_controller32_r, ide_controller32_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1000w )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* fixed game rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* fixed game rom */
 	zn_machine_init(machine);
 
 	devtag_reset(machine, "ide");
+	psx_dma_install_read_handler(5, atpsx_dma_read);
+	psx_dma_install_write_handler(5, atpsx_dma_write);
 }
 
-static MACHINE_CONFIG_DERIVED( coh1000w, zn1_2mb_vram )
-	MCFG_MACHINE_RESET( coh1000w )
+static MACHINE_DRIVER_START( coh1000w )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_IDE_CONTROLLER_ADD("ide", atpsx_interrupt)
-	MCFG_PSX_DMA_CHANNEL_READ( "maincpu", 5, psx_dma_read_delegate( FUNC( atpsx_dma_read ), (zn_state *) owner ) )
-	MCFG_PSX_DMA_CHANNEL_WRITE( "maincpu", 5, psx_dma_write_delegate( FUNC( atpsx_dma_write ), (zn_state *) owner ) )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( coh1000w )
+
+	MDRV_IDE_CONTROLLER_ADD("ide", atpsx_interrupt)
+MACHINE_DRIVER_END
 
 /*
 
@@ -1571,7 +1618,7 @@ Notes:
       CAT702              - protection chip labelled 'ET02' (DIP20)
       ROMs 217, 216 & 326 - surface mounted 32MBit MASK ROM (SOP44)
       ROMs 042 & 046      - 27C2001 EPROM
-      ROMs 212 to 215     - 27C4001 EPROM
+      ROMs 212 thru 215   - 27C4001 EPROM
       MAIN_IF2 & SUB_IF2  - AMD Mach211 CPLD (PLCC44)
       M628032             - 32K x8 SRAM, equivalent to 62256 SRAM (SOJ28)
       68000 clock         - 12MHz
@@ -1630,33 +1677,33 @@ static WRITE32_HANDLER( coh1002e_bank_w )
 {
 	znsecsel_w( space, offset, data, mem_mask );
 
-	memory_set_bankptr( space->machine(), "bank1", space->machine().region( "user2" )->base() + ( ( data & 3 ) * 0x800000 ) );
+	memory_set_bankptr(space->machine,  "bank1", memory_region( space->machine, "user2" ) + ( ( data & 3 ) * 0x800000 ) );
 }
 
 static WRITE32_HANDLER( coh1002e_latch_w )
 {
 	if (offset)
-		cputag_set_input_line(space->machine(), "audiocpu", 2, HOLD_LINE);	// irq 2 on the 68k
+		cputag_set_input_line(space->machine, "audiocpu", 2, HOLD_LINE);	// irq 2 on the 68k
 	else
 		soundlatch_w(space, 0, data);
 }
 
 static DRIVER_INIT( coh1002e )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f7fffff, "bank1" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fa10300, 0x1fa10303, FUNC(coh1002e_bank_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb00000, 0x1fb00007, FUNC(coh1002e_latch_w) );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f7fffff, 0, 0, "bank1" );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fa10300, 0x1fa10303, 0, 0, coh1002e_bank_w );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00007, 0, 0, coh1002e_latch_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1002e )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* banked game rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* banked game rom */
 	zn_machine_init(machine);
 }
 
-static ADDRESS_MAP_START( psarc_snd_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( psarc_snd_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
 	AM_RANGE(0x080000, 0x0fffff) AM_RAM
 	AM_RANGE(0x100000, 0x10001f) AM_DEVREADWRITE8( "ymf", ymf271_r, ymf271_w, 0x00ff )
@@ -1665,17 +1712,18 @@ static ADDRESS_MAP_START( psarc_snd_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x100020, 0xffffff) AM_WRITENOP
 ADDRESS_MAP_END
 
-static MACHINE_CONFIG_DERIVED( coh1002e, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1002e )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_CPU_ADD("audiocpu", M68000, 12000000 )
-	MCFG_CPU_PROGRAM_MAP( psarc_snd_map)
+	MDRV_CPU_ADD("audiocpu", M68000, 12000000 )
+	MDRV_CPU_PROGRAM_MAP( psarc_snd_map)
 
-	MCFG_MACHINE_RESET( coh1002e )
+	MDRV_MACHINE_RESET( coh1002e )
 
-	MCFG_SOUND_ADD( "ymf", YMF271, 16934400 )
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD( "ymf", YMF271, 16934400 )
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 /*
@@ -1735,39 +1783,36 @@ static WRITE32_HANDLER( bam2_sec_w )
     8007f538 = detected device type.  0 = CDROM, 1 = HDD.
 */
 
+static UINT32 bam2_mcu_command;
 
 static WRITE32_HANDLER( bam2_mcu_w )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-
 	if (offset == 0)
 	{
 		if (ACCESSING_BITS_0_15)
 		{
-			memory_set_bankptr( space->machine(), "bank2", space->machine().region( "user2" )->base() + ( ( data & 0xf ) * 0x400000 ) );
+			memory_set_bankptr(space->machine,  "bank2", memory_region( space->machine, "user2" ) + ( ( data & 0xf ) * 0x400000 ) );
 		}
 		else if (ACCESSING_BITS_16_31)
 		{
-			state->m_bam2_mcu_command = data>>16;
-			logerror("MCU command: %04x (PC %08x)\n", state->m_bam2_mcu_command, cpu_get_pc(&space->device()));
+			bam2_mcu_command = data>>16;
+			logerror("MCU command: %04x (PC %08x)\n", bam2_mcu_command, cpu_get_pc(space->cpu));
 		}
 	}
 }
 
 static READ32_HANDLER( bam2_mcu_r )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-
 	switch (offset)
 	{
 		case 0:
-			logerror("MCU port 0 read @ PC %08x mask %08x\n", cpu_get_pc(&space->device()), mem_mask);
+			logerror("MCU port 0 read @ PC %08x mask %08x\n", cpu_get_pc(space->cpu), mem_mask);
 			break;
 
 		case 1:
-			logerror("MCU status read @ PC %08x mask %08x\n", cpu_get_pc(&space->device()), mem_mask);
+			logerror("MCU status read @ PC %08x mask %08x\n", cpu_get_pc(space->cpu), mem_mask);
 
-			switch (state->m_bam2_mcu_command)
+			switch (bam2_mcu_command)
 			{
 				case 0x7f:		// first drive check
 				case 0x1c:		// second drive check (causes HDD detected)
@@ -1787,28 +1832,29 @@ static READ32_HANDLER( bam2_unk_r )
 
 static DRIVER_INIT( bam2 )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f3fffff, "bank1" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f400000, 0x1f7fffff, "bank2" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler ( 0x1fb00000, 0x1fb00007, FUNC(bam2_mcu_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler ( 0x1fa20000, 0x1fa20003, FUNC(bam2_unk_r) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fa10300, 0x1fa10303, FUNC(bam2_sec_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb00000, 0x1fb00007, FUNC(bam2_mcu_w) );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f3fffff, 0, 0, "bank1" );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f400000, 0x1f7fffff, 0, 0, "bank2" );
+	memory_install_read32_handler ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00007, 0, 0, bam2_mcu_r );
+	memory_install_read32_handler ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fa20000, 0x1fa20003, 0, 0, bam2_unk_r );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fa10300, 0x1fa10303, 0, 0, bam2_sec_w );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00007, 0, 0, bam2_mcu_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( bam2 )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* fixed game rom */
-	memory_set_bankptr( machine, "bank2", machine.region( "user2" )->base() + 0x400000 ); /* banked game rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* fixed game rom */
+	memory_set_bankptr(machine,  "bank2", memory_region( machine, "user2" ) + 0x400000 ); /* banked game rom */
 
 	zn_machine_init(machine);
 }
 
-static MACHINE_CONFIG_DERIVED( bam2, zn1_2mb_vram )
+static MACHINE_DRIVER_START( bam2 )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_MACHINE_RESET( bam2 )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( bam2 )
+MACHINE_DRIVER_END
 
 /*
 
@@ -1825,7 +1871,7 @@ data.
 Disk Drive is a Quantum ????2.1 GB??
 
 connectors CN506 and CN505 are the gun inputs pins 13, 14, 15
-white/blue/ black respectively.   The + 5 (red) is separate source (not
+white/blue/ black respectively.   The + 5 (red) is seperate source (not
 from the CN506 or Cn505).
 
 You'll have to get the +5 for the guns from the jamma harness.
@@ -1930,10 +1976,10 @@ Notes:
       U35, U36 - 27C080 DIP32 EPROM
       U21, U22 - Unpopulated positions for DIP32 EPROM
       U6, U20  - Unpopulated position for SOP44 MaskROM
-      U3  to  U6  \
-      U17 to U19  |  surface mounted 32MBit SOP44 MaskROM
-      U28 to U31  |
-      U41 to U44  /
+      U3 thru U6    \
+      U17 thru U19  |  surface mounted 32MBit SOP44 MaskROM
+      U28 thru U31  |
+      U41 thru U44  /
 
 
 Sound Board
@@ -1980,11 +2026,11 @@ Notes:
       *         - Unpopulated DIP42 socket
 */
 
-static void jdredd_ide_interrupt(device_t *device, int state)
+static void jdredd_ide_interrupt(running_device *device, int state)
 {
 	if (state)
 	{
-		psx_irq_set(device->machine(), 0x400);
+		psx_irq_set(device->machine, 0x400);
 	}
 }
 
@@ -2037,99 +2083,98 @@ static WRITE32_DEVICE_HANDLER( jdredd_ide_w )
 	}
 }
 
+static int jdredd_gun_mux = 0;
+
 static CUSTOM_INPUT( jdredd_gun_mux_read )
 {
-	zn_state *state = field.machine().driver_data<zn_state>();
-
-	return state->m_jdredd_gun_mux;
+	return jdredd_gun_mux;
 }
 
-void jdredd_vblank(zn_state *state, screen_device &screen, bool vblank_state)
+static INTERRUPT_GEN( jdredd_vblank )
 {
 	int x;
 	int y;
 
-	if( vblank_state )
+	jdredd_gun_mux = !jdredd_gun_mux;
+
+	if( jdredd_gun_mux == 0 )
 	{
-		state->m_jdredd_gun_mux = !state->m_jdredd_gun_mux;
-
-		if( state->m_jdredd_gun_mux == 0 )
-		{
-			x = input_port_read(state->machine(), "GUN1X");
-			y = input_port_read(state->machine(), "GUN1Y");
-		}
-		else
-		{
-			x = input_port_read(state->machine(), "GUN2X");
-			y = input_port_read(state->machine(), "GUN2Y");
-		}
-
-		if( x > 0x393 && x < 0xcb2 &&
-			y > 0x02d && y < 0x217 )
-		{
-			psx_lightgun_set( state->machine(), x, y );
-		}
+		x = input_port_read(device->machine, "GUN1X");
+		y = input_port_read(device->machine, "GUN1Y");
 	}
+	else
+	{
+		x = input_port_read(device->machine, "GUN2X");
+		y = input_port_read(device->machine, "GUN2Y");
+	}
+
+	if( x > 0x393 && x < 0xcb2 &&
+		y > 0x02d && y < 0x217 )
+	{
+		psx_lightgun_set( x, y );
+	}
+
+	psx_vblank( device );
 }
+
+static size_t nbajamex_eeprom_size;
+static UINT8 *nbajamex_eeprom;
 
 static WRITE32_HANDLER( acpsx_00_w )
 {
-	verboselog( space->machine(), 0, "acpsx_00_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 0, "acpsx_00_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
 }
 
 static WRITE32_HANDLER( acpsx_10_w )
 {
-	verboselog( space->machine(), 0, "acpsx_10_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 0, "acpsx_10_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
 }
 
 static WRITE32_HANDLER( nbajamex_80_w )
 {
-	verboselog( space->machine(), 0, "nbajamex_80_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
-	psx_irq_set(space->machine(), 0x400);
+	verboselog( space->machine, 0, "nbajamex_80_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	psx_irq_set(space->machine, 0x400);
 }
 
 static READ32_HANDLER( nbajamex_08_r )
 {
 	UINT32 data = 0xffffffff;
-	verboselog( space->machine(), 0, "nbajamex_08_r( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 0, "nbajamex_08_r( %08x, %08x, %08x )\n", offset, data, mem_mask );
 	return data;
 }
 
 static READ32_HANDLER( nbajamex_80_r )
 {
 	UINT32 data = 0xffffffff;
-	verboselog( space->machine(), 0, "nbajamex_80_r( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	verboselog( space->machine, 0, "nbajamex_80_r( %08x, %08x, %08x )\n", offset, data, mem_mask );
 	return data;
 }
 
 static DRIVER_INIT( coh1000a )
 {
-	zn_state *state = machine.driver_data<zn_state>();
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f1fffff, 0, 0, "bank1" );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbfff00, 0x1fbfff03, 0, 0, acpsx_00_w );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbfff10, 0x1fbfff13, 0, 0, acpsx_10_w );
 
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f1fffff, "bank1" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fbfff00, 0x1fbfff03, FUNC(acpsx_00_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fbfff10, 0x1fbfff13, FUNC(acpsx_10_w) );
-
-	if( strcmp( machine.system().name, "nbajamex" ) == 0 )
+	if( strcmp( machine->gamedrv->name, "nbajamex" ) == 0 )
 	{
-		state->m_nbajamex_eeprom_size = 0x8000;
-		state->m_nbajamex_eeprom = auto_alloc_array( machine, UINT8, state->m_nbajamex_eeprom_size );
+		nbajamex_eeprom_size = 0x8000; nbajamex_eeprom = auto_alloc_array(machine, UINT8,  nbajamex_eeprom_size );
 
-		machine.device("maincpu")->memory().space(AS_PROGRAM)->install_readwrite_bank( 0x1f200000, 0x1f200000 + ( state->m_nbajamex_eeprom_size - 1 ), "bank2" );
-		machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler     ( 0x1fbfff08, 0x1fbfff0b, FUNC(nbajamex_08_r) );
-		machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler( 0x1fbfff80, 0x1fbfff83, FUNC(nbajamex_80_r), FUNC(nbajamex_80_w) );
+		memory_install_readwrite_bank( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f200000, 0x1f200000 + ( nbajamex_eeprom_size - 1 ), 0, 0, "bank2" );
+		memory_install_read32_handler     ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbfff08, 0x1fbfff0b, 0, 0, nbajamex_08_r );
+		memory_install_readwrite32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbfff80, 0x1fbfff83, 0, 0, nbajamex_80_r, nbajamex_80_w );
 
-		memory_set_bankptr( machine, "bank2", state->m_nbajamex_eeprom ); /* ram/eeprom/?? */
+		memory_set_bankptr(machine,  "bank2", nbajamex_eeprom ); /* ram/eeprom/?? */
 	}
 
-	if( ( !strcmp( machine.system().name, "jdredd" ) ) ||
-		( !strcmp( machine.system().name, "jdreddb" ) ) )
+	if( ( !strcmp( machine->gamedrv->name, "jdredd" ) ) ||
+		( !strcmp( machine->gamedrv->name, "jdreddb" ) ) )
 	{
-		device_t *ide = machine.device("ide");
+		running_device *ide = machine->device("ide");
 
-		machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler( *ide, 0x1fbfff8c, 0x1fbfff8f, FUNC(jdredd_idestat_r) );
-		machine.device("maincpu")->memory().space(AS_PROGRAM)->nop_write                    ( 0x1fbfff8c, 0x1fbfff8f);
-		machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler( *ide, 0x1fbfff90, 0x1fbfff9f, FUNC(jdredd_ide_r), FUNC(jdredd_ide_w) );
+		memory_install_read32_device_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), ide, 0x1fbfff8c, 0x1fbfff8f, 0, 0, jdredd_idestat_r );
+		memory_nop_write                    ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fbfff8c, 0x1fbfff8f, 0, 0 );
+		memory_install_readwrite32_device_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), ide, 0x1fbfff90, 0x1fbfff9f, 0, 0, jdredd_ide_r, jdredd_ide_w );
 	}
 
 	zn_driver_init(machine);
@@ -2137,29 +2182,31 @@ static DRIVER_INIT( coh1000a )
 
 static MACHINE_RESET( coh1000a )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* fixed game rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* fixed game rom */
 	zn_machine_init(machine);
-	if( ( !strcmp( machine.system().name, "jdredd" ) ) ||
-		( !strcmp( machine.system().name, "jdreddb" ) ) )
+	if( ( !strcmp( machine->gamedrv->name, "jdredd" ) ) ||
+		( !strcmp( machine->gamedrv->name, "jdreddb" ) ) )
 	{
 		devtag_reset(machine, "ide");
 	}
 }
 
-static MACHINE_CONFIG_DERIVED( coh1000a, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1000a )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_MACHINE_RESET( coh1000a )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( coh1000a )
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( coh1000a_ide, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1000a_ide )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_DEVICE_MODIFY( "gpu" )
-	MCFG_PSXGPU_VBLANK_CALLBACK( vblank_state_delegate( FUNC( jdredd_vblank ), (zn_state *) owner ) )
+	MDRV_CPU_MODIFY( "maincpu" )
+	MDRV_CPU_VBLANK_INT("screen", jdredd_vblank)
 
-	MCFG_MACHINE_RESET( coh1000a )
+	MDRV_MACHINE_RESET( coh1000a )
 
-	MCFG_IDE_CONTROLLER_ADD("ide", jdredd_ide_interrupt)
-MACHINE_CONFIG_END
+	MDRV_IDE_CONTROLLER_ADD("ide", jdredd_ide_interrupt)
+MACHINE_DRIVER_END
 
 /*
 
@@ -2279,32 +2326,33 @@ Notes:
 
 static WRITE32_HANDLER( coh1001l_bnk_w )
 {
-	memory_set_bankptr( space->machine(), "bank1", space->machine().region( "user2" )->base() + ( ( ( data >> 16 ) & 3 ) * 0x800000 ) );
+	memory_set_bankptr(space->machine,  "bank1", memory_region( space->machine, "user2" ) + ( ( ( data >> 16 ) & 3 ) * 0x800000 ) );
 }
 
 static DRIVER_INIT( coh1001l )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f7fffff, "bank1" ); /* banked rom */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb00000, 0x1fb00003, FUNC(coh1001l_bnk_w) );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f7fffff, 0, 0, "bank1" ); /* banked rom */
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00003, 0, 0, coh1001l_bnk_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1001l )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* banked rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* banked rom */
 	zn_machine_init(machine);
 }
 
-static MACHINE_CONFIG_DERIVED( coh1001l, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1001l )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-//  MCFG_CPU_ADD("audiocpu", M68000, 10000000 )
-//  MCFG_CPU_PROGRAM_MAP( atlus_snd_map)
+//  MDRV_CPU_ADD("audiocpu", M68000, 10000000 )
+//  MDRV_CPU_PROGRAM_MAP( atlus_snd_map)
 
-	MCFG_MACHINE_RESET( coh1001l )
+	MDRV_MACHINE_RESET( coh1001l )
 
-//  MCFG_SOUND_ADD( "ymz", wYMZ280B, ymz280b_intf )
-MACHINE_CONFIG_END
+//  MDRV_SOUND_ADD( "ymz", wYMZ280B, ymz280b_intf )
+MACHINE_DRIVER_END
 
 /*
 
@@ -2321,29 +2369,30 @@ Key:    Mother    KN01
 
 static WRITE32_HANDLER( coh1002v_bnk_w )
 {
-	memory_set_bankptr( space->machine(), "bank2", space->machine().region( "user3" )->base() + ( data * 0x100000 ) );
+	memory_set_bankptr(space->machine,  "bank2", memory_region( space->machine, "user3" ) + ( data * 0x100000 ) );
 }
 
 static DRIVER_INIT( coh1002v )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1f000000, 0x1f27ffff, "bank1" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank ( 0x1fb00000, 0x1fbfffff, "bank2" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler( 0x1fb00000, 0x1fb00003, FUNC(coh1002v_bnk_w) );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f27ffff, 0, 0, "bank1" );
+	memory_install_read_bank ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fbfffff, 0, 0, "bank2" );
+	memory_install_write32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00003, 0, 0, coh1002v_bnk_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1002v )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() ); /* fixed game rom */
-	memory_set_bankptr( machine, "bank2", machine.region( "user3" )->base() ); /* banked rom */
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) ); /* fixed game rom */
+	memory_set_bankptr(machine,  "bank2", memory_region( machine, "user3" ) ); /* banked rom */
 	zn_machine_init(machine);
 }
 
-static MACHINE_CONFIG_DERIVED( coh1002v, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1002v )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_MACHINE_RESET( coh1002v )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( coh1002v )
+MACHINE_DRIVER_END
 
 /*
 
@@ -2451,7 +2500,7 @@ Notes:
       3 logic chips near main program ROMs.
       2x 4MBit EPROMs labelled 'CBAJ1' and 'CBAJ2'
       1x 2MBit EPROM labelled 'CBAJZ80'
-      9x 32MBit smt SOP44 MASKROMs labelled 'CB-00' through 'CB-08' (Graphics)
+      9x 32MBit smt SOP44 MASKROMs labelled 'CB-00' thru 'CB-08' (Graphics)
       2x 32MBit smt SOP44 MASKROMs labelled 'CB-SE' and 'CB-V0' (connected to the YMZ280B)
       LH540202 - CMOS 1024 x 9 Asyncronous FIFO (PLCC32)
       D43001   - 32K x8 SRAM, equivalent to 62256 SRAM
@@ -2504,79 +2553,70 @@ Notes:
 
 static WRITE32_HANDLER( coh1002m_bank_w )
 {
-	verboselog( space->machine(), 1, "coh1002m_bank_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
-	memory_set_bankptr( space->machine(), "bank1", space->machine().region( "user2" )->base() + ((data>>16) * 0x800000) );
+	verboselog( space->machine, 1, "coh1002m_bank_w( %08x, %08x, %08x )\n", offset, data, mem_mask );
+	memory_set_bankptr(space->machine,  "bank1", memory_region( space->machine, "user2" ) + ((data>>16) * 0x800000));
 }
+
+static int cbaj_to_z80 = 0, cbaj_to_r3k = 0;
+static int latch_to_z80;
 
 static READ32_HANDLER( cbaj_z80_r )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-	int ready;
+	int ready = cbaj_to_r3k;
 
-	space->machine().scheduler().synchronize();
+	cbaj_to_r3k &= ~2;
 
-	ready = state->m_cbaj_to_r3k;
-	state->m_cbaj_to_r3k &= ~2;
 	return soundlatch2_r(space,0) | ready<<24;
 }
 
 static WRITE32_HANDLER( cbaj_z80_w )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-	space->machine().scheduler().synchronize();
-
-	state->m_cbaj_to_z80 |= 2;
-	state->m_latch_to_z80 = data;
+	cbaj_to_z80 |= 2;
+	latch_to_z80 = data;
 }
 
 static DRIVER_INIT( coh1002m )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank               ( 0x1f000000, 0x1f7fffff, "bank1" );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler( 0x1fb00000, 0x1fb00003, FUNC(cbaj_z80_r), FUNC(cbaj_z80_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler    ( 0x1fb00004, 0x1fb00007, FUNC(coh1002m_bank_w) );
+	memory_install_read_bank     ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1f000000, 0x1f7fffff, 0, 0, "bank1" );
+	memory_install_readwrite32_handler( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00000, 0x1fb00003, 0, 0, cbaj_z80_r, cbaj_z80_w );
+	memory_install_write32_handler    ( cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1fb00004, 0x1fb00007, 0, 0, coh1002m_bank_w );
 
 	zn_driver_init(machine);
 }
 
 static MACHINE_RESET( coh1002m )
 {
-	memory_set_bankptr( machine, "bank1", machine.region( "user2" )->base() );
+	memory_set_bankptr(machine,  "bank1", memory_region( machine, "user2" ) );
 	zn_machine_init(machine);
 }
 
 static READ8_HANDLER( cbaj_z80_latch_r )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-
-	state->m_cbaj_to_z80 &= ~2;
-	return state->m_latch_to_z80;
+	cbaj_to_z80 &= ~2;
+	return latch_to_z80;
 }
 
 static WRITE8_HANDLER( cbaj_z80_latch_w )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
-
-	state->m_cbaj_to_r3k |= 2;
+	cbaj_to_r3k |= 2;
 	soundlatch2_w(space, 0, data);
 }
 
 static READ8_HANDLER( cbaj_z80_ready_r )
 {
-	zn_state *state = space->machine().driver_data<zn_state>();
+	int ret = cbaj_to_z80;
 
-	int ret = state->m_cbaj_to_z80;
-
-	state->m_cbaj_to_z80 &= ~2;
+	cbaj_to_z80 &= ~2;
 
 	return ret;
 }
 
-static ADDRESS_MAP_START( cbaj_z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cbaj_z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE( 0x0000, 0x7fff ) AM_ROM
 	AM_RANGE( 0x8000, 0xffff ) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( cbaj_z80_port_map, AS_IO, 8)
+static ADDRESS_MAP_START( cbaj_z80_port_map, ADDRESS_SPACE_IO, 8)
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE( 0x84, 0x85 ) AM_DEVREADWRITE( "ymz", ymz280b_r, ymz280b_w )
 	AM_RANGE( 0x90, 0x90 ) AM_READWRITE( cbaj_z80_latch_r, cbaj_z80_latch_w )
@@ -2584,31 +2624,34 @@ static ADDRESS_MAP_START( cbaj_z80_port_map, AS_IO, 8)
 ADDRESS_MAP_END
 
 
-static MACHINE_CONFIG_DERIVED( coh1002m, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1002m )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_MACHINE_RESET( coh1002m )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( coh1002m )
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( coh1002msnd, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1002msnd )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_CPU_ADD("audiocpu", Z80, 32000000/8 )
-	MCFG_CPU_PROGRAM_MAP( cbaj_z80_map)
-	MCFG_CPU_IO_MAP( cbaj_z80_port_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 32000000/8 )
+	MDRV_CPU_PROGRAM_MAP( cbaj_z80_map)
+	MDRV_CPU_IO_MAP( cbaj_z80_port_map)
 
-	MCFG_MACHINE_RESET( coh1002m )
+	MDRV_MACHINE_RESET( coh1002m )
 
-	MCFG_SOUND_ADD("ymz", YMZ280B, 16934400)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymz", YMZ280B, 16934400)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( coh1002ml, zn1_2mb_vram )
+static MACHINE_DRIVER_START( coh1002ml )
+	MDRV_IMPORT_FROM( zn1_2mb_vram )
 
-	MCFG_CPU_ADD("link", Z80, 8000000 )
-	MCFG_CPU_PROGRAM_MAP( link_map)
+	MDRV_CPU_ADD("link", Z80, 8000000 )
+	MDRV_CPU_PROGRAM_MAP( link_map)
 
-	MCFG_MACHINE_RESET( coh1002m )
-MACHINE_CONFIG_END
+	MDRV_MACHINE_RESET( coh1002m )
+MACHINE_DRIVER_END
 
 static INPUT_PORTS_START( zn )
 	PORT_START("P1")
@@ -2680,34 +2723,6 @@ static INPUT_PORTS_START( zn )
 	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-INPUT_PORTS_END
-
-static INPUT_PORTS_START( zn4w )
-	PORT_INCLUDE( zn )
-
-	PORT_MODIFY("P1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_4WAY PORT_PLAYER(1)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_4WAY PORT_PLAYER(1)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY PORT_PLAYER(1)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_4WAY PORT_PLAYER(1)
-
-	PORT_MODIFY("P2")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_4WAY PORT_PLAYER(2)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_4WAY PORT_PLAYER(2)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY PORT_PLAYER(2)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_4WAY PORT_PLAYER(2)
-
-	PORT_MODIFY("P3")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_4WAY PORT_PLAYER(3)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_4WAY PORT_PLAYER(3)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY PORT_PLAYER(3)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_4WAY PORT_PLAYER(3)
-
-	PORT_MODIFY("P4")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_4WAY PORT_PLAYER(4)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_4WAY PORT_PLAYER(4)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY PORT_PLAYER(4)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_4WAY PORT_PLAYER(4)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( zn6b )
@@ -3626,8 +3641,8 @@ ROM_START( cbaj )
 	ROM_LOAD( "cbaj_z80.3118",       0x0000000, 0x040000, CRC(92b02ad2) SHA1(f72317679ecbd8a0c3b081baaf9ff20a8c9ec00f) )
 
 	ROM_REGION( 0x800000, "ymz", 0 ) /* YMZ280B Sound Samples */
-	ROM_LOAD( "cb-vo.5120",   0x000000, 0x400000, CRC(afb05d6d) SHA1(0c08010579813814fbf8a978cf4376bab18697a4) )
-	ROM_LOAD( "cb-se.5121",   0x400000, 0x400000, CRC(f12b3db9) SHA1(d5231ad664603050bdca2081b114b07fc905ddc2) )
+	ROM_LOAD( "cb-se.5121",   0x000000, 0x400000, CRC(f12b3db9) SHA1(d5231ad664603050bdca2081b114b07fc905ddc2) )
+	ROM_LOAD( "cb-vo.5120",   0x400000, 0x400000, CRC(afb05d6d) SHA1(0c08010579813814fbf8a978cf4376bab18697a4) )
 ROM_END
 
 ROM_START( shngmtkb )
@@ -4557,7 +4572,7 @@ GAME( 1998, sfex2h,    sfex2,    coh3002c, zn6b, coh3002c, ROT0, "Capcom / Arika
 GAME( 1998, plsmaswd,  cpzn2,    coh3002c, zn6b, coh3002c, ROT0, "Capcom", "Plasma Sword (USA 980316)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1998, stargld2,  plsmaswd, coh3002c, zn6b, coh3002c, ROT0, "Capcom", "Star Gladiator 2 (Japan 980316)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1998, plsmaswda, plsmaswd, coh3002c, zn6b, coh3002c, ROT0, "Capcom", "Plasma Sword (Asia 980316)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
-GAME( 1998, tgmj,      cpzn2,    coh3002c, zn4w, coh3002c, ROT0, "Arika / Capcom", "Tetris The Grand Master (Japan 980710)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1998, tgmj,      cpzn2,    coh3002c, zn,   coh3002c, ROT0, "Arika / Capcom", "Tetris The Grand Master (Japan 980710)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1998, techromn,  cpzn2,    coh3002c, zn6b, coh3002c, ROT0, "Capcom", "Tech Romancer (Euro 980914)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1998, techromnu, techromn, coh3002c, zn6b, coh3002c, ROT0, "Capcom", "Tech Romancer (USA 980914)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 GAME( 1998, kikaioh,   techromn, coh3002c, zn6b, coh3002c, ROT0, "Capcom", "Kikaioh (Japan 980914)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )

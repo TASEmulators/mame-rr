@@ -4,43 +4,42 @@
 
 *************************************************************************/
 
-class combatsc_state : public driver_device
+class combatsc_state
 {
 public:
-	combatsc_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, combatsc_state(machine)); }
+
+	combatsc_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_scrollram;
-	UINT8 *    m_io_ram;
-	UINT8 *    m_paletteram;
-	UINT8 *    m_spriteram[2];
+	UINT8 *    videoram;
+	UINT8 *    scrollram;
+	UINT8 *    io_ram;
+	UINT8 *    paletteram;
+	UINT8 *    spriteram[2];
 
 	/* video-related */
-	tilemap_t *m_bg_tilemap[2];
-	tilemap_t *m_textlayer;
-	UINT8 m_scrollram0[0x40];
-	UINT8 m_scrollram1[0x40];
-	int m_priority;
+	tilemap_t *bg_tilemap[2], *textlayer;
+	UINT8 scrollram0[0x40];
+	UINT8 scrollram1[0x40];
+	int priority;
 
-	int  m_vreg;
-	int  m_bank_select; /* 0x00..0x1f */
-	int  m_video_circuit; /* 0 or 1 */
-	UINT8 *m_page[2];
+	int  vreg;
+	int  bank_select; /* 0x00..0x1f */
+	int  video_circuit; /* 0 or 1 */
+	UINT8 *page[2];
 
 	/* misc */
-	UINT8 m_pos[4];
-	UINT8 m_sign[4];
-	int m_prot[2];
-	int m_boost;
-	emu_timer *m_interleave_timer;
+	UINT8 pos[4],sign[4];
+	int prot[2];
+	int boost;
+	emu_timer *interleave_timer;
 
 
 	/* devices */
-	cpu_device *m_audiocpu;
-	device_t *m_k007121_1;
-	device_t *m_k007121_2;
+	cpu_device *audiocpu;
+	running_device *k007121_1;
+	running_device *k007121_2;
 };
 
 
@@ -57,5 +56,5 @@ PALETTE_INIT( combatsc );
 PALETTE_INIT( combatscb );
 VIDEO_START( combatsc );
 VIDEO_START( combatscb );
-SCREEN_UPDATE( combatscb );
-SCREEN_UPDATE( combatsc );
+VIDEO_UPDATE( combatscb );
+VIDEO_UPDATE( combatsc );

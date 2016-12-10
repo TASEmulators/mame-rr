@@ -18,28 +18,17 @@ The ppi at 3000-3003 seems to be a dual port communication thing with the z80.
 #include "machine/8255ppi.h"
 #include "sound/ay8910.h"
 
-
-class rgum_state : public driver_device
-{
-public:
-	rgum_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_vram;
-	UINT8 *m_cram;
-	UINT8 m_hbeat;
-};
-
+static UINT8 *vram, *cram;
 
 static VIDEO_START(royalgum)
 {
+
 }
 
-static SCREEN_UPDATE(royalgum)
+static VIDEO_UPDATE(royalgum)
 {
-	rgum_state *state = screen->machine().driver_data<rgum_state>();
 	int x,y,count;
-	const gfx_element *gfx = screen->machine().gfx[0];
+	const gfx_element *gfx = screen->machine->gfx[0];
 
 	count = 0;
 
@@ -47,7 +36,7 @@ static SCREEN_UPDATE(royalgum)
 	{
 		for(x=0;x<66;x++)
 		{
-			int tile = state->m_vram[count] | ((state->m_cram[count] & 0xf) <<8);
+			int tile = vram[count] | ((cram[count] & 0xf) <<8);
 
 			drawgfx_opaque(bitmap,cliprect,gfx,tile,0,0,0,x*8,y*8);
 
@@ -58,11 +47,11 @@ static SCREEN_UPDATE(royalgum)
 	return 0;
 }
 
-static ADDRESS_MAP_START( rgum_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rgum_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM //not all of it?
 
-	AM_RANGE(0x0800, 0x0800) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0x0801, 0x0801) AM_DEVREADWRITE_MODERN("crtc", mc6845_device, register_r, register_w)
+	AM_RANGE(0x0800, 0x0800) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0x0801, 0x0801) AM_DEVREADWRITE("crtc", mc6845_register_r, mc6845_register_w)
 
 	AM_RANGE(0x2000, 0x2000) AM_DEVWRITE("aysnd", ay8910_data_w)
 	AM_RANGE(0x2002, 0x2002) AM_DEVREADWRITE("aysnd", ay8910_r, ay8910_address_w)
@@ -72,8 +61,8 @@ static ADDRESS_MAP_START( rgum_map, AS_PROGRAM, 8 )
 
 	AM_RANGE(0x3000, 0x3003) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 
-	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE_MEMBER(rgum_state, m_vram)
-	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_BASE_MEMBER(rgum_state, m_cram)
+	AM_RANGE(0x4000, 0x47ff) AM_RAM AM_BASE(&vram)
+	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_BASE(&cram)
 
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 ADDRESS_MAP_END
@@ -81,11 +70,11 @@ ADDRESS_MAP_END
 
 static CUSTOM_INPUT( rgum_heartbeat_r )
 {
-	rgum_state *state = field.machine().driver_data<rgum_state>();
+	static UINT8 hbeat;
 
-	state->m_hbeat ^= 1;
+	hbeat ^= 1;
 
-	return state->m_hbeat;
+	return hbeat;
 }
 
 
@@ -260,36 +249,36 @@ static const ay8910_interface ay8910_config =
 	DEVCB_NULL
 };
 
-static MACHINE_CONFIG_START( rgum, rgum_state )
+static MACHINE_DRIVER_START( rgum )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M65C02,24000000/16)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(rgum_map)
-//  MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", M65C02,24000000/16)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(rgum_map)
+//  MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(royalgum)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-1)
 
-	MCFG_MC6845_ADD("crtc", MC6845, 24000000/16, mc6845_intf)	/* unknown clock & type, hand tuned to get ~50 fps (?) */
+	MDRV_MC6845_ADD("crtc", MC6845, 24000000/16, mc6845_intf)	/* unknown clock & type, hand tuned to get ~50 fps (?) */
 
-	MCFG_PPI8255_ADD( "ppi8255_0", ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255_0", ppi8255_intf )
 
-	MCFG_GFXDECODE(rgum)
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_GFXDECODE(rgum)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_VIDEO_START(royalgum)
+	MDRV_VIDEO_START(royalgum)
+	MDRV_VIDEO_UPDATE(royalgum)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 24000000/16) /* guessed to use the same xtal as the crtc */
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 24000000/16) /* guessed to use the same xtal as the crtc */
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 

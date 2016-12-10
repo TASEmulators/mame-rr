@@ -16,22 +16,6 @@
     Known bugs:
         * none at this time
 
-
-'Universal' Game Board V2 (xxL logic, xxA audio)
-
-Name                 Year  CPU    board/rom numbers
-
-Side Track           1979  6502   STL, STA
-Targ                 1980  6502   HRL, HRA
-Spectar              1980  6502   SPL, SPA
-Mouse Trap           1981  6502   MTL, MTA
-Venture              1981  6502   VEL, VEA
-Teeter Torture       1982  6502   Prototype
-Pepper II            1982  6502   77-0008,77-0007 PTL, PTA
-Hard Hat             1982  6502   HHL, HHA
-Fax                  1982  6502   FXL, FLA
-
-
 ****************************************************************************
 
     Exidy memory map
@@ -143,10 +127,14 @@ Fax                  1982  6502   FXL, FLA
 
 #include "emu.h"
 #include "cpu/m6502/m6502.h"
-#include "machine/6821pia.h"
-#include "audio/exidy.h"
-#include "includes/targ.h"
+#include "deprecat.h"
 #include "includes/exidy.h"
+#include "includes/targ.h"
+#include "machine/6821pia.h"
+
+
+static UINT8 last_dial;
+
 
 
 /*************************************
@@ -157,20 +145,19 @@ Fax                  1982  6502   FXL, FLA
 
 static CUSTOM_INPUT( teetert_input_r )
 {
-	exidy_state *state = field.machine().driver_data<exidy_state>();
-	UINT8 dial = input_port_read(field.machine(), "DIAL");
+	UINT8 dial = input_port_read(field->port->machine, "DIAL");
 	int result = 0;
 
-	result = (dial != state->m_last_dial) << 4;
+	result = (dial != last_dial) << 4;
 	if (result != 0)
 	{
-		if (((dial - state->m_last_dial) & 0xff) < 0x80)
+		if (((dial - last_dial) & 0xff) < 0x80)
 		{
 			result |= 1;
-			state->m_last_dial++;
+			last_dial++;
 		}
 		else
-			state->m_last_dial--;
+			last_dial--;
 	}
 
 	return result;
@@ -186,9 +173,9 @@ static CUSTOM_INPUT( teetert_input_r )
 
 static WRITE8_HANDLER( fax_bank_select_w )
 {
-	UINT8 *RAM = space->machine().region("maincpu")->base();
+	UINT8 *RAM = memory_region(space->machine, "maincpu");
 
-	memory_set_bankptr(space->machine(), "bank1", &RAM[0x10000 + (0x2000 * (data & 0x1f))]);
+	memory_set_bankptr(space->machine, "bank1", &RAM[0x10000 + (0x2000 * (data & 0x1f))]);
 	if ((data & 0x1f) > 0x17)
 		logerror("Banking to unpopulated ROM bank %02X!\n",data & 0x1f);
 }
@@ -201,26 +188,26 @@ static WRITE8_HANDLER( fax_bank_select_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( exidy_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( exidy_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x03ff) AM_RAM
-	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(exidy_state, m_videoram)
-	AM_RANGE(0x5000, 0x5000) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite1_xpos)
-	AM_RANGE(0x5040, 0x5040) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite1_ypos)
-	AM_RANGE(0x5080, 0x5080) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite2_xpos)
-	AM_RANGE(0x50c0, 0x50c0) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite2_ypos)
+	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x0400) AM_RAM AM_BASE(&exidy_videoram)
+	AM_RANGE(0x5000, 0x5000) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE(&exidy_sprite1_xpos)
+	AM_RANGE(0x5040, 0x5040) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE(&exidy_sprite1_ypos)
+	AM_RANGE(0x5080, 0x5080) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE(&exidy_sprite2_xpos)
+	AM_RANGE(0x50c0, 0x50c0) AM_MIRROR(0x003f) AM_WRITEONLY AM_BASE(&exidy_sprite2_ypos)
 	AM_RANGE(0x5100, 0x5100) AM_MIRROR(0x00fc) AM_READ_PORT("DSW")
-	AM_RANGE(0x5100, 0x5100) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_spriteno)
+	AM_RANGE(0x5100, 0x5100) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE(&exidy_spriteno)
 	AM_RANGE(0x5101, 0x5101) AM_MIRROR(0x00fc) AM_READ_PORT("IN0")
-	AM_RANGE(0x5101, 0x5101) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite_enable)
+	AM_RANGE(0x5101, 0x5101) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE(&exidy_sprite_enable)
 	AM_RANGE(0x5103, 0x5103) AM_MIRROR(0x00fc) AM_READ(exidy_interrupt_r)
-	AM_RANGE(0x5210, 0x5212) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_color_latch)
+	AM_RANGE(0x5210, 0x5212) AM_WRITEONLY AM_BASE(&exidy_color_latch)
 	AM_RANGE(0x5213, 0x5213) AM_READ_PORT("IN2")
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( sidetrac_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sidetrac_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0800, 0x3fff) AM_ROM
-	AM_RANGE(0x4800, 0x4fff) AM_ROM AM_BASE_MEMBER(exidy_state, m_characterram)
+	AM_RANGE(0x4800, 0x4fff) AM_ROM AM_BASE(&exidy_characterram)
 	AM_RANGE(0x5200, 0x5200) AM_WRITE(targ_audio_1_w)
 	AM_RANGE(0x5201, 0x5201) AM_WRITE(spectar_audio_2_w)
 	AM_RANGE(0xff00, 0xffff) AM_ROM AM_REGION("maincpu", 0x3f00)
@@ -228,9 +215,9 @@ static ADDRESS_MAP_START( sidetrac_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( targ_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( targ_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0800, 0x3fff) AM_ROM
-	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE_MEMBER(exidy_state, m_characterram)
+	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE(&exidy_characterram)
 	AM_RANGE(0x5200, 0x5200) AM_WRITE(targ_audio_1_w)
 	AM_RANGE(0x5201, 0x5201) AM_WRITE(targ_audio_2_w)
 	AM_RANGE(0xff00, 0xffff) AM_ROM AM_REGION("maincpu", 0x3f00)
@@ -238,9 +225,9 @@ static ADDRESS_MAP_START( targ_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( spectar_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( spectar_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0800, 0x3fff) AM_ROM
-	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE_MEMBER(exidy_state, m_characterram)
+	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE(&exidy_characterram)
 	AM_RANGE(0x5200, 0x5200) AM_WRITE(targ_audio_1_w)
 	AM_RANGE(0x5201, 0x5201) AM_WRITE(spectar_audio_2_w)
 	AM_RANGE(0xff00, 0xffff) AM_ROM AM_REGION("maincpu", 0x3f00)
@@ -248,54 +235,54 @@ static ADDRESS_MAP_START( spectar_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( rallys_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rallys_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x03ff) AM_RAM
 	AM_RANGE(0x0800, 0x3fff) AM_ROM
-	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(exidy_state, m_videoram)
-	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE_MEMBER(exidy_state, m_characterram)
-	AM_RANGE(0x5000, 0x5000) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite1_xpos)
-	AM_RANGE(0x5001, 0x5001) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite1_ypos)
+	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x0400) AM_RAM AM_BASE(&exidy_videoram)
+	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE(&exidy_characterram)
+	AM_RANGE(0x5000, 0x5000) AM_WRITEONLY AM_BASE(&exidy_sprite1_xpos)
+	AM_RANGE(0x5001, 0x5001) AM_WRITEONLY AM_BASE(&exidy_sprite1_ypos)
 	AM_RANGE(0x5100, 0x5100) AM_MIRROR(0x00fc) AM_READ_PORT("DSW")
-	AM_RANGE(0x5100, 0x5100) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_spriteno)
+	AM_RANGE(0x5100, 0x5100) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE(&exidy_spriteno)
 	AM_RANGE(0x5101, 0x5101) AM_MIRROR(0x00fc) AM_READ_PORT("IN0")
-	AM_RANGE(0x5101, 0x5101) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite_enable)
+	AM_RANGE(0x5101, 0x5101) AM_MIRROR(0x00fc) AM_WRITEONLY AM_BASE(&exidy_sprite_enable)
 	AM_RANGE(0x5103, 0x5103) AM_MIRROR(0x00fc) AM_READ(exidy_interrupt_r)
 	AM_RANGE(0x5200, 0x5200) AM_WRITE(targ_audio_1_w)
 	AM_RANGE(0x5201, 0x5201) AM_WRITE(spectar_audio_2_w)
-	AM_RANGE(0x5210, 0x5212) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_color_latch)
+	AM_RANGE(0x5210, 0x5212) AM_WRITEONLY AM_BASE(&exidy_color_latch)
 	AM_RANGE(0x5213, 0x5213) AM_READ_PORT("IN2")
-	AM_RANGE(0x5300, 0x5300) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite2_xpos)
-	AM_RANGE(0x5301, 0x5301) AM_WRITEONLY AM_BASE_MEMBER(exidy_state, m_sprite2_ypos)
+	AM_RANGE(0x5300, 0x5300) AM_WRITEONLY AM_BASE(&exidy_sprite2_xpos)
+	AM_RANGE(0x5301, 0x5301) AM_WRITEONLY AM_BASE(&exidy_sprite2_ypos)
 	AM_RANGE(0xff00, 0xffff) AM_ROM AM_REGION("maincpu", 0x3f00)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( venture_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE_MEMBER(exidy_state, m_characterram)
-	AM_RANGE(0x5200, 0x520f) AM_DEVREADWRITE_MODERN("pia0", pia6821_device, read, write)
+static ADDRESS_MAP_START( venture_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x4800, 0x4fff) AM_RAM AM_BASE(&exidy_characterram)
+	AM_RANGE(0x5200, 0x520f) AM_DEVREADWRITE("pia0", pia6821_r, pia6821_w)
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 	AM_IMPORT_FROM(exidy_map)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( pepper2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( pepper2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x4800, 0x4fff) AM_NOP
-	AM_RANGE(0x5200, 0x520f) AM_DEVREADWRITE_MODERN("pia0", pia6821_device, read, write)
-	AM_RANGE(0x6000, 0x6fff) AM_RAM AM_BASE_MEMBER(exidy_state, m_characterram)
+	AM_RANGE(0x5200, 0x520f) AM_DEVREADWRITE("pia0", pia6821_r, pia6821_w)
+	AM_RANGE(0x6000, 0x6fff) AM_RAM AM_BASE(&exidy_characterram)
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 	AM_IMPORT_FROM(exidy_map)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( fax_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fax_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0400, 0x07ff) AM_RAM
 	AM_RANGE(0x1a00, 0x1a00) AM_READ_PORT("IN4")
 	AM_RANGE(0x1c00, 0x1c00) AM_READ_PORT("IN3")
 	AM_RANGE(0x2000, 0x2000) AM_WRITE(fax_bank_select_w)
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x5200, 0x520f) AM_DEVREADWRITE_MODERN("pia0", pia6821_device, read, write)
+	AM_RANGE(0x5200, 0x520f) AM_DEVREADWRITE("pia0", pia6821_r, pia6821_w)
 	AM_RANGE(0x5213, 0x5217) AM_WRITENOP		/* empty control lines on color/sound board */
-	AM_RANGE(0x6000, 0x6fff) AM_RAM AM_BASE_MEMBER(exidy_state, m_characterram)
+	AM_RANGE(0x6000, 0x6fff) AM_RAM AM_BASE(&exidy_characterram)
 	AM_RANGE(0x8000, 0xffff) AM_ROM
 	AM_IMPORT_FROM(exidy_map)
 ADDRESS_MAP_END
@@ -696,13 +683,12 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( fax )
 	PORT_START("DSW")
 	PORT_BIT ( 0x01, IP_ACTIVE_HIGH, IPT_COIN2 )
-	// note: set switches 2 to 8 to ON for freeplay
-	PORT_DIPNAME( 0x06, 0x04, "Bonus Time" ) PORT_DIPLOCATION("SW1:2,3")
+	PORT_DIPNAME( 0x06, 0x06, "Bonus Time" ) PORT_DIPLOCATION("SW1:2,3")
 	PORT_DIPSETTING(    0x06, "8000" )
 	PORT_DIPSETTING(    0x04, "13000" )
 	PORT_DIPSETTING(    0x02, "18000" )
 	PORT_DIPSETTING(    0x00, "25000" )
-	PORT_DIPNAME( 0x60, 0x40, "Game/Bonus Times" ) PORT_DIPLOCATION("SW1:6,7")
+	PORT_DIPNAME( 0x60, 0x60, "Game/Bonus Times" ) PORT_DIPLOCATION("SW1:6,7")
 	PORT_DIPSETTING(    0x60, ":32/:24" )
 	PORT_DIPSETTING(    0x40, ":48/:36" )
 	PORT_DIPSETTING(    0x20, "1:04/:48" )
@@ -794,8 +780,7 @@ GFXDECODE_END
 
 static MACHINE_START( teetert )
 {
-	exidy_state *state = machine.driver_data<exidy_state>();
-	state_save_register_global(machine, state->m_last_dial);
+    state_save_register_global(machine, last_dial);
 }
 
 /*************************************
@@ -804,116 +789,125 @@ static MACHINE_START( teetert )
  *
  *************************************/
 
-static MACHINE_CONFIG_START( base, exidy_state )
+static MACHINE_DRIVER_START( base )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6502, EXIDY_CPU_CLOCK)
-	MCFG_CPU_VBLANK_INT("screen", exidy_vblank_interrupt)
+	MDRV_CPU_ADD("maincpu", M6502, EXIDY_CPU_CLOCK)
+	MDRV_CPU_VBLANK_INT("screen", exidy_vblank_interrupt)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
-	MCFG_VIDEO_START(exidy)
-	MCFG_GFXDECODE(exidy)
-	MCFG_PALETTE_LENGTH(8)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_ALWAYS_UPDATE)
+	MDRV_VIDEO_START(exidy)
+	MDRV_VIDEO_UPDATE(exidy)
+	MDRV_GFXDECODE(exidy)
+	MDRV_PALETTE_LENGTH(8)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(EXIDY_PIXEL_CLOCK, EXIDY_HTOTAL, EXIDY_HBEND, EXIDY_HBSTART, EXIDY_VTOTAL, EXIDY_VBEND, EXIDY_VBSTART)
-	MCFG_SCREEN_UPDATE(exidy)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(EXIDY_PIXEL_CLOCK, EXIDY_HTOTAL, EXIDY_HBEND, EXIDY_HBSTART, EXIDY_VTOTAL, EXIDY_VBEND, EXIDY_VBSTART)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( sidetrac, base )
+static MACHINE_DRIVER_START( sidetrac )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(sidetrac_map)
+	MDRV_IMPORT_FROM(base)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(sidetrac_map)
 
 	/* audio hardware */
-	MCFG_FRAGMENT_ADD(spectar_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(spectar_audio)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( targ, base )
+static MACHINE_DRIVER_START( targ )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(targ_map)
+	MDRV_IMPORT_FROM(base)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(targ_map)
 
 	/* audio hardware */
-	MCFG_FRAGMENT_ADD(targ_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(targ_audio)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( spectar, base )
+static MACHINE_DRIVER_START( spectar )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(spectar_map)
+	MDRV_IMPORT_FROM(base)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(spectar_map)
 
 	/* audio hardware */
-	MCFG_FRAGMENT_ADD(spectar_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(spectar_audio)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( rallys, spectar )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(rallys_map)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( venture, base )
+static MACHINE_DRIVER_START( rallys )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(venture_map)
+	MDRV_IMPORT_FROM(spectar)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(rallys_map)
+MACHINE_DRIVER_END
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+
+static MACHINE_DRIVER_START( venture )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(base)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(venture_map)
+
+	MDRV_QUANTUM_TIME(HZ(600))
 
 	/* audio hardware */
-	MCFG_FRAGMENT_ADD(venture_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(venture_audio)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( teetert, venture )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse,10*60)
-
-	MCFG_MACHINE_START( teetert )
-
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( mtrap, venture )
+static MACHINE_DRIVER_START( teetert )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(venture)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_VBLANK_INT_HACK(teetert_vblank_interrupt,10)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(1920))
+    MDRV_MACHINE_START( teetert )
+
+MACHINE_DRIVER_END
+
+
+static MACHINE_DRIVER_START( mtrap )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(venture)
+
+	MDRV_QUANTUM_TIME(HZ(1920))
 
 	/* audio hardware */
-	MCFG_FRAGMENT_ADD(mtrap_cvsd_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(mtrap_cvsd_audio)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( pepper2, venture )
-
-	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(pepper2_map)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( fax, pepper2 )
+static MACHINE_DRIVER_START( pepper2 )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(fax_map)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(venture)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(pepper2_map)
+MACHINE_DRIVER_END
+
+
+static MACHINE_DRIVER_START( fax )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(pepper2)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(fax_map)
+MACHINE_DRIVER_END
 
 
 
@@ -1383,95 +1377,90 @@ ROM_END
 
 static DRIVER_INIT( sidetrac )
 {
-	exidy_state *state = machine.driver_data<exidy_state>();
-	exidy_video_config(machine, 0x00, 0x00, FALSE);
+	exidy_video_config(0x00, 0x00, FALSE);
 
 	/* hard-coded palette controlled via 8x3 DIP switches on the board */
-	state->m_color_latch[2] = 0xf8;
-	state->m_color_latch[1] = 0xdc;
-	state->m_color_latch[0] = 0xb8;
+	exidy_color_latch[2] = 0xf8;
+	exidy_color_latch[1] = 0xdc;
+	exidy_color_latch[0] = 0xb8;
 }
 
 
 static DRIVER_INIT( targ )
 {
-	exidy_state *state = machine.driver_data<exidy_state>();
-	exidy_video_config(machine, 0x00, 0x00, FALSE);
+	exidy_video_config(0x00, 0x00, FALSE);
 
 	/* hard-coded palette controlled via 8x3 DIP switches on the board */
-	state->m_color_latch[2] = 0x5c;
-	state->m_color_latch[1] = 0xee;
-	state->m_color_latch[0] = 0x6b;
+	exidy_color_latch[2] = 0x5c;
+	exidy_color_latch[1] = 0xee;
+	exidy_color_latch[0] = 0x6b;
 }
 
 
 static DRIVER_INIT( spectar )
 {
-	exidy_state *state = machine.driver_data<exidy_state>();
-	exidy_video_config(machine, 0x00, 0x00, FALSE);
+	exidy_video_config(0x00, 0x00, FALSE);
 
 	/* hard-coded palette controlled via 8x3 DIP switches on the board */
-	state->m_color_latch[2] = 0x58;
-	state->m_color_latch[1] = 0xee;
-	state->m_color_latch[0] = 0x09;
+	exidy_color_latch[2] = 0x58;
+	exidy_color_latch[1] = 0xee;
+	exidy_color_latch[0] = 0x09;
 }
 
 static DRIVER_INIT( rallys )
 {
-	exidy_state *state = machine.driver_data<exidy_state>();
-	exidy_video_config(machine, 0x00, 0x00, FALSE);
+	exidy_video_config(0x00, 0x00, FALSE);
 
 	/* hard-coded palette controlled via 8x3 DIP switches on the board */
-	state->m_color_latch[2] = 0x58;
-	state->m_color_latch[1] = 0xee;
-	state->m_color_latch[0] = 0x09;
+	exidy_color_latch[2] = 0x58;
+	exidy_color_latch[1] = 0xee;
+	exidy_color_latch[0] = 0x09;
 }
 
 static DRIVER_INIT( phantoma )
 {
-	exidy_state *state = machine.driver_data<exidy_state>();
-	exidy_video_config(machine, 0x00, 0x00, FALSE);
+	exidy_video_config(0x00, 0x00, FALSE);
 
 	/* hard-coded palette controlled via 8x3 DIP switches on the board */
-	state->m_color_latch[2] = 0x58;
-	state->m_color_latch[1] = 0xee;
-	state->m_color_latch[0] = 0x09;
+	exidy_color_latch[2] = 0x58;
+	exidy_color_latch[1] = 0xee;
+	exidy_color_latch[0] = 0x09;
 
 	/* the ROM is actually mapped high */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_bank(0xf800, 0xffff, "bank1");
-	memory_set_bankptr(machine, "bank1", machine.region("maincpu")->base() + 0xf800);
+	memory_install_read_bank(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xf800, 0xffff, 0, 0, "bank1");
+	memory_set_bankptr(machine, "bank1", memory_region(machine, "maincpu") + 0xf800);
 }
 
 
 static DRIVER_INIT( mtrap )
 {
-	exidy_video_config(machine, 0x14, 0x00, FALSE);
+	exidy_video_config(0x14, 0x00, FALSE);
 }
 
 
 static DRIVER_INIT( venture )
 {
-	exidy_video_config(machine, 0x04, 0x04, FALSE);
+	exidy_video_config(0x04, 0x04, FALSE);
 }
 
 
 static DRIVER_INIT( teetert )
 {
-	exidy_video_config(machine, 0x0c, 0x0c, FALSE);
+	exidy_video_config(0x0c, 0x0c, FALSE);
 }
 
 
 static DRIVER_INIT( pepper2 )
 {
-	exidy_video_config(machine, 0x14, 0x04, TRUE);
+	exidy_video_config(0x14, 0x04, TRUE);
 }
 
 
 static DRIVER_INIT( fax )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 
-	exidy_video_config(machine, 0x04, 0x04, TRUE);
+	exidy_video_config(0x04, 0x04, TRUE);
 
 	/* reset the ROM bank */
 	fax_bank_select_w(space,0,0);

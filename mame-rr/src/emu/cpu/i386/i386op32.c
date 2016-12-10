@@ -448,16 +448,13 @@ static void I386OP(call_abs32)(i386_state *cpustate)		// Opcode 0x9a
 	UINT32 offset = FETCH32(cpustate);
 	UINT16 ptr = FETCH16(cpustate);
 
-	if(PROTECTED_MODE && !V8086_MODE)
-	{
-		i386_protected_mode_call(cpustate,ptr,offset,0,1);
-	}
-	else
-	{
+	if( PROTECTED_MODE ) {
+		/* TODO */
+		fatalerror("i386: call_abs32 in protected mode unimplemented");
+	} else {
 		PUSH32(cpustate, cpustate->sreg[CS].selector );
 		PUSH32(cpustate, cpustate->eip );
 		cpustate->sreg[CS].selector = ptr;
-		cpustate->performed_intersegment_jump = 1;
 		cpustate->eip = offset;
 		i386_load_segment_descriptor(cpustate,CS);
 	}
@@ -670,7 +667,7 @@ static void I386OP(imul_r32_rm32_i8)(i386_state *cpustate)	// Opcode 0x6b
 static void I386OP(in_eax_i8)(i386_state *cpustate)			// Opcode 0xe5
 {
 	UINT16 port = FETCH(cpustate);
-	UINT32 data = READPORT32(cpustate, port);
+	UINT32 data = READPORT32(port);
 	REG32(EAX) = data;
 	CYCLES(cpustate,CYCLES_IN_VAR);
 }
@@ -678,7 +675,7 @@ static void I386OP(in_eax_i8)(i386_state *cpustate)			// Opcode 0xe5
 static void I386OP(in_eax_dx)(i386_state *cpustate)			// Opcode 0xed
 {
 	UINT16 port = REG16(DX);
-	UINT32 data = READPORT32(cpustate, port);
+	UINT32 data = READPORT32(port);
 	REG32(EAX) = data;
 	CYCLES(cpustate,CYCLES_IN);
 }
@@ -733,12 +730,17 @@ static void I386OP(inc_edi)(i386_state *cpustate)			// Opcode 0x47
 
 static void I386OP(iret32)(i386_state *cpustate)			// Opcode 0xcf
 {
-	if( PROTECTED_MODE )
-	{
-		i386_protected_mode_iret(cpustate,1);
-	}
-	else
-	{
+	if( PROTECTED_MODE ) {
+		/* TODO: Virtual 8086-mode */
+		/* TODO: Nested task */
+		/* TODO: #SS(0) exception */
+		/* TODO: All the protection-related stuff... */
+		cpustate->eip = POP32(cpustate);
+		cpustate->sreg[CS].selector = POP32(cpustate) & 0xffff;
+		set_flags(cpustate, POP32(cpustate) );
+		i386_load_segment_descriptor(cpustate,CS);
+		CHANGE_PC(cpustate,cpustate->eip);
+	} else {
 		/* TODO: #SS(0) exception */
 		/* TODO: #GP(0) exception */
 		cpustate->eip = POP32(cpustate);
@@ -968,15 +970,16 @@ static void I386OP(jmp_abs32)(i386_state *cpustate)			// Opcode 0xea
 	UINT32 address = FETCH32(cpustate);
 	UINT16 segment = FETCH16(cpustate);
 
-	if( PROTECTED_MODE && !V8086_MODE)
-	{
-		i386_protected_mode_jump(cpustate,segment,address,0,1);
-	}
-	else
-	{
+	if( PROTECTED_MODE ) {
+		/* TODO: #GP */
+		/* TODO: access rights, etc. */
 		cpustate->eip = address;
 		cpustate->sreg[CS].selector = segment;
-		cpustate->performed_intersegment_jump = 1;
+		i386_load_segment_descriptor(cpustate,CS);
+		CHANGE_PC(cpustate,cpustate->eip);
+	} else {
+		cpustate->eip = address;
+		cpustate->sreg[CS].selector = segment;
 		i386_load_segment_descriptor(cpustate,CS);
 		CHANGE_PC(cpustate,cpustate->eip);
 	}
@@ -1339,7 +1342,7 @@ static void I386OP(out_eax_i8)(i386_state *cpustate)		// Opcode 0xe7
 {
 	UINT16 port = FETCH(cpustate);
 	UINT32 data = REG32(EAX);
-	WRITEPORT32(cpustate, port, data);
+	WRITEPORT32(port, data);
 	CYCLES(cpustate,CYCLES_OUT_VAR);
 }
 
@@ -1347,7 +1350,7 @@ static void I386OP(out_eax_dx)(i386_state *cpustate)		// Opcode 0xef
 {
 	UINT16 port = REG16(DX);
 	UINT32 data = REG32(EAX);
-	WRITEPORT32(cpustate, port, data);
+	WRITEPORT32(port, data);
 	CYCLES(cpustate,CYCLES_OUT);
 }
 
@@ -1445,12 +1448,6 @@ static void I386OP(pop_gs32)(i386_state *cpustate)			// Opcode 0x0f a9
 
 static void I386OP(pop_ss32)(i386_state *cpustate)			// Opcode 0x17
 {
-	if(cpustate->IF != 0) // if external interrupts are enabled
-	{
-		cpustate->IF = 0;  // reset IF for the next instruction
-		cpustate->delayed_interrupt_enable = 1;
-	}
-
 	cpustate->sreg[SS].selector = POP32(cpustate);
 	if( PROTECTED_MODE ) {
 		i386_load_segment_descriptor(cpustate,SS);
@@ -2581,32 +2578,21 @@ static void I386OP(groupFF_32)(i386_state *cpustate)		// Opcode 0xff
 			{
 				UINT16 selector;
 				UINT32 address;
-
-				if( modrm >= 0xc0 )
-				{
+				if( modrm >= 0xc0 ) {
 					fatalerror("i386: groupFF_32 /%d: NYI", (modrm >> 3) & 0x7);
-				}
-				else
-				{
+				} else {
 					UINT32 ea = GetEA(cpustate,modrm);
 					address = READ32(cpustate,ea + 0);
 					selector = READ16(cpustate,ea + 4);
 					CYCLES(cpustate,CYCLES_CALL_MEM_INTERSEG);		/* TODO: Timing = 10 + m */
-					if(PROTECTED_MODE && !V8086_MODE)
-					{
-						i386_protected_mode_call(cpustate,selector,address,1,1);
-					}
-					else
-					{
-						PUSH32(cpustate, cpustate->sreg[CS].selector );
-						PUSH32(cpustate, cpustate->eip );
-						cpustate->sreg[CS].selector = selector;
-						cpustate->performed_intersegment_jump = 1;
-						i386_load_segment_descriptor(cpustate, CS );
-						cpustate->eip = address;
-						CHANGE_PC(cpustate,cpustate->eip);
-					}
 				}
+				PUSH32(cpustate, cpustate->sreg[CS].selector );
+				PUSH32(cpustate, cpustate->eip );
+				cpustate->sreg[CS].selector = selector;
+				cpustate->performed_intersegment_jump = 1;
+				i386_load_segment_descriptor(cpustate, CS );
+				cpustate->eip = address;
+				CHANGE_PC(cpustate,cpustate->eip);
 			}
 			break;
 		case 4:			/* JMP Rm32 */
@@ -2628,30 +2614,19 @@ static void I386OP(groupFF_32)(i386_state *cpustate)		// Opcode 0xff
 			{
 				UINT16 selector;
 				UINT32 address;
-
-				if( modrm >= 0xc0 )
-				{
+				if( modrm >= 0xc0 ) {
 					fatalerror("i386: groupFF_32 /%d: NYI", (modrm >> 3) & 0x7);
-				}
-				else
-				{
+				} else {
 					UINT32 ea = GetEA(cpustate,modrm);
 					address = READ32(cpustate,ea + 0);
 					selector = READ16(cpustate,ea + 4);
 					CYCLES(cpustate,CYCLES_JMP_MEM_INTERSEG);		/* TODO: Timing = 10 + m */
-					if(PROTECTED_MODE && !V8086_MODE)
-					{
-						i386_protected_mode_jump(cpustate,selector,address,1,1);
-					}
-					else
-					{
-						cpustate->sreg[CS].selector = selector;
-						cpustate->performed_intersegment_jump = 1;
-						i386_load_segment_descriptor(cpustate, CS );
-						cpustate->eip = address;
-						CHANGE_PC(cpustate,cpustate->eip);
-					}
 				}
+				cpustate->sreg[CS].selector = selector;
+				cpustate->performed_intersegment_jump = 1;
+				i386_load_segment_descriptor(cpustate, CS );
+				cpustate->eip = address;
+				CHANGE_PC(cpustate,cpustate->eip);
 			}
 			break;
 		case 6:			/* PUSH Rm32 */
@@ -2678,7 +2653,6 @@ static void I386OP(group0F00_32)(i386_state *cpustate)			// Opcode 0x0f 00
 	UINT32 address, ea;
 	UINT8 modrm = FETCH(cpustate);
 	I386_SREG seg;
-	UINT8 result;
 
 	switch( (modrm >> 3) & 0x7 )
 	{
@@ -2697,7 +2671,7 @@ static void I386OP(group0F00_32)(i386_state *cpustate)			// Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(cpustate,6, 0, 0);
+				i386_trap(cpustate,6, 0);
 			}
 			break;
 		case 1: 		/* STR */
@@ -2715,7 +2689,7 @@ static void I386OP(group0F00_32)(i386_state *cpustate)			// Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(cpustate,6, 0, 0);
+				i386_trap(cpustate,6, 0);
 			}
 			break;
 		case 2:			/* LLDT */
@@ -2723,23 +2697,22 @@ static void I386OP(group0F00_32)(i386_state *cpustate)			// Opcode 0x0f 00
 			{
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM32(modrm);
-					cpustate->ldtr.segment = address;
+					ea = i386_translate(cpustate, CS, address );
 					CYCLES(cpustate,CYCLES_LLDT_REG);
 				} else {
 					ea = GetEA(cpustate,modrm);
-					cpustate->ldtr.segment = READ32(cpustate,ea);
 					CYCLES(cpustate,CYCLES_LLDT_MEM);
 				}
+				cpustate->ldtr.segment = READ32(cpustate,ea);
 				memset(&seg, 0, sizeof(seg));
 				seg.selector = cpustate->ldtr.segment;
 				i386_load_protected_mode_segment(cpustate,&seg);
 				cpustate->ldtr.limit = seg.limit;
 				cpustate->ldtr.base = seg.base;
-				cpustate->ldtr.flags = seg.flags;
 			}
 			else
 			{
-				i386_trap(cpustate,6, 0, 0);
+				i386_trap(cpustate,6, 0);
 			}
 			break;
 
@@ -2748,144 +2721,17 @@ static void I386OP(group0F00_32)(i386_state *cpustate)			// Opcode 0x0f 00
 			{
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM32(modrm);
-					cpustate->task.segment = address;
+					ea = i386_translate(cpustate, CS, address );
 					CYCLES(cpustate,CYCLES_LTR_REG);
 				} else {
 					ea = GetEA(cpustate,modrm);
-					cpustate->task.segment = READ32(cpustate,ea);
 					CYCLES(cpustate,CYCLES_LTR_MEM);
 				}
-				memset(&seg, 0, sizeof(seg));
-				seg.selector = cpustate->task.segment;
-				i386_load_protected_mode_segment(cpustate,&seg);
-				cpustate->task.limit = seg.limit;
-				cpustate->task.base = seg.base;
-				cpustate->task.flags = seg.flags;
+				cpustate->task.segment = READ32(cpustate,ea);
 			}
 			else
 			{
-				i386_trap(cpustate,6, 0, 0);
-			}
-			break;
-
-		case 4:  /* VERR */
-			if ( PROTECTED_MODE && !V8086_MODE )
-			{
-				result = 1;
-				if( modrm >= 0xc0 ) {
-					address = LOAD_RM32(modrm);
-					CYCLES(cpustate,CYCLES_VERR_REG);
-				} else {
-					ea = GetEA(cpustate,modrm);
-					address = READ32(cpustate,ea);
-					CYCLES(cpustate,CYCLES_VERR_MEM);
-				}
-				memset(&seg, 0, sizeof(seg));
-				seg.selector = address;
-				i386_load_protected_mode_segment(cpustate,&seg);
-				// check if the segment is within the bounds of the GDT or LDT
-				if(seg.selector & 0x04)
-				{  // LDT
-					if((seg.selector & 0xf8) > cpustate->ldtr.limit)
-					{
-						result = 0;
-					}
-				}
-				else
-				{  // GDT
-					if((seg.selector & 0xf8) > cpustate->gdtr.limit)
-					{
-						result = 0;
-					}
-				}
-				// check if the segment is a code or data segment (not a special segment type, like a TSS, gate, LDT...)
-				if(!(seg.flags & 0x10))
-					result = 0;
-				// check that the segment is readable
-				if(seg.flags & 0x10)  // is code or data segment
-				{
-					if(seg.flags & 0x08)  // is code segment, so check if it's readable
-					{
-						if(!(seg.flags & 0x02))
-						{
-							result = 0;
-						}
-						else
-						{  // check if conforming, these are always readable, regardless of privilege
-							if(!(seg.flags & 0x04))
-							{
-								// if not conforming, then we must check privilege levels (TODO: current privilege level check)
-								if(((seg.flags >> 5) & 0x03) < (address & 0x03))
-									result = 0;
-							}
-						}
-					}
-				}
-				// check that the descriptor privilege is greater or equal to the selector's privilege level and the current privilege (TODO)
-				SetZF(result);
-			}
-			else
-			{
-				i386_trap(cpustate,6, 0, 0);
-				logerror("i386: VERR: Exception - Running in real mode or virtual 8086 mode.\n");
-			}
-			break;
-
-		case 5:  /* VERW */
-			if ( PROTECTED_MODE && !V8086_MODE )
-			{
-				result = 1;
-				if( modrm >= 0xc0 ) {
-					address = LOAD_RM16(modrm);
-					CYCLES(cpustate,CYCLES_VERW_REG);
-				} else {
-					ea = GetEA(cpustate,modrm);
-					address = READ16(cpustate,ea);
-					CYCLES(cpustate,CYCLES_VERW_MEM);
-				}
-				memset(&seg, 0, sizeof(seg));
-				seg.selector = address;
-				i386_load_protected_mode_segment(cpustate,&seg);
-				// check if the segment is within the bounds of the GDT or LDT
-				if(seg.selector & 0x04)
-				{  // LDT
-					if((seg.selector & 0xf8) > cpustate->ldtr.limit)
-					{
-						result = 0;
-					}
-				}
-				else
-				{  // GDT
-					if((seg.selector & 0xf8) > cpustate->gdtr.limit)
-					{
-						result = 0;
-					}
-				}
-				// check if the segment is a code or data segment (not a special segment type, like a TSS, gate, LDT...)
-				if(!(seg.flags & 0x10))
-					result = 0;
-				// check that the segment is writable
-				if(seg.flags & 0x10)  // is code or data segment
-				{
-					if(seg.flags & 0x08)  // is code segment (and thus, not writable)
-					{
-						result = 0;
-					}
-					else
-					{  // is data segment
-						if(!(seg.flags & 0x02))
-							result = 0;
-					}
-				}
-				// check that the descriptor privilege is greater or equal to the selector's privilege level and the current privilege (TODO)
-				if(((seg.flags >> 5) & 0x03) < (address & 0x03))
-					result = 0;
-				SetZF(result);
-			}
-			else
-			{
-				i386_trap(cpustate,6, 0, 0);
-				logerror("i386: VERW: Exception - Running in real mode or virtual 8086 mode.\n");
+				i386_trap(cpustate,6, 0);
 			}
 			break;
 
@@ -3083,64 +2929,6 @@ static void I386OP(group0FBA_32)(i386_state *cpustate)		// Opcode 0x0f ba
 	}
 }
 
-static void I386OP(lar_r32_rm32)(i386_state *cpustate)  // Opcode 0x0f 0x02
-{
-	UINT8 modrm = FETCH(cpustate);
-	I386_SREG seg;
-	UINT8 type;
-
-	if(PROTECTED_MODE && !V8086_MODE)
-	{
-		memset(&seg,0,sizeof(seg));
-		if(modrm >= 0xc0)
-		{
-			seg.selector = LOAD_RM32(modrm);
-			CYCLES(cpustate,CYCLES_LAR_REG);
-		}
-		else
-		{
-			UINT32 ea = GetEA(cpustate,modrm);
-			seg.selector = READ32(cpustate,ea);
-			CYCLES(cpustate,CYCLES_LAR_MEM);
-		}
-		if(seg.selector == 0)
-		{
-			SetZF(0);  // not a valid segment
-		}
-		else
-		{
-			i386_load_protected_mode_segment(cpustate,&seg);
-			if(!(seg.flags & 0x10))  // special segment
-			{
-				// check for invalid segment types
-				type = seg.flags & 0x000f;
-				if(type == 0x00 || type == 0x08 || type == 0x0a || type == 0x0d)
-				{
-					SetZF(0);  // invalid segment type
-				}
-				else
-				{
-					// TODO: check current privilege level
-					STORE_REG32(modrm,(seg.flags << 8) & 0x00ffff00);
-					SetZF(1);
-				}
-			}
-			else
-			{
-				// TODO: check current privilege level
-				STORE_REG32(modrm,(seg.flags << 8) & 0x00ffff00);
-				SetZF(1);
-			}
-		}
-	}
-	else
-	{
-		// illegal opcode
-		i386_trap(cpustate,6,0, 0);
-		logerror("i386: LAR: Exception - running in real mode or virtual 8086 mode.\n");
-	}
-}
-
 static void I386OP(lsl_r32_rm32)(i386_state *cpustate)  // Opcode 0x0f 0x03
 {
 	UINT8 modrm = FETCH(cpustate);
@@ -3150,15 +2938,7 @@ static void I386OP(lsl_r32_rm32)(i386_state *cpustate)  // Opcode 0x0f 0x03
 	if(PROTECTED_MODE)
 	{
 		memset(&seg, 0, sizeof(seg));
-		if(modrm >= 0xc0)
-		{
-			seg.selector = LOAD_RM32(modrm);
-		}
-		else
-		{
-			UINT32 ea = GetEA(cpustate,modrm);
-			seg.selector = READ32(cpustate,ea);
-		}
+		seg.selector = LOAD_RM32(modrm);
 		if(seg.selector == 0)
 		{
 			SetZF(0);  // not a valid segment
@@ -3173,7 +2953,7 @@ static void I386OP(lsl_r32_rm32)(i386_state *cpustate)  // Opcode 0x0f 0x03
 		}
 	}
 	else
-		i386_trap(cpustate,6, 0, 0);
+		i386_trap(cpustate,6, 0);
 }
 
 static void I386OP(bound_r32_m32_m32)(i386_state *cpustate)	// Opcode 0x62
@@ -3198,7 +2978,7 @@ static void I386OP(bound_r32_m32_m32)(i386_state *cpustate)	// Opcode 0x62
 	if ((val < low) || (val > high))
 	{
 		CYCLES(cpustate,CYCLES_BOUND_OUT_RANGE);
-		i386_trap(cpustate,5, 0, 0);
+		i386_trap(cpustate,5, 0);
 	}
 	else
 	{
@@ -3208,17 +2988,10 @@ static void I386OP(bound_r32_m32_m32)(i386_state *cpustate)	// Opcode 0x62
 
 static void I386OP(retf32)(i386_state *cpustate)			// Opcode 0xcb
 {
-	if(PROTECTED_MODE && !V8086_MODE)
-	{
-		i386_protected_mode_retf(cpustate,0,1);
-	}
-	else
-	{
-		cpustate->eip = POP32(cpustate);
-		cpustate->sreg[CS].selector = POP32(cpustate);
-		i386_load_segment_descriptor(cpustate, CS );
-		CHANGE_PC(cpustate,cpustate->eip);
-	}
+	cpustate->eip = POP32(cpustate);
+	cpustate->sreg[CS].selector = POP32(cpustate);
+	i386_load_segment_descriptor(cpustate, CS );
+	CHANGE_PC(cpustate,cpustate->eip);
 
 	CYCLES(cpustate,CYCLES_RET_INTERSEG);
 }
@@ -3227,19 +3000,12 @@ static void I386OP(retf_i32)(i386_state *cpustate)			// Opcode 0xca
 {
 	UINT16 count = FETCH16(cpustate);
 
-	if(PROTECTED_MODE && !V8086_MODE)
-	{
-		i386_protected_mode_retf(cpustate,count,1);
-	}
-	else
-	{
-		cpustate->eip = POP32(cpustate);
-		cpustate->sreg[CS].selector = POP32(cpustate);
-		i386_load_segment_descriptor(cpustate, CS );
-		CHANGE_PC(cpustate,cpustate->eip);
-		REG32(ESP) += count;
-	}
+	cpustate->eip = POP32(cpustate);
+	cpustate->sreg[CS].selector = POP32(cpustate);
+	i386_load_segment_descriptor(cpustate, CS );
+	CHANGE_PC(cpustate,cpustate->eip);
 
+	REG32(ESP) += count;
 	CYCLES(cpustate,CYCLES_RET_IMM_INTERSEG);
 }
 

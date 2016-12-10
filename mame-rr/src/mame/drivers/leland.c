@@ -44,7 +44,6 @@
 #include "emu.h"
 #include "cpu/i86/i86.h"
 #include "machine/eeprom.h"
-#include "machine/nvram.h"
 #include "cpu/z80/z80.h"
 #include "includes/leland.h"
 #include "sound/ay8910.h"
@@ -62,22 +61,23 @@
  *
  *************************************/
 
-static ADDRESS_MAP_START( master_map_program, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( master_map_program, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x9fff) AM_ROMBANK("bank1")
-	AM_RANGE(0xa000, 0xdfff) AM_ROMBANK("bank2") AM_WRITE(leland_battery_ram_w) AM_SHARE("battery")
+	AM_RANGE(0xa000, 0xdfff) AM_ROMBANK("bank2")
+	AM_RANGE(0xa000, 0xdfff) AM_WRITE(leland_battery_ram_w)
 	AM_RANGE(0xe000, 0xefff) AM_RAM
 	AM_RANGE(0xf000, 0xf3ff) AM_READWRITE(leland_gated_paletteram_r, leland_gated_paletteram_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xf800, 0xf801) AM_WRITE(leland_master_video_addr_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( master_map_io, AS_IO, 8 )
+static ADDRESS_MAP_START( master_map_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0xf0, 0xf0) AM_WRITE(leland_master_alt_bankswitch_w)
-	AM_RANGE(0xf2, 0xf2) AM_DEVREADWRITE("custom", leland_80186_response_r, leland_80186_command_lo_w)
-	AM_RANGE(0xf4, 0xf4) AM_DEVWRITE("custom", leland_80186_command_hi_w)
-	AM_RANGE(0xfd, 0xff) AM_READWRITE(leland_master_analog_key_r, leland_master_analog_key_w)
+    AM_RANGE(0xf2, 0xf2) AM_READWRITE(leland_80186_response_r, leland_80186_command_lo_w)
+	AM_RANGE(0xf4, 0xf4) AM_WRITE(leland_80186_command_hi_w)
+    AM_RANGE(0xfd, 0xff) AM_READWRITE(leland_master_analog_key_r, leland_master_analog_key_w)
 ADDRESS_MAP_END
 
 
@@ -88,7 +88,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( slave_small_map_program, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slave_small_map_program, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0xdfff) AM_ROMBANK("bank3")
 	AM_RANGE(0xe000, 0xefff) AM_RAM
@@ -98,7 +98,7 @@ static ADDRESS_MAP_START( slave_small_map_program, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( slave_large_map_program, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slave_large_map_program, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x4000, 0xbfff) AM_ROMBANK("bank3")
 	AM_RANGE(0xc000, 0xc000) AM_WRITE(leland_slave_large_banksw_w)
@@ -108,7 +108,7 @@ static ADDRESS_MAP_START( slave_large_map_program, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( slave_map_io, AS_IO, 8 )
+static ADDRESS_MAP_START( slave_map_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x1f) AM_READWRITE(leland_svram_port_r, leland_svram_port_w)
 	AM_RANGE(0x40, 0x5f) AM_READWRITE(leland_svram_port_r, leland_svram_port_w)
@@ -145,7 +145,7 @@ static INPUT_PORTS_START( cerberus )		/* complete, verified from code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2)
 
 	PORT_START("IN3")	/* 0x91 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -191,7 +191,7 @@ static INPUT_PORTS_START( mayhem )		/* complete, verified from code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_8WAY PORT_PLAYER(1)
 
 	PORT_START("IN3")	/* 0xD1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -224,10 +224,10 @@ static INPUT_PORTS_START( wseries )		/* complete, verified from code */
 	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Aim") PORT_PLAYER(1)
 
 	PORT_START("IN3")	/* 0x91 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 ) PORT_PLAYER(1)
 	PORT_BIT( 0xf0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("AN0")	/* Analog joystick 1 */
@@ -263,10 +263,10 @@ static INPUT_PORTS_START( alleymas )		/* complete, verified from code */
 //  PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON2 )        /* redundant inputs */
 
 	PORT_START("IN3")	/* 0xD1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 ) PORT_PLAYER(1)
 	PORT_BIT( 0xf0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("AN0")	/* Analog joystick 1 */
@@ -299,10 +299,10 @@ static INPUT_PORTS_START( upyoural )		/* complete, verified from code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON2 )
 
 	PORT_START("IN3")	/* 0xD1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 ) PORT_PLAYER(1)
 	PORT_BIT( 0xf0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("AN0")	/* Analog joystick 1 */
@@ -334,7 +334,7 @@ static INPUT_PORTS_START( dangerz )		/* complete, verified from code */
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("IN3")	/* 0x91 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -369,10 +369,10 @@ static INPUT_PORTS_START( basebal2 )		/* complete, verified from code */
 	PORT_BIT(0x80, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("Run/Cutoff") PORT_PLAYER(1)
 
 	PORT_START("IN3")	/* 0x51/D1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 ) PORT_PLAYER(1)
 	PORT_BIT( 0xf0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("AN0")	/* Analog joystick 1 */
@@ -406,7 +406,7 @@ static INPUT_PORTS_START( redline )		/* complete, verified in code */
 	PORT_BIT( 0xe0, 0x00, IPT_PEDAL ) PORT_MINMAX(0x00,0xe0) PORT_SENSITIVITY(100) PORT_KEYDELTA(64) PORT_PLAYER(2)
 
 	PORT_START("IN3")	/* 0xD1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -444,7 +444,7 @@ static INPUT_PORTS_START( quarterb )		/* complete, verified in code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
 
 	PORT_START("IN3")	/* 0x91 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -486,7 +486,7 @@ static INPUT_PORTS_START( teamqb )		/* complete, verified in code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
 
 	PORT_START("IN3")	/* 0x91 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -544,7 +544,7 @@ static INPUT_PORTS_START( aafb2p )		/* complete, verified in code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
 
 	PORT_START("IN3")	/* 0x91 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
@@ -599,7 +599,7 @@ static INPUT_PORTS_START( offroad )		/* complete, verified from code */
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("IN3")	/* 0xD1 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_SERVICE_NO_TOGGLE( 0x08, IP_ACTIVE_LOW )
@@ -659,7 +659,7 @@ static INPUT_PORTS_START( pigout )		/* complete, verified from code */
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_8WAY PORT_PLAYER(2)
 
 	PORT_START("IN3")	/* 0x51 */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_VBLANK )
 	PORT_SERVICE_NO_TOGGLE( 0x04, IP_ACTIVE_LOW )
 	PORT_BIT( 0xf8, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -731,77 +731,80 @@ static const eeprom_interface eeprom_intf =
  *
  *************************************/
 
-static MACHINE_CONFIG_START( leland, leland_state )
+static MACHINE_DRIVER_START( leland )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("master", Z80, MASTER_CLOCK/2)
-	MCFG_CPU_PROGRAM_MAP(master_map_program)
-	MCFG_CPU_IO_MAP(master_map_io)
-	MCFG_CPU_VBLANK_INT("screen", leland_master_interrupt)
+	MDRV_CPU_ADD("master", Z80, MASTER_CLOCK/2)
+	MDRV_CPU_PROGRAM_MAP(master_map_program)
+	MDRV_CPU_IO_MAP(master_map_io)
+	MDRV_CPU_VBLANK_INT("screen", leland_master_interrupt)
 
-	MCFG_CPU_ADD("slave", Z80, MASTER_CLOCK/2)
-	MCFG_CPU_PROGRAM_MAP(slave_small_map_program)
-	MCFG_CPU_IO_MAP(slave_map_io)
+	MDRV_CPU_ADD("slave", Z80, MASTER_CLOCK/2)
+	MDRV_CPU_PROGRAM_MAP(slave_small_map_program)
+	MDRV_CPU_IO_MAP(slave_map_io)
 
-	MCFG_MACHINE_START(leland)
-	MCFG_MACHINE_RESET(leland)
+	MDRV_MACHINE_START(leland)
+	MDRV_MACHINE_RESET(leland)
+	MDRV_NVRAM_HANDLER(leland)
 
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
-	MCFG_NVRAM_ADD_0FILL("battery")
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_FRAGMENT_ADD(leland_video)
+	MDRV_IMPORT_FROM(leland_video)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay8910.1", AY8910, 10000000/6)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay8910.1", AY8910, 10000000/6)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ay8910.2", AY8910, 10000000/6)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay8910.2", AY8910, 10000000/6)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("custom", LELAND, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("custom", LELAND, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( redline, leland )
+static MACHINE_DRIVER_START( redline )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(leland)
 
-	MCFG_CPU_ADD("audiocpu", I80186, MCU_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(leland_80186_map_program)
-	MCFG_CPU_IO_MAP(redline_80186_map_io)
+	MDRV_CPU_ADD("audiocpu", I80186, MCU_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(leland_80186_map_program)
+	MDRV_CPU_IO_MAP(redline_80186_map_io)
 
 	/* sound hardware */
-	MCFG_SOUND_REPLACE("custom", REDLINE_80186, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_REPLACE("custom", REDLINE_80186, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( quarterb, redline )
+static MACHINE_DRIVER_START( quarterb )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(redline)
 
-	MCFG_CPU_MODIFY("audiocpu")
-	MCFG_CPU_IO_MAP(leland_80186_map_io)
+	MDRV_CPU_MODIFY("audiocpu")
+	MDRV_CPU_IO_MAP(leland_80186_map_io)
 
 	/* sound hardware */
-	MCFG_SOUND_REPLACE("custom", LELAND_80186, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_REPLACE("custom", LELAND_80186, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( lelandi, quarterb )
+static MACHINE_DRIVER_START( lelandi )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(quarterb)
 
-	MCFG_CPU_MODIFY("slave")
-	MCFG_CPU_PROGRAM_MAP(slave_large_map_program)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("slave")
+	MDRV_CPU_PROGRAM_MAP(slave_large_map_program)
+MACHINE_DRIVER_END
 
 
 
@@ -1594,15 +1597,15 @@ ROM_START( aafb )
 	ROM_LOAD( "03-28002.u8",   0x70000, 0x10000, CRC(c3e09811) SHA1(9b6e036a53000c9bcb104677d9c71743f02fd841) )
 
 	ROM_REGION( 0x100000, "audiocpu", 0 )
-	ROM_LOAD16_BYTE( "24019-01.u25", 0x040001, 0x10000, CRC(9e344768) SHA1(7f16d29c52f3d7f0046f414185c4d889f6128597) )
-	ROM_LOAD16_BYTE( "24016-01.u13", 0x040000, 0x10000, CRC(6997025f) SHA1(5eda3bcae896933385fe97a4e1396ae2da7576cb) )
-	ROM_LOAD16_BYTE( "24020-01.u26", 0x060001, 0x10000, CRC(0788f2a5) SHA1(75eb1ab00185f8efa71f1d46197b5f6d20d721f2) )
-	ROM_LOAD16_BYTE( "24017-01.u14", 0x060000, 0x10000, CRC(a48bd721) SHA1(e099074165594a7c289a25c522005db7e9554ca1) )
-	ROM_LOAD16_BYTE( "24021-01.u27", 0x0e0001, 0x10000, CRC(94081899) SHA1(289eb2f494d1110d169552e8898296e4a47fcb1d) )
-	ROM_LOAD16_BYTE( "24018-01.u15", 0x0e0000, 0x10000, CRC(76eb6077) SHA1(255731c63f4a846bb01d4203a786eb34a4734e66) )
+    ROM_LOAD16_BYTE( "24019-01.u25", 0x040001, 0x10000, CRC(9e344768) SHA1(7f16d29c52f3d7f0046f414185c4d889f6128597) )
+    ROM_LOAD16_BYTE( "24016-01.u13", 0x040000, 0x10000, CRC(6997025f) SHA1(5eda3bcae896933385fe97a4e1396ae2da7576cb) )
+    ROM_LOAD16_BYTE( "24020-01.u26", 0x060001, 0x10000, CRC(0788f2a5) SHA1(75eb1ab00185f8efa71f1d46197b5f6d20d721f2) )
+    ROM_LOAD16_BYTE( "24017-01.u14", 0x060000, 0x10000, CRC(a48bd721) SHA1(e099074165594a7c289a25c522005db7e9554ca1) )
+    ROM_LOAD16_BYTE( "24021-01.u27", 0x0e0001, 0x10000, CRC(94081899) SHA1(289eb2f494d1110d169552e8898296e4a47fcb1d) )
+    ROM_LOAD16_BYTE( "24018-01.u15", 0x0e0000, 0x10000, CRC(76eb6077) SHA1(255731c63f4a846bb01d4203a786eb34a4734e66) )
 
 	ROM_REGION( 0x0c000, "gfx1", 0 )
-	ROM_LOAD( "03-28008.u93", 0x00000, 0x04000, CRC(68f8addc) SHA1(a52c408e2e9022f96fb766065d7266deb0df2e5f) )
+	ROM_LOAD( "03-28008.u93", 0x00000, 0x04000, NO_DUMP )
 	ROM_LOAD( "03-28009.u94", 0x04000, 0x04000, CRC(669791ac) SHA1(e8b7bdec313ea9d40f89f13499a31f0b125951a8) )
 	ROM_LOAD( "03-28010.u95", 0x08000, 0x04000, CRC(bd62aa8a) SHA1(c8a177a11ec94671bb3bd5883b40692495c049a2) )
 
@@ -1624,7 +1627,7 @@ ROM_END
 ROM_START( aafbb )
 	ROM_REGION( 0x20000, "master", 0 )
 	ROM_LOAD( "24014-02.u58",   0x00000, 0x10000, CRC(5db4a3d0) SHA1(f759ab16de48562db1640bc5df68be188725aecf) )
-	ROM_LOAD( "24015-02.u59",   0x10000, 0x10000, BAD_DUMP CRC(f384f716) SHA1(e689ec6b76bfdf58a059409850c397d407740dda) )
+	ROM_LOAD( "24015-02.u59",   0x10000, 0x10000, CRC(f384f716) SHA1(e689ec6b76bfdf58a059409850c397d407740dda) )
 
 	ROM_REGION( 0x80000, "slave", 0 )
 	ROM_LOAD( "24000-02.u3",   0x00000, 0x02000, CRC(52df0354) SHA1(a39a2538b733e336eac5a1491c42c89fd4f4d1aa) )
@@ -1766,12 +1769,12 @@ ROM_START( offroad )
 	ROM_LOAD( "22112-01.u8",  0x70000, 0x10000, CRC(3eef38d3) SHA1(9131960592a44c8567ab483f72955d2cc8898445) )
 
 	ROM_REGION( 0x100000, "audiocpu", 0 )
-	ROM_LOAD16_BYTE( "22116-03.u25", 0x040001, 0x10000, CRC(95bb31d3) SHA1(e7bc43b63126fd33663865b2e41bacc58e962628) )
-	ROM_LOAD16_BYTE( "22113-03.u13", 0x040000, 0x10000, CRC(71b28df6) SHA1(caf8e4c98a1650dbaedf83f4d38da920d0976f78) )
-	ROM_LOAD16_BYTE( "22117-03.u26", 0x060001, 0x10000, CRC(703d81ce) SHA1(caf5363fb468a461a260e0ec636b0a7a8dc9cd3d) )
-	ROM_LOAD16_BYTE( "22114-03.u14", 0x060000, 0x10000, CRC(f8b31bf8) SHA1(cb8133effe5484c5b4c40b77769f6ec72441c333) )
-	ROM_LOAD16_BYTE( "22118-03.u27", 0x0e0001, 0x10000, CRC(806ccf8b) SHA1(7335a85fc84d5c2f7537548c3856c9cd2f267609) )
-	ROM_LOAD16_BYTE( "22115-03.u15", 0x0e0000, 0x10000, CRC(c8439a7a) SHA1(9a8bb1fca8d3414dcfd4839bc0c4289e4d810943) )
+    ROM_LOAD16_BYTE( "22116-03.u25", 0x040001, 0x10000, CRC(95bb31d3) SHA1(e7bc43b63126fd33663865b2e41bacc58e962628) )
+    ROM_LOAD16_BYTE( "22113-03.u13", 0x040000, 0x10000, CRC(71b28df6) SHA1(caf8e4c98a1650dbaedf83f4d38da920d0976f78) )
+    ROM_LOAD16_BYTE( "22117-03.u26", 0x060001, 0x10000, CRC(703d81ce) SHA1(caf5363fb468a461a260e0ec636b0a7a8dc9cd3d) )
+    ROM_LOAD16_BYTE( "22114-03.u14", 0x060000, 0x10000, CRC(f8b31bf8) SHA1(cb8133effe5484c5b4c40b77769f6ec72441c333) )
+    ROM_LOAD16_BYTE( "22118-03.u27", 0x0e0001, 0x10000, CRC(806ccf8b) SHA1(7335a85fc84d5c2f7537548c3856c9cd2f267609) )
+    ROM_LOAD16_BYTE( "22115-03.u15", 0x0e0000, 0x10000, CRC(c8439a7a) SHA1(9a8bb1fca8d3414dcfd4839bc0c4289e4d810943) )
 
 	ROM_REGION( 0x18000, "gfx1", 0 )
 	ROM_LOAD( "22105-01.u93", 0x00000, 0x08000, CRC(4426e367) SHA1(298203112d724feb9a75a7bfc34b3dbb4d7fffe7) )
@@ -1978,40 +1981,38 @@ ROM_END
  *
  *************************************/
 
-static void init_master_ports(running_machine &machine, UINT8 mvram_base, UINT8 io_base)
+static void init_master_ports(running_machine *machine, UINT8 mvram_base, UINT8 io_base)
 {
 	/* set up the master CPU VRAM I/O */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_readwrite_handler(mvram_base, mvram_base + 0x1f, FUNC(leland_mvram_port_r), FUNC(leland_mvram_port_w));
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), mvram_base, mvram_base + 0x1f, 0, 0, leland_mvram_port_r, leland_mvram_port_w);
 
 	/* set up the master CPU I/O ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(io_base, io_base + 0x1f, FUNC(leland_master_input_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_write_handler(io_base, io_base + 0x0f, FUNC(leland_master_output_w));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), io_base, io_base + 0x1f, 0, 0, leland_master_input_r);
+	memory_install_write8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), io_base, io_base + 0x0f, 0, 0, leland_master_output_w);
 }
 
 
 static DRIVER_INIT( cerberus )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = cerberus_bankswitch;
-	memory_set_bankptr(machine, "bank1", machine.region("master")->base() + 0x2000);
-	memory_set_bankptr(machine, "bank2", machine.region("master")->base() + 0xa000);
-	memory_set_bankptr(machine, "bank3", machine.region("slave")->base() + 0x2000);
+	leland_update_master_bank = cerberus_bankswitch;
+	memory_set_bankptr(machine, "bank1", memory_region(machine, "master") + 0x2000);
+	memory_set_bankptr(machine, "bank2", memory_region(machine, "master") + 0xa000);
+	memory_set_bankptr(machine, "bank3", memory_region(machine, "slave") + 0x2000);
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x40, 0x80);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0x80, 0x80, FUNC(cerberus_dial_1_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0x90, 0x90, FUNC(cerberus_dial_2_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x80, 0x80, 0, 0, cerberus_dial_1_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x90, 0x90, 0, 0, cerberus_dial_2_r);
 }
 
 
 static DRIVER_INIT( mayhem )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = mayhem_bankswitch;
+	leland_update_master_bank = mayhem_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x00, 0xc0);
@@ -2020,9 +2021,8 @@ static DRIVER_INIT( mayhem )
 
 static DRIVER_INIT( powrplay )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = mayhem_bankswitch;
+	leland_update_master_bank = mayhem_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x40, 0x80);
@@ -2031,9 +2031,8 @@ static DRIVER_INIT( powrplay )
 
 static DRIVER_INIT( wseries )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = mayhem_bankswitch;
+	leland_update_master_bank = mayhem_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x40, 0x80);
@@ -2042,9 +2041,8 @@ static DRIVER_INIT( wseries )
 
 static DRIVER_INIT( alleymas )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = mayhem_bankswitch;
+	leland_update_master_bank = mayhem_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x00, 0xc0);
@@ -2052,15 +2050,14 @@ static DRIVER_INIT( alleymas )
 	/* kludge warning: the game uses location E0CA to determine if the joysticks are available */
 	/* it gets cleared by the code, but there is no obvious way for the value to be set to a */
 	/* non-zero value. If the value is zero, the joystick is never read. */
-	state->m_alleymas_kludge_mem = machine.device("master")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0xe0ca, 0xe0ca, FUNC(alleymas_joystick_kludge));
+	alleymas_kludge_mem = memory_install_write8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_PROGRAM), 0xe0ca, 0xe0ca, 0, 0, alleymas_joystick_kludge);
 }
 
 
 static DRIVER_INIT( upyoural )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = mayhem_bankswitch;
+	leland_update_master_bank = mayhem_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x00, 0xc0);
@@ -2069,25 +2066,23 @@ static DRIVER_INIT( upyoural )
 
 static DRIVER_INIT( dangerz )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = dangerz_bankswitch;
+	leland_update_master_bank = dangerz_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x40, 0x80);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf4, 0xf4, FUNC(dangerz_input_upper_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf8, 0xf8, FUNC(dangerz_input_y_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xfc, 0xfc, FUNC(dangerz_input_x_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf4, 0xf4, 0, 0, dangerz_input_upper_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf8, 0xf8, 0, 0, dangerz_input_y_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xfc, 0xfc, 0, 0, dangerz_input_x_r);
 }
 
 
 static DRIVER_INIT( basebal2 )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = basebal2_bankswitch;
+	leland_update_master_bank = basebal2_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x00, 0xc0);
@@ -2096,9 +2091,8 @@ static DRIVER_INIT( basebal2 )
 
 static DRIVER_INIT( dblplay )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = basebal2_bankswitch;
+	leland_update_master_bank = basebal2_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x80, 0x40);
@@ -2107,9 +2101,8 @@ static DRIVER_INIT( dblplay )
 
 static DRIVER_INIT( strkzone )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = basebal2_bankswitch;
+	leland_update_master_bank = basebal2_bankswitch;
 
 	/* set up the master CPU I/O ports */
 	init_master_ports(machine, 0x00, 0x40);
@@ -2118,9 +2111,8 @@ static DRIVER_INIT( strkzone )
 
 static DRIVER_INIT( redlin2p )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = redline_bankswitch;
+	leland_update_master_bank = redline_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 
@@ -2128,18 +2120,17 @@ static DRIVER_INIT( redlin2p )
 	init_master_ports(machine, 0x00, 0xc0);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xc0, 0xc0, FUNC(redline_pedal_1_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xd0, 0xd0, FUNC(redline_pedal_2_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf8, 0xf8, FUNC(redline_wheel_2_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xfb, 0xfb, FUNC(redline_wheel_1_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xc0, 0xc0, 0, 0, redline_pedal_1_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xd0, 0xd0, 0, 0, redline_pedal_2_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf8, 0xf8, 0, 0, redline_wheel_2_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xfb, 0xfb, 0, 0, redline_wheel_1_r);
 }
 
 
 static DRIVER_INIT( quarterb )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = viper_bankswitch;
+	leland_update_master_bank = viper_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 
@@ -2150,9 +2141,8 @@ static DRIVER_INIT( quarterb )
 
 static DRIVER_INIT( viper )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = viper_bankswitch;
+	leland_update_master_bank = viper_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2162,17 +2152,16 @@ static DRIVER_INIT( viper )
 	init_master_ports(machine, 0x00, 0xc0);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xa4, 0xa4, FUNC(dangerz_input_upper_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xb8, 0xb8, FUNC(dangerz_input_y_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xbc, 0xbc, FUNC(dangerz_input_x_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xa4, 0xa4, 0, 0, dangerz_input_upper_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xb8, 0xb8, 0, 0, dangerz_input_y_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xbc, 0xbc, 0, 0, dangerz_input_x_r);
 }
 
 
 static DRIVER_INIT( teamqb )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = viper_bankswitch;
+	leland_update_master_bank = viper_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2182,16 +2171,15 @@ static DRIVER_INIT( teamqb )
 	init_master_ports(machine, 0x40, 0x80);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7c, 0x7c, "IN4");
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7f, 0x7f, "IN5");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7c, 0x7c, 0, 0, "IN4");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7f, 0x7f, 0, 0, "IN5");
 }
 
 
 static DRIVER_INIT( aafb )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = viper_bankswitch;
+	leland_update_master_bank = viper_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2201,16 +2189,15 @@ static DRIVER_INIT( aafb )
 	init_master_ports(machine, 0x00, 0xc0);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7c, 0x7c, "IN4");
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7f, 0x7f, "IN5");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7c, 0x7c, 0, 0, "IN4");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7f, 0x7f, 0, 0, "IN5");
 }
 
 
 static DRIVER_INIT( aafbb )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = viper_bankswitch;
+	leland_update_master_bank = viper_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2220,16 +2207,15 @@ static DRIVER_INIT( aafbb )
 	init_master_ports(machine, 0x80, 0x40);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7c, 0x7c, "IN4");
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7f, 0x7f, "IN5");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7c, 0x7c, 0, 0, "IN4");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7f, 0x7f, 0, 0, "IN5");
 }
 
 
 static DRIVER_INIT( aafbd2p )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = viper_bankswitch;
+	leland_update_master_bank = viper_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2239,16 +2225,15 @@ static DRIVER_INIT( aafbd2p )
 	init_master_ports(machine, 0x00, 0x40);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7c, 0x7c, "IN4");
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7f, 0x7f, "IN5");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7c, 0x7c, 0, 0, "IN4");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7f, 0x7f, 0, 0, "IN5");
 }
 
 
 static DRIVER_INIT( offroad )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = offroad_bankswitch;
+	leland_update_master_bank = offroad_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2259,17 +2244,16 @@ static DRIVER_INIT( offroad )
 	init_master_ports(machine, 0x40, 0x80);	/* yes, this is intentional */
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf8, 0xf8, FUNC(offroad_wheel_3_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf9, 0xf9, FUNC(offroad_wheel_1_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xfb, 0xfb, FUNC(offroad_wheel_2_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf8, 0xf8, 0, 0, offroad_wheel_3_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf9, 0xf9, 0, 0, offroad_wheel_1_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xfb, 0xfb, 0, 0, offroad_wheel_2_r);
 }
 
 
 static DRIVER_INIT( offroadt )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = offroad_bankswitch;
+	leland_update_master_bank = offroad_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2279,17 +2263,16 @@ static DRIVER_INIT( offroadt )
 	init_master_ports(machine, 0x80, 0x40);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf8, 0xf8, FUNC(offroad_wheel_3_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xf9, 0xf9, FUNC(offroad_wheel_1_r));
-	machine.device("master")->memory().space(AS_IO)->install_legacy_read_handler(0xfb, 0xfb, FUNC(offroad_wheel_2_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf8, 0xf8, 0, 0, offroad_wheel_3_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xf9, 0xf9, 0, 0, offroad_wheel_1_r);
+	memory_install_read8_handler(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0xfb, 0xfb, 0, 0, offroad_wheel_2_r);
 }
 
 
 static DRIVER_INIT( pigout )
 {
-	leland_state *state = machine.driver_data<leland_state>();
 	/* master CPU bankswitching */
-	state->m_update_master_bank = offroad_bankswitch;
+	leland_update_master_bank = offroad_bankswitch;
 
 	leland_rotate_memory(machine, "master");
 	leland_rotate_memory(machine, "slave");
@@ -2299,7 +2282,7 @@ static DRIVER_INIT( pigout )
 	init_master_ports(machine, 0x00, 0x40);
 
 	/* set up additional input ports */
-	machine.device("master")->memory().space(AS_IO)->install_read_port(0x7f, 0x7f, "IN4");
+	memory_install_read_port(cputag_get_address_space(machine, "master", ADDRESS_SPACE_IO), 0x7f, 0x7f, 0, 0, "IN4");
 }
 
 
@@ -2338,7 +2321,7 @@ GAME( 1988, teamqb2,  teamqb,  lelandi,  teamqb,   teamqb,   ROT270, "Leland Cor
 GAME( 1989, aafb,     0,       lelandi,  teamqb,   aafb,     ROT270, "Leland Corp.", "All American Football (rev E)", 0 )
 GAME( 1989, aafbd2p,  aafb,    lelandi,  aafb2p,   aafbd2p,  ROT270, "Leland Corp.", "All American Football (rev D, 2 Players)", 0 )
 GAME( 1989, aafbc,    aafb,    lelandi,  teamqb,   aafbb,    ROT270, "Leland Corp.", "All American Football (rev C)", 0 )
-GAME( 1989, aafbb,    aafb,    lelandi,  teamqb,   aafbb,    ROT270, "Leland Corp.", "All American Football (rev B)", GAME_NOT_WORKING )
+GAME( 1989, aafbb,    aafb,    lelandi,  teamqb,   aafbb,    ROT270, "Leland Corp.", "All American Football (rev B)", 0 )
 
 /* huge master banks, large slave banks, 80186 sound */
 GAME( 1989, offroad,    0,       lelandi,  offroad,    offroad,  ROT0,   "Leland Corp.", "Ironman Ivan Stewart's Super Off-Road", 0 )

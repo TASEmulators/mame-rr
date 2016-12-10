@@ -114,15 +114,38 @@ DIP locations verified for:
 #include "cpu/m6502/m6502.h"
 #include "sound/vlm5030.h"
 #include "sound/nes_apu.h"
-#include "machine/nvram.h"
+
 #include "rendlay.h"
-#include "includes/punchout.h"
+
+extern UINT8 *punchout_bg_top_videoram;
+extern UINT8 *punchout_bg_bot_videoram;
+extern UINT8 *armwrest_fg_videoram;
+extern UINT8 *punchout_spr1_videoram;
+extern UINT8 *punchout_spr2_videoram;
+extern UINT8 *punchout_spr1_ctrlram;
+extern UINT8 *punchout_spr2_ctrlram;
+extern UINT8 *punchout_palettebank;
+WRITE8_HANDLER( punchout_bg_top_videoram_w );
+WRITE8_HANDLER( punchout_bg_bot_videoram_w );
+WRITE8_HANDLER( armwrest_fg_videoram_w );
+WRITE8_HANDLER( punchout_spr1_videoram_w );
+WRITE8_HANDLER( punchout_spr2_videoram_w );
+VIDEO_START( punchout );
+VIDEO_START( armwrest );
+VIDEO_UPDATE( punchout );
+VIDEO_UPDATE( armwrest );
+
+DRIVER_INIT( punchout );
+DRIVER_INIT( spnchout );
+DRIVER_INIT( spnchotj );
+DRIVER_INIT( armwrest );
+
 
 
 static CUSTOM_INPUT( punchout_vlm5030_busy_r )
 {
 	/* bit 4 of DSW1 is busy pin level */
-	return (vlm5030_bsy(field.machine().device("vlm"))) ? 0x00 : 0x01;
+	return (vlm5030_bsy(field->port->machine->device("vlm"))) ? 0x00 : 0x01;
 }
 
 static WRITE8_DEVICE_HANDLER( punchout_speech_reset_w )
@@ -143,62 +166,63 @@ static WRITE8_DEVICE_HANDLER( punchout_speech_vcu_w )
 static WRITE8_HANDLER( punchout_2a03_reset_w )
 {
 	if (data & 1)
-		cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_RESET, ASSERT_LINE);
+		cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_RESET, ASSERT_LINE);
 	else
-		cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_RESET, CLEAR_LINE);
+		cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_RESET, CLEAR_LINE);
 }
 
+static int rp5c01_mode_sel; /* Mode selector */
+static int rp5c01_mem[16*4];
 
 static READ8_HANDLER( spunchout_rp5c01_r )
 {
-	punchout_state *state = space->machine().driver_data<punchout_state>();
-	logerror("%04x: prot_r %x\n", cpu_get_previouspc(&space->device()), offset);
+	logerror("%04x: prot_r %x\n", cpu_get_previouspc(space->cpu), offset);
 
 	if (offset <= 0x0c)
 	{
-		switch (state->m_rp5c01_mode_sel & 3)
+		switch (rp5c01_mode_sel & 3)
 		{
 			case 0:	// time
 				switch ( offset )
 				{
 					case 0x00:	// 1-second counter
-						return state->m_rp5c01_mem[0x00];
+						return rp5c01_mem[0x00];
 
 					case 0x01:	// 10-second counter
-						return state->m_rp5c01_mem[0x01] & 0x7;
+						return rp5c01_mem[0x01] & 0x7;
 
 					case 0x02:	// 1-minute counter
-						return state->m_rp5c01_mem[0x02];
+						return rp5c01_mem[0x02];
 
 					case 0x03:	// 10-minute counter
-						return state->m_rp5c01_mem[0x03] & 0x07;
+						return rp5c01_mem[0x03] & 0x07;
 
 					case 0x04:	// 1-hour counter
-						return state->m_rp5c01_mem[0x04];
+						return rp5c01_mem[0x04];
 
 					case 0x05:	// 10-hour counter
-						return state->m_rp5c01_mem[0x05] & 0x03;
+						return rp5c01_mem[0x05] & 0x03;
 
 					case 0x06:	// day-of-the-week counter
-						return state->m_rp5c01_mem[0x06] & 0x07;
+						return rp5c01_mem[0x06] & 0x07;
 
 					case 0x07:	// 1-day counter
-						return state->m_rp5c01_mem[0x07];
+						return rp5c01_mem[0x07];
 
 					case 0x08:	// 10-day counter
-						return state->m_rp5c01_mem[0x08] & 0x03;
+						return rp5c01_mem[0x08] & 0x03;
 
 					case 0x09:	// 1-month counter
-						return state->m_rp5c01_mem[0x09];
+						return rp5c01_mem[0x09];
 
 					case 0x0a:	// 10-month counter
-						return state->m_rp5c01_mem[0x0a] & 0x01;
+						return rp5c01_mem[0x0a] & 0x01;
 
 					case 0x0b:	// 1-year counter
-						return state->m_rp5c01_mem[0x0b];
+						return rp5c01_mem[0x0b];
 
 					case 0x0c:	// 10-year counter
-						return state->m_rp5c01_mem[0x0c];
+						return rp5c01_mem[0x0c];
 				}
 				break;
 
@@ -212,34 +236,34 @@ static READ8_HANDLER( spunchout_rp5c01_r )
 						return 0x00;
 
 					case 0x02:	// 1-minute alarm register
-						return state->m_rp5c01_mem[0x12];
+						return rp5c01_mem[0x12];
 
 					case 0x03:	// 10-minute alarm register
-						return state->m_rp5c01_mem[0x13] & 0x07;
+						return rp5c01_mem[0x13] & 0x07;
 
 					case 0x04:	// 1-hour alarm register
-						return state->m_rp5c01_mem[0x14];
+						return rp5c01_mem[0x14];
 
 					case 0x05:	// 10-hour alarm register
-						return state->m_rp5c01_mem[0x15] & 0x03;
+						return rp5c01_mem[0x15] & 0x03;
 
 					case 0x06:	// day-of-the-week alarm register
-						return state->m_rp5c01_mem[0x16] & 0x07;
+						return rp5c01_mem[0x16] & 0x07;
 
 					case 0x07:	// 1-day alarm register
-						return state->m_rp5c01_mem[0x17];
+						return rp5c01_mem[0x17];
 
 					case 0x08:	// 10-day alarm register
-						return state->m_rp5c01_mem[0x18] & 0x03;
+						return rp5c01_mem[0x18] & 0x03;
 
 					case 0x09:	// n/a
 						return 0x00;
 
 					case 0x0a:	// /12/24 select register
-						return state->m_rp5c01_mem[0x1a] & 0x01;
+						return rp5c01_mem[0x1a] & 0x01;
 
 					case 0x0b:	// leap year count
-						return state->m_rp5c01_mem[0x1b] & 0x03;
+						return rp5c01_mem[0x1b] & 0x03;
 
 					case 0x0c:	// n/a
 						return 0x00;
@@ -248,32 +272,31 @@ static READ8_HANDLER( spunchout_rp5c01_r )
 
 			case 2:	// RAM BLOCK 10
 			case 3:	// RAM BLOCK 11
-				return state->m_rp5c01_mem[0x10 * (state->m_rp5c01_mode_sel & 3) + offset];
+				return rp5c01_mem[0x10 * (rp5c01_mode_sel & 3) + offset];
 		}
 	}
 	else if (offset == 0x0d)
 	{
-		return state->m_rp5c01_mode_sel;
+		return rp5c01_mode_sel;
 	}
 
-	logerror("Read from unknown protection? port %02x ( selector = %02x )\n", offset, state->m_rp5c01_mode_sel );
+	logerror("Read from unknown protection? port %02x ( selector = %02x )\n", offset, rp5c01_mode_sel );
 	return 0;
 }
 
 static WRITE8_HANDLER( spunchout_rp5c01_w )
 {
-	punchout_state *state = space->machine().driver_data<punchout_state>();
 	data &= 0x0f;
 
-	logerror("%04x: prot_w %x = %02x\n",cpu_get_previouspc(&space->device()),offset,data);
+	logerror("%04x: prot_w %x = %02x\n",cpu_get_previouspc(space->cpu),offset,data);
 
 	if (offset <= 0x0c)
 	{
-		state->m_rp5c01_mem[0x10 * (state->m_rp5c01_mode_sel & 3) + offset] = data;
+		rp5c01_mem[0x10 * (rp5c01_mode_sel & 3) + offset] = data;
 	}
 	else if (offset == 0x0d)
 	{
-		state->m_rp5c01_mode_sel = data;
+		rp5c01_mode_sel = data;
 		logerror("MODE: Timer EN = %d  Alarm EN = %d  MODE %d\n",BIT(data,3),BIT(data,2),data&3);
 	}
 	else if (offset == 0x0e)
@@ -300,7 +323,7 @@ static READ8_HANDLER( spunchout_exp_r )
 	/* PC = 0x0313 */
 	/* (ret or 0x10) -> (D7DF),(D7A0) - (D7DF),(D7A0) = 0d0h(ret nc) */
 
-	if (cpu_get_previouspc(&space->device()) == 0x0313)
+	if (cpu_get_previouspc(space->cpu) == 0x0313)
 		ret |= 0xc0;
 
 	return ret;
@@ -313,36 +336,36 @@ static WRITE8_HANDLER( spunchout_exp_w )
 
 
 
-static ADDRESS_MAP_START( punchout_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( punchout_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
-	AM_RANGE(0xc000, 0xc3ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xc000, 0xc3ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0xd000, 0xd7ff) AM_RAM
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(punchout_bg_top_videoram_w) AM_BASE_MEMBER(punchout_state, m_bg_top_videoram)
-	AM_RANGE(0xdff0, 0xdff7) AM_BASE_MEMBER(punchout_state, m_spr1_ctrlram)
-	AM_RANGE(0xdff8, 0xdffc) AM_BASE_MEMBER(punchout_state, m_spr2_ctrlram)
-	AM_RANGE(0xdffd, 0xdffd) AM_BASE_MEMBER(punchout_state, m_palettebank)
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(punchout_spr1_videoram_w) AM_BASE_MEMBER(punchout_state, m_spr1_videoram)
-	AM_RANGE(0xe800, 0xefff) AM_RAM_WRITE(punchout_spr2_videoram_w) AM_BASE_MEMBER(punchout_state, m_spr2_videoram)
-	AM_RANGE(0xf000, 0xffff) AM_RAM_WRITE(punchout_bg_bot_videoram_w) AM_BASE_MEMBER(punchout_state, m_bg_bot_videoram)	// also contains scroll RAM
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(punchout_bg_top_videoram_w) AM_BASE(&punchout_bg_top_videoram)
+	AM_RANGE(0xdff0, 0xdff7) AM_BASE(&punchout_spr1_ctrlram)
+	AM_RANGE(0xdff8, 0xdffc) AM_BASE(&punchout_spr2_ctrlram)
+	AM_RANGE(0xdffd, 0xdffd) AM_BASE(&punchout_palettebank)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(punchout_spr1_videoram_w) AM_BASE(&punchout_spr1_videoram)
+	AM_RANGE(0xe800, 0xefff) AM_RAM_WRITE(punchout_spr2_videoram_w) AM_BASE(&punchout_spr2_videoram)
+	AM_RANGE(0xf000, 0xffff) AM_RAM_WRITE(punchout_bg_bot_videoram_w) AM_BASE(&punchout_bg_bot_videoram)	// also contains scroll RAM
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( armwrest_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( armwrest_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
-	AM_RANGE(0xc000, 0xc3ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xc000, 0xc3ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0xd000, 0xd7ff) AM_RAM
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(armwrest_fg_videoram_w) AM_BASE_MEMBER(punchout_state, m_armwrest_fg_videoram)
-	AM_RANGE(0xdff0, 0xdff7) AM_BASE_MEMBER(punchout_state, m_spr1_ctrlram)
-	AM_RANGE(0xdff8, 0xdffc) AM_BASE_MEMBER(punchout_state, m_spr2_ctrlram)
-	AM_RANGE(0xdffd, 0xdffd) AM_BASE_MEMBER(punchout_state, m_palettebank)
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(punchout_spr1_videoram_w) AM_BASE_MEMBER(punchout_state, m_spr1_videoram)
-	AM_RANGE(0xe800, 0xefff) AM_RAM_WRITE(punchout_spr2_videoram_w) AM_BASE_MEMBER(punchout_state, m_spr2_videoram)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(punchout_bg_bot_videoram_w) AM_BASE_MEMBER(punchout_state, m_bg_bot_videoram)
-	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(punchout_bg_top_videoram_w) AM_BASE_MEMBER(punchout_state, m_bg_top_videoram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(armwrest_fg_videoram_w) AM_BASE(&armwrest_fg_videoram)
+	AM_RANGE(0xdff0, 0xdff7) AM_BASE(&punchout_spr1_ctrlram)
+	AM_RANGE(0xdff8, 0xdffc) AM_BASE(&punchout_spr2_ctrlram)
+	AM_RANGE(0xdffd, 0xdffd) AM_BASE(&punchout_palettebank)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(punchout_spr1_videoram_w) AM_BASE(&punchout_spr1_videoram)
+	AM_RANGE(0xe800, 0xefff) AM_RAM_WRITE(punchout_spr2_videoram_w) AM_BASE(&punchout_spr2_videoram)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(punchout_bg_bot_videoram_w) AM_BASE(&punchout_bg_bot_videoram)
+	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(punchout_bg_top_videoram_w) AM_BASE(&punchout_bg_top_videoram)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( punchout_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( punchout_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("IN0")
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("IN1")
@@ -365,7 +388,7 @@ static ADDRESS_MAP_START( punchout_io_map, AS_IO, 8 )
 	AM_RANGE(0x07, 0x07) AM_MIRROR(0xf0) AM_MASK(0xf0) AM_READWRITE(spunchout_exp_r, spunchout_exp_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( punchout_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( punchout_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
 	AM_RANGE(0x4016, 0x4016) AM_READ(soundlatch_r)
 	AM_RANGE(0x4017, 0x4017) AM_READ(soundlatch2_r)
@@ -918,78 +941,74 @@ static const nes_interface nes_config =
 
 static MACHINE_RESET( punchout )
 {
-	punchout_state *state = machine.driver_data<punchout_state>();
-	state->m_rp5c01_mode_sel = 0;
-	memset(state->m_rp5c01_mem, 0, sizeof(state->m_rp5c01_mem));
+	rp5c01_mode_sel = 0;
+	memset(rp5c01_mem, 0, sizeof(rp5c01_mem));
 }
 
 
-static MACHINE_CONFIG_START( punchout, punchout_state )
+static MACHINE_DRIVER_START( punchout )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 8000000/2)	/* 4 MHz */
-	MCFG_CPU_PROGRAM_MAP(punchout_map)
-	MCFG_CPU_IO_MAP(punchout_io_map)
-	MCFG_CPU_VBLANK_INT("top", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80, 8000000/2)	/* 4 MHz */
+	MDRV_CPU_PROGRAM_MAP(punchout_map)
+	MDRV_CPU_IO_MAP(punchout_io_map)
+	MDRV_CPU_VBLANK_INT("top", nmi_line_pulse)
 
-	MCFG_CPU_ADD("audiocpu", N2A03, N2A03_DEFAULTCLOCK)
-	MCFG_CPU_PROGRAM_MAP(punchout_sound_map)
-	MCFG_CPU_VBLANK_INT("top", nmi_line_pulse)
+	MDRV_CPU_ADD("audiocpu", N2A03, N2A03_DEFAULTCLOCK)
+	MDRV_CPU_PROGRAM_MAP(punchout_sound_map)
+	MDRV_CPU_VBLANK_INT("top", nmi_line_pulse)
 
-	MCFG_MACHINE_RESET(punchout)
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_RESET(punchout)
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
 	/* video hardware */
-	MCFG_GFXDECODE(punchout)
-	MCFG_PALETTE_LENGTH(0x200)
-	MCFG_DEFAULT_LAYOUT(layout_dualhovu)
+	MDRV_GFXDECODE(punchout)
+	MDRV_PALETTE_LENGTH(0x200)
+	MDRV_DEFAULT_LAYOUT(layout_dualhovu)
 
-	MCFG_SCREEN_ADD("top", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(punchout)
+	MDRV_SCREEN_ADD("top", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_SCREEN_ADD("bottom", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(punchout)
+	MDRV_SCREEN_ADD("bottom", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_VIDEO_START(punchout)
+	MDRV_VIDEO_START(punchout)
+	MDRV_VIDEO_UPDATE(punchout)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("nes", NES, N2A03_DEFAULTCLOCK)
-	MCFG_SOUND_CONFIG(nes_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_SOUND_ADD("nes", NES, N2A03_DEFAULTCLOCK)
+	MDRV_SOUND_CONFIG(nes_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("vlm", VLM5030, 3580000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("vlm", VLM5030, 3580000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( armwrest, punchout )
+static MACHINE_DRIVER_START( armwrest )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(punchout)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(armwrest_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(armwrest_map)
 
 	/* video hardware */
-	MCFG_GFXDECODE(armwrest)
+	MDRV_GFXDECODE(armwrest)
 
-	MCFG_VIDEO_START(armwrest)
-	MCFG_SCREEN_MODIFY("top")
-	MCFG_SCREEN_UPDATE(armwrest)
-	MCFG_SCREEN_MODIFY("bottom")
-	MCFG_SCREEN_UPDATE(armwrest)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(armwrest)
+	MDRV_VIDEO_UPDATE(armwrest)
+MACHINE_DRIVER_END
 
 
 

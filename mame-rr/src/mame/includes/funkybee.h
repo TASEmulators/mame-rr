@@ -1,18 +1,19 @@
 
 
-class funkybee_state : public driver_device
+class funkybee_state
 {
 public:
-	funkybee_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, funkybee_state(machine)); }
+
+	funkybee_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	int        m_gfx_bank;
+	tilemap_t    *bg_tilemap;
+	int        gfx_bank;
 };
 
 
@@ -26,4 +27,4 @@ WRITE8_HANDLER( funkybee_flipscreen_w );
 
 PALETTE_INIT( funkybee );
 VIDEO_START( funkybee );
-SCREEN_UPDATE( funkybee );
+VIDEO_UPDATE( funkybee );

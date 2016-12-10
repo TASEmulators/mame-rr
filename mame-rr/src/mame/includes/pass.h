@@ -1,14 +1,15 @@
-class pass_state : public driver_device
+class pass_state
 {
 public:
-	pass_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, pass_state(machine)); }
 
-	tilemap_t *m_bg_tilemap;
-	tilemap_t *m_fg_tilemap;
+	pass_state(running_machine &machine) { }
 
-	UINT16 *m_bg_videoram;
-	UINT16 *m_fg_videoram;
+	tilemap_t *bg_tilemap;
+	tilemap_t *fg_tilemap;
+
+	UINT16 *bg_videoram;
+	UINT16 *fg_videoram;
 };
 
 
@@ -18,4 +19,4 @@ WRITE16_HANDLER( pass_fg_videoram_w );
 WRITE16_HANDLER( pass_bg_videoram_w );
 
 VIDEO_START( pass );
-SCREEN_UPDATE( pass );
+VIDEO_UPDATE( pass );

@@ -25,14 +25,14 @@ static WRITE16_HANDLER( sound_cmd_w )
 
 static WRITE16_HANDLER( sound_irq_trigger_w )
 {
-	ultraman_state *state = space->machine().driver_data<ultraman_state>();
+	ultraman_state *state = (ultraman_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_0_7)
-		device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+		cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x080000, 0x08ffff) AM_RAM
 	AM_RANGE(0x180000, 0x183fff) AM_RAM_WRITE(paletteram16_xRRRRRGGGGGBBBBB_word_w) AM_BASE_GENERIC(paletteram)/* Palette */
@@ -55,16 +55,16 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x304800, 0x304fff) AM_DEVREADWRITE8("k051960", k051960_r, k051960_w, 0x00ff)		/* Sprite RAM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_RAM
 	AM_RANGE(0xc000, 0xc000) AM_READ(soundlatch_r)	/* Sound latch read */
 //  AM_RANGE(0xd000, 0xd000) AM_WRITENOP      /* ??? */
-	AM_RANGE(0xe000, 0xe000) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)		/* M6295 */
+	AM_RANGE(0xe000, 0xe000) AM_DEVREADWRITE("oki", okim6295_r, okim6295_w)		/* M6295 */
 	AM_RANGE(0xf000, 0xf001) AM_DEVREADWRITE("ymsnd", ym2151_r, ym2151_w)	/* YM2151 */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 //  AM_RANGE(0x00, 0x00) AM_WRITENOP                     /* ??? */
 ADDRESS_MAP_END
@@ -193,76 +193,79 @@ static const k051316_interface ultraman_k051316_intf_2 =
 
 static MACHINE_START( ultraman )
 {
-	ultraman_state *state = machine.driver_data<ultraman_state>();
+	ultraman_state *state = (ultraman_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_k051960 = machine.device("k051960");
-	state->m_k051316_1 = machine.device("k051316_1");
-	state->m_k051316_2 = machine.device("k051316_2");
-	state->m_k051316_3 = machine.device("k051316_3");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->k051960 = machine->device("k051960");
+	state->k051316_1 = machine->device("k051316_1");
+	state->k051316_2 = machine->device("k051316_2");
+	state->k051316_3 = machine->device("k051316_3");
 
-	state->save_item(NAME(state->m_bank0));
-	state->save_item(NAME(state->m_bank1));
-	state->save_item(NAME(state->m_bank2));
+	state_save_register_global(machine, state->bank0);
+	state_save_register_global(machine, state->bank1);
+	state_save_register_global(machine, state->bank2);
 }
 
 static MACHINE_RESET( ultraman )
 {
-	ultraman_state *state = machine.driver_data<ultraman_state>();
+	ultraman_state *state = (ultraman_state *)machine->driver_data;
 
-	state->m_bank0 = -1;
-	state->m_bank1 = -1;
-	state->m_bank2 = -1;
+	state->bank0 = -1;
+	state->bank1 = -1;
+	state->bank2 = -1;
 }
 
-static MACHINE_CONFIG_START( ultraman, ultraman_state )
+static MACHINE_DRIVER_START( ultraman )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(ultraman_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,24000000/2)		/* 12 MHz? */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,24000000/2)		/* 12 MHz? */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,24000000/6)	/* 4 MHz? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_io_map)
+	MDRV_CPU_ADD("audiocpu", Z80,24000000/6)	/* 4 MHz? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_io_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_START(ultraman)
-	MCFG_MACHINE_RESET(ultraman)
+	MDRV_MACHINE_START(ultraman)
+	MDRV_MACHINE_RESET(ultraman)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(ultraman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
 
-	MCFG_PALETTE_LENGTH(8192)
+	MDRV_PALETTE_LENGTH(8192)
 
-	MCFG_VIDEO_START(ultraman)
+	MDRV_VIDEO_START(ultraman)
+	MDRV_VIDEO_UPDATE(ultraman)
 
-	MCFG_K051960_ADD("k051960", ultraman_k051960_intf)
-	MCFG_K051316_ADD("k051316_1", ultraman_k051316_intf_0)
-	MCFG_K051316_ADD("k051316_2", ultraman_k051316_intf_1)
-	MCFG_K051316_ADD("k051316_3", ultraman_k051316_intf_2)
+	MDRV_K051960_ADD("k051960", ultraman_k051960_intf)
+	MDRV_K051316_ADD("k051316_1", ultraman_k051316_intf_0)
+	MDRV_K051316_ADD("k051316_2", ultraman_k051316_intf_1)
+	MDRV_K051316_ADD("k051316_3", ultraman_k051316_intf_2)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 24000000/6)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 24000000/6)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
-	MCFG_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 0.50)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "rspeaker", 0.50)
+MACHINE_DRIVER_END
 
 
 

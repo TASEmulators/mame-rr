@@ -101,9 +101,6 @@ write:
  *
  *************************************/
 
-static UINT8 memory_read_byte(address_space *space, offs_t address) { return space->read_byte(address); }
-static void memory_write_byte(address_space *space, offs_t address, UINT8 data) { space->write_byte(address, data); }
-
 static Z80DMA_INTERFACE( mario_dma )
 {
 	DEVCB_CPU_INPUT_LINE("maincpu", INPUT_LINE_HALT),
@@ -127,11 +124,11 @@ static WRITE8_DEVICE_HANDLER( mario_z80dma_rdy_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mario_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mario_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6000, 0x6fff) AM_RAM
-	AM_RANGE(0x7000, 0x73ff) AM_RAM	AM_BASE_SIZE_MEMBER(mario_state, m_spriteram, m_spriteram_size) /* physical sprite ram */
-	AM_RANGE(0x7400, 0x77ff) AM_RAM_WRITE(mario_videoram_w) AM_BASE_MEMBER(mario_state, m_videoram)
+	AM_RANGE(0x7000, 0x73ff) AM_RAM	AM_BASE_SIZE_MEMBER(mario_state, spriteram, spriteram_size) /* physical sprite ram */
+	AM_RANGE(0x7400, 0x77ff) AM_RAM_WRITE(mario_videoram_w) AM_BASE_MEMBER(mario_state, videoram)
 	AM_RANGE(0x7c00, 0x7c00) AM_READ_PORT("IN0") AM_DEVWRITE("discrete", mario_sh1_w) /* Mario run sample */
 	AM_RANGE(0x7c80, 0x7c80) AM_READ_PORT("IN1") AM_DEVWRITE("discrete", mario_sh2_w) /* Luigi run sample */
 	AM_RANGE(0x7d00, 0x7d00) AM_WRITE(mario_scroll_w)
@@ -146,11 +143,11 @@ static ADDRESS_MAP_START( mario_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( masao_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( masao_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6000, 0x6fff) AM_RAM
-	AM_RANGE(0x7000, 0x73ff) AM_RAM	AM_BASE_SIZE_MEMBER(mario_state, m_spriteram, m_spriteram_size) /* physical sprite ram */
-	AM_RANGE(0x7400, 0x77ff) AM_RAM_WRITE(mario_videoram_w) AM_BASE_MEMBER(mario_state, m_videoram)
+	AM_RANGE(0x7000, 0x73ff) AM_RAM	AM_BASE_SIZE_MEMBER(mario_state, spriteram, spriteram_size) /* physical sprite ram */
+	AM_RANGE(0x7400, 0x77ff) AM_RAM_WRITE(mario_videoram_w) AM_BASE_MEMBER(mario_state, videoram)
 	AM_RANGE(0x7c00, 0x7c00) AM_READ_PORT("IN0")
 	AM_RANGE(0x7c80, 0x7c80) AM_READ_PORT("IN1")
 	AM_RANGE(0x7d00, 0x7d00) AM_WRITE(mario_scroll_w)
@@ -165,7 +162,7 @@ static ADDRESS_MAP_START( masao_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mario_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mario_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_DEVREADWRITE("z80dma", z80dma_r, z80dma_w)	/* dma controller */
 ADDRESS_MAP_END
@@ -317,50 +314,55 @@ GFXDECODE_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( mario_base, mario_state )
+static MACHINE_DRIVER_START( mario_base )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mario_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, Z80_CLOCK)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(mario_map)
-	MCFG_CPU_IO_MAP(mario_io_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80, Z80_CLOCK)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(mario_map)
+	MDRV_CPU_IO_MAP(mario_io_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
 	/* devices */
-	MCFG_Z80DMA_ADD("z80dma", Z80_CLOCK, mario_dma)
+	MDRV_Z80DMA_ADD("z80dma", Z80_CLOCK, mario_dma)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART)
-	MCFG_SCREEN_UPDATE(mario)
-	MCFG_GFXDECODE(mario)
-	MCFG_PALETTE_LENGTH(512)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART)
+	MDRV_GFXDECODE(mario)
+	MDRV_PALETTE_LENGTH(512)
 
-	MCFG_PALETTE_INIT(mario)
-	MCFG_VIDEO_START(mario)
+	MDRV_PALETTE_INIT(mario)
+	MDRV_VIDEO_START(mario)
+	MDRV_VIDEO_UPDATE(mario)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( mario, mario_base )
-
-	/* basic machine hardware */
-
-	/* sound hardware */
-	MCFG_FRAGMENT_ADD(mario_audio)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( masao, mario_base )
+static MACHINE_DRIVER_START( mario )
 
 	/* basic machine hardware */
-
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_CLOCK(4000000)        /* 4.000 MHz (?) */
-	MCFG_CPU_PROGRAM_MAP(masao_map)
+	MDRV_IMPORT_FROM(mario_base )
 
 	/* sound hardware */
-	MCFG_FRAGMENT_ADD(masao_audio)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(mario_audio)
+MACHINE_DRIVER_END
+
+
+static MACHINE_DRIVER_START( masao )
+
+	/* basic machine hardware */
+	MDRV_IMPORT_FROM(mario_base )
+
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_CLOCK(4000000)        /* 4.000 MHz (?) */
+	MDRV_CPU_PROGRAM_MAP(masao_map)
+
+	/* sound hardware */
+	MDRV_IMPORT_FROM(masao_audio)
+MACHINE_DRIVER_END
 
 
 /*************************************

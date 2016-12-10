@@ -186,11 +186,9 @@ MAIN BOARD:
 #include "sound/sn76496.h"
 #include "sound/vlm5030.h"
 #include "sound/dac.h"
-#include "audio/trackfld.h"
-#include "audio/hyprolyb.h"
+#include "sound/msm5205.h"
 #include "includes/trackfld.h"
-#include "includes/konamipt.h"
-#include "machine/nvram.h"
+
 
 #define MASTER_CLOCK          XTAL_18_432MHz
 #define SOUND_CLOCK           XTAL_14_31818MHz
@@ -199,30 +197,72 @@ MAIN BOARD:
 
 static WRITE8_HANDLER( coin_w )
 {
-	coin_counter_w(space->machine(), offset, data & 1);
+	coin_counter_w(space->machine, offset, data & 1);
 }
 
 static WRITE8_HANDLER( questions_bank_w )
 {
 	if (!(data & 0x01))
-		memory_set_bank(space->machine(), "bank1", 0);
+		memory_set_bank(space->machine, "bank1", 0);
 	else if (!(data & 0x02))
-		memory_set_bank(space->machine(), "bank1", 1);
+		memory_set_bank(space->machine, "bank1", 1);
 	else if (!(data & 0x04))
-		memory_set_bank(space->machine(), "bank1", 2);
+		memory_set_bank(space->machine, "bank1", 2);
 	else if (!(data & 0x08))
-		memory_set_bank(space->machine(), "bank1", 3);
+		memory_set_bank(space->machine, "bank1", 3);
 	else if (!(data & 0x10))
-		memory_set_bank(space->machine(), "bank1", 4);
+		memory_set_bank(space->machine, "bank1", 4);
 	else if (!(data & 0x20))
-		memory_set_bank(space->machine(), "bank1", 5);
+		memory_set_bank(space->machine, "bank1", 5);
 	else if (!(data & 0x40))
-		memory_set_bank(space->machine(), "bank1", 6);
+		memory_set_bank(space->machine, "bank1", 6);
 	else if (!(data & 0x80))
-		memory_set_bank(space->machine(), "bank1", 7);
+		memory_set_bank(space->machine, "bank1", 7);
 }
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+WRITE8_HANDLER( hyprolyb_adpcm_w )
+{
+	trackfld_state *state = (trackfld_state *)space->machine->driver_data;
+	soundlatch2_w(space, offset, data);
+	state->hyprolyb_adpcm_ready = 0x80;
+}
+
+static READ8_HANDLER( hyprolyb_adpcm_busy_r )
+{
+	trackfld_state *state = (trackfld_state *)space->machine->driver_data;
+	return state->hyprolyb_adpcm_busy ? 0x10 : 0x00;
+}
+
+static WRITE8_DEVICE_HANDLER( hyprolyb_msm_data_w )
+{
+	trackfld_state *state = (trackfld_state *)device->machine->driver_data;
+	msm5205_data_w(device, data);
+	state->hyprolyb_adpcm_busy = ~data & 0x80;
+}
+
+static READ8_DEVICE_HANDLER( hyprolyb_msm_vck_r )
+{
+	trackfld_state *state = (trackfld_state *)device->machine->driver_data;
+	UINT8 old = state->hyprolyb_vck_ready;
+	state->hyprolyb_vck_ready = 0x00;
+	return old;
+}
+
+static READ8_HANDLER( hyprolyb_adpcm_ready_r )
+{
+	trackfld_state *state = (trackfld_state *)space->machine->driver_data;
+	return state->hyprolyb_adpcm_ready;
+}
+
+static READ8_HANDLER( hyprolyb_adpcm_data_r )
+{
+	trackfld_state *state = (trackfld_state *)space->machine->driver_data;
+	state->hyprolyb_adpcm_ready = 0x00;
+	return soundlatch2_r(space, offset);
+}
+
+
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x1000, 0x1000) AM_MIRROR(0x007f) AM_WRITE(watchdog_reset_w)		/* AFE */
 	AM_RANGE(0x1080, 0x1080) AM_MIRROR(0x0078) AM_WRITE(trackfld_flipscreen_w)	/* FLIP */
 	AM_RANGE(0x1081, 0x1081) AM_MIRROR(0x0078) AM_WRITE(konami_sh_irqtrigger_w)	/* 26 */ /* cause interrupt on audio CPU */
@@ -238,48 +278,19 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1282, 0x1282) AM_MIRROR(0x007c) AM_READ_PORT("IN1")
 	AM_RANGE(0x1283, 0x1283) AM_MIRROR(0x007c) AM_READ_PORT("DSW1")
 	/* not used according to schems: AM_RANGE(0x1300, 0x1300) AM_MIRROR(0x007f) AM_READ_PORT("DSW3") */
-	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_spriteram2)
-	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll)
+	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, spriteram2)
+	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll)
 	AM_RANGE(0x1860, 0x1bff) AM_RAM
-	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll2)
+	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, spriteram, spriteram_size)
+	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll2)
 	AM_RANGE(0x1c60, 0x1fff) AM_RAM
-	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, m_videoram)
-	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, m_colorram)
+	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, videoram)
+	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, colorram)
 	AM_RANGE(0x6000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-
-static ADDRESS_MAP_START( yieartf_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x1000, 0x1000) AM_MIRROR(0x007f) AM_WRITE(watchdog_reset_w)		/* AFE */
-	AM_RANGE(0x1080, 0x1080) AM_MIRROR(0x0078) AM_WRITE(trackfld_flipscreen_w)	/* FLIP */
-	AM_RANGE(0x1081, 0x1081) AM_MIRROR(0x0078) AM_WRITE(konami_sh_irqtrigger_w)	/* 26 */ /* cause interrupt on audio CPU */
-	AM_RANGE(0x1082, 0x1082) AM_MIRROR(0x0078) AM_WRITENOP						/* 25 */
-	AM_RANGE(0x1083, 0x1084) AM_MIRROR(0x0078) AM_WRITE(coin_w)					/* 24, 23 */
-	AM_RANGE(0x1085, 0x1085) AM_MIRROR(0x0078) AM_WRITENOP						/* CN3.2 */
-	AM_RANGE(0x1086, 0x1086) AM_MIRROR(0x0078) AM_WRITENOP						/* CN3.4 */
-	AM_RANGE(0x1087, 0x1087) AM_MIRROR(0x0078) AM_WRITE(interrupt_enable_w)		/* INT */
-//  AM_RANGE(0x1100, 0x1100) AM_MIRROR(0x007f) AM_WRITE(soundlatch_w)           /* 32 */
-	AM_RANGE(0x1200, 0x1200) AM_MIRROR(0x007f) AM_READ_PORT("DSW2")
-	AM_RANGE(0x1280, 0x1280) AM_MIRROR(0x007c) AM_READ_PORT("SYSTEM")
-	AM_RANGE(0x1281, 0x1281) AM_MIRROR(0x007c) AM_READ_PORT("IN0")
-	AM_RANGE(0x1282, 0x1282) AM_MIRROR(0x007c) AM_READ_PORT("IN1")
-	AM_RANGE(0x1283, 0x1283) AM_MIRROR(0x007c) AM_READ_PORT("DSW1")
-	AM_RANGE(0x1300, 0x1300) AM_MIRROR(0x007f) AM_READ_PORT("DSW3")
-	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_spriteram2)
-	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll)
-	AM_RANGE(0x1860, 0x1bff) AM_RAM
-	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll2)
-	AM_RANGE(0x1c60, 0x1fff) AM_RAM
-	AM_RANGE(0x2800, 0x2fff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, m_videoram)
-	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, m_colorram)
-	AM_RANGE(0x6000, 0xffff) AM_ROM
-ADDRESS_MAP_END
-
-static ADDRESS_MAP_START( reaktor_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( reaktor_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	/* all usual addresses +0x8000 */
 	AM_RANGE(0x9000, 0x9000) AM_WRITE(watchdog_reset_w)
@@ -293,20 +304,20 @@ static ADDRESS_MAP_START( reaktor_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x9281, 0x9281) AM_READ_PORT("IN0")
 	AM_RANGE(0x9282, 0x9282) AM_READ_PORT("IN1")
 	AM_RANGE(0x9283, 0x9283) AM_READ_PORT("DSW1")
-	AM_RANGE(0x9800, 0x983f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_spriteram2)
-	AM_RANGE(0x9840, 0x985f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll)
+	AM_RANGE(0x9800, 0x983f) AM_RAM AM_BASE_MEMBER(trackfld_state, spriteram2)
+	AM_RANGE(0x9840, 0x985f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll)
 	AM_RANGE(0x9860, 0x9bff) AM_RAM
-	AM_RANGE(0x9c00, 0x9c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x9c40, 0x9c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll2)
+	AM_RANGE(0x9c00, 0x9c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, spriteram, spriteram_size)
+	AM_RANGE(0x9c40, 0x9c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll2)
 	AM_RANGE(0x9c60, 0x9fff) AM_RAM
 	AM_RANGE(0xa800, 0xabff) AM_RAM
-	AM_RANGE(0xac00, 0xafff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0xb000, 0xb7ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, m_videoram)
-	AM_RANGE(0xb800, 0xbfff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, m_colorram)
+	AM_RANGE(0xac00, 0xafff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0xb000, 0xb7ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, videoram)
+	AM_RANGE(0xb800, 0xbfff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, colorram)
 ADDRESS_MAP_END
 
 /* Reaktor reads / writes some I/O ports, no idea what they're connected to, if anything */
-static ADDRESS_MAP_START( reaktor_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( reaktor_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_WRITENOP
 	AM_RANGE(0x01, 0x01) AM_NOP
@@ -314,7 +325,7 @@ static ADDRESS_MAP_START( reaktor_io_map, AS_IO, 8 )
 	AM_RANGE(0x03, 0x03) AM_WRITENOP
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mastkin_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mastkin_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x1000, 0x1000) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0x10b0, 0x10b0) AM_WRITE(trackfld_flipscreen_w)
 	AM_RANGE(0x10b1, 0x10b1) AM_WRITE(konami_sh_irqtrigger_w)
@@ -326,20 +337,20 @@ static ADDRESS_MAP_START( mastkin_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1281, 0x1281) AM_READ_PORT("IN0")
 //  AM_RANGE(0x1282, 0x1282) AM_READ_PORT("IN1") /* unused */
 	AM_RANGE(0x1283, 0x1283) AM_READ_PORT("DSW1")
-	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_spriteram2)
-	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll)
+	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, spriteram2)
+	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll)
 	AM_RANGE(0x1860, 0x1bff) AM_RAM
-	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll2)
+	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, spriteram, spriteram_size)
+	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll2)
 	AM_RANGE(0x1c60, 0x1fff) AM_RAM
 	AM_RANGE(0x2800, 0x2bff) AM_RAM
-	AM_RANGE(0x2c00, 0x2fff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, m_videoram)
-	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, m_colorram)
+	AM_RANGE(0x2c00, 0x2fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, videoram)
+	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, colorram)
 	AM_RANGE(0x6000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( wizzquiz_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( wizzquiz_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x007f) AM_RAM
 	AM_RANGE(0x1000, 0x1000) AM_READWRITE(watchdog_reset_r, watchdog_reset_w)
 	AM_RANGE(0x1080, 0x1080) AM_WRITE(trackfld_flipscreen_w)
@@ -352,22 +363,22 @@ static ADDRESS_MAP_START( wizzquiz_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x1281, 0x1281) AM_READ_PORT("IN0")
 	AM_RANGE(0x1282, 0x1282) AM_READ_PORT("IN1")
 	AM_RANGE(0x1283, 0x1283) AM_READ_PORT("DSW1")
-	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_spriteram2)
-	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll)
+	AM_RANGE(0x1800, 0x183f) AM_RAM AM_BASE_MEMBER(trackfld_state, spriteram2)
+	AM_RANGE(0x1840, 0x185f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll)
 	AM_RANGE(0x1860, 0x1bff) AM_RAM
-	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, m_scroll2)
+	AM_RANGE(0x1c00, 0x1c3f) AM_RAM AM_BASE_SIZE_MEMBER(trackfld_state, spriteram, spriteram_size)
+	AM_RANGE(0x1c40, 0x1c5f) AM_RAM AM_BASE_MEMBER(trackfld_state, scroll2)
 	AM_RANGE(0x1c60, 0x1fff) AM_RAM
 	AM_RANGE(0x2800, 0x2bff) AM_RAM
-	AM_RANGE(0x2c00, 0x2fff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, m_videoram)
-	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, m_colorram)
+	AM_RANGE(0x2c00, 0x2fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
+	AM_RANGE(0x3000, 0x37ff) AM_RAM_WRITE(trackfld_videoram_w) AM_BASE_MEMBER(trackfld_state, videoram)
+	AM_RANGE(0x3800, 0x3fff) AM_RAM_WRITE(trackfld_colorram_w) AM_BASE_MEMBER(trackfld_state, colorram)
 	AM_RANGE(0xc000, 0xc000) AM_WRITE(questions_bank_w)
 	AM_RANGE(0x6000, 0xdfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xe000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x1c00) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_MIRROR(0x1fff) AM_READ(soundlatch_r)
@@ -381,7 +392,7 @@ static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xe004, 0xe004) AM_MIRROR(0x1ff8) AM_DEVWRITE("vlm", vlm5030_data_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( hyprolyb_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( hyprolyb_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x43ff) AM_MIRROR(0x1c00) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_MIRROR(0x1fff) AM_READ(soundlatch_r)
@@ -390,10 +401,34 @@ static ADDRESS_MAP_START( hyprolyb_sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xc000, 0xc000) AM_MIRROR(0x1fff) AM_DEVWRITE("snsnd", konami_SN76496_w)
 	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x1ff8) AM_DEVWRITE("dac", dac_w)
 	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x1ff8) AM_NOP			/* watch dog ?; reaktor reads here */
-	AM_RANGE(0xe002, 0xe002) AM_MIRROR(0x1ff8) AM_DEVREAD("hyprolyb_adpcm", hyprolyb_adpcm_busy_r)
+	AM_RANGE(0xe002, 0xe002) AM_MIRROR(0x1ff8) AM_READ(hyprolyb_adpcm_busy_r)
 	AM_RANGE(0xe003, 0xe003) AM_MIRROR(0x1ff8) AM_WRITENOP
-	AM_RANGE(0xe004, 0xe004) AM_MIRROR(0x1ff8) AM_DEVWRITE("hyprolyb_adpcm", hyprolyb_adpcm_w)
+	AM_RANGE(0xe004, 0xe004) AM_MIRROR(0x1ff8) AM_WRITE(hyprolyb_adpcm_w)
 ADDRESS_MAP_END
+
+ADDRESS_MAP_START( hyprolyb_adpcm_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x007f) AM_RAM
+	AM_RANGE(0x1000, 0x1000) AM_READ(hyprolyb_adpcm_data_r)
+	AM_RANGE(0x1001, 0x1001) AM_READ(hyprolyb_adpcm_ready_r)
+	AM_RANGE(0x1002, 0x1002) AM_DEVWRITE("msm", hyprolyb_msm_data_w)
+	AM_RANGE(0x1003, 0x1003) AM_DEVREAD("msm", hyprolyb_msm_vck_r)
+		// on init:
+		//    $1003 = $00
+		//    $1002 = $FF
+		//    $1003 = $34
+		//    $1001 = $36
+		//    $1002 = $80
+		// loops while ($1003) & 0x80 == 0
+		// 1002 = ADPCM data written (low 4 bits)
+		//
+		// $1003 & $80 (in) = 5205 DRQ
+		// $1002 & $0f (out) = 5205 data
+		// $1001 & $80 (in) = sound latch request
+		// $1000 (in) = sound latch data
+	AM_RANGE(0x8000, 0xffff) AM_ROM
+ADDRESS_MAP_END
+
+
 
 static INPUT_PORTS_START( trackfld )
 	PORT_START("SYSTEM")
@@ -774,62 +809,6 @@ static INPUT_PORTS_START( reaktor )
 	PORT_DIPSETTING(      0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
-
-static INPUT_PORTS_START( yieartf )
-	PORT_START("SYSTEM")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 )
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN2 )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START1 )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
-	PORT_START("IN0")
-	KONAMI8_MONO_B12_UNK
-
-	PORT_START("IN1")
-	KONAMI8_COCKTAIL_B12_UNK
-
-	PORT_START("DSW2")
-	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )
-	PORT_DIPSETTING(    0x03, "1" )
-	PORT_DIPSETTING(    0x02, "2" )
-	PORT_DIPSETTING(    0x01, "3" )
-	PORT_DIPSETTING(    0x00, "5" )
-	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Cabinet ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Bonus_Life ) )
-	PORT_DIPSETTING(    0x08, "30000 80000" )
-	PORT_DIPSETTING(    0x00, "40000 90000" )
-	PORT_DIPNAME( 0x30, 0x10, DEF_STR( Difficulty ) )
-	PORT_DIPSETTING(    0x30, DEF_STR( Easy ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( Normal ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Difficult ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Very_Difficult ) )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Demo_Sounds ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-
-	PORT_START("DSW3")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Flip_Screen ) )
-	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x02, "Upright Controls" )
-	PORT_DIPSETTING(    0x02, DEF_STR( Single ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( Dual ) )
-	PORT_SERVICE( 0x04, IP_ACTIVE_LOW )
-	PORT_BIT( 0xf8, IP_ACTIVE_LOW, IPT_UNUSED )
-
-	PORT_START("DSW1")
-	KONAMI_COINAGE(DEF_STR( Free_Play ), "Invalid")
-	/* "Invalid" = both coin slots disabled */
-INPUT_PORTS_END
-
-
 static const gfx_layout charlayout =
 {
 	8,8,
@@ -860,163 +839,169 @@ static GFXDECODE_START( trackfld )
 GFXDECODE_END
 
 
+static void adpcm_vck_callback( running_device *device )
+{
+	trackfld_state *state = (trackfld_state *)device->machine->driver_data;
+	state->hyprolyb_vck_ready = 0x80;
+}
+
+const msm5205_interface hyprolyb_msm5205_config =
+{
+	adpcm_vck_callback,	/* VCK function */
+	MSM5205_S96_4B		/* 4 kHz */
+};
+
+
 
 static MACHINE_START( trackfld )
 {
-	trackfld_state *state = machine.driver_data<trackfld_state>();
+	trackfld_state *state = (trackfld_state *)machine->driver_data;
+
+	state->audiocpu = machine->device<cpu_device>("audiocpu");
+	state->vlm = machine->device("vlm");
 
 	/* video */
-	state->save_item(NAME(state->m_bg_bank));
-	state->save_item(NAME(state->m_sprite_bank1));
-	state->save_item(NAME(state->m_sprite_bank2));
-	state->save_item(NAME(state->m_old_gfx_bank));
+	state_save_register_global(machine, state->bg_bank);
+	state_save_register_global(machine, state->sprite_bank1);
+	state_save_register_global(machine, state->sprite_bank2);
+	state_save_register_global(machine, state->old_gfx_bank);
+
+	/* sound */
+	state_save_register_global(machine, state->SN76496_latch);
+	state_save_register_global(machine, state->last_addr);
+	state_save_register_global(machine, state->last_irq);
+}
+
+static MACHINE_START( hyprolyb )
+{
+	trackfld_state *state = (trackfld_state *)machine->driver_data;
+
+	MACHINE_START_CALL(trackfld);
+
+	state_save_register_global(machine, state->hyprolyb_adpcm_ready);	// only bootlegs
+	state_save_register_global(machine, state->hyprolyb_adpcm_busy);
+	state_save_register_global(machine, state->hyprolyb_vck_ready);
 }
 
 static MACHINE_RESET( trackfld )
 {
-	trackfld_state *state = machine.driver_data<trackfld_state>();
+	trackfld_state *state = (trackfld_state *)machine->driver_data;
 
-	state->m_bg_bank = 0;
-	state->m_sprite_bank1 = 0;
-	state->m_sprite_bank2 = 0;
-	state->m_old_gfx_bank = 0;
+	state->bg_bank = 0;
+	state->sprite_bank1 = 0;
+	state->sprite_bank2 = 0;
+	state->old_gfx_bank = 0;
+	state->SN76496_latch = 0;
+	state->last_addr = 0;
+	state->last_irq = 0;
 }
 
-static MACHINE_CONFIG_START( trackfld, trackfld_state )
+static MACHINE_RESET( hyprolyb )
+{
+	trackfld_state *state = (trackfld_state *)machine->driver_data;
+
+	MACHINE_RESET_CALL(trackfld);
+
+	state->hyprolyb_adpcm_ready = 0;
+	state->hyprolyb_adpcm_busy = 0;
+	state->hyprolyb_vck_ready = 0;
+}
+
+static MACHINE_DRIVER_START( trackfld )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(trackfld_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, MASTER_CLOCK/6/2)	/* a guess for now */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", M6809, MASTER_CLOCK/6/2)	/* a guess for now */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, SOUND_CLOCK/4)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, SOUND_CLOCK/4)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(trackfld)
-	MCFG_MACHINE_RESET(trackfld)
-	MCFG_NVRAM_ADD_0FILL("nvram")
-
-	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(trackfld)
-
-	MCFG_GFXDECODE(trackfld)
-	MCFG_PALETTE_LENGTH(16*16+16*16)
-
-	MCFG_PALETTE_INIT(trackfld)
-	MCFG_VIDEO_START(trackfld)
-
-	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-
-	MCFG_SOUND_ADD("trackfld_audio", TRACKFLD_AUDIO, 0)
-
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-
-	MCFG_SOUND_ADD("snsnd", SN76496, SOUND_CLOCK/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-
-	MCFG_SOUND_ADD("vlm", VLM5030, VLM_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_START( yieartf, trackfld_state )
-
-	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, MASTER_CLOCK/6/2)	/* a guess for now */
-	MCFG_CPU_PROGRAM_MAP(yieartf_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-
-//  z80 isn't used
-//  MCFG_CPU_ADD("audiocpu", Z80, SOUND_CLOCK/4)
-//  MCFG_CPU_PROGRAM_MAP(sound_map)
-
-	MCFG_MACHINE_START(trackfld)
-	MCFG_MACHINE_RESET(trackfld)
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_START(trackfld)
+	MDRV_MACHINE_RESET(trackfld)
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(trackfld)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(trackfld)
-	MCFG_PALETTE_LENGTH(16*16+16*16)
+	MDRV_GFXDECODE(trackfld)
+	MDRV_PALETTE_LENGTH(16*16+16*16)
 
-	MCFG_PALETTE_INIT(trackfld)
-	MCFG_VIDEO_START(trackfld)
+	MDRV_PALETTE_INIT(trackfld)
+	MDRV_VIDEO_START(trackfld)
+	MDRV_VIDEO_UPDATE(trackfld)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("trackfld_audio", TRACKFLD_AUDIO, 0)
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+	MDRV_SOUND_ADD("snsnd", SN76496, SOUND_CLOCK/8)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("snsnd", SN76496, SOUND_CLOCK/8)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-
-	MCFG_SOUND_ADD("vlm", VLM5030, VLM_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("vlm", VLM5030, VLM_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 /* same as the original, but uses ADPCM instead of VLM5030 */
 /* also different memory handlers do handle that */
-static MACHINE_CONFIG_DERIVED( hyprolyb, trackfld )
+static MACHINE_DRIVER_START( hyprolyb )
+	MDRV_IMPORT_FROM(trackfld)
 
-	MCFG_CPU_MODIFY("audiocpu")
-	MCFG_CPU_PROGRAM_MAP(hyprolyb_sound_map)
+	MDRV_CPU_MODIFY("audiocpu")
+	MDRV_CPU_PROGRAM_MAP(hyprolyb_sound_map)
 
-	MCFG_MACHINE_START(trackfld)
-	MCFG_MACHINE_RESET(trackfld)
+	MDRV_CPU_ADD("adpcm", M6802, SOUND_CLOCK/8)	/* unknown clock */
+	MDRV_CPU_PROGRAM_MAP(hyprolyb_adpcm_map)
+
+	MDRV_MACHINE_START(hyprolyb)
+	MDRV_MACHINE_RESET(hyprolyb)
 
 	/* sound hardware */
-	MCFG_DEVICE_REMOVE("vlm")
-	MCFG_FRAGMENT_ADD(hyprolyb_adpcm)
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("vlm")
 
-static MACHINE_CONFIG_DERIVED( atlantol, hyprolyb )
-
-	MCFG_VIDEO_START(atlantol)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(hyprolyb_msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( mastkin, trackfld )
+static MACHINE_DRIVER_START( mastkin )
 
 	/* basic machine hardware */
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(mastkin_map)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(trackfld)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(mastkin_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( wizzquiz, trackfld )
+static MACHINE_DRIVER_START( wizzquiz )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(trackfld)
 	// right cpu?
-	MCFG_CPU_REPLACE("maincpu",M6800,2048000)		/* 1.400 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(wizzquiz_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
-MACHINE_CONFIG_END
+	MDRV_CPU_REPLACE("maincpu",M6800,2048000)		/* 1.400 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(wizzquiz_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( reaktor, trackfld )
+static MACHINE_DRIVER_START( reaktor )
 
 	/* basic machine hardware */
-	MCFG_CPU_REPLACE("maincpu",Z80,MASTER_CLOCK/6)
-	MCFG_CPU_PROGRAM_MAP(reaktor_map)
-	MCFG_CPU_IO_MAP(reaktor_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(trackfld)
+	MDRV_CPU_REPLACE("maincpu",Z80,MASTER_CLOCK/6)
+	MDRV_CPU_PROGRAM_MAP(reaktor_map)
+	MDRV_CPU_IO_MAP(reaktor_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -1377,34 +1362,6 @@ ROM_START( reaktor )
 	ROM_LOAD( "c9_d15.bin",   0x0000, 0x2000, CRC(f546a56b) SHA1(caee3d8546eb7a75ce2a578c6a1a630246aec6b8) )
 ROM_END
 
-ROM_START( yieartf )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "2.2a",      0x08000, 0x2000, CRC(349430e9) SHA1(0cd1ac9b949cc53679a67d47f1eae0daf2012550) )
-	ROM_LOAD( "3.3a",      0x0a000, 0x2000, CRC(17d8337b) SHA1(aa6b92ff42a5b5282170bd280f7c0bb5a38607ec) )
-	ROM_LOAD( "4.4a",      0x0c000, 0x2000, CRC(a89a2166) SHA1(e9e72ae9631d86ff884d1ab718b4884c38a5ae2d) )
-	ROM_LOAD( "5.5a",      0x0e000, 0x2000, CRC(ff1599eb) SHA1(6f345a1b230f5f8016b47034c74a87b29d16682b) )
-
-	ROM_REGION( 0x10000, "gfx1", 0 )
-	ROM_LOAD( "a.15c",    0x00000, 0x4000, CRC(45109b29) SHA1(0794935b490497b21b99045c90231b7bac151d42) )
-	ROM_LOAD( "b.16c",    0x04000, 0x4000, CRC(1d650790) SHA1(5f2a4983b20251c712358547a7c62c0331c6cb6f) )
-	ROM_LOAD( "c.17c",    0x08000, 0x4000, CRC(e6aa945b) SHA1(c5757d16c28f5966fd04675c0c640ef9b6b76ca5) )
-	ROM_LOAD( "d.18c",    0x0c000, 0x4000, CRC(cc187c22) SHA1(555ba18a9648681e5140b3fd84af16959ee5296d) )
-
-	ROM_REGION( 0x04000, "gfx2", 0 )
-	ROM_LOAD( "6.16h",      0x00000, 0x2000, CRC(05a23af3) SHA1(d588a5d31e106a3c5b1e37b1826863108b87f02d) )
-	ROM_LOAD( "7.15h",      0x02000, 0x2000, CRC(988154fa) SHA1(981273ef70ae6a947c24559750a8e7dc3d032444) )
-
-	ROM_REGION( 0x0220, "proms", 0 )
-	ROM_LOAD( "yiear.clr",    0x00000, 0x0020, CRC(c283d71f) SHA1(10cd39f4e951ba6ca5610081c8c1fcd9d68b34d2) )
-	ROM_LOAD( "prom1.b16",   0x0020, 0x0100, CRC(93dc32a0) SHA1(04e69d234e0ae93d90bbf2ef507f1cfd5cf3f87a) ) /* sprite lookup table */
-	ROM_LOAD( "prom2.e15",   0x0120, 0x0100,  CRC(e7e0f9e5) SHA1(008605db7a262fab8e569c1e19c707991027abfc) ) /* char lookup table */
-
-	ROM_REGION( 0x2000, "vlm", 0 )	/* 8k for the VLM5030 data */
-	ROM_LOAD( "01.snd",    0x00000, 0x2000, CRC(f75a1539) SHA1(f139f6cb41351eb81ee47d777db03012aa5fadb1) )
-ROM_END
-
-
-
 static DRIVER_INIT( trackfld )
 {
 	konami1_decode(machine, "maincpu");
@@ -1412,8 +1369,8 @@ static DRIVER_INIT( trackfld )
 
 static DRIVER_INIT( atlantol )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	UINT8 *rom = machine.region("maincpu")->base();
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	UINT8 *rom = memory_region(machine, "maincpu");
 	UINT8 *decrypt;
 	int A;
 
@@ -1424,16 +1381,16 @@ static DRIVER_INIT( atlantol )
 	for (A = 0; A < 0x6000; A++)
 		decrypt[A] = rom[A];
 
-	space->set_decrypted_region(0x0000, 0xffff, decrypt);
+	memory_set_decrypted_region(space, 0x0000, 0xffff, decrypt);
 
-	space->install_legacy_write_handler(0x0800, 0x0800, FUNC(atlantol_gfxbank_w));
-	space->nop_write(0x1000, 0x1000);
+	memory_install_write8_handler(space, 0x0800, 0x0800, 0, 0, atlantol_gfxbank_w);
+	memory_nop_write(space, 0x1000, 0x1000, 0, 0);
 
 	/* unmapped areas read as ROM */
-	space->install_read_bank(0x0000, 0x11ff, "bank10");
-	space->install_read_bank(0x1380, 0x17ff, "bank11");
-	space->install_read_bank(0x2000, 0x27ff, "bank12");
-	space->install_read_bank(0x4000, 0x5fff, "bank13");
+	memory_install_read_bank(space, 0x0000, 0x11ff, 0, 0, "bank10");
+	memory_install_read_bank(space, 0x1380, 0x17ff, 0, 0, "bank11");
+	memory_install_read_bank(space, 0x2000, 0x27ff, 0, 0, "bank12");
+	memory_install_read_bank(space, 0x4000, 0x5fff, 0, 0, "bank13");
 	memory_set_bankptr(machine, "bank10", &rom[0x0000]);
 	memory_set_bankptr(machine, "bank11", &rom[0x1380]);
 	memory_set_bankptr(machine, "bank12", &rom[0x2000]);
@@ -1442,7 +1399,7 @@ static DRIVER_INIT( atlantol )
 
 static DRIVER_INIT( mastkin )
 {
-	UINT8 *prom = machine.region("proms")->base();
+	UINT8 *prom = memory_region(machine, "proms");
 	int i;
 
 	/* build a fake palette so the screen won't be all black */
@@ -1463,14 +1420,14 @@ static DRIVER_INIT( mastkin )
 
 static DRIVER_INIT( wizzquiz )
 {
-	UINT8 *ROM = machine.region("maincpu")->base() + 0xe000;
+	UINT8 *ROM = memory_region(machine, "maincpu") + 0xe000;
 	int i;
 
 	/* decrypt program rom */
 	for (i = 0; i < 0x2000; i++)
 		ROM[i] = BITSWAP8(ROM[i],0,1,2,3,4,5,6,7);
 
-	ROM = machine.region("user1")->base();
+	ROM = memory_region(machine, "user1");
 
 	/* decrypt questions roms */
 	for (i = 0; i < 0x40000; i++)
@@ -1484,10 +1441,9 @@ GAME( 1983, trackfld,  0,        trackfld, trackfld, trackfld, ROT0,  "Konami", 
 GAME( 1983, trackfldc, trackfld, trackfld, trackfld, trackfld, ROT0,  "Konami (Centuri license)", "Track & Field (Centuri)", GAME_SUPPORTS_SAVE )
 GAME( 1983, hyprolym,  trackfld, trackfld, trackfld, trackfld, ROT0,  "Konami", "Hyper Olympic", GAME_SUPPORTS_SAVE )
 GAME( 1983, hyprolymb, trackfld, hyprolyb, trackfld, trackfld, ROT0,  "bootleg", "Hyper Olympic (bootleg)", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
-GAME( 1996, atlantol,  trackfld, atlantol, atlantol, atlantol, ROT0,  "bootleg", "Atlant Olimpic", GAME_SUPPORTS_SAVE )
+GAME( 1996, atlantol,  trackfld, hyprolyb, atlantol, atlantol, ROT0,  "bootleg", "Atlant Olimpic", GAME_SUPPORTS_SAVE )
 GAME( 1988, mastkin,   0,        mastkin,  mastkin,  mastkin,  ROT0,  "Du Tech", "The Masters of Kin", GAME_WRONG_COLORS | GAME_SUPPORTS_SAVE )
 GAME( 1982, trackfldnz,trackfld, trackfld, trackfld, trackfld, ROT0,  "bootleg? (Goldberg Enterprizes Inc.)", "Track & Field (NZ bootleg?)", GAME_NOT_WORKING)
 GAME( 1985, wizzquiz,  0,        wizzquiz, wizzquiz, wizzquiz, ROT0,  "Zilec-Zenitone (Konami license)", "Wizz Quiz (Konami version)", GAME_SUPPORTS_SAVE )
 GAME( 1985, wizzquiza, wizzquiz, wizzquiz, wizzquiz, wizzquiz, ROT0,  "Zilec-Zenitone", "Wizz Quiz (version 4)", GAME_SUPPORTS_SAVE )
 GAME( 1987, reaktor,   0,        reaktor,  reaktor,  0,        ROT90, "Zilec", "Reaktor (Track & Field conversion)", GAME_SUPPORTS_SAVE )
-GAME( 1985, yieartf,   yiear,    yieartf,  yieartf, 0,         ROT0,  "Konami", "Yie Ar Kung-Fu (GX361 conversion)", GAME_NO_SOUND | GAME_SUPPORTS_SAVE ) // the conversion looks of bootleg quality, but the code is clearly a very different revision to either original hardware set...

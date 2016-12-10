@@ -22,11 +22,11 @@
 #undef M37710_CALL_DEBUGGER
 
 #define M37710_CALL_DEBUGGER(x) 		debugger_instruction_hook(cpustate->device, x)
-#define m37710_read_8(addr) 			cpustate->program->read_byte(addr)
-#define m37710_write_8(addr,data)		cpustate->program->write_byte(addr,data)
-#define m37710_read_8_immediate(A)		cpustate->program->read_byte(A)
-#define m37710_read_16(addr)			cpustate->program->read_word(addr)
-#define m37710_write_16(addr,data)		cpustate->program->write_word(addr,data)
+#define m37710_read_8(addr) 			memory_read_byte_16le(cpustate->program, addr)
+#define m37710_write_8(addr,data)		memory_write_byte_16le(cpustate->program, addr,data)
+#define m37710_read_8_immediate(A)		memory_read_byte_16le(cpustate->program, A)
+#define m37710_read_16(addr)			memory_read_word_16le(cpustate->program, addr)
+#define m37710_write_16(addr,data)		memory_write_word_16le(cpustate->program, addr,data)
 #define m37710_jumping(A)
 #define m37710_branching(A)
 
@@ -81,8 +81,6 @@ struct _m37710i_cpu_struct
 	uint bb;		/* holds high byte of secondary accumulator */
 	uint x;			/* Index Register X */
 	uint y;			/* Index Register Y */
-	uint xh;		/* holds high byte of x */
-	uint yh;		/* holds high byte of y */
 	uint s;			/* Stack Pointer */
 	uint pc;		/* Program Counter */
 	uint ppc;		/* Previous Program Counter */
@@ -112,8 +110,8 @@ struct _m37710i_cpu_struct
 	uint destination;	/* temp register */
 	device_irq_callback int_ack;
 	legacy_cpu_device *device;
-	address_space *program;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 	uint stopped;		/* Sets how the CPU is stopped */
 	void (*const *opcodes)(m37710i_cpu_struct *cpustate);		/* opcodes with no prefix */
 	void (*const *opcodes42)(m37710i_cpu_struct *cpustate);	/* opcodes with 0x42 prefix */
@@ -129,7 +127,7 @@ struct _m37710i_cpu_struct
 	emu_timer *timers[8];
 };
 
-INLINE m37710i_cpu_struct *get_safe_token(device_t *device)
+INLINE m37710i_cpu_struct *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == M37710 ||
@@ -154,8 +152,6 @@ extern int (*const m37710i_execute[])(m37710i_cpu_struct *cpustate, int cycles);
 #define REG_BB			cpustate->bb		/* Secondary Accumulator hi byte */
 #define REG_X			cpustate->x		/* Index X Register */
 #define REG_Y			cpustate->y		/* Index Y Register */
-#define REG_XH			cpustate->xh		/* X high byte */
-#define REG_YH			cpustate->yh		/* Y high byte */
 #define REG_S			cpustate->s		/* Stack Pointer */
 #define REG_PC			cpustate->pc		/* Program Counter */
 #define REG_PPC			cpustate->ppc		/* Previous Program Counter */

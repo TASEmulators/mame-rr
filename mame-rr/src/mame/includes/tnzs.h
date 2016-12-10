@@ -15,43 +15,52 @@ enum
 	MCU_TNZS
 };
 
-class tnzs_state : public driver_device
+class tnzs_state
 {
 public:
-	tnzs_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, tnzs_state(machine)); }
+
+	tnzs_state(running_machine &machine) { }
 
 	/* memory pointers */
-//  UINT8 *  m_paletteram;    // currently this uses generic palette handling
+	UINT8 *  objram;
+	UINT8 *  vdcram;
+	UINT8 *  scrollram;
+	UINT8 *  objctrl;
+	UINT8 *  bg_flag;
+//  UINT8 *  paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int      m_screenflip;
+	int      screenflip;
 
 	/* sound-related */
-	INT16    *m_sampledata[MAX_SAMPLES];
-	int      m_samplesize[MAX_SAMPLES];
+	INT16    *sampledata[MAX_SAMPLES];
+	int      samplesize[MAX_SAMPLES];
 
 	/* misc / mcu */
-	int      m_kageki_csport_sel;
-	int      m_input_select;
-	int      m_mcu_type;
-	int      m_mcu_initializing;
-	int      m_mcu_coinage_init;
-	int      m_mcu_command;
-	int      m_mcu_readcredits;
-	int      m_mcu_reportcoin;
-	int      m_insertcoin;
-	UINT8    m_mcu_coinage[4];
-	UINT8    m_mcu_coins_a;
-	UINT8    m_mcu_coins_b;
-	UINT8    m_mcu_credits;
-	int      m_bank1;
-	int      m_bank2;
+	int      kageki_csport_sel;
+	int      input_select;
+	int      mcu_type;
+	int      mcu_initializing, mcu_coinage_init, mcu_command, mcu_readcredits;
+	int      mcu_reportcoin;
+	int      insertcoin;
+	UINT8    mcu_coinage[4];
+	UINT8    mcu_coins_a, mcu_coins_b, mcu_credits;
+	int      bank1;
+	int      bank2;
+
+	/* game-specific */
+	// champbwl
+	UINT8    last_trackball_val[2];
+//  UINT8 *  nvram; // currently this uses generic_nvram
+	// cchance
+	UINT8    hop_io, bell_io;
+
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_subcpu;
-	device_t *m_mcu;
+	running_device *audiocpu;
+	running_device *subcpu;
+	running_device *mcu;
 };
 
 
@@ -87,5 +96,5 @@ MACHINE_START( jpopnics );
 /*----------- defined in video/tnzs.c -----------*/
 
 PALETTE_INIT( arknoid2 );
-SCREEN_UPDATE( tnzs );
-SCREEN_EOF( tnzs );
+VIDEO_UPDATE( tnzs );
+VIDEO_EOF( tnzs );

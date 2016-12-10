@@ -15,17 +15,7 @@
 #include "cpu/i8085/i8085.h"
 #include "cpu/mcs48/mcs48.h"
 
-
-class vega_state : public driver_device
-{
-public:
-	vega_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
-static ADDRESS_MAP_START( vega_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( vega_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 ADDRESS_MAP_END
 
@@ -40,28 +30,28 @@ static PALETTE_INIT(vega)
 
 }
 
-static SCREEN_UPDATE(vega)
+static VIDEO_UPDATE(vega)
 {
 	return 0;
 }
 
-static MACHINE_CONFIG_START( vega, vega_state )
-	MCFG_CPU_ADD("maincpu", I8035, 6000000) // what CPU? what speed?
-	MCFG_CPU_PROGRAM_MAP(vega_map)
+static MACHINE_DRIVER_START( vega )
+	MDRV_CPU_ADD("maincpu", I8035, 6000000) // what CPU? what speed?
+	MDRV_CPU_PROGRAM_MAP(vega_map)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(vega)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 28*8-1)
 
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_PALETTE_INIT(vega)
-MACHINE_CONFIG_END
+	MDRV_PALETTE_INIT(vega)
+	MDRV_VIDEO_UPDATE(vega)
+MACHINE_DRIVER_END
 
 ROM_START( vega )
 	ROM_REGION( 0x10000, "maincpu", 0 )
@@ -107,7 +97,7 @@ UINT8 ascii_to_bin( UINT8 ascii )
 DRIVER_INIT(vegaa)
 {
 	UINT8* buf = (UINT8*)malloc(0x10000);
-	UINT8* rom = machine.region("maincpu")->base();
+	UINT8* rom = memory_region(machine,"maincpu");
 	int i;
 	int count = 0;
 	// last 0xc bytes of file are just some settings, ignore
@@ -135,7 +125,7 @@ DRIVER_INIT(vegaa)
 	{
 		FILE *fp;
 		char filename[256];
-		sprintf(filename,"vega_%s", machine.system().name);
+		sprintf(filename,"vega_%s", machine->gamedrv->name);
 		fp=fopen(filename, "w+b");
 		if (fp)
 		{

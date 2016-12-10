@@ -43,7 +43,6 @@ Notes: it's important that "user1" is 0xa0000 bytes with empty space filled
 #include "machine/8255ppi.h"
 #include "sound/ay8910.h"
 #include "video/mc6845.h"
-#include "machine/nvram.h"
 
 #define MASTER_CLOCK			(XTAL_10MHz)
 #define CPU_CLOCK				(MASTER_CLOCK / 4)
@@ -53,47 +52,40 @@ Notes: it's important that "user1" is 0xa0000 bytes with empty space filled
 #define NUM_PENS				(16)
 #define RAM_PALETTE_SIZE		(1024)
 
+static pen_t pens[NUM_PENS];
 
-class merit_state : public driver_device
-{
-public:
-	merit_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+static UINT8 *ram_attr;
+static UINT8 *ram_video;
 
-	void dodge_nvram_init(nvram_device &nvram, void *base, size_t size);
-	pen_t m_pens[NUM_PENS];
-	UINT8 *m_ram_attr;
-	UINT8 *m_ram_video;
-	UINT8 *m_ram_palette;
-	UINT8 m_lscnblk;
-	int m_extra_video_bank_bit;
-	int m_question_address;
-	int m_decryption_key;
-	UINT8 *m_backup_ram;
-};
+static UINT8 *ram_palette;
 
+static UINT8 lscnblk;
+static int extra_video_bank_bit;
+
+static int question_address;
+static int decryption_key;
+
+static UINT8 *backup_ram;
 
 static MACHINE_START(merit)
 {
-	merit_state *state = machine.driver_data<merit_state>();
-	state->m_question_address = 0;
-	state->m_ram_palette = auto_alloc_array(machine, UINT8, RAM_PALETTE_SIZE);
+	question_address = 0;
+	ram_palette = auto_alloc_array(machine, UINT8, RAM_PALETTE_SIZE);
 
-	state_save_register_global_pointer(machine, state->m_ram_palette, RAM_PALETTE_SIZE);
-	state_save_register_global(machine, state->m_lscnblk);
-	state_save_register_global(machine, state->m_extra_video_bank_bit);
-	state_save_register_global(machine, state->m_question_address);
-	state_save_register_global(machine, state->m_decryption_key);
+	state_save_register_global_pointer(machine, ram_palette, RAM_PALETTE_SIZE);
+	state_save_register_global(machine, lscnblk);
+	state_save_register_global(machine, extra_video_bank_bit);
+	state_save_register_global(machine, question_address);
+	state_save_register_global(machine, decryption_key);
 }
 
 
 static READ8_HANDLER( questions_r )
 {
-	merit_state *state = space->machine().driver_data<merit_state>();
-	UINT8 *questions = space->machine().region("user1")->base();
+	UINT8 *questions = memory_region(space->machine, "user1");
 	int address;
 
-	switch(state->m_question_address >> 16)
+	switch(question_address >> 16)
 	{
 		case 0x30: address = 0x00000;
 			break;
@@ -131,64 +123,58 @@ static READ8_HANDLER( questions_r )
  *          break;
  */
 
-		default: logerror("read unknown question rom: %02X\n",state->m_question_address >> 16);
+		default: logerror("read unknown question rom: %02X\n",question_address >> 16);
 			return 0xff;
 	}
 
-	address |= state->m_question_address & 0xffff;
+	address |= question_address & 0xffff;
 
 	return questions[address];
 }
 
 static WRITE8_HANDLER( low_offset_w )
 {
-	merit_state *state = space->machine().driver_data<merit_state>();
-	offset = (offset & 0xf0) | ((offset - state->m_decryption_key) & 0x0f);
+	offset = (offset & 0xf0) | ((offset - decryption_key) & 0x0f);
 	offset = BITSWAP8(offset,7,6,5,4,0,1,2,3);
-	state->m_question_address = (state->m_question_address & 0xffff00) | offset;
+	question_address = (question_address & 0xffff00) | offset;
 }
 
 static WRITE8_HANDLER( med_offset_w )
 {
-	merit_state *state = space->machine().driver_data<merit_state>();
-	offset = (offset & 0xf0) | ((offset - state->m_decryption_key) & 0x0f);
+	offset = (offset & 0xf0) | ((offset - decryption_key) & 0x0f);
 	offset = BITSWAP8(offset,7,6,5,4,0,1,2,3);
-	state->m_question_address = (state->m_question_address & 0xff00ff) | (offset << 8);
+	question_address = (question_address & 0xff00ff) | (offset << 8);
 }
 
 static WRITE8_HANDLER( high_offset_w )
 {
-	merit_state *state = space->machine().driver_data<merit_state>();
 	offset = BITSWAP8(offset,7,6,5,4,0,1,2,3);
-	state->m_question_address = (state->m_question_address & 0x00ffff) | (offset << 16);
+	question_address = (question_address & 0x00ffff) | (offset << 16);
 }
 
 static READ8_HANDLER( palette_r )
 {
-	merit_state *state = space->machine().driver_data<merit_state>();
 	int co;
 
-	co = ((state->m_ram_attr[offset] & 0x7F) << 3) | (offset & 0x07);
-	return state->m_ram_palette[co];
+	co = ((ram_attr[offset] & 0x7F) << 3) | (offset & 0x07);
+	return ram_palette[co];
 }
 
 static WRITE8_HANDLER( palette_w )
 {
-	merit_state *state = space->machine().driver_data<merit_state>();
 	int co;
 
-	space->machine().primary_screen->update_now();
+	space->machine->primary_screen->update_now();
 	data &= 0x0f;
 
-	co = ((state->m_ram_attr[offset] & 0x7F) << 3) | (offset & 0x07);
-	state->m_ram_palette[co] = data;
+	co = ((ram_attr[offset] & 0x7F) << 3) | (offset & 0x07);
+	ram_palette[co] = data;
 
 }
 
 
 static MC6845_BEGIN_UPDATE( begin_update )
 {
-	merit_state *state = device->machine().driver_data<merit_state>();
 	int i;
 	int dim, bit0, bit1, bit2;
 
@@ -198,16 +184,15 @@ static MC6845_BEGIN_UPDATE( begin_update )
 		bit0 = BIT(i,0);
 		bit1 = BIT(i,1);
 		bit2 = BIT(i,2);
-		state->m_pens[i] = MAKE_RGB(dim*bit0, dim*bit1, dim*bit2);
+		pens[i] = MAKE_RGB(dim*bit0, dim*bit1, dim*bit2);
 	}
 
-	return state->m_pens;
+	return pens;
 }
 
 
 static MC6845_UPDATE_ROW( update_row )
 {
-	merit_state *state = device->machine().driver_data<merit_state>();
 	UINT8 cx;
 
 	pen_t *pens = (pen_t *)param;
@@ -215,17 +200,17 @@ static MC6845_UPDATE_ROW( update_row )
 	UINT16 x = 0;
 	int rlen;
 
-	gfx[0] = device->machine().region("gfx1")->base();
-	gfx[1] = device->machine().region("gfx2")->base();
-	rlen = device->machine().region("gfx2")->bytes();
+	gfx[0] = memory_region(device->machine, "gfx1");
+	gfx[1] = memory_region(device->machine, "gfx2");
+	rlen = memory_region_length(device->machine, "gfx2");
 
 	//ma = ma ^ 0x7ff;
 	for (cx = 0; cx < x_count; cx++)
 	{
 		int i;
-		int attr = state->m_ram_attr[ma & 0x7ff];
+		int attr = ram_attr[ma & 0x7ff];
 		int region = (attr & 0x40) >> 6;
-		int addr = ((state->m_ram_video[ma & 0x7ff] | ((attr & 0x80) << 1) | (state->m_extra_video_bank_bit)) << 4) | (ra & 0x0f);
+		int addr = ((ram_video[ma & 0x7ff] | ((attr & 0x80) << 1) | (extra_video_bank_bit)) << 4) | (ra & 0x0f);
 		int colour = (attr & 0x7f) << 3;
 		UINT8	*data;
 
@@ -245,8 +230,8 @@ static MC6845_UPDATE_ROW( update_row )
 			else
 				col |= 0x03;
 
-			col = state->m_ram_palette[col & 0x3ff];
-			*BITMAP_ADDR32(bitmap, y, x) = pens[col ? col : (state->m_lscnblk ? 8 : 0)];
+			col = ram_palette[col & 0x3ff];
+			*BITMAP_ADDR32(bitmap, y, x) = pens[col ? col : (lscnblk ? 8 : 0)];
 
 			x++;
 		}
@@ -258,12 +243,12 @@ static MC6845_UPDATE_ROW( update_row )
 static WRITE_LINE_DEVICE_HANDLER(hsync_changed)
 {
 	/* update any video up to the current scanline */
-	device->machine().primary_screen->update_now();
+	device->machine->primary_screen->update_now();
 }
 
 static WRITE_LINE_DEVICE_HANDLER(vsync_changed)
 {
-	cputag_set_input_line(device->machine(), "maincpu", 0, state ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(device->machine, "maincpu", 0, state ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const mc6845_interface mc6845_intf =
@@ -283,60 +268,58 @@ static const mc6845_interface mc6845_intf =
 static WRITE8_DEVICE_HANDLER( led1_w )
 {
 	/* 5 button lamps player 1 */
-	set_led_status(device->machine(), 0,~data & 0x01);
-	set_led_status(device->machine(), 1,~data & 0x02);
-	set_led_status(device->machine(), 2,~data & 0x04);
-	set_led_status(device->machine(), 3,~data & 0x08);
-	set_led_status(device->machine(), 4,~data & 0x10);
+	set_led_status(device->machine, 0,~data & 0x01);
+	set_led_status(device->machine, 1,~data & 0x02);
+	set_led_status(device->machine, 2,~data & 0x04);
+	set_led_status(device->machine, 3,~data & 0x08);
+	set_led_status(device->machine, 4,~data & 0x10);
 }
 
 static WRITE8_DEVICE_HANDLER( led2_w )
 {
 	/* 5 button lamps player 2 */
-	set_led_status(device->machine(), 5,~data & 0x01);
-	set_led_status(device->machine(), 6,~data & 0x02);
-	set_led_status(device->machine(), 7,~data & 0x04);
-	set_led_status(device->machine(), 8,~data & 0x08);
-	set_led_status(device->machine(), 9,~data & 0x10);
+	set_led_status(device->machine, 5,~data & 0x01);
+	set_led_status(device->machine, 6,~data & 0x02);
+	set_led_status(device->machine, 7,~data & 0x04);
+	set_led_status(device->machine, 8,~data & 0x08);
+	set_led_status(device->machine, 9,~data & 0x10);
 
 	/* coin counter */
-	coin_counter_w(device->machine(),0,0x80-(data & 0x80));
+	coin_counter_w(device->machine,0,0x80-(data & 0x80));
 }
 
 static WRITE8_DEVICE_HANDLER( misc_w )
 {
-	merit_state *state = device->machine().driver_data<merit_state>();
-	flip_screen_set(device->machine(), ~data & 0x10);
-	state->m_extra_video_bank_bit = (data & 2) << 8;
-	state->m_lscnblk = (data >> 3) & 1;
+	flip_screen_set(device->machine, ~data & 0x10);
+	extra_video_bank_bit = (data & 2) << 8;
+	lscnblk = (data >> 3) & 1;
 
 	/* other bits unknown */
 }
 
 static WRITE8_DEVICE_HANDLER( misc_couple_w )
 {
-	merit_state *state = device->machine().driver_data<merit_state>();
-	flip_screen_set(device->machine(), ~data & 0x10);
-	state->m_extra_video_bank_bit = (data & 2) << 8;
-	state->m_lscnblk = (data >> 3) & 1;
+	flip_screen_set(device->machine, ~data & 0x10);
+	extra_video_bank_bit = (data & 2) << 8;
+	lscnblk = (data >> 3) & 1;
 
 	/* other bits unknown */
 
 	/*kludge to avoid jumps on ram area in The Couples*/
-	state->m_backup_ram[0x1011] = 0xc9; //ret
+	backup_ram[0x1011] = 0xc9; //ret
 }
 
 static WRITE8_HANDLER(casino5_bank_w)
 {
 	if ( data == 0 )
 	{
-		memory_set_bank(space->machine(), "bank1", 1);
-		memory_set_bank(space->machine(), "bank2", 1);
+		memory_set_bank(space->machine, "bank1", 1);
+		memory_set_bank(space->machine, "bank2", 1);
 	}
 	else if ( data == 0xff )
 	{
-		memory_set_bank(space->machine(), "bank1", 0);
-		memory_set_bank(space->machine(), "bank2", 0);
+		memory_set_bank(space->machine, "bank1", 0);
+		memory_set_bank(space->machine, "bank2", 0);
 	}
 	else
 	{
@@ -346,58 +329,58 @@ static WRITE8_HANDLER(casino5_bank_w)
 
 static CUSTOM_INPUT(rndbit_r)
 {
-	return field.machine().rand();
+	return mame_rand(field->port->machine);
 }
 
-static ADDRESS_MAP_START( pitboss_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( pitboss_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6000, 0x67ff) AM_RAM
 	AM_RANGE(0xa000, 0xa003) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0xc000, 0xc003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( casino5_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( casino5_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x3fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x4000, 0x5fff) AM_ROMBANK("bank2")
-	AM_RANGE(0x6000, 0x6fff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x6000, 0x6fff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x7000, 0x7000) AM_WRITE(casino5_bank_w)
 	AM_RANGE(0x7001, 0x7fff) AM_RAM
 	AM_RANGE(0xa000, 0xa003) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0xc000, 0xc003) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( bigappg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bigappg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
-	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0xc004, 0xc007) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
 	AM_RANGE(0xc008, 0xc00b) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( dodge_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dodge_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
-	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0xc004, 0xc007) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0xc008, 0xc00b) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
@@ -406,7 +389,7 @@ ADDRESS_MAP_END
  * ==> mirror 1DF3 & ~effective_addr_lines
  * */
 
-static ADDRESS_MAP_START( trvwhiz_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( trvwhiz_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4c00, 0x4cff) AM_READWRITE(questions_r, high_offset_w)
 	AM_RANGE(0x5400, 0x54ff) AM_WRITE(low_offset_w)
@@ -414,20 +397,20 @@ static ADDRESS_MAP_START( trvwhiz_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x6000, 0x67ff) AM_RAM
 	AM_RANGE(0xa000, 0xa003) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0xc000, 0xc003) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( trvwhiz_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( trvwhiz_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x8000, 0x8000) AM_DEVWRITE("aysnd", ay8910_address_w)
 	AM_RANGE(0x8100, 0x8100) AM_DEVWRITE("aysnd", ay8910_data_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( phrcraze_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( phrcraze_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xa000, 0xbfff) AM_RAM
 	AM_RANGE(0xc008, 0xc00b) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
@@ -435,20 +418,20 @@ static ADDRESS_MAP_START( phrcraze_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xce00, 0xceff) AM_READWRITE(questions_r, high_offset_w)
 	AM_RANGE(0xd600, 0xd6ff) AM_WRITE(low_offset_w)
 	AM_RANGE(0xda00, 0xdaff) AM_WRITE(med_offset_w)
-	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( phrcraze_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( phrcraze_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0xc004, 0xc004) AM_MIRROR(0x1cf3) AM_DEVWRITE("aysnd", ay8910_address_w)
 	AM_RANGE(0xc104, 0xc104) AM_MIRROR(0x1cf3) AM_DEVWRITE("aysnd", ay8910_data_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( tictac_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tictac_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x9fff) AM_RAM
 	AM_RANGE(0xc004, 0xc007) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
@@ -456,20 +439,20 @@ static ADDRESS_MAP_START( tictac_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xce00, 0xceff) AM_READWRITE(questions_r, high_offset_w)
 	AM_RANGE(0xd600, 0xd6ff) AM_WRITE(low_offset_w)
 	AM_RANGE(0xda00, 0xdaff) AM_WRITE(med_offset_w)
-	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tictac_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( tictac_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0xc00c, 0xc00c) AM_MIRROR(0x1cf3) AM_DEVWRITE("aysnd", ay8910_address_w)
 	AM_RANGE(0xc10c, 0xc10c) AM_MIRROR(0x1cf3) AM_DEVWRITE("aysnd", ay8910_data_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( trvwhziv_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( trvwhziv_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0xa000, 0xbfff) AM_RAM
 	AM_RANGE(0xc004, 0xc007) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
@@ -477,39 +460,23 @@ static ADDRESS_MAP_START( trvwhziv_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xce00, 0xceff) AM_READWRITE(questions_r, high_offset_w)
 	AM_RANGE(0xd600, 0xd6ff) AM_WRITE(low_offset_w)
 	AM_RANGE(0xda00, 0xdaff) AM_WRITE(med_offset_w)
-	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( dtrvwz5_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x7fff) AM_ROM
-	AM_RANGE(0x8000, 0x9fff) AM_RAM AM_SHARE("nvram")
-	AM_RANGE(0xb000, 0xb0ff) AM_ROM /* protection? code jumps here */
-	AM_RANGE(0xc004, 0xc007) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xc008, 0xc00b) AM_MIRROR(0x1df0) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xce00, 0xceff) AM_READWRITE(questions_r, high_offset_w)
-	AM_RANGE(0xd600, 0xd6ff) AM_WRITE(low_offset_w)
-	AM_RANGE(0xda00, 0xdaff) AM_WRITE(med_offset_w)
-	AM_RANGE(0xe000, 0xe000) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_MIRROR(0x05f0) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
-	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
-ADDRESS_MAP_END
-
-static ADDRESS_MAP_START( couple_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( couple_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x9fff) AM_ROMBANK("bank1")
-	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_BASE_MEMBER(merit_state, m_backup_ram)
+	AM_RANGE(0xa000, 0xbfff) AM_RAM AM_BASE(&backup_ram)
 	AM_RANGE(0xc004, 0xc007) AM_DEVREADWRITE("ppi8255_0", ppi8255_r, ppi8255_w)
 	AM_RANGE(0xc008, 0xc00b) AM_DEVREADWRITE("ppi8255_1", ppi8255_r, ppi8255_w)
-	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
-	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_attr)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE_MEMBER(merit_state, m_ram_video)
+	AM_RANGE(0xe000, 0xe000) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xe001, 0xe001) AM_DEVWRITE("crtc", mc6845_register_w)
+	AM_RANGE(0xe800, 0xefff) AM_RAM AM_BASE(&ram_attr)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM AM_BASE(&ram_video)
 	AM_RANGE(0xf800, 0xfbff) AM_READWRITE(palette_r, palette_w)
 ADDRESS_MAP_END
 
@@ -811,33 +778,6 @@ static INPUT_PORTS_START( trvwhziv )
 	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )	/* no coinage DSW */
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-INPUT_PORTS_END
-
-static INPUT_PORTS_START( dtrvwh5 )
-	PORT_INCLUDE( trivia )
-
-	PORT_MODIFY("DSW")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unused ) )
-	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x02, "Answers Shown" )
-	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unused ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x08, 0x08, "Hi Scores Retained" )
-	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x10, DEF_STR( Unused ) )
-	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unused ) )
-	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, "Cocktail Type" )
-	PORT_DIPSETTING(    0x80, "Regular Cocktail" )
-	PORT_DIPSETTING(    0x00, "Single Side Cocktail" )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( pitboss )
@@ -1153,10 +1093,10 @@ static INPUT_PORTS_START( couplep )
 INPUT_PORTS_END
 
 
-static SCREEN_UPDATE( merit )
+static VIDEO_UPDATE( merit )
 {
-	mc6845_device *mc6845 = screen->machine().device<mc6845_device>("crtc");
-	mc6845->update(bitmap, cliprect);
+	running_device *mc6845 = screen->machine->device("crtc");
+	mc6845_update(mc6845, bitmap, cliprect);
 
 	return 0;
 }
@@ -1209,121 +1149,133 @@ static const ay8910_interface merit_ay8912_interface =
 	DEVCB_HANDLER(led2_w), DEVCB_NULL
 };
 
-void merit_state::dodge_nvram_init(nvram_device &nvram, void *base, size_t size)
+static NVRAM_HANDLER(dodge)
 {
-	memset(base, 0x00, size);
-	reinterpret_cast<UINT8 *>(base)[0x1040] = 0xc9; /* ret */
+	if (read_or_write)
+	{
+		mame_fwrite(file, machine->generic.nvram.v, machine->generic.nvram_size);
+	}
+	else if (file)
+	{
+		mame_fread(file, machine->generic.nvram.v, machine->generic.nvram_size);
+	}
+	else
+	{
+		memset(machine->generic.nvram.v, 0x00, machine->generic.nvram_size);
+		machine->generic.nvram.u8[0x1040] = 0xc9; /* ret */
+	}
 }
 
 static MACHINE_START(casino5)
 {
 	MACHINE_START_CALL(merit);
-	memory_configure_bank(machine, "bank1", 0, 2, machine.region("maincpu")->base() + 0x2000, 0x2000);
-	memory_configure_bank(machine, "bank2", 0, 2, machine.region("maincpu")->base() + 0x6000, 0x2000);
+	memory_configure_bank(machine, "bank1", 0, 2, memory_region(machine, "maincpu") + 0x2000, 0x2000);
+	memory_configure_bank(machine, "bank2", 0, 2, memory_region(machine, "maincpu") + 0x6000, 0x2000);
 	memory_set_bank(machine, "bank1", 0);
 	memory_set_bank(machine, "bank2", 0);
 }
 
-static MACHINE_CONFIG_START( pitboss, merit_state )
-	MCFG_CPU_ADD("maincpu",Z80, CPU_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(pitboss_map)
-	MCFG_CPU_IO_MAP(trvwhiz_io_map)
+static MACHINE_DRIVER_START( pitboss )
+	MDRV_CPU_ADD("maincpu",Z80, CPU_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(pitboss_map)
+	MDRV_CPU_IO_MAP(trvwhiz_io_map)
 
-	MCFG_PPI8255_ADD( "ppi8255_0", ppi8255_intf[0] )
-	MCFG_PPI8255_ADD( "ppi8255_1", ppi8255_intf[1] )
+	MDRV_PPI8255_ADD( "ppi8255_0", ppi8255_intf[0] )
+	MDRV_PPI8255_ADD( "ppi8255_1", ppi8255_intf[1] )
 
-	MCFG_MACHINE_START(merit)
+	MDRV_MACHINE_START(merit)
 	/* video hardware */
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 512, 0, 512, 256, 0, 256)	/* temporary, CRTC will configure screen */
-	MCFG_SCREEN_UPDATE(merit)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 512, 0, 512, 256, 0, 256)	/* temporary, CRTC will configure screen */
 
-	MCFG_MC6845_ADD("crtc", MC6845, CRTC_CLOCK, mc6845_intf)
+	MDRV_MC6845_ADD("crtc", MC6845, CRTC_CLOCK, mc6845_intf)
 
+	MDRV_VIDEO_UPDATE(merit)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, CRTC_CLOCK)
-	MCFG_SOUND_CONFIG(merit_ay8912_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.33)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, CRTC_CLOCK)
+	MDRV_SOUND_CONFIG(merit_ay8912_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.33)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( casino5, pitboss )
+static MACHINE_DRIVER_START( casino5 )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(casino5_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(casino5_map)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-	MCFG_MACHINE_START(casino5)
-MACHINE_CONFIG_END
+	MDRV_MACHINE_START(casino5)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( bigappg, pitboss )
+static MACHINE_DRIVER_START( bigappg )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(bigappg_map)
-	MCFG_CPU_IO_MAP(tictac_io_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(bigappg_map)
+	MDRV_CPU_IO_MAP(tictac_io_map)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
-MACHINE_CONFIG_END
+	MDRV_NVRAM_HANDLER(generic_0fill)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( dodge, pitboss )
+static MACHINE_DRIVER_START( dodge )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(dodge_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(dodge_map)
 
-	MCFG_NVRAM_REPLACE_CUSTOM("nvram", merit_state, dodge_nvram_init)
-MACHINE_CONFIG_END
+	MDRV_NVRAM_HANDLER(dodge)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( tictac, pitboss )
+static MACHINE_DRIVER_START( tictac )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(tictac_map)
-	MCFG_CPU_IO_MAP(tictac_io_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(tictac_map)
+	MDRV_CPU_IO_MAP(tictac_io_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( trvwhiz, pitboss )
+static MACHINE_DRIVER_START( trvwhiz )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(trvwhiz_map)
-	MCFG_CPU_IO_MAP(trvwhiz_io_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(trvwhiz_map)
+	MDRV_CPU_IO_MAP(trvwhiz_io_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( dtrvwz5, pitboss )
+static MACHINE_DRIVER_START( phrcraze )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(dtrvwz5_map)
-	MCFG_CPU_IO_MAP(tictac_io_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(phrcraze_map)
+	MDRV_CPU_IO_MAP(phrcraze_io_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( phrcraze, pitboss )
+static MACHINE_DRIVER_START( trvwhziv )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(phrcraze_map)
-	MCFG_CPU_IO_MAP(phrcraze_io_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(trvwhziv_map)
+	MDRV_CPU_IO_MAP(tictac_io_map)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( trvwhziv, pitboss )
+static MACHINE_DRIVER_START( couple )
+	MDRV_IMPORT_FROM(pitboss)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(trvwhziv_map)
-	MCFG_CPU_IO_MAP(tictac_io_map)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(couple_map)
+	MDRV_CPU_IO_MAP(tictac_io_map)
 
-static MACHINE_CONFIG_DERIVED( couple, pitboss )
-
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(couple_map)
-	MCFG_CPU_IO_MAP(tictac_io_map)
-
-	MCFG_DEVICE_MODIFY("ppi8255_0")
-	MCFG_DEVICE_CONFIG( ppi8255_couple_intf[0])
-	MCFG_DEVICE_MODIFY("ppi8255_1")
-	MCFG_DEVICE_CONFIG( ppi8255_couple_intf[1])
-MACHINE_CONFIG_END
+	MDRV_DEVICE_MODIFY("ppi8255_0")
+	MDRV_DEVICE_CONFIG( ppi8255_couple_intf[0])
+	MDRV_DEVICE_MODIFY("ppi8255_1")
+	MDRV_DEVICE_CONFIG( ppi8255_couple_intf[1])
+MACHINE_DRIVER_END
 
 
 ROM_START( pitboss )
@@ -1705,31 +1657,6 @@ ROM_START( trvwz4a )
 	ROM_LOAD( "merit2_5.0",  0x08000, 0x8000, CRC(e07d139f) SHA1(e364dcc628719c1bcdc119bdb2f3c98b5538c411) ) // sex trivia III
 ROM_END
 
-ROM_START( dtrvwz5 )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "6221-70_u5-0a.u5", 0x0000, 0x8000, CRC(e5917a71) SHA1(2acebe337600cd490da1c6fb2d83e2e378e584f1) )
-
-	ROM_REGION( 0x6000, "gfx1", 0 )
-	ROM_LOAD( "trv3.u39", 0x0000, 0x2000, CRC(81a34357) SHA1(87ae9db78f043dbdcd1d50473fc09284eceaf884) )
-	ROM_LOAD( "trv3.u38", 0x2000, 0x2000, CRC(c4082020) SHA1(744dc8745f3d54754184571b64664ee5c1497fb4) )
-	ROM_LOAD( "trv3.u37", 0x4000, 0x2000, CRC(5e5e6fb3) SHA1(c182233367de6c9cda0e49a5958bb07460a5f300) )
-
-	ROM_REGION( 0x2000, "gfx2", 0 )
-	ROM_LOAD( "trv3.u40", 0x0000, 0x2000, CRC(a2c934f2) SHA1(214cc1f47c11618457a7885712585c977107cab7) )
-
-	ROM_REGION( 0xa0000, "user1", ROMREGION_ERASEFF ) /* questions */
-	ROM_LOAD( "tw5-06_fif-1.1",  0x08000, 0x8000, CRC(300f245c) SHA1(9c380000ba5a6c826025e32f0e46932e234b46bc) )
-	ROM_LOAD( "tw5-06_fif-2.2",  0x18000, 0x8000, CRC(99ee9cbe) SHA1(d6a4a604a070436b0acb1c774687f6c2266c8807) )
-	ROM_LOAD( "tw5-06_six-1.3",  0x28000, 0x8000, CRC(87354939) SHA1(6e3de6df944da75e28d36dce3cca9b45a8936bf4) )
-	ROM_LOAD( "tw5-06_six-2.4",  0x38000, 0x8000, CRC(ea8ed7ae) SHA1(2c084a88773e6f611a6cc6d847b9d74f5c8bfc77) )
-	ROM_LOAD( "tw5-06_sev-1.5",  0x48000, 0x8000, CRC(fd5099aa) SHA1(81e978597aa348c77001f72763744491cfdad1d1) )
-	ROM_LOAD( "tw5-06_sev-2.6",  0x58000, 0x8000, CRC(523520c8) SHA1(7dff9cda1ade5d3b4e573e77b7ec93ee8ae13c86) )
-	ROM_LOAD( "tw5-06_eig-1.7",  0x68000, 0x8000, CRC(3a2a4562) SHA1(45565622d7057047b02050dcd34ff6f02663507d) )
-	ROM_LOAD( "tw5-06_eig-2.8",  0x78000, 0x8000, CRC(cb7e9035) SHA1(d3344fb318f2241c07933c4b8e3525c219ea3aa6) )
-	ROM_LOAD( "tw5-06_sx5-1.9",  0x88000, 0x8000, CRC(6ae2a208) SHA1(3cc935e616c247c6885319acc6a6ca92ee6fc3c0) )
-	ROM_LOAD( "tw5-06_sx5-2.10", 0x98000, 0x8000, CRC(790184fc) SHA1(9c8b56852b31d3312f26a5901487f6b31d9e9b4f) )
-ROM_END
-
 /*
 
 crt200 rev e-1
@@ -1776,29 +1703,6 @@ ROM_START( tictac )
 	ROM_LOAD( "merit.pb8",    0x78000, 0x8000, CRC(206cfc0d) SHA1(78f6b684713459a617096aa3ffe6e9e62583938c) )
 	ROM_LOAD( "merit.pb9",    0x88000, 0x8000, CRC(9333dbca) SHA1(dd87e6f69d60580fdb6f979398edbeb1a51be355) )
 	ROM_LOAD( "merit.pba",    0x98000, 0x8000, CRC(6eda81f4) SHA1(6d64344691e3e52035a7d30fb3e762f0bd397db7) )
-ROM_END
-
-ROM_START( tictacv )
-	ROM_REGION( 0x10000, "maincpu", 0 )
-	ROM_LOAD( "6221-22_u5-0.u5",  0x00000, 0x8000,  CRC(c3acd686) SHA1(0c652e88675e2098be2f26e8f1acefc9e69d630f) )
-
-	ROM_REGION( 0x6000, "gfx1", 0 )
-	ROM_LOAD( "ttts_u-39.u39",    0x00000, 0x2000, CRC(20103ed6) SHA1(52741ba8e3b57a32446d3bf4d6f6d8368954fd54) )
-	ROM_LOAD( "ttts_u-38.u38",    0x02000, 0x2000, CRC(32e791b9) SHA1(f206aef25b3a9b7042d804e628c356f7d8d3cdbe) )
-	ROM_LOAD( "ttts_u-37.u37",    0x04000, 0x2000, CRC(adf19f83) SHA1(af2c0b9782f8e93a7c5e2a5ecc937694773d8ad0) )
-
-	ROM_REGION( 0x2000, "gfx2", 0 )
-	ROM_LOAD( "ttts_u-40.u40",    0x00000, 0x2000, CRC(c7071c98) SHA1(88e1b26f198cfbbd86b492356f60fc1b81b38d97) )
-
-	ROM_REGION( 0xa0000, "user1", ROMREGION_ERASEFF ) /* questions */
-	ROM_LOAD( "gen-004_01a.7",    0x08000, 0x8000, CRC(d1584173) SHA1(7a2190203f478f446cc70c473c345e7cc332e049) ) /* Trivia catagories are: */
-	ROM_LOAD( "gen-004_02a.8",    0x18000, 0x8000, CRC(d00ab1fd) SHA1(c94269c8a478e88f71aeca94c6f20fc05a9c62bd) ) /* General Interest, Sports, Entertainment & Sex Trivia III */
-	ROM_LOAD( "spo-004_01a.1",    0x28000, 0x8000, CRC(71b398a9) SHA1(5ea07c409afd52c7d08592b30ff0ff3b72c3f8c3) )
-	ROM_LOAD( "spo-004_02a.2",    0x38000, 0x8000, CRC(eb34672f) SHA1(c472fc4445fc434029a2740dfc1d9ab9b1ef9f87) )
-	ROM_LOAD( "spo-004_03a.3",    0x48000, 0x8000, CRC(8eea30b9) SHA1(fe1d0332106631f56bc6c57a888da9e4e63fa52f) )
-	ROM_LOAD( "ent-004_01.4",     0x58000, 0x8000, CRC(3f45064d) SHA1(de109ac0b19fd1cd7f0020cc174c2da21708108c) )
-	ROM_LOAD( "ent-004_02a.5",    0x68000, 0x8000, CRC(f1c446cd) SHA1(9a6f18defbb64e202ae12e1a59502b8f2d6a58a6) )
-	ROM_LOAD( "ent-004_03.6",     0x78000, 0x8000, CRC(206cfc0d) SHA1(78f6b684713459a617096aa3ffe6e9e62583938c) )
 ROM_END
 
 ROM_START( phrcraze )
@@ -1995,41 +1899,36 @@ ROM_END
 
 static DRIVER_INIT( key_0 )
 {
-	merit_state *state = machine.driver_data<merit_state>();
-	state->m_decryption_key = 0;
+	decryption_key = 0;
 }
 
 static DRIVER_INIT( key_2 )
 {
-	merit_state *state = machine.driver_data<merit_state>();
-	state->m_decryption_key = 2;
+	decryption_key = 2;
 }
 
 static DRIVER_INIT( key_4 )
 {
-	merit_state *state = machine.driver_data<merit_state>();
-	state->m_decryption_key = 4;
+	decryption_key = 4;
 }
 
 static DRIVER_INIT( key_5 )
 {
-	merit_state *state = machine.driver_data<merit_state>();
-	state->m_decryption_key = 5;
+	decryption_key = 5;
 }
 
 static DRIVER_INIT( key_7 )
 {
-	merit_state *state = machine.driver_data<merit_state>();
-	state->m_decryption_key = 7;
+	decryption_key = 7;
 }
 
 static DRIVER_INIT( couple )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	#if 0 //quick rom compare test
 	{
-		int i,r;
+		static int i,r;
 		r = 0;
 		for(i=0;i<0x2000;i++)
 		{
@@ -2048,39 +1947,10 @@ static DRIVER_INIT( couple )
 	memory_set_bankptr(machine, "bank1",ROM + 0x10000 + (0x2000 * 2));
 }
 
-static DRIVER_INIT( dtrvwz5 )
-{
-	merit_state *state = machine.driver_data<merit_state>();
-	int i;
-	UINT8 *ROM = machine.region("maincpu")->base();
-	/* fill b000 - b0ff with ret 0xc9 */
-	for ( i = 0xb000; i < 0xb100; i++ )
-		ROM[i] = 0xc9;
-
-	ROM[0xb000] = 0xc9; /* ret */
-
-	/* called by subroutine which reads inputs */
-	ROM[0xb001] = 0x7a; /* ld   a,d */
-	ROM[0xb002] = 0xa4; /* and  h */
-	ROM[0xb003] = 0x47; /* ld   b,a */
-	ROM[0xb004] = 0x7b; /* ld   a,e */
-	ROM[0xb005] = 0xa5; /* and  l */
-	ROM[0xb006] = 0x4f; /* ld   c,a */
-	ROM[0xb007] = 0x7a; /* ld   a,d */
-	ROM[0xb008] = 0xb4; /* or   h */
-	ROM[0xb009] = 0x57; /* ld   d,a */
-	ROM[0xb00a] = 0x7b; /* ld   a,e */
-	ROM[0xb00b] = 0xb5; /* or   l */
-	ROM[0xb00c] = 0x5f; /* ld   e,a */
-	ROM[0xb00a] = 0xc9; /* ret */
-
-	state->m_decryption_key = 6;
-}
-
-GAME( 1983, pitboss,  0,       pitboss,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (set 1)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1983, pitbossa, pitboss, pitboss,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (set 2)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1983, pitbossb, pitboss, pitboss,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (set 3)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1983, pitbossc, pitboss, casino5,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (set 4)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1983, pitboss,  0,       pitboss,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (Set 1)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1983, pitbossa, pitboss, pitboss,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (Set 2)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1983, pitbossb, pitboss, pitboss,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (Set 3)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1983, pitbossc, pitboss, casino5,  pitboss,  0,      ROT0,  "Merit", "The Pit Boss (Set 4)",                        GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
 
 GAME( 1984, casino5,  0,       casino5,  casino5,  0,      ROT0,  "Merit", "Casino Five",                                 GAME_SUPPORTS_SAVE )
 
@@ -2100,8 +1970,7 @@ GAME( 1985, trvwz3v,  trvwz3h, trvwhiz,  trivia,   key_0,  ROT90, "Merit", "Triv
 GAME( 1985, trvwz4,   0,       trvwhziv, trvwhziv, key_5,  ROT90, "Merit", "Trivia ? Whiz (Edition 4) (question set 1)",  GAME_SUPPORTS_SAVE )
 GAME( 1985, trvwz4a,  trvwz4,  trvwhziv, trvwhziv, key_5,  ROT90, "Merit", "Trivia ? Whiz (Edition 4) (question set 2)",  GAME_SUPPORTS_SAVE )
 
-GAME( 1985, tictac,   0,       tictac,   tictac,   key_4,  ROT0,  "Merit", "Tic Tac Trivia (Horizontal)",                 GAME_SUPPORTS_SAVE )
-GAME( 1985, tictacv,  tictac,  tictac,   tictac,   key_4,  ROT90, "Merit", "Tic Tac Trivia (Vertical)",                   GAME_SUPPORTS_SAVE )
+GAME( 1985, tictac,   0,       tictac,   tictac,   key_4,  ROT0,  "Merit", "Tic Tac Trivia",                              GAME_SUPPORTS_SAVE )
 
 GAME( 1986, phrcraze, 0,       phrcraze, phrcraze, key_7,  ROT0,  "Merit", "Phraze Craze (set 1)",                        GAME_SUPPORTS_SAVE )
 GAME( 1986, phrcrazea,phrcraze,phrcraze, phrcraze, key_7,  ROT0,  "Merit", "Phraze Craze (set 2)",                        GAME_SUPPORTS_SAVE )
@@ -2113,8 +1982,6 @@ GAME( 1986, bigappg,  0,       bigappg,  bigappg,  0,      ROT0,  "Merit", "Big 
 
 GAME( 1986, dodge,    0,       dodge,    couple,   0,      ROT0,  "Merit", "Dodge City",                                  GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS | GAME_NOT_WORKING )
 
-GAME( 1987, dtrvwz5,  0,       dtrvwz5,  dtrvwh5,  dtrvwz5,ROT0,  "Merit", "Deluxe Trivia ? Whiz (Edition 5)",  GAME_SUPPORTS_SAVE )
-
-GAME( 1988, couple,   0,       couple,   couple,   couple, ROT0,  "Merit", "The Couples (set 1)",                         GAME_IMPERFECT_GRAPHICS | GAME_UNEMULATED_PROTECTION )
-GAME( 1988, couplep,  couple,  couple,   couplep,  couple, ROT0,  "Merit", "The Couples (set 2)",                         GAME_IMPERFECT_GRAPHICS | GAME_UNEMULATED_PROTECTION )
-GAME( 1988, couplei,  couple,  couple,   couple,   couple, ROT0,  "Merit", "The Couples (set 3)",                         GAME_IMPERFECT_GRAPHICS | GAME_UNEMULATED_PROTECTION )
+GAME( 1988, couple,   0,       couple,   couple,   couple, ROT0,  "Merit", "The Couples (Set 1)",                         GAME_IMPERFECT_GRAPHICS | GAME_UNEMULATED_PROTECTION )
+GAME( 1988, couplep,  couple,  couple,   couplep,  couple, ROT0,  "Merit", "The Couples (Set 2)",                         GAME_IMPERFECT_GRAPHICS | GAME_UNEMULATED_PROTECTION )
+GAME( 1988, couplei,  couple,  couple,   couple,   couple, ROT0,  "Merit", "The Couples (Set 3)",                         GAME_IMPERFECT_GRAPHICS | GAME_UNEMULATED_PROTECTION )

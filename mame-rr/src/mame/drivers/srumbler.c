@@ -15,7 +15,18 @@
 #include "deprecat.h"
 #include "cpu/m6809/m6809.h"
 #include "sound/2203intf.h"
-#include "includes/srumbler.h"
+
+extern UINT8 *srumbler_backgroundram,*srumbler_foregroundram;
+
+WRITE8_HANDLER( srumbler_background_w );
+WRITE8_HANDLER( srumbler_foreground_w );
+WRITE8_HANDLER( srumbler_scroll_w );
+WRITE8_HANDLER( srumbler_4009_w );
+
+VIDEO_START( srumbler );
+VIDEO_UPDATE( srumbler );
+VIDEO_EOF( srumbler );
+
 
 
 static WRITE8_HANDLER( srumbler_bankswitch_w )
@@ -29,9 +40,9 @@ static WRITE8_HANDLER( srumbler_bankswitch_w )
       that as well to be 100% accurate.
      */
 	int i;
-	UINT8 *ROM = space->machine().region("user1")->base();
-	UINT8 *prom1 = space->machine().region("proms")->base() + (data & 0xf0);
-	UINT8 *prom2 = space->machine().region("proms")->base() + 0x100 + ((data & 0x0f) << 4);
+	UINT8 *ROM = memory_region(space->machine, "user1");
+	UINT8 *prom1 = memory_region(space->machine, "proms") + (data & 0xf0);
+	UINT8 *prom2 = memory_region(space->machine, "proms") + 0x100 + ((data & 0x0f) << 4);
 
 	for (i = 0x05;i < 0x10;i++)
 	{
@@ -40,13 +51,13 @@ static WRITE8_HANDLER( srumbler_bankswitch_w )
 		/* bit 2 of prom1 selects ROM or RAM - not supported */
 
 		sprintf(bankname, "%04x", i*0x1000);
-		memory_set_bankptr(space->machine(), bankname,&ROM[bank*0x1000]);
+		memory_set_bankptr(space->machine, bankname,&ROM[bank*0x1000]);
 	}
 }
 
 static MACHINE_RESET( srumbler )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	/* initialize banked ROM pointers */
 	srumbler_bankswitch_w(space,0,0);
 }
@@ -54,9 +65,9 @@ static MACHINE_RESET( srumbler )
 static INTERRUPT_GEN( srumbler_interrupt )
 {
 	if (cpu_getiloops(device)==0)
-		device_set_input_line(device,0,HOLD_LINE);
+		cpu_set_input_line(device,0,HOLD_LINE);
 	else
-		device_set_input_line(device,M6809_FIRQ_LINE,HOLD_LINE);
+		cpu_set_input_line(device,M6809_FIRQ_LINE,HOLD_LINE);
 }
 
 /*
@@ -69,10 +80,10 @@ to the page register.
 Ignore the warnings about writing to unmapped memory.
 */
 
-static ADDRESS_MAP_START( srumbler_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( srumbler_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1dff) AM_RAM  /* RAM (of 1 sort or another) */
 	AM_RANGE(0x1e00, 0x1fff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
-	AM_RANGE(0x2000, 0x3fff) AM_RAM_WRITE(srumbler_background_w) AM_BASE_MEMBER(srumbler_state, m_backgroundram)
+	AM_RANGE(0x2000, 0x3fff) AM_RAM_WRITE(srumbler_background_w) AM_BASE(&srumbler_backgroundram)
 	AM_RANGE(0x4008, 0x4008) AM_READ_PORT("SYSTEM") AM_WRITE(srumbler_bankswitch_w)
 	AM_RANGE(0x4009, 0x4009) AM_READ_PORT("P1") AM_WRITE(srumbler_4009_w)
 	AM_RANGE(0x400a, 0x400a) AM_READ_PORT("P2")
@@ -80,7 +91,7 @@ static ADDRESS_MAP_START( srumbler_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x400c, 0x400c) AM_READ_PORT("DSW2")
 	AM_RANGE(0x400a, 0x400d) AM_WRITE(srumbler_scroll_w)
 	AM_RANGE(0x400e, 0x400e) AM_WRITE(soundlatch_w)
-	AM_RANGE(0x5000, 0x5fff) AM_ROMBANK("5000")	AM_WRITE(srumbler_foreground_w) AM_BASE_MEMBER(srumbler_state, m_foregroundram) /* Banked ROM */
+	AM_RANGE(0x5000, 0x5fff) AM_ROMBANK("5000")	AM_WRITE(srumbler_foreground_w) AM_BASE(&srumbler_foregroundram) /* Banked ROM */
 	AM_RANGE(0x6000, 0x6fff) AM_ROMBANK("6000")	/* Banked ROM */
 	AM_RANGE(0x6000, 0x6fff) AM_WRITENOP	/* Video RAM 2 ??? (not used) */
 	AM_RANGE(0x7000, 0x7fff) AM_ROMBANK("7000")	/* Banked ROM */
@@ -95,7 +106,7 @@ static ADDRESS_MAP_START( srumbler_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf000, 0xffff) AM_ROMBANK("f000")	/* Banked ROM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( srumbler_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( srumbler_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8001) AM_DEVWRITE("ym1", ym2203_w)
 	AM_RANGE(0xa000, 0xa001) AM_DEVWRITE("ym2", ym2203_w)
@@ -231,51 +242,51 @@ GFXDECODE_END
 
 
 
-static MACHINE_CONFIG_START( srumbler, srumbler_state )
+static MACHINE_DRIVER_START( srumbler )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, 1500000)        /* 1.5 MHz (?) */
-	MCFG_CPU_PROGRAM_MAP(srumbler_map)
-	MCFG_CPU_VBLANK_INT_HACK(srumbler_interrupt,2)
+	MDRV_CPU_ADD("maincpu", M6809, 1500000)        /* 1.5 MHz (?) */
+	MDRV_CPU_PROGRAM_MAP(srumbler_map)
+	MDRV_CPU_VBLANK_INT_HACK(srumbler_interrupt,2)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 3000000)        /* 3 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(srumbler_sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,4*60)
+	MDRV_CPU_ADD("audiocpu", Z80, 3000000)        /* 3 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(srumbler_sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,4)
 
-	MCFG_MACHINE_RESET(srumbler)
+	MDRV_MACHINE_RESET(srumbler)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(10*8, (64-10)*8-1, 1*8, 31*8-1 )
-	MCFG_SCREEN_UPDATE(srumbler)
-	MCFG_SCREEN_EOF(srumbler)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(10*8, (64-10)*8-1, 1*8, 31*8-1 )
 
-	MCFG_GFXDECODE(srumbler)
-	MCFG_PALETTE_LENGTH(512)
+	MDRV_GFXDECODE(srumbler)
+	MDRV_PALETTE_LENGTH(512)
 
-	MCFG_VIDEO_START(srumbler)
+	MDRV_VIDEO_START(srumbler)
+	MDRV_VIDEO_EOF(srumbler)
+	MDRV_VIDEO_UPDATE(srumbler)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 4000000)
-	MCFG_SOUND_ROUTE(0, "mono", 0.10)
-	MCFG_SOUND_ROUTE(1, "mono", 0.10)
-	MCFG_SOUND_ROUTE(2, "mono", 0.10)
-	MCFG_SOUND_ROUTE(3, "mono", 0.30)
+	MDRV_SOUND_ADD("ym1", YM2203, 4000000)
+	MDRV_SOUND_ROUTE(0, "mono", 0.10)
+	MDRV_SOUND_ROUTE(1, "mono", 0.10)
+	MDRV_SOUND_ROUTE(2, "mono", 0.10)
+	MDRV_SOUND_ROUTE(3, "mono", 0.30)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 4000000)
-	MCFG_SOUND_ROUTE(0, "mono", 0.10)
-	MCFG_SOUND_ROUTE(1, "mono", 0.10)
-	MCFG_SOUND_ROUTE(2, "mono", 0.10)
-	MCFG_SOUND_ROUTE(3, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, 4000000)
+	MDRV_SOUND_ROUTE(0, "mono", 0.10)
+	MDRV_SOUND_ROUTE(1, "mono", 0.10)
+	MDRV_SOUND_ROUTE(2, "mono", 0.10)
+	MDRV_SOUND_ROUTE(3, "mono", 0.30)
+MACHINE_DRIVER_END
 
 
 

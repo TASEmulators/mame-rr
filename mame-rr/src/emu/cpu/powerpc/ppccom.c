@@ -132,11 +132,6 @@ INLINE void set_xer(powerpc_state *ppc, UINT32 value)
 
 INLINE UINT64 get_timebase(powerpc_state *ppc)
 {
-	if (!ppc->tb_divisor)
-	{
-		return (ppc->device->total_cycles() - ppc->tb_zero_cycles);
-	}
-
 	return (ppc->device->total_cycles() - ppc->tb_zero_cycles) / ppc->tb_divisor;
 }
 
@@ -160,12 +155,6 @@ INLINE UINT32 get_decrementer(powerpc_state *ppc)
 {
 	INT64 cycles_until_zero = ppc->dec_zero_cycles - ppc->device->total_cycles();
 	cycles_until_zero = MAX(cycles_until_zero, 0);
-
-	if (!ppc->tb_divisor)
-	{
-		return 0;
-	}
-
 	return cycles_until_zero / ppc->tb_divisor;
 }
 
@@ -179,11 +168,6 @@ INLINE void set_decrementer(powerpc_state *ppc, UINT32 newdec)
 	UINT64 cycles_until_done = ((UINT64)newdec + 1) * ppc->tb_divisor;
 	UINT32 curdec = get_decrementer(ppc);
 
-	if (!ppc->tb_divisor)
-	{
-		return;
-	}
-
 	if (PRINTF_DECREMENTER)
 	{
 		UINT64 total = ppc->device->total_cycles();
@@ -193,7 +177,7 @@ INLINE void set_decrementer(powerpc_state *ppc, UINT32 newdec)
 	}
 
 	ppc->dec_zero_cycles = ppc->device->total_cycles() + cycles_until_done;
-	ppc->decrementer_int_timer->adjust(ppc->device->cycles_to_attotime(cycles_until_done));
+	timer_adjust_oneshot(ppc->decrementer_int_timer, ppc->device->cycles_to_attotime(cycles_until_done), 0);
 
 	if ((INT32)curdec >= 0 && (INT32)newdec < 0)
 		ppc->irq_pending |= 0x02;
@@ -304,7 +288,7 @@ INLINE int sign_double(double x)
 
 void ppccom_init(powerpc_state *ppc, powerpc_flavor flavor, UINT8 cap, int tb_divisor, legacy_cpu_device *device, device_irq_callback irqcallback)
 {
-	const powerpc_config *config = (const powerpc_config *)device->static_config();
+	const powerpc_config *config = (const powerpc_config *)device->baseconfig().static_config();
 
 	/* initialize based on the config */
 	memset(ppc, 0, sizeof(*ppc));
@@ -316,7 +300,6 @@ void ppccom_init(powerpc_state *ppc, powerpc_flavor flavor, UINT8 cap, int tb_di
 	ppc->irq_callback = irqcallback;
 	ppc->device = device;
 	ppc->program = device->space(AS_PROGRAM);
-	ppc->direct = &ppc->program->direct();
 	ppc->system_clock = (config != NULL) ? config->bus_frequency : device->clock();
 	ppc->tb_divisor = (ppc->tb_divisor * device->clock() + ppc->system_clock / 2 - 1) / ppc->system_clock;
 	ppc->codexor = 0;
@@ -324,51 +307,51 @@ void ppccom_init(powerpc_state *ppc, powerpc_flavor flavor, UINT8 cap, int tb_di
 		ppc->codexor = 4;
 
 	/* allocate the virtual TLB */
-	ppc->vtlb = vtlb_alloc(device, AS_PROGRAM, (cap & PPCCAP_603_MMU) ? PPC603_FIXED_TLB_ENTRIES : 0, POWERPC_TLB_ENTRIES);
+	ppc->vtlb = vtlb_alloc(device, ADDRESS_SPACE_PROGRAM, (cap & PPCCAP_603_MMU) ? PPC603_FIXED_TLB_ENTRIES : 0, POWERPC_TLB_ENTRIES);
 
 	/* allocate a timer for the compare interrupt */
-	if ((cap & PPCCAP_OEA) && (ppc->tb_divisor))
-		ppc->decrementer_int_timer = device->machine().scheduler().timer_alloc(FUNC(decrementer_int_callback), ppc);
+	if (cap & PPCCAP_OEA)
+		ppc->decrementer_int_timer = timer_alloc(device->machine, decrementer_int_callback, ppc);
 
 	/* and for the 4XX interrupts if needed */
 	if (cap & PPCCAP_4XX)
 	{
-		ppc->fit_timer = device->machine().scheduler().timer_alloc(FUNC(ppc4xx_fit_callback), ppc);
-		ppc->pit_timer = device->machine().scheduler().timer_alloc(FUNC(ppc4xx_pit_callback), ppc);
-		ppc->spu.timer = device->machine().scheduler().timer_alloc(FUNC(ppc4xx_spu_callback), ppc);
+		ppc->fit_timer = timer_alloc(device->machine, ppc4xx_fit_callback, ppc);
+		ppc->pit_timer = timer_alloc(device->machine, ppc4xx_pit_callback, ppc);
+		ppc->spu.timer = timer_alloc(device->machine, ppc4xx_spu_callback, ppc);
 	}
 
 	/* register for save states */
-	device->save_item(NAME(ppc->pc));
-	device->save_item(NAME(ppc->r));
-	device->save_item(NAME(ppc->f));
-	device->save_item(NAME(ppc->cr));
-	device->save_item(NAME(ppc->xerso));
-	device->save_item(NAME(ppc->fpscr));
-	device->save_item(NAME(ppc->msr));
-	device->save_item(NAME(ppc->sr));
-	device->save_item(NAME(ppc->spr));
-	device->save_item(NAME(ppc->dcr));
+	state_save_register_device_item(device, 0, ppc->pc);
+	state_save_register_device_item_array(device, 0, ppc->r);
+	state_save_register_device_item_array(device, 0, ppc->f);
+	state_save_register_device_item_array(device, 0, ppc->cr);
+	state_save_register_device_item(device, 0, ppc->xerso);
+	state_save_register_device_item(device, 0, ppc->fpscr);
+	state_save_register_device_item(device, 0, ppc->msr);
+	state_save_register_device_item_array(device, 0, ppc->sr);
+	state_save_register_device_item_array(device, 0, ppc->spr);
+	state_save_register_device_item_array(device, 0, ppc->dcr);
 	if (cap & PPCCAP_4XX)
 	{
-		device->save_item(NAME(ppc->spu.regs));
-		device->save_item(NAME(ppc->spu.txbuf));
-		device->save_item(NAME(ppc->spu.rxbuf));
-		device->save_item(NAME(ppc->spu.rxbuffer));
-		device->save_item(NAME(ppc->spu.rxin));
-		device->save_item(NAME(ppc->spu.rxout));
-		device->save_item(NAME(ppc->pit_reload));
-		device->save_item(NAME(ppc->irqstate));
+		state_save_register_device_item_array(device, 0, ppc->spu.regs);
+		state_save_register_device_item(device, 0, ppc->spu.txbuf);
+		state_save_register_device_item(device, 0, ppc->spu.rxbuf);
+		state_save_register_device_item_array(device, 0, ppc->spu.rxbuffer);
+		state_save_register_device_item(device, 0, ppc->spu.rxin);
+		state_save_register_device_item(device, 0, ppc->spu.rxout);
+		state_save_register_device_item(device, 0, ppc->pit_reload);
+		state_save_register_device_item(device, 0, ppc->irqstate);
 	}
 	if (cap & PPCCAP_603_MMU)
 	{
-		device->save_item(NAME(ppc->mmu603_cmp));
-		device->save_item(NAME(ppc->mmu603_hash));
-		device->save_item(NAME(ppc->mmu603_r));
+		state_save_register_device_item(device, 0, ppc->mmu603_cmp);
+		state_save_register_device_item_array(device, 0, ppc->mmu603_hash);
+		state_save_register_device_item_array(device, 0, ppc->mmu603_r);
 	}
-	device->save_item(NAME(ppc->irq_pending));
-	device->save_item(NAME(ppc->tb_zero_cycles));
-	device->save_item(NAME(ppc->dec_zero_cycles));
+	state_save_register_device_item(device, 0, ppc->irq_pending);
+	state_save_register_device_item(device, 0, ppc->tb_zero_cycles);
+	state_save_register_device_item(device, 0, ppc->dec_zero_cycles);
 }
 
 
@@ -401,10 +384,7 @@ void ppccom_reset(powerpc_state *ppc)
 
 		/* reset the decrementer */
 		ppc->dec_zero_cycles = ppc->device->total_cycles();
-		if (ppc->tb_divisor)
-		{
-			decrementer_int_callback(ppc->device->machine(), ppc, 0);
-		}
+		decrementer_int_callback(ppc->device->machine, ppc, 0);
 	}
 
 	/* initialize the 4XX state */
@@ -465,7 +445,7 @@ offs_t ppccom_dasm(powerpc_state *ppc, char *buffer, offs_t pc, const UINT8 *opr
 
 static UINT32 ppccom_translate_address_internal(powerpc_state *ppc, int intention, offs_t *address)
 {
-	int transpriv = ((intention & TRANSLATE_USER_MASK) == 0);	// 1 for supervisor, 0 for user
+	int transpriv = ((intention & TRANSLATE_USER_MASK) == 0);
 	int transtype = intention & TRANSLATE_TYPE_MASK;
 	offs_t hash, hashbase, hashmask;
 	int batbase, batnum, hashnum;
@@ -502,69 +482,28 @@ static UINT32 ppccom_translate_address_internal(powerpc_state *ppc, int intentio
 		return 0x001;
 
 	/* first scan the appropriate BAT */
-	if (ppc->cap & PPCCAP_601BAT)
+	batbase = (transtype == TRANSLATE_FETCH) ? SPROEA_IBAT0U : SPROEA_DBAT0U;
+	for (batnum = 0; batnum < 4; batnum++)
 	{
-		for (batnum = 0; batnum < 4; batnum++)
+		UINT32 upper = ppc->spr[batbase + 2*batnum + 0];
+
+		/* check user/supervisor valid bit */
+		if ((upper >> transpriv) & 0x01)
 		{
-			UINT32 upper = ppc->spr[SPROEA_IBAT0U + 2*batnum + 0];
-			UINT32 lower = ppc->spr[SPROEA_IBAT0U + 2*batnum + 1];
-			int privbit = ((intention & TRANSLATE_USER_MASK) == 0) ? 3 : 2;
+			UINT32 mask = (~upper << 15) & 0xfffe0000;
 
-//          printf("bat %d upper = %08x privbit %d\n", batnum, upper, privbit);
-
-			// is this pair valid?
-			if (lower & 0x40)
+			/* check for a hit against this bucket */
+			if ((*address & mask) == (upper & mask))
 			{
-				UINT32 mask = (~lower & 0x3f) << 17;
-				UINT32 addrout;
-				UINT32 key = (upper >> privbit) & 1;
+				UINT32 lower = ppc->spr[batbase + 2*batnum + 1];
 
-				/* check for a hit against this bucket */
-				if ((*address & 0xfffe0000) == (upper & 0xfffe0000))
-				{
-					/* verify protection; if we fail, return false and indicate a protection violation */
-					if (!page_access_allowed(transtype, key, upper & 3))
-					{
-						return DSISR_PROTECTED | ((transtype == TRANSLATE_WRITE) ? DSISR_STORE : 0);
-					}
+				/* verify protection; if we fail, return false and indicate a protection violation */
+				if (!page_access_allowed(transtype, 1, lower & 3))
+					return DSISR_PROTECTED | ((transtype == TRANSLATE_WRITE) ? DSISR_STORE : 0);
 
-					/* otherwise we're good */
-					addrout = (lower & 0xff100000) | (*address & ~0xfffe0000);
-					addrout |= ((*address & mask) | (lower & mask));
-					*address = addrout; // top 9 bits from top 9 of PBN
-					return 0x001;
-				}
-			}
-		}
-	}
-	else
-	{
-		batbase = (transtype == TRANSLATE_FETCH) ? SPROEA_IBAT0U : SPROEA_DBAT0U;
-
-		for (batnum = 0; batnum < 4; batnum++)
-		{
-			UINT32 upper = ppc->spr[batbase + 2*batnum + 0];
-
-			/* check user/supervisor valid bit */
-			if ((upper >> transpriv) & 0x01)
-			{
-				UINT32 mask = (~upper << 15) & 0xfffe0000;
-
-				/* check for a hit against this bucket */
-				if ((*address & mask) == (upper & mask))
-				{
-					UINT32 lower = ppc->spr[batbase + 2*batnum + 1];
-
-					/* verify protection; if we fail, return false and indicate a protection violation */
-					if (!page_access_allowed(transtype, 1, lower & 3))
-					{
-						return DSISR_PROTECTED | ((transtype == TRANSLATE_WRITE) ? DSISR_STORE : 0);
-					}
-
-					/* otherwise we're good */
-					*address = (lower & mask) | (*address & ~mask);
-					return 0x001;
-				}
+				/* otherwise we're good */
+				*address = (lower & mask) | (*address & ~mask);
+				return 0x001;
 			}
 		}
 	}
@@ -573,20 +512,6 @@ static UINT32 ppccom_translate_address_internal(powerpc_state *ppc, int intentio
 	segreg = ppc->sr[*address >> 28];
 	if (transtype == TRANSLATE_FETCH && (segreg & 0x10000000))
 		return DSISR_PROTECTED | ((transtype == TRANSLATE_WRITE) ? DSISR_STORE : 0);
-
-	/* check for memory-forced I/O */
-	if (ppc->cap & PPCCAP_MFIOC)
-	{
-		if ((transtype != TRANSLATE_FETCH) && ((segreg & 0x87f00000) == 0x87f00000))
-		{
-			*address = ((segreg & 0xf)<<28) | (*address & 0x0fffffff);
-			return 1;
-		}
-		else if (segreg & 0x80000000)
-		{
-			fatalerror("PPC: Unhandled segment register %08x with T=1\n", segreg);
-		}
-	}
 
 	/* get hash table information from SD1 */
 	hashbase = ppc->spr[SPROEA_SDR1] & 0xffff0000;
@@ -612,7 +537,7 @@ static UINT32 ppccom_translate_address_internal(powerpc_state *ppc, int intentio
 	for (hashnum = 0; hashnum < 2; hashnum++)
 	{
 		offs_t ptegaddr = hashbase | ((hash << 6) & hashmask);
-		UINT32 *ptegptr = (UINT32 *)ppc->program->get_read_ptr(ptegaddr);
+		UINT32 *ptegptr = (UINT32 *)memory_get_read_ptr(ppc->program, ptegaddr);
 
 		/* should only have valid memory here, but make sure */
 		if (ptegptr != NULL)
@@ -659,10 +584,10 @@ static UINT32 ppccom_translate_address_internal(powerpc_state *ppc, int intentio
     from logical to physical
 -------------------------------------------------*/
 
-int ppccom_translate_address(powerpc_state *ppc, address_spacenum space, int intention, offs_t *address)
+int ppccom_translate_address(powerpc_state *ppc, int space, int intention, offs_t *address)
 {
 	/* only applies to the program address space */
-	if (space != AS_PROGRAM)
+	if (space != ADDRESS_SPACE_PROGRAM)
 		return TRUE;
 
 	/* translation is successful if the internal routine returns 0 or 1 */
@@ -731,7 +656,7 @@ void ppccom_execute_tlbl(powerpc_state *ppc)
 	int entrynum;
 
 	/* determine entry number; we use rand() for associativity */
-	entrynum = ((address >> 12) & 0x1f) | (ppc->device->machine().rand() & 0x20) | (isitlb ? 0x40 : 0);
+	entrynum = ((address >> 12) & 0x1f) | (mame_rand(ppc->device->machine) & 0x20) | (isitlb ? 0x40 : 0);
 
 	/* determine the flags */
 	flags = VTLB_FLAG_VALID | VTLB_READ_ALLOWED | VTLB_FETCH_ALLOWED;
@@ -1001,9 +926,9 @@ void ppccom_execute_mtspr(powerpc_state *ppc)
 			case SPR4XX_TCR:
 				ppc->spr[SPR4XX_TCR] = ppc->param1 | (oldval & PPC4XX_TCR_WRC_MASK);
 				if ((oldval ^ ppc->spr[SPR4XX_TCR]) & PPC4XX_TCR_FIE)
-					ppc4xx_fit_callback(ppc->device->machine(), ppc, FALSE);
+					ppc4xx_fit_callback(ppc->device->machine, ppc, FALSE);
 				if ((oldval ^ ppc->spr[SPR4XX_TCR]) & PPC4XX_TCR_PIE)
-					ppc4xx_pit_callback(ppc->device->machine(), ppc, FALSE);
+					ppc4xx_pit_callback(ppc->device->machine, ppc, FALSE);
 				return;
 
 			/* timer status register */
@@ -1016,7 +941,7 @@ void ppccom_execute_mtspr(powerpc_state *ppc)
 			case SPR4XX_PIT:
 				ppc->spr[SPR4XX_PIT] = ppc->param1;
 				ppc->pit_reload = ppc->param1;
-				ppc4xx_pit_callback(ppc->device->machine(), ppc, FALSE);
+				ppc4xx_pit_callback(ppc->device->machine, ppc, FALSE);
 				return;
 
 			/* timebase */
@@ -1362,9 +1287,9 @@ void ppccom_get_info(powerpc_state *ppc, UINT32 state, cpuinfo *info)
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 40;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 64;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 64;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
 		case CPUINFO_INT_LOGADDR_WIDTH_PROGRAM: info->i = 32;					break;
 		case CPUINFO_INT_PAGE_SHIFT_PROGRAM:	info->i = POWERPC_MIN_PAGE_SHIFT;break;
 
@@ -1593,7 +1518,7 @@ static TIMER_CALLBACK( decrementer_int_callback )
 	/* advance by another full rev */
 	ppc->dec_zero_cycles += (UINT64)ppc->tb_divisor << 32;
 	cycles_until_next = ppc->dec_zero_cycles - ppc->device->total_cycles();
-	ppc->decrementer_int_timer->adjust(ppc->device->cycles_to_attotime(cycles_until_next));
+	timer_adjust_oneshot(ppc->decrementer_int_timer, ppc->device->cycles_to_attotime(cycles_until_next), 0);
 }
 
 
@@ -1714,7 +1639,7 @@ static int ppc4xx_dma_fetch_transmit_byte(powerpc_state *ppc, int dmachan, UINT8
 		return FALSE;
 
 	/* fetch the data */
-	*byte = ppc->program->read_byte(dmaregs[DCR4XX_DMADA0]++);
+	*byte = memory_read_byte(ppc->program, dmaregs[DCR4XX_DMADA0]++);
 	ppc4xx_dma_decrement_count(ppc, dmachan);
 	return TRUE;
 }
@@ -1738,7 +1663,7 @@ static int ppc4xx_dma_handle_receive_byte(powerpc_state *ppc, int dmachan, UINT8
 		return FALSE;
 
 	/* store the data */
-	ppc->program->write_byte(dmaregs[DCR4XX_DMADA0]++, byte);
+	memory_write_byte(ppc->program, dmaregs[DCR4XX_DMADA0]++, byte);
 	ppc4xx_dma_decrement_count(ppc, dmachan);
 	return TRUE;
 }
@@ -1791,7 +1716,7 @@ static void ppc4xx_dma_exec(powerpc_state *ppc, int dmachan)
 				case 1:
 					do
 					{
-						ppc->program->write_byte(dmaregs[DCR4XX_DMADA0], ppc->program->read_byte(dmaregs[DCR4XX_DMASA0]));
+						memory_write_byte(ppc->program, dmaregs[DCR4XX_DMADA0], memory_read_byte(ppc->program, dmaregs[DCR4XX_DMASA0]));
 						dmaregs[DCR4XX_DMASA0] += srcinc;
 						dmaregs[DCR4XX_DMADA0] += destinc;
 					} while (!ppc4xx_dma_decrement_count(ppc, dmachan));
@@ -1801,7 +1726,7 @@ static void ppc4xx_dma_exec(powerpc_state *ppc, int dmachan)
 				case 2:
 					do
 					{
-						ppc->program->write_word(dmaregs[DCR4XX_DMADA0], ppc->program->read_word(dmaregs[DCR4XX_DMASA0]));
+						memory_write_word(ppc->program, dmaregs[DCR4XX_DMADA0], memory_read_word(ppc->program, dmaregs[DCR4XX_DMASA0]));
 						dmaregs[DCR4XX_DMASA0] += srcinc;
 						dmaregs[DCR4XX_DMADA0] += destinc;
 					} while (!ppc4xx_dma_decrement_count(ppc, dmachan));
@@ -1811,7 +1736,7 @@ static void ppc4xx_dma_exec(powerpc_state *ppc, int dmachan)
 				case 4:
 					do
 					{
-						ppc->program->write_dword(dmaregs[DCR4XX_DMADA0], ppc->program->read_dword(dmaregs[DCR4XX_DMASA0]));
+						memory_write_dword(ppc->program, dmaregs[DCR4XX_DMADA0], memory_read_dword(ppc->program, dmaregs[DCR4XX_DMASA0]));
 						dmaregs[DCR4XX_DMASA0] += srcinc;
 						dmaregs[DCR4XX_DMADA0] += destinc;
 					} while (!ppc4xx_dma_decrement_count(ppc, dmachan));
@@ -1821,8 +1746,8 @@ static void ppc4xx_dma_exec(powerpc_state *ppc, int dmachan)
 				case 16:
 					do
 					{
-						ppc->program->write_qword(dmaregs[DCR4XX_DMADA0], ppc->program->read_qword(dmaregs[DCR4XX_DMASA0]));
-						ppc->program->write_qword(dmaregs[DCR4XX_DMADA0] + 8, ppc->program->read_qword(dmaregs[DCR4XX_DMASA0] + 8));
+						memory_write_qword(ppc->program, dmaregs[DCR4XX_DMADA0], memory_read_qword(ppc->program, dmaregs[DCR4XX_DMASA0]));
+						memory_write_qword(ppc->program, dmaregs[DCR4XX_DMADA0] + 8, memory_read_qword(ppc->program, dmaregs[DCR4XX_DMASA0] + 8));
 						dmaregs[DCR4XX_DMASA0] += srcinc;
 						dmaregs[DCR4XX_DMADA0] += destinc;
 					} while (!ppc4xx_dma_decrement_count(ppc, dmachan));
@@ -1859,12 +1784,12 @@ static TIMER_CALLBACK( ppc4xx_fit_callback )
 		UINT32 timebase = get_timebase(ppc);
 		UINT32 interval = 0x200 << (4 * ((ppc->spr[SPR4XX_TCR] & PPC4XX_TCR_FP_MASK) >> 24));
 		UINT32 target = (timebase + interval) & ~(interval - 1);
-		ppc->fit_timer->adjust(ppc->device->cycles_to_attotime((target + 1 - timebase) / ppc->tb_divisor), TRUE);
+		timer_adjust_oneshot(ppc->fit_timer, ppc->device->cycles_to_attotime((target + 1 - timebase) / ppc->tb_divisor), TRUE);
 	}
 
 	/* otherwise, turn ourself off */
 	else
-		ppc->fit_timer->adjust(attotime::never, FALSE);
+		timer_adjust_oneshot(ppc->fit_timer, attotime_never, FALSE);
 }
 
 
@@ -1890,12 +1815,12 @@ static TIMER_CALLBACK( ppc4xx_pit_callback )
 		UINT32 timebase = get_timebase(ppc);
 		UINT32 interval = ppc->pit_reload;
 		UINT32 target = timebase + interval;
-		ppc->pit_timer->adjust(ppc->device->cycles_to_attotime((target + 1 - timebase) / ppc->tb_divisor), TRUE);
+		timer_adjust_oneshot(ppc->pit_timer, ppc->device->cycles_to_attotime((target + 1 - timebase) / ppc->tb_divisor), TRUE);
 	}
 
 	/* otherwise, turn ourself off */
 	else
-		ppc->pit_timer->adjust(attotime::never, FALSE);
+		timer_adjust_oneshot(ppc->pit_timer, attotime_never, FALSE);
 }
 
 
@@ -1963,18 +1888,18 @@ static void ppc4xx_spu_timer_reset(powerpc_state *ppc)
 	/* if we're enabled, reset at the current baud rate */
 	if (enabled)
 	{
-		attotime clockperiod = attotime::from_hz((ppc->dcr[DCR4XX_IOCR] & 0x02) ? 3686400 : 33333333);
+		attotime clockperiod = ATTOTIME_IN_HZ((ppc->dcr[DCR4XX_IOCR] & 0x02) ? 3686400 : 33333333);
 		int divisor = ((ppc->spu.regs[SPU4XX_BAUD_DIVISOR_H] * 256 + ppc->spu.regs[SPU4XX_BAUD_DIVISOR_L]) & 0xfff) + 1;
 		int bpc = 7 + ((ppc->spu.regs[SPU4XX_CONTROL] & 8) >> 3) + 1 + (ppc->spu.regs[SPU4XX_CONTROL] & 1);
-		attotime charperiod = clockperiod * (divisor * 16 * bpc);
-		ppc->spu.timer->adjust(charperiod, 0, charperiod);
+		attotime charperiod = attotime_mul(clockperiod, divisor * 16 * bpc);
+		timer_adjust_periodic(ppc->spu.timer, charperiod, 0, charperiod);
 		if (PRINTF_SPU)
 			printf("ppc4xx_spu_timer_reset: baud rate = %.0f\n", ATTOSECONDS_TO_HZ(charperiod.attoseconds) * bpc);
 	}
 
 	/* otherwise, disable the timer */
 	else
-		ppc->spu.timer->adjust(attotime::never);
+		timer_adjust_oneshot(ppc->spu.timer, attotime_never, 0);
 }
 
 
@@ -2055,7 +1980,7 @@ updateirq:
 
 static READ8_HANDLER( ppc4xx_spu_r )
 {
-	powerpc_state *ppc = *(powerpc_state **)downcast<legacy_cpu_device *>(&space->device())->token();
+	powerpc_state *ppc = *(powerpc_state **)downcast<legacy_cpu_device *>(space->cpu)->token();
 	UINT8 result = 0xff;
 
 	switch (offset)
@@ -2082,7 +2007,7 @@ static READ8_HANDLER( ppc4xx_spu_r )
 
 static WRITE8_HANDLER( ppc4xx_spu_w )
 {
-	powerpc_state *ppc = *(powerpc_state **)downcast<legacy_cpu_device *>(&space->device())->token();
+	powerpc_state *ppc = *(powerpc_state **)downcast<legacy_cpu_device *>(space->cpu)->token();
 	UINT8 oldstate, newstate;
 
 	if (PRINTF_SPU)
@@ -2146,7 +2071,7 @@ static WRITE8_HANDLER( ppc4xx_spu_w )
     the 4XX
 -------------------------------------------------*/
 
-static ADDRESS_MAP_START( internal_ppc4xx, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( internal_ppc4xx, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x40000000, 0x4000000f) AM_READWRITE8(ppc4xx_spu_r, ppc4xx_spu_w, 0xffffffff)
 ADDRESS_MAP_END
 
@@ -2157,7 +2082,7 @@ ADDRESS_MAP_END
     specific TX handler configuration
 -------------------------------------------------*/
 
-void ppc4xx_spu_set_tx_handler(device_t *device, ppc4xx_spu_tx_handler handler)
+void ppc4xx_spu_set_tx_handler(running_device *device, ppc4xx_spu_tx_handler handler)
 {
 	powerpc_state *ppc = *(powerpc_state **)downcast<legacy_cpu_device *>(device)->token();
 	ppc->spu.tx_handler = handler;
@@ -2169,7 +2094,7 @@ void ppc4xx_spu_set_tx_handler(device_t *device, ppc4xx_spu_tx_handler handler)
     specific serial byte receive
 -------------------------------------------------*/
 
-void ppc4xx_spu_receive_byte(device_t *device, UINT8 byteval)
+void ppc4xx_spu_receive_byte(running_device *device, UINT8 byteval)
 {
 	powerpc_state *ppc = *(powerpc_state **)downcast<legacy_cpu_device *>(device)->token();
 	ppc4xx_spu_rx_data(ppc, byteval);
@@ -2215,14 +2140,14 @@ void ppc4xx_get_info(powerpc_state *ppc, UINT32 state, cpuinfo *info)
 		case CPUINFO_INT_INPUT_STATE + PPC_IRQ_LINE_3:	info->i = ppc4xx_get_irq_line(ppc, PPC4XX_IRQ_BIT_EXT3);		break;
 		case CPUINFO_INT_INPUT_STATE + PPC_IRQ_LINE_4:	info->i = ppc4xx_get_irq_line(ppc, PPC4XX_IRQ_BIT_EXT4);		break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 31;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 31;					break;
 		case CPUINFO_INT_LOGADDR_WIDTH_PROGRAM: info->i = 32;					break;
 		case CPUINFO_INT_PAGE_SHIFT_PROGRAM:	info->i = POWERPC_MIN_PAGE_SHIFT;break;
 
 		/* --- the following bits of info are returned as pointers to data or functions --- */
 		case CPUINFO_FCT_INIT:							/* provided per-CPU */					break;
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM: info->internal_map32 = ADDRESS_MAP_NAME(internal_ppc4xx); break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM: info->internal_map32 = ADDRESS_MAP_NAME(internal_ppc4xx); break;
 
 		/* --- everything else is handled generically --- */
 		default:										ppccom_get_info(ppc, state, info);		break;

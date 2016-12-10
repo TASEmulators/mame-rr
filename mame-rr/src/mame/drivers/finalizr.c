@@ -11,6 +11,7 @@
 ***************************************************************************/
 
 #include "emu.h"
+#include "deprecat.h"
 #include "machine/konami1.h"
 #include "cpu/m6809/m6809.h"
 #include "cpu/mcs48/mcs48.h"
@@ -20,44 +21,46 @@
 #include "includes/finalizr.h"
 
 
-
-
-static TIMER_DEVICE_CALLBACK( finalizr_scanline )
+static INTERRUPT_GEN( finalizr_interrupt )
 {
-	finalizr_state *state = timer.machine().driver_data<finalizr_state>();
-	int scanline = param;
+	finalizr_state *state = (finalizr_state *)device->machine->driver_data;
 
-	if(scanline == 240 && state->m_irq_enable) // vblank irq
-		cputag_set_input_line(timer.machine(), "maincpu", M6809_IRQ_LINE, HOLD_LINE);
-	else if(((scanline % 32) == 0) && state->m_nmi_enable) // timer irq
-		cputag_set_input_line(timer.machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE);
+	if (cpu_getiloops(device) == 0)
+	{
+		if (state->irq_enable)
+			cpu_set_input_line(device, M6809_IRQ_LINE, HOLD_LINE);
+	}
+	else if (cpu_getiloops(device) % 2)
+	{
+		if (state->nmi_enable)
+			cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	}
 }
-
 
 static WRITE8_HANDLER( finalizr_coin_w )
 {
-	coin_counter_w(space->machine(), 0, data & 0x01);
-	coin_counter_w(space->machine(), 1, data & 0x02);
+	coin_counter_w(space->machine, 0, data & 0x01);
+	coin_counter_w(space->machine, 1, data & 0x02);
 }
 
 static WRITE8_HANDLER( finalizr_flipscreen_w )
 {
-	finalizr_state *state = space->machine().driver_data<finalizr_state>();
-	state->m_nmi_enable = data & 0x01;
-	state->m_irq_enable = data & 0x02;
+	finalizr_state *state = (finalizr_state *)space->machine->driver_data;
+	state->nmi_enable = data & 0x01;
+	state->irq_enable = data & 0x02;
 
-	flip_screen_set(space->machine(), ~data & 0x08);
+	flip_screen_set(space->machine, ~data & 0x08);
 }
 
 static WRITE8_HANDLER( finalizr_i8039_irq_w )
 {
-	finalizr_state *state = space->machine().driver_data<finalizr_state>();
-	device_set_input_line(state->m_audio_cpu, 0, ASSERT_LINE);
+	finalizr_state *state = (finalizr_state *)space->machine->driver_data;
+	cpu_set_input_line(state->audio_cpu, 0, ASSERT_LINE);
 }
 
 static WRITE8_HANDLER( i8039_irqen_w )
 {
-	finalizr_state *state = space->machine().driver_data<finalizr_state>();
+	finalizr_state *state = (finalizr_state *)space->machine->driver_data;
 
 	/*  bit 0x80 goes active low, indicating that the
         external IRQ being serviced is complete
@@ -65,12 +68,12 @@ static WRITE8_HANDLER( i8039_irqen_w )
     */
 
 	if ((data & 0x80) == 0)
-		device_set_input_line(state->m_audio_cpu, 0, CLEAR_LINE);
+		cpu_set_input_line(state->audio_cpu, 0, CLEAR_LINE);
 }
 
 static READ8_HANDLER( i8039_T1_r )
 {
-	finalizr_state *state = space->machine().driver_data<finalizr_state>();
+	finalizr_state *state = (finalizr_state *)space->machine->driver_data;
 
 	/*  I suspect the clock-out from the I8039 T0 line should be connected
         here (See the i8039_T0_w handler below).
@@ -82,9 +85,9 @@ static READ8_HANDLER( i8039_T1_r )
         based on the I8039 main xtal clock input frequency of 9.216MHz
     */
 
-	state->m_T1_line++;
-	state->m_T1_line %= 16;
-	return (!(state->m_T1_line % 3) && (state->m_T1_line > 0));
+	state->T1_line++;
+	state->T1_line %= 16;
+	return (!(state->T1_line % 3) && (state->T1_line > 0));
 }
 
 static WRITE8_HANDLER( i8039_T0_w )
@@ -97,11 +100,11 @@ static WRITE8_HANDLER( i8039_T0_w )
     */
 }
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0001, 0x0001) AM_WRITEONLY AM_BASE_MEMBER(finalizr_state, m_scroll)
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0001, 0x0001) AM_WRITEONLY AM_BASE_MEMBER(finalizr_state, scroll)
 	AM_RANGE(0x0003, 0x0003) AM_WRITE(finalizr_videoctrl_w)
 	AM_RANGE(0x0004, 0x0004) AM_WRITE(finalizr_flipscreen_w)
-//  AM_RANGE(0x0020, 0x003f) AM_WRITEONLY AM_BASE_MEMBER(finalizr_state, m_scroll)
+//  AM_RANGE(0x0020, 0x003f) AM_WRITEONLY AM_BASE_MEMBER(finalizr_state, scroll)
 	AM_RANGE(0x0800, 0x0800) AM_READ_PORT("DSW3")
 	AM_RANGE(0x0808, 0x0808) AM_READ_PORT("DSW2")
 	AM_RANGE(0x0810, 0x0810) AM_READ_PORT("SYSTEM")
@@ -114,22 +117,22 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x081b, 0x081b) AM_WRITENOP		/* Loads the snd command into the snd latch */
 	AM_RANGE(0x081c, 0x081c) AM_WRITE(finalizr_i8039_irq_w)	/* custom sound chip */
 	AM_RANGE(0x081d, 0x081d) AM_WRITE(soundlatch_w)			/* custom sound chip */
-	AM_RANGE(0x2000, 0x23ff) AM_RAM AM_BASE_MEMBER(finalizr_state, m_colorram)
-	AM_RANGE(0x2400, 0x27ff) AM_RAM AM_BASE_SIZE_MEMBER(finalizr_state, m_videoram, m_videoram_size)
-	AM_RANGE(0x2800, 0x2bff) AM_RAM AM_BASE_MEMBER(finalizr_state, m_colorram2)
-	AM_RANGE(0x2c00, 0x2fff) AM_RAM AM_BASE_MEMBER(finalizr_state, m_videoram2)
-	AM_RANGE(0x3000, 0x31ff) AM_RAM AM_BASE_SIZE_MEMBER(finalizr_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x2000, 0x23ff) AM_RAM AM_BASE_MEMBER(finalizr_state, colorram)
+	AM_RANGE(0x2400, 0x27ff) AM_RAM AM_BASE_SIZE_MEMBER(finalizr_state, videoram, videoram_size)
+	AM_RANGE(0x2800, 0x2bff) AM_RAM AM_BASE_MEMBER(finalizr_state, colorram2)
+	AM_RANGE(0x2c00, 0x2fff) AM_RAM AM_BASE_MEMBER(finalizr_state, videoram2)
+	AM_RANGE(0x3000, 0x31ff) AM_RAM AM_BASE_SIZE_MEMBER(finalizr_state, spriteram, spriteram_size)
 	AM_RANGE(0x3200, 0x37ff) AM_RAM
-	AM_RANGE(0x3800, 0x39ff) AM_RAM AM_BASE_MEMBER(finalizr_state, m_spriteram_2)
+	AM_RANGE(0x3800, 0x39ff) AM_RAM AM_BASE_MEMBER(finalizr_state, spriteram_2)
 	AM_RANGE(0x3a00, 0x3fff) AM_RAM
 	AM_RANGE(0x4000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0xff)                   AM_READ(soundlatch_r)
 	AM_RANGE(MCS48_PORT_P1, MCS48_PORT_P1) AM_DEVWRITE("dac", dac_w)
 	AM_RANGE(MCS48_PORT_P2, MCS48_PORT_P2) AM_WRITE(i8039_irqen_w)
@@ -242,66 +245,69 @@ GFXDECODE_END
 
 static MACHINE_START( finalizr )
 {
-	finalizr_state *state = machine.driver_data<finalizr_state>();
+	finalizr_state *state = (finalizr_state *)machine->driver_data;
 
-	state->m_audio_cpu = machine.device("audiocpu");
+	state->audio_cpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_spriterambank));
-	state->save_item(NAME(state->m_charbank));
-	state->save_item(NAME(state->m_T1_line));
-	state->save_item(NAME(state->m_nmi_enable));
-	state->save_item(NAME(state->m_irq_enable));
+	state_save_register_global(machine, state->spriterambank);
+	state_save_register_global(machine, state->charbank);
+	state_save_register_global(machine, state->T1_line);
+	state_save_register_global(machine, state->nmi_enable);
+	state_save_register_global(machine, state->irq_enable);
 }
 
 static MACHINE_RESET( finalizr )
 {
-	finalizr_state *state = machine.driver_data<finalizr_state>();
+	finalizr_state *state = (finalizr_state *)machine->driver_data;
 
-	state->m_spriterambank = 0;
-	state->m_charbank = 0;
-	state->m_T1_line = 0;
-	state->m_nmi_enable = 0;
-	state->m_irq_enable = 0;
+	state->spriterambank = 0;
+	state->charbank = 0;
+	state->T1_line = 0;
+	state->nmi_enable = 0;
+	state->irq_enable = 0;
 }
 
-static MACHINE_CONFIG_START( finalizr, finalizr_state )
+static MACHINE_DRIVER_START( finalizr )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(finalizr_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809,XTAL_18_432MHz/6)	/* ??? */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_TIMER_ADD_SCANLINE("scantimer", finalizr_scanline, "screen", 0, 1)
+	MDRV_CPU_ADD("maincpu", M6809,XTAL_18_432MHz/6)	/* ??? */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT_HACK(finalizr_interrupt,16)	/* 1 IRQ + 8 NMI (generated by a custom IC) */
 
-	MCFG_CPU_ADD("audiocpu", I8039,XTAL_18_432MHz/2)	/* 9.216MHz clkin ?? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_io_map)
+	MDRV_CPU_ADD("audiocpu", I8039,XTAL_18_432MHz/2)	/* 9.216MHz clkin ?? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_io_map)
 
-	MCFG_MACHINE_START(finalizr)
-	MCFG_MACHINE_RESET(finalizr)
+	MDRV_MACHINE_START(finalizr)
+	MDRV_MACHINE_RESET(finalizr)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(36*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 35*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(finalizr)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(36*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 35*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(finalizr)
-	MCFG_PALETTE_LENGTH(2*16*16)
+	MDRV_GFXDECODE(finalizr)
+	MDRV_PALETTE_LENGTH(2*16*16)
 
-	MCFG_PALETTE_INIT(finalizr)
-	MCFG_VIDEO_START(finalizr)
+	MDRV_PALETTE_INIT(finalizr)
+	MDRV_VIDEO_START(finalizr)
+	MDRV_VIDEO_UPDATE(finalizr)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("snsnd", SN76489A, XTAL_18_432MHz/12)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+	MDRV_SOUND_ADD("snsnd", SN76489A, XTAL_18_432MHz/12)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.65)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.65)
+MACHINE_DRIVER_END
 
 
 

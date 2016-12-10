@@ -2,38 +2,7 @@
 
     atarigen.c
 
-    General functions for Atari games.
-
-****************************************************************************
-
-    Copyright Aaron Giles
-    All rights reserved.
-
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are
-    met:
-
-        * Redistributions of source code must retain the above copyright
-          notice, this list of conditions and the following disclaimer.
-        * Redistributions in binary form must reproduce the above copyright
-          notice, this list of conditions and the following disclaimer in
-          the documentation and/or other materials provided with the
-          distribution.
-        * Neither the name 'MAME' nor the names of its contributors may be
-          used to endorse or promote products derived from this software
-          without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY AARON GILES ''AS IS'' AND ANY EXPRESS OR
-    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-    DISCLAIMED. IN NO EVENT SHALL AARON GILES BE LIABLE FOR ANY DIRECT,
-    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-    IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
+    General functions for Atari raster games.
 
 ***************************************************************************/
 
@@ -45,7 +14,6 @@
 #include "sound/tms5220.h"
 #include "sound/okim6295.h"
 #include "sound/pokey.h"
-#include "video/atarimo.h"
 #include "includes/slapstic.h"
 #include "atarigen.h"
 
@@ -55,8 +23,8 @@
     CONSTANTS
 ***************************************************************************/
 
-#define SOUND_TIMER_RATE			attotime::from_usec(5)
-#define SOUND_TIMER_BOOST			attotime::from_usec(100)
+#define SOUND_TIMER_RATE			ATTOTIME_IN_USEC(5)
+#define SOUND_TIMER_BOOST			ATTOTIME_IN_USEC(100)
 
 
 
@@ -64,16 +32,19 @@
     STATIC FUNCTION DECLARATIONS
 ***************************************************************************/
 
-static void slapstic_postload(running_machine &machine);
+static STATE_POSTLOAD( slapstic_postload );
 
 static TIMER_CALLBACK( scanline_interrupt_callback );
 
-static void update_6502_irq(running_machine &machine);
+static void decompress_eeprom_word(UINT16 *dest, const UINT16 *data);
+static void decompress_eeprom_byte(UINT8 *dest, const UINT16 *data);
+
+static void update_6502_irq(running_machine *machine);
 static TIMER_CALLBACK( delayed_sound_reset );
 static TIMER_CALLBACK( delayed_sound_w );
 static TIMER_CALLBACK( delayed_6502_sound_w );
 
-static void atarigen_set_vol(running_machine &machine, int volume, device_type type);
+static void atarigen_set_vol(running_machine *machine, int volume, device_type type);
 
 static TIMER_CALLBACK( scanline_timer_callback );
 
@@ -91,13 +62,13 @@ static TIMER_CALLBACK( atarivc_eof_update );
 
 INLINE const atarigen_screen_timer *get_screen_timer(screen_device &screen)
 {
-	atarigen_state *state = screen.machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)screen.machine->driver_data;
 	int i;
 
 	/* find the index of the timer that matches the screen */
-	for (i = 0; i < ARRAY_LENGTH(state->m_screen_timer); i++)
-		if (state->m_screen_timer[i].screen == &screen)
-			return &state->m_screen_timer[i];
+	for (i = 0; i < ARRAY_LENGTH(state->screen_timer); i++)
+		if (state->screen_timer[i].screen == &screen)
+			return &state->screen_timer[i];
 
 	fatalerror("Unexpected: no atarivc_eof_update_timer for screen '%s'\n", screen.tag());
 	return NULL;
@@ -109,64 +80,64 @@ INLINE const atarigen_screen_timer *get_screen_timer(screen_device &screen)
     OVERALL INIT
 ***************************************************************************/
 
-void atarigen_init(running_machine &machine)
+void atarigen_init(running_machine *machine)
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
 	screen_device *screen;
 	int i;
 
 	/* allocate timers for all screens */
-	assert(machine.devicelist().count(SCREEN) <= ARRAY_LENGTH(state->m_screen_timer));
-	for (i = 0, screen = machine.first_screen(); screen != NULL; i++, screen = screen->next_screen())
+	assert(screen_count(*machine) <= ARRAY_LENGTH(state->screen_timer));
+	for (i = 0, screen = screen_first(*machine); screen != NULL; i++, screen = screen_next(screen))
 	{
-		state->m_screen_timer[i].screen = screen;
-		state->m_screen_timer[i].scanline_interrupt_timer = machine.scheduler().timer_alloc(FUNC(scanline_interrupt_callback), (void *)screen);
-		state->m_screen_timer[i].scanline_timer = machine.scheduler().timer_alloc(FUNC(scanline_timer_callback), (void *)screen);
-		state->m_screen_timer[i].atarivc_eof_update_timer = machine.scheduler().timer_alloc(FUNC(atarivc_eof_update), (void *)screen);
+		state->screen_timer[i].screen = screen;
+		state->screen_timer[i].scanline_interrupt_timer = timer_alloc(machine, scanline_interrupt_callback, (void *)screen);
+		state->screen_timer[i].scanline_timer = timer_alloc(machine, scanline_timer_callback, (void *)screen);
+		state->screen_timer[i].atarivc_eof_update_timer = timer_alloc(machine, atarivc_eof_update, (void *)screen);
 	}
 
-	state->save_item(NAME(state->m_scanline_int_state));
-	state->save_item(NAME(state->m_sound_int_state));
-	state->save_item(NAME(state->m_video_int_state));
+	state_save_register_global(machine, state->scanline_int_state);
+	state_save_register_global(machine, state->sound_int_state);
+	state_save_register_global(machine, state->video_int_state);
 
-	state->save_item(NAME(state->m_cpu_to_sound_ready));
-	state->save_item(NAME(state->m_sound_to_cpu_ready));
+	state_save_register_global(machine, state->cpu_to_sound_ready);
+	state_save_register_global(machine, state->sound_to_cpu_ready);
 
-	state->save_item(NAME(state->m_atarivc_state.latch1));				/* latch #1 value (-1 means disabled) */
-	state->save_item(NAME(state->m_atarivc_state.latch2));				/* latch #2 value (-1 means disabled) */
-	state->save_item(NAME(state->m_atarivc_state.rowscroll_enable));		/* true if row-scrolling is enabled */
-	state->save_item(NAME(state->m_atarivc_state.palette_bank));			/* which palette bank is enabled */
-	state->save_item(NAME(state->m_atarivc_state.pf0_xscroll));			/* playfield 1 xscroll */
-	state->save_item(NAME(state->m_atarivc_state.pf0_xscroll_raw));		/* playfield 1 xscroll raw value */
-	state->save_item(NAME(state->m_atarivc_state.pf0_yscroll));			/* playfield 1 yscroll */
-	state->save_item(NAME(state->m_atarivc_state.pf1_xscroll));			/* playfield 2 xscroll */
-	state->save_item(NAME(state->m_atarivc_state.pf1_xscroll_raw));		/* playfield 2 xscroll raw value */
-	state->save_item(NAME(state->m_atarivc_state.pf1_yscroll));			/* playfield 2 yscroll */
-	state->save_item(NAME(state->m_atarivc_state.mo_xscroll));			/* sprite xscroll */
-	state->save_item(NAME(state->m_atarivc_state.mo_yscroll));			/* sprite xscroll */
+	state_save_register_global(machine, state->atarivc_state.latch1);				/* latch #1 value (-1 means disabled) */
+	state_save_register_global(machine, state->atarivc_state.latch2);				/* latch #2 value (-1 means disabled) */
+	state_save_register_global(machine, state->atarivc_state.rowscroll_enable);		/* true if row-scrolling is enabled */
+	state_save_register_global(machine, state->atarivc_state.palette_bank);			/* which palette bank is enabled */
+	state_save_register_global(machine, state->atarivc_state.pf0_xscroll);			/* playfield 1 xscroll */
+	state_save_register_global(machine, state->atarivc_state.pf0_xscroll_raw);		/* playfield 1 xscroll raw value */
+	state_save_register_global(machine, state->atarivc_state.pf0_yscroll);			/* playfield 1 yscroll */
+	state_save_register_global(machine, state->atarivc_state.pf1_xscroll);			/* playfield 2 xscroll */
+	state_save_register_global(machine, state->atarivc_state.pf1_xscroll_raw);		/* playfield 2 xscroll raw value */
+	state_save_register_global(machine, state->atarivc_state.pf1_yscroll);			/* playfield 2 yscroll */
+	state_save_register_global(machine, state->atarivc_state.mo_xscroll);			/* sprite xscroll */
+	state_save_register_global(machine, state->atarivc_state.mo_yscroll);			/* sprite xscroll */
 
-	state->save_item(NAME(state->m_eeprom_unlocked));
+	state_save_register_global(machine, state->eeprom_unlocked);
 
-	state->save_item(NAME(state->m_slapstic_num));
-	state->save_item(NAME(state->m_slapstic_bank));
-	state->save_item(NAME(state->m_slapstic_last_pc));
-	state->save_item(NAME(state->m_slapstic_last_address));
+	state_save_register_global(machine, state->slapstic_num);
+	state_save_register_global(machine, state->slapstic_bank);
+	state_save_register_global(machine, state->slapstic_last_pc);
+	state_save_register_global(machine, state->slapstic_last_address);
 
-	state->save_item(NAME(state->m_cpu_to_sound));
-	state->save_item(NAME(state->m_sound_to_cpu));
-	state->save_item(NAME(state->m_timed_int));
-	state->save_item(NAME(state->m_ym2151_int));
+	state_save_register_global(machine, state->cpu_to_sound);
+	state_save_register_global(machine, state->sound_to_cpu);
+	state_save_register_global(machine, state->timed_int);
+	state_save_register_global(machine, state->ym2151_int);
 
-	state->save_item(NAME(state->m_scanlines_per_callback));
+	state_save_register_global(machine, state->scanlines_per_callback);
 
-	state->save_item(NAME(state->m_actual_vc_latch0));
-	state->save_item(NAME(state->m_actual_vc_latch1));
+	state_save_register_global(machine, state->actual_vc_latch0);
+	state_save_register_global(machine, state->actual_vc_latch1);
 
-	state->save_item(NAME(state->m_playfield_latch));
-	state->save_item(NAME(state->m_playfield2_latch));
+	state_save_register_global(machine, state->playfield_latch);
+	state_save_register_global(machine, state->playfield2_latch);
 
 	/* need a postload to reset the state */
-	machine.save().register_postload(save_prepost_delegate(FUNC(slapstic_postload), &machine));
+	state_save_register_postload(machine, slapstic_postload, NULL);
 }
 
 
@@ -183,10 +154,10 @@ void atarigen_init(running_machine &machine)
 void atarigen_interrupt_reset(atarigen_state *state, atarigen_int_func update_int)
 {
 	/* set the callback */
-	state->m_update_int_callback = update_int;
+	state->update_int_callback = update_int;
 
 	/* reset the interrupt states */
-	state->m_video_int_state = state->m_sound_int_state = state->m_scanline_int_state = 0;
+	state->video_int_state = state->sound_int_state = state->scanline_int_state = 0;
 }
 
 
@@ -196,10 +167,10 @@ void atarigen_interrupt_reset(atarigen_state *state, atarigen_int_func update_in
     states.
 ---------------------------------------------------------------*/
 
-void atarigen_update_interrupts(running_machine &machine)
+void atarigen_update_interrupts(running_machine *machine)
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
-	(*state->m_update_int_callback)(machine);
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
+	(*state->update_int_callback)(machine);
 }
 
 
@@ -211,7 +182,7 @@ void atarigen_update_interrupts(running_machine &machine)
 void atarigen_scanline_int_set(screen_device &screen, int scanline)
 {
 	emu_timer *timer = get_screen_timer(screen)->scanline_interrupt_timer;
-	timer->adjust(screen.time_until_pos(scanline));
+	timer_adjust_oneshot(timer, screen.time_until_pos(scanline), 0);
 }
 
 
@@ -222,9 +193,9 @@ void atarigen_scanline_int_set(screen_device &screen, int scanline)
 
 INTERRUPT_GEN( atarigen_scanline_int_gen )
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
-	state->m_scanline_int_state = 1;
-	(*state->m_update_int_callback)(device->machine());
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
+	state->scanline_int_state = 1;
+	(*state->update_int_callback)(device->machine);
 }
 
 
@@ -235,16 +206,16 @@ INTERRUPT_GEN( atarigen_scanline_int_gen )
 
 WRITE16_HANDLER( atarigen_scanline_int_ack_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_scanline_int_state = 0;
-	(*state->m_update_int_callback)(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->scanline_int_state = 0;
+	(*state->update_int_callback)(space->machine);
 }
 
 WRITE32_HANDLER( atarigen_scanline_int_ack32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_scanline_int_state = 0;
-	(*state->m_update_int_callback)(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->scanline_int_state = 0;
+	(*state->update_int_callback)(space->machine);
 }
 
 
@@ -255,9 +226,9 @@ WRITE32_HANDLER( atarigen_scanline_int_ack32_w )
 
 INTERRUPT_GEN( atarigen_sound_int_gen )
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
-	state->m_sound_int_state = 1;
-	(*state->m_update_int_callback)(device->machine());
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
+	state->sound_int_state = 1;
+	(*state->update_int_callback)(device->machine);
 }
 
 
@@ -268,16 +239,16 @@ INTERRUPT_GEN( atarigen_sound_int_gen )
 
 WRITE16_HANDLER( atarigen_sound_int_ack_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_sound_int_state = 0;
-	(*state->m_update_int_callback)(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->sound_int_state = 0;
+	(*state->update_int_callback)(space->machine);
 }
 
 WRITE32_HANDLER( atarigen_sound_int_ack32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_sound_int_state = 0;
-	(*state->m_update_int_callback)(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->sound_int_state = 0;
+	(*state->update_int_callback)(space->machine);
 }
 
 
@@ -288,9 +259,9 @@ WRITE32_HANDLER( atarigen_sound_int_ack32_w )
 
 INTERRUPT_GEN( atarigen_video_int_gen )
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
-	state->m_video_int_state = 1;
-	(*state->m_update_int_callback)(device->machine());
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
+	state->video_int_state = 1;
+	(*state->update_int_callback)(device->machine);
 }
 
 
@@ -301,16 +272,16 @@ INTERRUPT_GEN( atarigen_video_int_gen )
 
 WRITE16_HANDLER( atarigen_video_int_ack_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_video_int_state = 0;
-	(*state->m_update_int_callback)(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->video_int_state = 0;
+	(*state->update_int_callback)(space->machine);
 }
 
 WRITE32_HANDLER( atarigen_video_int_ack32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_video_int_state = 0;
-	(*state->m_update_int_callback)(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->video_int_state = 0;
+	(*state->update_int_callback)(space->machine);
 }
 
 
@@ -324,10 +295,10 @@ static TIMER_CALLBACK( scanline_interrupt_callback )
 	emu_timer *timer = get_screen_timer(screen)->scanline_interrupt_timer;
 
 	/* generate the interrupt */
-	atarigen_scanline_int_gen(machine.device("maincpu"));
+	atarigen_scanline_int_gen(machine->device("maincpu"));
 
 	/* set a new timer to go off at the same scan line next frame */
-	timer->adjust(screen.frame_period());
+	timer_adjust_oneshot(timer, screen.frame_period(), 0);
 }
 
 
@@ -343,7 +314,7 @@ static TIMER_CALLBACK( scanline_interrupt_callback )
 
 void atarigen_eeprom_reset(atarigen_state *state)
 {
-	state->m_eeprom_unlocked = 0;
+	state->eeprom_unlocked = 0;
 }
 
 
@@ -355,14 +326,14 @@ void atarigen_eeprom_reset(atarigen_state *state)
 
 WRITE16_HANDLER( atarigen_eeprom_enable_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_eeprom_unlocked = 1;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->eeprom_unlocked = 1;
 }
 
 WRITE32_HANDLER( atarigen_eeprom_enable32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_eeprom_unlocked = 1;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->eeprom_unlocked = 1;
 }
 
 
@@ -375,27 +346,27 @@ WRITE32_HANDLER( atarigen_eeprom_enable32_w )
 
 WRITE16_HANDLER( atarigen_eeprom_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 
-	if (!state->m_eeprom_unlocked)
+	if (!state->eeprom_unlocked)
 		return;
 
-	COMBINE_DATA(&state->m_eeprom[offset]);
-	state->m_eeprom_unlocked = 0;
+	COMBINE_DATA(&state->eeprom[offset]);
+	state->eeprom_unlocked = 0;
 }
 
 WRITE32_HANDLER( atarigen_eeprom32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 
-	if (!state->m_eeprom_unlocked)
+	if (!state->eeprom_unlocked)
 		return;
 
-	COMBINE_DATA(&state->m_eeprom[offset * 2 + 1]);
+	COMBINE_DATA(&state->eeprom[offset * 2 + 1]);
 	data >>= 16;
 	mem_mask >>= 16;
-	COMBINE_DATA(&state->m_eeprom[offset * 2]);
-	state->m_eeprom_unlocked = 0;
+	COMBINE_DATA(&state->eeprom[offset * 2]);
+	state->eeprom_unlocked = 0;
 }
 
 
@@ -406,20 +377,88 @@ WRITE32_HANDLER( atarigen_eeprom32_w )
 
 READ16_HANDLER( atarigen_eeprom_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	return state->m_eeprom[offset] | 0xff00;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	return state->eeprom[offset] | 0xff00;
 }
 
 READ16_HANDLER( atarigen_eeprom_upper_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	return state->m_eeprom[offset] | 0x00ff;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	return state->eeprom[offset] | 0x00ff;
 }
 
 READ32_HANDLER( atarigen_eeprom_upper32_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	return (state->m_eeprom[offset * 2] << 16) | state->m_eeprom[offset * 2 + 1] | 0x00ff00ff;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	return (state->eeprom[offset * 2] << 16) | state->eeprom[offset * 2 + 1] | 0x00ff00ff;
+}
+
+
+/*---------------------------------------------------------------
+    NVRAM_HANDLER( atarigen ): Loads the EEPROM data.
+---------------------------------------------------------------*/
+
+NVRAM_HANDLER( atarigen )
+{
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
+	if (read_or_write)
+		mame_fwrite(file, state->eeprom, state->eeprom_size);
+	else if (file)
+		mame_fread(file, state->eeprom, state->eeprom_size);
+	else
+	{
+		/* all 0xff's work for most games */
+		memset(state->eeprom, 0xff, state->eeprom_size);
+
+		/* anything else must be decompressed */
+		if (state->eeprom_default)
+		{
+			if (state->eeprom_default[0] == 0)
+				decompress_eeprom_byte((UINT8 *)state->eeprom, state->eeprom_default + 1);
+			else
+				decompress_eeprom_word(state->eeprom, state->eeprom_default + 1);
+		}
+	}
+}
+
+
+/*---------------------------------------------------------------
+    decompress_eeprom_word: Used for decompressing EEPROM data
+    that has every other byte invalid.
+---------------------------------------------------------------*/
+
+void decompress_eeprom_word(UINT16 *dest, const UINT16 *data)
+{
+	UINT16 value;
+
+	while ((value = *data++) != 0)
+	{
+		int count = (value >> 8);
+		value = (value << 8) | (value & 0xff);
+
+		while (count--)
+			*dest++ = value;
+	}
+}
+
+
+/*---------------------------------------------------------------
+    decompress_eeprom_byte: Used for decompressing EEPROM data
+    that is byte-packed.
+---------------------------------------------------------------*/
+
+void decompress_eeprom_byte(UINT8 *dest, const UINT16 *data)
+{
+	UINT16 value;
+
+	while ((value = *data++) != 0)
+	{
+		int count = (value >> 8);
+		value = (value << 8) | (value & 0xff);
+
+		while (count--)
+			*dest++ = value;
+	}
 }
 
 
@@ -431,43 +470,43 @@ READ32_HANDLER( atarigen_eeprom_upper32_r )
 INLINE void update_bank(atarigen_state *state, int bank)
 {
 	/* if the bank has changed, copy the memory; Pit Fighter needs this */
-	if (bank != state->m_slapstic_bank)
+	if (bank != state->slapstic_bank)
 	{
 		/* bank 0 comes from the copy we made earlier */
 		if (bank == 0)
-			memcpy(state->m_slapstic, state->m_slapstic_bank0, 0x2000);
+			memcpy(state->slapstic, state->slapstic_bank0, 0x2000);
 		else
-			memcpy(state->m_slapstic, &state->m_slapstic[bank * 0x1000], 0x2000);
+			memcpy(state->slapstic, &state->slapstic[bank * 0x1000], 0x2000);
 
 		/* remember the current bank */
-		state->m_slapstic_bank = bank;
+		state->slapstic_bank = bank;
 	}
 }
 
 
-static void slapstic_postload(running_machine &machine)
+static STATE_POSTLOAD( slapstic_postload )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
 	update_bank(state, slapstic_bank());
 }
 
 
-DIRECT_UPDATE_HANDLER( atarigen_slapstic_setdirect )
+static DIRECT_UPDATE_HANDLER( atarigen_slapstic_setdirect )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 
 	/* if we jump to an address in the slapstic region, tweak the slapstic
        at that address and return ~0; this will cause us to be called on
        subsequent fetches as well */
-	address &= ~state->m_slapstic_mirror;
-	if (address >= state->m_slapstic_base && address < state->m_slapstic_base + 0x8000)
+	address &= ~state->slapstic_mirror;
+	if (address >= state->slapstic_base && address < state->slapstic_base + 0x8000)
 	{
-		offs_t pc = cpu_get_previouspc(&direct.space().device());
-		if (pc != state->m_slapstic_last_pc || address != state->m_slapstic_last_address)
+		offs_t pc = cpu_get_previouspc(space->cpu);
+		if (pc != state->slapstic_last_pc || address != state->slapstic_last_address)
 		{
-			state->m_slapstic_last_pc = pc;
-			state->m_slapstic_last_address = address;
-			atarigen_slapstic_r(&direct.space(), (address >> 1) & 0x3fff, 0xffff);
+			state->slapstic_last_pc = pc;
+			state->slapstic_last_address = address;
+			atarigen_slapstic_r(space, (address >> 1) & 0x3fff, 0xffff);
 		}
 		return ~0;
 	}
@@ -482,36 +521,34 @@ DIRECT_UPDATE_HANDLER( atarigen_slapstic_setdirect )
     slapstic and sets the chip number.
 ---------------------------------------------------------------*/
 
-void atarigen_slapstic_init(device_t *device, offs_t base, offs_t mirror, int chipnum)
+void atarigen_slapstic_init(running_device *device, offs_t base, offs_t mirror, int chipnum)
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
 
 	/* reset in case we have no state */
-	state->m_slapstic_num = chipnum;
-	state->m_slapstic = NULL;
+	state->slapstic_num = chipnum;
+	state->slapstic = NULL;
 
 	/* if we have a chip, install it */
 	if (chipnum != 0)
 	{
 		/* initialize the slapstic */
-		slapstic_init(device->machine(), chipnum);
+		slapstic_init(device->machine, chipnum);
 
 		/* install the memory handlers */
-		state->m_slapstic = device->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(base, base + 0x7fff, 0, mirror, FUNC(atarigen_slapstic_r), FUNC(atarigen_slapstic_w));
+		state->slapstic = memory_install_readwrite16_handler(cpu_get_address_space(device, ADDRESS_SPACE_PROGRAM), base, base + 0x7fff, 0, mirror, atarigen_slapstic_r, atarigen_slapstic_w);
 
 		/* allocate memory for a copy of bank 0 */
-		state->m_slapstic_bank0 = auto_alloc_array(device->machine(), UINT8, 0x2000);
-		memcpy(state->m_slapstic_bank0, state->m_slapstic, 0x2000);
+		state->slapstic_bank0 = auto_alloc_array(device->machine, UINT8, 0x2000);
+		memcpy(state->slapstic_bank0, state->slapstic, 0x2000);
 
 		/* ensure we recopy memory for the bank */
-		state->m_slapstic_bank = 0xff;
+		state->slapstic_bank = 0xff;
 
 		/* install an opcode base handler if we are a 68000 or variant */
-		state->m_slapstic_base = base;
-		state->m_slapstic_mirror = mirror;
-
-		address_space *space = downcast<cpu_device *>(device)->space(AS_PROGRAM);
-		space->set_direct_update_handler(direct_update_delegate(FUNC(atarigen_slapstic_setdirect), &device->machine()));
+		state->slapstic_base = base;
+		state->slapstic_mirror = mirror;
+		memory_set_direct_update_handler(cpu_get_address_space(device, ADDRESS_SPACE_PROGRAM), atarigen_slapstic_setdirect);
 	}
 }
 
@@ -523,7 +560,7 @@ void atarigen_slapstic_init(device_t *device, offs_t base, offs_t mirror, int ch
 
 void atarigen_slapstic_reset(atarigen_state *state)
 {
-	if (state->m_slapstic_num != 0)
+	if (state->slapstic_num != 0)
 	{
 		slapstic_reset();
 		update_bank(state, slapstic_bank());
@@ -539,7 +576,7 @@ void atarigen_slapstic_reset(atarigen_state *state)
 
 WRITE16_HANDLER( atarigen_slapstic_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 	update_bank(state, slapstic_tweak(space, offset));
 }
 
@@ -552,8 +589,8 @@ WRITE16_HANDLER( atarigen_slapstic_w )
 READ16_HANDLER( atarigen_slapstic_r )
 {
 	/* fetch the result from the current bank first */
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	int result = state->m_slapstic[offset & 0xfff];
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	int result = state->slapstic[offset & 0xfff];
 
 	/* then determine the new one */
 	update_bank(state, slapstic_tweak(space, offset));
@@ -570,19 +607,19 @@ READ16_HANDLER( atarigen_slapstic_r )
     atarigen_sound_io_reset: Resets the state of the sound I/O.
 ---------------------------------------------------------------*/
 
-void atarigen_sound_io_reset(device_t *device)
+void atarigen_sound_io_reset(running_device *device)
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
 
 	/* remember which CPU is the sound CPU */
-	state->m_sound_cpu = device;
+	state->sound_cpu = device;
 
 	/* reset the internal interrupts states */
-	state->m_timed_int = state->m_ym2151_int = 0;
+	state->timed_int = state->ym2151_int = 0;
 
 	/* reset the sound I/O states */
-	state->m_cpu_to_sound = state->m_sound_to_cpu = 0;
-	state->m_cpu_to_sound_ready = state->m_sound_to_cpu_ready = 0;
+	state->cpu_to_sound = state->sound_to_cpu = 0;
+	state->cpu_to_sound_ready = state->sound_to_cpu_ready = 0;
 }
 
 
@@ -593,9 +630,9 @@ void atarigen_sound_io_reset(device_t *device)
 
 INTERRUPT_GEN( atarigen_6502_irq_gen )
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
-	state->m_timed_int = 1;
-	update_6502_irq(device->machine());
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
+	state->timed_int = 1;
+	update_6502_irq(device->machine);
 }
 
 
@@ -606,17 +643,17 @@ INTERRUPT_GEN( atarigen_6502_irq_gen )
 
 READ8_HANDLER( atarigen_6502_irq_ack_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_timed_int = 0;
-	update_6502_irq(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->timed_int = 0;
+	update_6502_irq(space->machine);
 	return 0;
 }
 
 WRITE8_HANDLER( atarigen_6502_irq_ack_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_timed_int = 0;
-	update_6502_irq(space->machine());
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->timed_int = 0;
+	update_6502_irq(space->machine);
 }
 
 
@@ -625,11 +662,11 @@ WRITE8_HANDLER( atarigen_6502_irq_ack_w )
     IRQ line.
 ---------------------------------------------------------------*/
 
-void atarigen_ym2151_irq_gen(device_t *device, int irq)
+void atarigen_ym2151_irq_gen(running_device *device, int irq)
 {
-	atarigen_state *state = device->machine().driver_data<atarigen_state>();
-	state->m_ym2151_int = irq;
-	update_6502_irq(device->machine());
+	atarigen_state *state = (atarigen_state *)device->machine->driver_data;
+	state->ym2151_int = irq;
+	update_6502_irq(device->machine);
 }
 
 
@@ -640,7 +677,7 @@ void atarigen_ym2151_irq_gen(device_t *device, int irq)
 
 WRITE16_HANDLER( atarigen_sound_reset_w )
 {
-	space->machine().scheduler().synchronize(FUNC(delayed_sound_reset));
+	timer_call_after_resynch(space->machine, NULL, 0, delayed_sound_reset);
 }
 
 
@@ -649,9 +686,9 @@ WRITE16_HANDLER( atarigen_sound_reset_w )
     manually.
 ---------------------------------------------------------------*/
 
-void atarigen_sound_reset(running_machine &machine)
+void atarigen_sound_reset(running_machine *machine)
 {
-	machine.scheduler().synchronize(FUNC(delayed_sound_reset), 1);
+	timer_call_after_resynch(machine, NULL, 1, delayed_sound_reset);
 }
 
 
@@ -665,19 +702,19 @@ void atarigen_sound_reset(running_machine &machine)
 WRITE16_HANDLER( atarigen_sound_w )
 {
 	if (ACCESSING_BITS_0_7)
-		space->machine().scheduler().synchronize(FUNC(delayed_sound_w), data & 0xff);
+		timer_call_after_resynch(space->machine, NULL, data & 0xff, delayed_sound_w);
 }
 
 WRITE16_HANDLER( atarigen_sound_upper_w )
 {
 	if (ACCESSING_BITS_8_15)
-		space->machine().scheduler().synchronize(FUNC(delayed_sound_w), (data >> 8) & 0xff);
+		timer_call_after_resynch(space->machine, NULL, (data >> 8) & 0xff, delayed_sound_w);
 }
 
 WRITE32_HANDLER( atarigen_sound_upper32_w )
 {
 	if (ACCESSING_BITS_24_31)
-		space->machine().scheduler().synchronize(FUNC(delayed_sound_w), (data >> 24) & 0xff);
+		timer_call_after_resynch(space->machine, NULL, (data >> 24) & 0xff, delayed_sound_w);
 }
 
 
@@ -690,26 +727,26 @@ WRITE32_HANDLER( atarigen_sound_upper32_w )
 
 READ16_HANDLER( atarigen_sound_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_sound_to_cpu_ready = 0;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->sound_to_cpu_ready = 0;
 	atarigen_sound_int_ack_w(space, 0, 0, 0xffff);
-	return state->m_sound_to_cpu | 0xff00;
+	return state->sound_to_cpu | 0xff00;
 }
 
 READ16_HANDLER( atarigen_sound_upper_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_sound_to_cpu_ready = 0;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->sound_to_cpu_ready = 0;
 	atarigen_sound_int_ack_w(space, 0, 0, 0xffff);
-	return (state->m_sound_to_cpu << 8) | 0x00ff;
+	return (state->sound_to_cpu << 8) | 0x00ff;
 }
 
 READ32_HANDLER( atarigen_sound_upper32_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_sound_to_cpu_ready = 0;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->sound_to_cpu_ready = 0;
 	atarigen_sound_int_ack32_w(space, 0, 0, 0xffff);
-	return (state->m_sound_to_cpu << 24) | 0x00ffffff;
+	return (state->sound_to_cpu << 24) | 0x00ffffff;
 }
 
 
@@ -720,7 +757,7 @@ READ32_HANDLER( atarigen_sound_upper32_r )
 
 WRITE8_HANDLER( atarigen_6502_sound_w )
 {
-	space->machine().scheduler().synchronize(FUNC(delayed_6502_sound_w), data);
+	timer_call_after_resynch(space->machine, NULL, data, delayed_6502_sound_w);
 }
 
 
@@ -731,10 +768,10 @@ WRITE8_HANDLER( atarigen_6502_sound_w )
 
 READ8_HANDLER( atarigen_6502_sound_r )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	state->m_cpu_to_sound_ready = 0;
-	device_set_input_line(state->m_sound_cpu, INPUT_LINE_NMI, CLEAR_LINE);
-	return state->m_cpu_to_sound;
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	state->cpu_to_sound_ready = 0;
+	cpu_set_input_line(state->sound_cpu, INPUT_LINE_NMI, CLEAR_LINE);
+	return state->cpu_to_sound;
 }
 
 
@@ -745,13 +782,13 @@ READ8_HANDLER( atarigen_6502_sound_r )
     the atarigen_ym2151_irq_gen() callback.
 ---------------------------------------------------------------*/
 
-static void update_6502_irq(running_machine &machine)
+static void update_6502_irq(running_machine *machine)
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
-	if (state->m_timed_int || state->m_ym2151_int)
-		device_set_input_line(state->m_sound_cpu, M6502_IRQ_LINE, ASSERT_LINE);
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
+	if (state->timed_int || state->ym2151_int)
+		cpu_set_input_line(state->sound_cpu, M6502_IRQ_LINE, ASSERT_LINE);
 	else
-		device_set_input_line(state->m_sound_cpu, M6502_IRQ_LINE, CLEAR_LINE);
+		cpu_set_input_line(state->sound_cpu, M6502_IRQ_LINE, CLEAR_LINE);
 }
 
 
@@ -762,23 +799,23 @@ static void update_6502_irq(running_machine &machine)
 
 static TIMER_CALLBACK( delayed_sound_reset )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
-	address_space *space = state->m_sound_cpu->memory().space(AS_PROGRAM);
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
+	const address_space *space = cpu_get_address_space(state->sound_cpu, ADDRESS_SPACE_PROGRAM);
 
 	/* unhalt and reset the sound CPU */
 	if (param == 0)
 	{
-		device_set_input_line(state->m_sound_cpu, INPUT_LINE_HALT, CLEAR_LINE);
-		device_set_input_line(state->m_sound_cpu, INPUT_LINE_RESET, PULSE_LINE);
+		cpu_set_input_line(state->sound_cpu, INPUT_LINE_HALT, CLEAR_LINE);
+		cpu_set_input_line(state->sound_cpu, INPUT_LINE_RESET, PULSE_LINE);
 	}
 
 	/* reset the sound write state */
-	state->m_sound_to_cpu_ready = 0;
+	state->sound_to_cpu_ready = 0;
 	atarigen_sound_int_ack_w(space, 0, 0, 0xffff);
 
 	/* allocate a high frequency timer until a response is generated */
 	/* the main CPU is *very* sensistive to the timing of the response */
-	machine.scheduler().boost_interleave(SOUND_TIMER_RATE, SOUND_TIMER_BOOST);
+	cpuexec_boost_interleave(machine, SOUND_TIMER_RATE, SOUND_TIMER_BOOST);
 }
 
 
@@ -789,20 +826,20 @@ static TIMER_CALLBACK( delayed_sound_reset )
 
 static TIMER_CALLBACK( delayed_sound_w )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
 
 	/* warn if we missed something */
-	if (state->m_cpu_to_sound_ready)
+	if (state->cpu_to_sound_ready)
 		logerror("Missed command from 68010\n");
 
 	/* set up the states and signal an NMI to the sound CPU */
-	state->m_cpu_to_sound = param;
-	state->m_cpu_to_sound_ready = 1;
-	device_set_input_line(state->m_sound_cpu, INPUT_LINE_NMI, ASSERT_LINE);
+	state->cpu_to_sound = param;
+	state->cpu_to_sound_ready = 1;
+	cpu_set_input_line(state->sound_cpu, INPUT_LINE_NMI, ASSERT_LINE);
 
 	/* allocate a high frequency timer until a response is generated */
 	/* the main CPU is *very* sensistive to the timing of the response */
-	machine.scheduler().boost_interleave(SOUND_TIMER_RATE, SOUND_TIMER_BOOST);
+	cpuexec_boost_interleave(machine, SOUND_TIMER_RATE, SOUND_TIMER_BOOST);
 }
 
 
@@ -813,16 +850,16 @@ static TIMER_CALLBACK( delayed_sound_w )
 
 static TIMER_CALLBACK( delayed_6502_sound_w )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
 
 	/* warn if we missed something */
-	if (state->m_sound_to_cpu_ready)
+	if (state->sound_to_cpu_ready)
 		logerror("Missed result from 6502\n");
 
 	/* set up the states and signal the sound interrupt to the main CPU */
-	state->m_sound_to_cpu = param;
-	state->m_sound_to_cpu_ready = 1;
-	atarigen_sound_int_gen(machine.device("maincpu"));
+	state->sound_to_cpu = param;
+	state->sound_to_cpu_ready = 1;
+	atarigen_sound_int_gen(machine->device("maincpu"));
 }
 
 
@@ -836,12 +873,12 @@ static TIMER_CALLBACK( delayed_6502_sound_w )
     changes the volume on all channels associated with it.
 ---------------------------------------------------------------*/
 
-void atarigen_set_vol(running_machine &machine, int volume, device_type type)
+void atarigen_set_vol(running_machine *machine, int volume, device_type type)
 {
 	device_sound_interface *sound = NULL;
-	for (bool gotone = machine.devicelist().first(sound); gotone; gotone = sound->next(sound))
+	for (bool gotone = machine->m_devicelist.first(sound); gotone; gotone = sound->next(sound))
 		if (sound->device().type() == type)
-			sound->set_output_gain(ALL_OUTPUTS, volume / 100.0);
+			sound_set_output_gain(*sound, ALL_OUTPUTS, volume / 100.0);
 }
 
 
@@ -850,29 +887,29 @@ void atarigen_set_vol(running_machine &machine, int volume, device_type type)
     of chip.
 ---------------------------------------------------------------*/
 
-void atarigen_set_ym2151_vol(running_machine &machine, int volume)
+void atarigen_set_ym2151_vol(running_machine *machine, int volume)
 {
-	atarigen_set_vol(machine, volume, YM2151);
+	atarigen_set_vol(machine, volume, SOUND_YM2151);
 }
 
-void atarigen_set_ym2413_vol(running_machine &machine, int volume)
+void atarigen_set_ym2413_vol(running_machine *machine, int volume)
 {
-	atarigen_set_vol(machine, volume, YM2413);
+	atarigen_set_vol(machine, volume, SOUND_YM2413);
 }
 
-void atarigen_set_pokey_vol(running_machine &machine, int volume)
+void atarigen_set_pokey_vol(running_machine *machine, int volume)
 {
-	atarigen_set_vol(machine, volume, POKEY);
+	atarigen_set_vol(machine, volume, SOUND_POKEY);
 }
 
-void atarigen_set_tms5220_vol(running_machine &machine, int volume)
+void atarigen_set_tms5220_vol(running_machine *machine, int volume)
 {
-	atarigen_set_vol(machine, volume, TMS5220);
+	atarigen_set_vol(machine, volume, SOUND_TMS5220);
 }
 
-void atarigen_set_oki6295_vol(running_machine &machine, int volume)
+void atarigen_set_oki6295_vol(running_machine *machine, int volume)
 {
-	atarigen_set_vol(machine, volume, OKIM6295);
+	atarigen_set_vol(machine, volume, SOUND_OKIM6295);
 }
 
 
@@ -887,17 +924,17 @@ void atarigen_set_oki6295_vol(running_machine &machine, int volume)
 
 void atarigen_scanline_timer_reset(screen_device &screen, atarigen_scanline_func update_graphics, int frequency)
 {
-	atarigen_state *state = screen.machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)screen.machine->driver_data;
 
 	/* set the scanline callback */
-	state->m_scanline_callback = update_graphics;
-	state->m_scanlines_per_callback = frequency;
+	state->scanline_callback = update_graphics;
+	state->scanlines_per_callback = frequency;
 
 	/* set a timer to go off at scanline 0 */
-	if (state->m_scanline_callback != NULL)
+	if (state->scanline_callback != NULL)
 	{
 		emu_timer *timer = get_screen_timer(screen)->scanline_timer;
-		timer->adjust(screen.time_until_pos(0));
+		timer_adjust_oneshot(timer, screen.time_until_pos(0), 0);
 	}
 }
 
@@ -909,20 +946,20 @@ void atarigen_scanline_timer_reset(screen_device &screen, atarigen_scanline_func
 
 static TIMER_CALLBACK( scanline_timer_callback )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
 	screen_device &screen = *reinterpret_cast<screen_device *>(ptr);
 	int scanline = param;
 
 	/* callback */
-	if (state->m_scanline_callback != NULL)
+	if (state->scanline_callback != NULL)
 	{
-		(*state->m_scanline_callback)(screen, scanline);
+		(*state->scanline_callback)(screen, scanline);
 
 		/* generate another */
-		scanline += state->m_scanlines_per_callback;
+		scanline += state->scanlines_per_callback;
 		if (scanline >= screen.height())
 			scanline = 0;
-		get_screen_timer(screen)->scanline_timer->adjust(screen.time_until_pos(scanline), scanline);
+		timer_adjust_oneshot(get_screen_timer(screen)->scanline_timer, screen.time_until_pos(scanline), scanline);
 	}
 }
 
@@ -939,33 +976,33 @@ static TIMER_CALLBACK( scanline_timer_callback )
 
 static TIMER_CALLBACK( atarivc_eof_update )
 {
-	atarigen_state *state = machine.driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)machine->driver_data;
 	screen_device &screen = *reinterpret_cast<screen_device *>(ptr);
 	emu_timer *timer = get_screen_timer(screen)->atarivc_eof_update_timer;
 	int i;
 
 	/* echo all the commands to the video controller */
 	for (i = 0; i < 0x1c; i++)
-		if (state->m_atarivc_eof_data[i])
-			atarivc_common_w(screen, i, state->m_atarivc_eof_data[i]);
+		if (state->atarivc_eof_data[i])
+			atarivc_common_w(screen, i, state->atarivc_eof_data[i]);
 
 	/* update the scroll positions */
-	atarimo_set_xscroll(0, state->m_atarivc_state.mo_xscroll);
-	atarimo_set_yscroll(0, state->m_atarivc_state.mo_yscroll);
+	atarimo_set_xscroll(0, state->atarivc_state.mo_xscroll);
+	atarimo_set_yscroll(0, state->atarivc_state.mo_yscroll);
 
-	tilemap_set_scrollx(state->m_playfield_tilemap, 0, state->m_atarivc_state.pf0_xscroll);
-	tilemap_set_scrolly(state->m_playfield_tilemap, 0, state->m_atarivc_state.pf0_yscroll);
+	tilemap_set_scrollx(state->playfield_tilemap, 0, state->atarivc_state.pf0_xscroll);
+	tilemap_set_scrolly(state->playfield_tilemap, 0, state->atarivc_state.pf0_yscroll);
 
-	if (state->m_atarivc_playfields > 1)
+	if (state->atarivc_playfields > 1)
 	{
-		tilemap_set_scrollx(state->m_playfield2_tilemap, 0, state->m_atarivc_state.pf1_xscroll);
-		tilemap_set_scrolly(state->m_playfield2_tilemap, 0, state->m_atarivc_state.pf1_yscroll);
+		tilemap_set_scrollx(state->playfield2_tilemap, 0, state->atarivc_state.pf1_xscroll);
+		tilemap_set_scrolly(state->playfield2_tilemap, 0, state->atarivc_state.pf1_yscroll);
 	}
-	timer->adjust(screen.time_until_pos(0));
+	timer_adjust_oneshot(timer, screen.time_until_pos(0), 0);
 
 	/* use this for debugging the video controller values */
 #if 0
-	if (machine.input().code_pressed(KEYCODE_8))
+	if (input_code_pressed(machine, KEYCODE_8))
 	{
 		static FILE *out;
 		if (!out) out = fopen("scroll.log", "w");
@@ -986,25 +1023,25 @@ static TIMER_CALLBACK( atarivc_eof_update )
 
 void atarivc_reset(screen_device &screen, UINT16 *eof_data, int playfields)
 {
-	atarigen_state *state = screen.machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)screen.machine->driver_data;
 
 	/* this allows us to manually reset eof_data to NULL if it's not used */
-	state->m_atarivc_eof_data = eof_data;
-	state->m_atarivc_playfields = playfields;
+	state->atarivc_eof_data = eof_data;
+	state->atarivc_playfields = playfields;
 
 	/* clear the RAM we use */
-	memset(state->m_atarivc_data, 0, 0x40);
-	memset(&state->m_atarivc_state, 0, sizeof(state->m_atarivc_state));
+	memset(state->atarivc_data, 0, 0x40);
+	memset(&state->atarivc_state, 0, sizeof(state->atarivc_state));
 
 	/* reset the latches */
-	state->m_atarivc_state.latch1 = state->m_atarivc_state.latch2 = -1;
-	state->m_actual_vc_latch0 = state->m_actual_vc_latch1 = -1;
+	state->atarivc_state.latch1 = state->atarivc_state.latch2 = -1;
+	state->actual_vc_latch0 = state->actual_vc_latch1 = -1;
 
 	/* start a timer to go off a little before scanline 0 */
-	if (state->m_atarivc_eof_data)
+	if (state->atarivc_eof_data)
 	{
 		emu_timer *timer = get_screen_timer(screen)->atarivc_eof_update_timer;
-		timer->adjust(screen.time_until_pos(0));
+		timer_adjust_oneshot(timer, screen.time_until_pos(0), 0);
 	}
 }
 
@@ -1016,8 +1053,8 @@ void atarivc_reset(screen_device &screen, UINT16 *eof_data, int playfields)
 
 void atarivc_w(screen_device &screen, offs_t offset, UINT16 data, UINT16 mem_mask)
 {
-	atarigen_state *state = screen.machine().driver_data<atarigen_state>();
-	int oldword = state->m_atarivc_data[offset];
+	atarigen_state *state = (atarigen_state *)screen.machine->driver_data;
+	int oldword = state->atarivc_data[offset];
 	int newword = oldword;
 
 	COMBINE_DATA(&newword);
@@ -1033,9 +1070,9 @@ void atarivc_w(screen_device &screen, offs_t offset, UINT16 data, UINT16 mem_mas
 
 static void atarivc_common_w(screen_device &screen, offs_t offset, UINT16 newword)
 {
-	atarigen_state *state = screen.machine().driver_data<atarigen_state>();
-	int oldword = state->m_atarivc_data[offset];
-	state->m_atarivc_data[offset] = newword;
+	atarigen_state *state = (atarigen_state *)screen.machine->driver_data;
+	int oldword = state->atarivc_data[offset];
+	state->atarivc_data[offset] = newword;
 
 	/* switch off the offset */
 	switch (offset)
@@ -1057,17 +1094,17 @@ static void atarivc_common_w(screen_device &screen, offs_t offset, UINT16 newwor
 		case 0x0a:
 
 			/* reset the latches when disabled */
-			atarigen_set_playfield_latch(state, (newword & 0x0080) ? state->m_actual_vc_latch0 : -1);
-			atarigen_set_playfield2_latch(state, (newword & 0x0080) ? state->m_actual_vc_latch1 : -1);
+			atarigen_set_playfield_latch(state, (newword & 0x0080) ? state->actual_vc_latch0 : -1);
+			atarigen_set_playfield2_latch(state, (newword & 0x0080) ? state->actual_vc_latch1 : -1);
 
 			/* check for rowscroll enable */
-			state->m_atarivc_state.rowscroll_enable = (newword & 0x2000) >> 13;
+			state->atarivc_state.rowscroll_enable = (newword & 0x2000) >> 13;
 
 			/* check for palette banking */
-			if (state->m_atarivc_state.palette_bank != (((newword & 0x0400) >> 10) ^ 1))
+			if (state->atarivc_state.palette_bank != (((newword & 0x0400) >> 10) ^ 1))
 			{
 				screen.update_partial(screen.vpos());
-				state->m_atarivc_state.palette_bank = ((newword & 0x0400) >> 10) ^ 1;
+				state->atarivc_state.palette_bank = ((newword & 0x0400) >> 10) ^ 1;
 			}
 			break;
 
@@ -1078,53 +1115,53 @@ static void atarivc_common_w(screen_device &screen, offs_t offset, UINT16 newwor
 			switch (newword & 15)
 			{
 				case 9:
-					state->m_atarivc_state.mo_xscroll = (newword >> 7) & 0x1ff;
+					state->atarivc_state.mo_xscroll = (newword >> 7) & 0x1ff;
 					break;
 
 				case 10:
-					state->m_atarivc_state.pf1_xscroll_raw = (newword >> 7) & 0x1ff;
+					state->atarivc_state.pf1_xscroll_raw = (newword >> 7) & 0x1ff;
 					atarivc_update_pf_xscrolls(state);
 					break;
 
 				case 11:
-					state->m_atarivc_state.pf0_xscroll_raw = (newword >> 7) & 0x1ff;
+					state->atarivc_state.pf0_xscroll_raw = (newword >> 7) & 0x1ff;
 					atarivc_update_pf_xscrolls(state);
 					break;
 
 				case 13:
-					state->m_atarivc_state.mo_yscroll = (newword >> 7) & 0x1ff;
+					state->atarivc_state.mo_yscroll = (newword >> 7) & 0x1ff;
 					break;
 
 				case 14:
-					state->m_atarivc_state.pf1_yscroll = (newword >> 7) & 0x1ff;
+					state->atarivc_state.pf1_yscroll = (newword >> 7) & 0x1ff;
 					break;
 
 				case 15:
-					state->m_atarivc_state.pf0_yscroll = (newword >> 7) & 0x1ff;
+					state->atarivc_state.pf0_yscroll = (newword >> 7) & 0x1ff;
 					break;
 			}
 			break;
 
 		/* latch 1 value */
 		case 0x1c:
-			state->m_actual_vc_latch0 = -1;
-			state->m_actual_vc_latch1 = newword;
-			atarigen_set_playfield_latch(state, (state->m_atarivc_data[0x0a] & 0x80) ? state->m_actual_vc_latch0 : -1);
-			atarigen_set_playfield2_latch(state, (state->m_atarivc_data[0x0a] & 0x80) ? state->m_actual_vc_latch1 : -1);
+			state->actual_vc_latch0 = -1;
+			state->actual_vc_latch1 = newword;
+			atarigen_set_playfield_latch(state, (state->atarivc_data[0x0a] & 0x80) ? state->actual_vc_latch0 : -1);
+			atarigen_set_playfield2_latch(state, (state->atarivc_data[0x0a] & 0x80) ? state->actual_vc_latch1 : -1);
 			break;
 
 		/* latch 2 value */
 		case 0x1d:
-			state->m_actual_vc_latch0 = newword;
-			state->m_actual_vc_latch1 = -1;
-			atarigen_set_playfield_latch(state, (state->m_atarivc_data[0x0a] & 0x80) ? state->m_actual_vc_latch0 : -1);
-			atarigen_set_playfield2_latch(state, (state->m_atarivc_data[0x0a] & 0x80) ? state->m_actual_vc_latch1 : -1);
+			state->actual_vc_latch0 = newword;
+			state->actual_vc_latch1 = -1;
+			atarigen_set_playfield_latch(state, (state->atarivc_data[0x0a] & 0x80) ? state->actual_vc_latch0 : -1);
+			atarigen_set_playfield2_latch(state, (state->atarivc_data[0x0a] & 0x80) ? state->actual_vc_latch1 : -1);
 			break;
 
 		/* scanline IRQ ack here */
 		case 0x1e:
 			/* hack: this should be a device */
-			atarigen_scanline_int_ack_w(screen.machine().device("maincpu")->memory().space(AS_PROGRAM), 0, 0, 0xffff);
+			atarigen_scanline_int_ack_w(cputag_get_address_space(screen.machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0, 0, 0xffff);
 			break;
 
 		/* log anything else */
@@ -1143,7 +1180,7 @@ static void atarivc_common_w(screen_device &screen, offs_t offset, UINT16 newwor
 
 UINT16 atarivc_r(screen_device &screen, offs_t offset)
 {
-	atarigen_state *state = screen.machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)screen.machine->driver_data;
 
 	logerror("vc_r(%02X)\n", offset);
 
@@ -1161,7 +1198,7 @@ UINT16 atarivc_r(screen_device &screen, offs_t offset)
 		return result;
 	}
 	else
-		return state->m_atarivc_data[offset];
+		return state->atarivc_data[offset];
 }
 
 
@@ -1176,26 +1213,26 @@ UINT16 atarivc_r(screen_device &screen, offs_t offset)
 
 WRITE16_HANDLER( atarigen_alpha_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_alpha[offset]);
-	tilemap_mark_tile_dirty(state->m_alpha_tilemap, offset);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->alpha[offset]);
+	tilemap_mark_tile_dirty(state->alpha_tilemap, offset);
 }
 
 WRITE32_HANDLER( atarigen_alpha32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_alpha32[offset]);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->alpha32[offset]);
 	if (ACCESSING_BITS_16_31)
-		tilemap_mark_tile_dirty(state->m_alpha_tilemap, offset * 2);
+		tilemap_mark_tile_dirty(state->alpha_tilemap, offset * 2);
 	if (ACCESSING_BITS_0_15)
-		tilemap_mark_tile_dirty(state->m_alpha_tilemap, offset * 2 + 1);
+		tilemap_mark_tile_dirty(state->alpha_tilemap, offset * 2 + 1);
 }
 
 WRITE16_HANDLER( atarigen_alpha2_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_alpha2[offset]);
-	tilemap_mark_tile_dirty(state->m_alpha2_tilemap, offset);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->alpha2[offset]);
+	tilemap_mark_tile_dirty(state->alpha2_tilemap, offset);
 }
 
 
@@ -1207,12 +1244,12 @@ WRITE16_HANDLER( atarigen_alpha2_w )
 
 void atarigen_set_playfield_latch(atarigen_state *state, int data)
 {
-	state->m_playfield_latch = data;
+	state->playfield_latch = data;
 }
 
 void atarigen_set_playfield2_latch(atarigen_state *state, int data)
 {
-	state->m_playfield2_latch = data;
+	state->playfield2_latch = data;
 }
 
 
@@ -1223,26 +1260,26 @@ void atarigen_set_playfield2_latch(atarigen_state *state, int data)
 
 WRITE16_HANDLER( atarigen_playfield_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_playfield[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->playfield[offset]);
+	tilemap_mark_tile_dirty(state->playfield_tilemap, offset);
 }
 
 WRITE32_HANDLER( atarigen_playfield32_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_playfield32[offset]);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->playfield32[offset]);
 	if (ACCESSING_BITS_16_31)
-		tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset * 2);
+		tilemap_mark_tile_dirty(state->playfield_tilemap, offset * 2);
 	if (ACCESSING_BITS_0_15)
-		tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset * 2 + 1);
+		tilemap_mark_tile_dirty(state->playfield_tilemap, offset * 2 + 1);
 }
 
 WRITE16_HANDLER( atarigen_playfield2_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_playfield2[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield2_tilemap, offset);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->playfield2[offset]);
+	tilemap_mark_tile_dirty(state->playfield2_tilemap, offset);
 }
 
 
@@ -1254,9 +1291,9 @@ WRITE16_HANDLER( atarigen_playfield2_w )
 
 WRITE16_HANDLER( atarigen_playfield_large_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_playfield[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset / 2);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->playfield[offset]);
+	tilemap_mark_tile_dirty(state->playfield_tilemap, offset / 2);
 }
 
 
@@ -1268,9 +1305,9 @@ WRITE16_HANDLER( atarigen_playfield_large_w )
 
 WRITE16_HANDLER( atarigen_playfield_upper_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_playfield_upper[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->playfield_upper[offset]);
+	tilemap_mark_tile_dirty(state->playfield_tilemap, offset);
 }
 
 
@@ -1282,10 +1319,10 @@ WRITE16_HANDLER( atarigen_playfield_upper_w )
 
 WRITE16_HANDLER( atarigen_playfield_dual_upper_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
-	COMBINE_DATA(&state->m_playfield_upper[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset);
-	tilemap_mark_tile_dirty(state->m_playfield2_tilemap, offset);
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->playfield_upper[offset]);
+	tilemap_mark_tile_dirty(state->playfield_tilemap, offset);
+	tilemap_mark_tile_dirty(state->playfield2_tilemap, offset);
 }
 
 
@@ -1298,13 +1335,13 @@ WRITE16_HANDLER( atarigen_playfield_dual_upper_w )
 
 WRITE16_HANDLER( atarigen_playfield_latched_lsb_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 
-	COMBINE_DATA(&state->m_playfield[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset);
+	COMBINE_DATA(&state->playfield[offset]);
+	tilemap_mark_tile_dirty(state->playfield_tilemap, offset);
 
-	if (state->m_playfield_latch != -1)
-		state->m_playfield_upper[offset] = (state->m_playfield_upper[offset] & ~0x00ff) | (state->m_playfield_latch & 0x00ff);
+	if (state->playfield_latch != -1)
+		state->playfield_upper[offset] = (state->playfield_upper[offset] & ~0x00ff) | (state->playfield_latch & 0x00ff);
 }
 
 
@@ -1317,13 +1354,13 @@ WRITE16_HANDLER( atarigen_playfield_latched_lsb_w )
 
 WRITE16_HANDLER( atarigen_playfield_latched_msb_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 
-	COMBINE_DATA(&state->m_playfield[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield_tilemap, offset);
+	COMBINE_DATA(&state->playfield[offset]);
+	tilemap_mark_tile_dirty(state->playfield_tilemap, offset);
 
-	if (state->m_playfield_latch != -1)
-		state->m_playfield_upper[offset] = (state->m_playfield_upper[offset] & ~0xff00) | (state->m_playfield_latch & 0xff00);
+	if (state->playfield_latch != -1)
+		state->playfield_upper[offset] = (state->playfield_upper[offset] & ~0xff00) | (state->playfield_latch & 0xff00);
 }
 
 
@@ -1336,13 +1373,13 @@ WRITE16_HANDLER( atarigen_playfield_latched_msb_w )
 
 WRITE16_HANDLER( atarigen_playfield2_latched_msb_w )
 {
-	atarigen_state *state = space->machine().driver_data<atarigen_state>();
+	atarigen_state *state = (atarigen_state *)space->machine->driver_data;
 
-	COMBINE_DATA(&state->m_playfield2[offset]);
-	tilemap_mark_tile_dirty(state->m_playfield2_tilemap, offset);
+	COMBINE_DATA(&state->playfield2[offset]);
+	tilemap_mark_tile_dirty(state->playfield2_tilemap, offset);
 
-	if (state->m_playfield2_latch != -1)
-		state->m_playfield_upper[offset] = (state->m_playfield_upper[offset] & ~0xff00) | (state->m_playfield2_latch & 0xff00);
+	if (state->playfield2_latch != -1)
+		state->playfield_upper[offset] = (state->playfield_upper[offset] & ~0xff00) | (state->playfield2_latch & 0xff00);
 }
 
 
@@ -1371,20 +1408,22 @@ int atarigen_get_hblank(screen_device &screen)
 
 void atarigen_halt_until_hblank_0(screen_device &screen)
 {
-	device_t *cpu = screen.machine().device("maincpu");
+	running_device *cpu = screen.machine->device("maincpu");
 
 	/* halt the CPU until the next HBLANK */
 	int hpos = screen.hpos();
 	int width = screen.width();
 	int hblank = width * 9 / 10;
+	double fraction;
 
 	/* if we're in hblank, set up for the next one */
 	if (hpos >= hblank)
 		hblank += width;
 
 	/* halt and set a timer to wake up */
-	screen.machine().scheduler().timer_set(screen.scan_period() * (hblank - hpos) / width, FUNC(unhalt_cpu), 0, (void *)cpu);
-	device_set_input_line(cpu, INPUT_LINE_HALT, ASSERT_LINE);
+	fraction = (double)(hblank - hpos) / (double)width;
+	timer_set(screen.machine, double_to_attotime(attotime_to_double(screen.scan_period()) * fraction), (void *)cpu, 0, unhalt_cpu);
+	cpu_set_input_line(cpu, INPUT_LINE_HALT, ASSERT_LINE);
 }
 
 
@@ -1396,14 +1435,14 @@ WRITE16_HANDLER( atarigen_666_paletteram_w )
 {
 	int newword, r, g, b;
 
-	COMBINE_DATA(&space->machine().generic.paletteram.u16[offset]);
-	newword = space->machine().generic.paletteram.u16[offset];
+	COMBINE_DATA(&space->machine->generic.paletteram.u16[offset]);
+	newword = space->machine->generic.paletteram.u16[offset];
 
 	r = ((newword >> 9) & 0x3e) | ((newword >> 15) & 1);
 	g = ((newword >> 4) & 0x3e) | ((newword >> 15) & 1);
 	b = ((newword << 1) & 0x3e) | ((newword >> 15) & 1);
 
-	palette_set_color_rgb(space->machine(), offset, pal6bit(r), pal6bit(g), pal6bit(b));
+	palette_set_color_rgb(space->machine, offset, pal6bit(r), pal6bit(g), pal6bit(b));
 }
 
 
@@ -1414,12 +1453,12 @@ WRITE16_HANDLER( atarigen_666_paletteram_w )
 
 WRITE16_HANDLER( atarigen_expanded_666_paletteram_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u16[offset]);
+	COMBINE_DATA(&space->machine->generic.paletteram.u16[offset]);
 
 	if (ACCESSING_BITS_8_15)
 	{
 		int palentry = offset / 2;
-		int newword = (space->machine().generic.paletteram.u16[palentry * 2] & 0xff00) | (space->machine().generic.paletteram.u16[palentry * 2 + 1] >> 8);
+		int newword = (space->machine->generic.paletteram.u16[palentry * 2] & 0xff00) | (space->machine->generic.paletteram.u16[palentry * 2 + 1] >> 8);
 
 		int r, g, b;
 
@@ -1427,7 +1466,7 @@ WRITE16_HANDLER( atarigen_expanded_666_paletteram_w )
 		g = ((newword >> 4) & 0x3e) | ((newword >> 15) & 1);
 		b = ((newword << 1) & 0x3e) | ((newword >> 15) & 1);
 
-		palette_set_color_rgb(space->machine(), palentry & 0x1ff, pal6bit(r), pal6bit(g), pal6bit(b));
+		palette_set_color_rgb(space->machine, palentry & 0x1ff, pal6bit(r), pal6bit(g), pal6bit(b));
 	}
 }
 
@@ -1440,28 +1479,28 @@ WRITE32_HANDLER( atarigen_666_paletteram32_w )
 {
 	int newword, r, g, b;
 
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
 
 	if (ACCESSING_BITS_16_31)
 	{
-		newword = space->machine().generic.paletteram.u32[offset] >> 16;
+		newword = space->machine->generic.paletteram.u32[offset] >> 16;
 
 		r = ((newword >> 9) & 0x3e) | ((newword >> 15) & 1);
 		g = ((newword >> 4) & 0x3e) | ((newword >> 15) & 1);
 		b = ((newword << 1) & 0x3e) | ((newword >> 15) & 1);
 
-		palette_set_color_rgb(space->machine(), offset * 2, pal6bit(r), pal6bit(g), pal6bit(b));
+		palette_set_color_rgb(space->machine, offset * 2, pal6bit(r), pal6bit(g), pal6bit(b));
 	}
 
 	if (ACCESSING_BITS_0_15)
 	{
-		newword = space->machine().generic.paletteram.u32[offset] & 0xffff;
+		newword = space->machine->generic.paletteram.u32[offset] & 0xffff;
 
 		r = ((newword >> 9) & 0x3e) | ((newword >> 15) & 1);
 		g = ((newword >> 4) & 0x3e) | ((newword >> 15) & 1);
 		b = ((newword << 1) & 0x3e) | ((newword >> 15) & 1);
 
-		palette_set_color_rgb(space->machine(), offset * 2 + 1, pal6bit(r), pal6bit(g), pal6bit(b));
+		palette_set_color_rgb(space->machine, offset * 2 + 1, pal6bit(r), pal6bit(g), pal6bit(b));
 	}
 }
 
@@ -1472,8 +1511,8 @@ WRITE32_HANDLER( atarigen_666_paletteram32_w )
 
 static TIMER_CALLBACK( unhalt_cpu )
 {
-	device_t *cpu = (device_t *)ptr;
-	device_set_input_line(cpu, INPUT_LINE_HALT, CLEAR_LINE);
+	running_device *cpu = (running_device *)ptr;
+	cpu_set_input_line(cpu, INPUT_LINE_HALT, CLEAR_LINE);
 }
 
 
@@ -1504,10 +1543,10 @@ void atarigen_swap_mem(void *ptr1, void *ptr2, int bytes)
     data together to form one. Then frees the second.
 ---------------------------------------------------------------*/
 
-void atarigen_blend_gfx(running_machine &machine, int gfx0, int gfx1, int mask0, int mask1)
+void atarigen_blend_gfx(running_machine *machine, int gfx0, int gfx1, int mask0, int mask1)
 {
-	gfx_element *gx0 = machine.gfx[gfx0];
-	gfx_element *gx1 = machine.gfx[gfx1];
+	gfx_element *gx0 = machine->gfx[gfx0];
+	gfx_element *gx1 = machine->gfx[gfx1];
 	UINT8 *srcdata, *dest;
 	int c, x, y;
 
@@ -1536,7 +1575,7 @@ void atarigen_blend_gfx(running_machine &machine, int gfx0, int gfx1, int mask0,
 
 	/* free the second graphics element */
 	gfx_element_free(gx1);
-	machine.gfx[gfx1] = NULL;
+	machine->gfx[gfx1] = NULL;
 
 	/* create a simple target layout */
 	gx0->layout.planes = 8;
@@ -1550,70 +1589,4 @@ void atarigen_blend_gfx(running_machine &machine, int gfx0, int gfx1, int mask0,
 
 	/* make the assembled data our new source data */
 	gfx_element_set_source(gx0, srcdata);
-}
-
-
-
-//**************************************************************************
-//  VECTOR AND EARLY RASTER EAROM INTERFACE
-//**************************************************************************
-
-void atarigen_state::machine_start()
-{
-	// until everyone is converted to modern devices, call our parent
-	driver_device::machine_start();
-
-	save_item(NAME(m_earom_data));
-	save_item(NAME(m_earom_control));
-}
-
-
-void atarigen_state::machine_reset()
-{
-	// until everyone is converted to modern devices, call our parent
-	driver_device::machine_reset();
-
-	// reset the control latch on the EAROM, if present
-	if (m_earom != NULL)
-		m_earom->set_control(0, 1, 1, 0, 0);
-}
-
-
-
-//**************************************************************************
-//  VECTOR AND EARLY RASTER EAROM INTERFACE
-//**************************************************************************
-
-READ8_MEMBER( atarigen_state::earom_r )
-{
-	// return data latched from previous clock
-	return m_earom->data();
-}
-
-
-WRITE8_MEMBER( atarigen_state::earom_w )
-{
-	// remember the value written
-	m_earom_data = data;
-
-	// output latch only enabled if control bit 2 is set
-	if (m_earom_control & 4)
-		m_earom->set_data(m_earom_data);
-
-	// always latch the address
-	m_earom->set_address(offset);
-}
-
-
-WRITE8_MEMBER( atarigen_state::earom_control_w )
-{
-	// remember the control state
-	m_earom_control = data;
-
-	// ensure ouput data is put on data lines prior to updating controls
-	if (m_earom_control & 4)
-		m_earom->set_data(m_earom_data);
-
-	// set the control lines; /CS2 is always held low
-	m_earom->set_control(data & 8, 1, ~data & 4, data & 2, data & 1);
 }

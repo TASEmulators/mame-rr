@@ -1,43 +1,44 @@
 
-class n8080_state : public driver_device
+class n8080_state
 {
 public:
-	n8080_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, n8080_state(machine)); }
+
+	n8080_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_videoram;
-	UINT8 * m_colorram;	// for helifire
+	UINT8 * videoram;
+	UINT8 * colorram;	// for helifire
 
 	/* video-related */
-	emu_timer* m_cannon_timer;
-	int m_spacefev_red_screen;
-	int m_spacefev_red_cannon;
-	int m_sheriff_color_mode;
-	int m_sheriff_color_data;
-	int m_helifire_flash;
-	UINT8 m_helifire_LSFR[63];
-	unsigned m_helifire_mv;
-	unsigned m_helifire_sc; /* IC56 */
+	emu_timer* cannon_timer;
+	int spacefev_red_screen;
+	int spacefev_red_cannon;
+	int sheriff_color_mode;
+	int sheriff_color_data;
+	int helifire_flash;
+	UINT8 helifire_LSFR[63];
+	unsigned helifire_mv;
+	unsigned helifire_sc; /* IC56 */
 
 	/* sound-related */
-	int m_n8080_hardware;
-	emu_timer* m_sound_timer[3];
-	int m_helifire_dac_phase;
-	double m_helifire_dac_volume;
-	double m_helifire_dac_timing;
-	UINT16 m_prev_sound_pins;
-	UINT16 m_curr_sound_pins;
-	int m_mono_flop[3];
-	UINT8 m_prev_snd_data;
+	int n8080_hardware;
+	emu_timer* sound_timer[3];
+	int helifire_dac_phase;
+	double helifire_dac_volume;
+	double helifire_dac_timing;
+	UINT16 prev_sound_pins;
+	UINT16 curr_sound_pins;
+	int mono_flop[3];
+	UINT8 prev_snd_data;
 
 	/* other */
-	unsigned m_shift_data;
-	unsigned m_shift_bits;
-	int m_inte;
+	unsigned shift_data;
+	unsigned shift_bits;
+	int inte;
 
 	/* devices */
-	device_t *m_maincpu;
+	running_device *maincpu;
 };
 
 
@@ -52,18 +53,18 @@ PALETTE_INIT( helifire );
 VIDEO_START( spacefev );
 VIDEO_START( sheriff );
 VIDEO_START( helifire );
-SCREEN_UPDATE( spacefev );
-SCREEN_UPDATE( sheriff );
-SCREEN_UPDATE( helifire );
-SCREEN_EOF( helifire );
+VIDEO_UPDATE( spacefev );
+VIDEO_UPDATE( sheriff );
+VIDEO_UPDATE( helifire );
+VIDEO_EOF( helifire );
 
-void spacefev_start_red_cannon(running_machine &machine);
+void spacefev_start_red_cannon(running_machine *machine);
 
 /*----------- defined in audio/n8080.c -----------*/
 
-MACHINE_CONFIG_EXTERN( spacefev_sound );
-MACHINE_CONFIG_EXTERN( sheriff_sound );
-MACHINE_CONFIG_EXTERN( helifire_sound );
+MACHINE_DRIVER_EXTERN( spacefev_sound );
+MACHINE_DRIVER_EXTERN( sheriff_sound );
+MACHINE_DRIVER_EXTERN( helifire_sound );
 
 MACHINE_START( spacefev_sound );
 MACHINE_START( sheriff_sound );

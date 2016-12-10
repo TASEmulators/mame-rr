@@ -45,7 +45,7 @@ static const INT16 sine_wave[32] =
 
 
 
-static void adjust_sample(device_t *samples, UINT8 freq)
+static void adjust_sample(running_device *samples, UINT8 freq)
 {
 	tone_freq = freq;
 
@@ -61,11 +61,11 @@ static void adjust_sample(device_t *samples, UINT8 freq)
 
 WRITE8_HANDLER( targ_audio_1_w )
 {
-	device_t *samples = space->machine().device("samples");
+	running_device *samples = space->machine->device("samples");
 
 	/* CPU music */
 	if ((data & 0x01) != (port_1_last & 0x01))
-		dac_data_w(space->machine().device("dac"),(data & 0x01) * 0xff);
+		dac_data_w(space->machine->device("dac"),(data & 0x01) * 0xff);
 
 	/* shot */
 	if (FALLING_EDGE(0x02) && !sample_playing(samples, 0))  sample_start(samples, 0,1,0);
@@ -114,8 +114,8 @@ WRITE8_HANDLER( targ_audio_2_w )
 {
 	if ((data & 0x01) && !(port_2_last & 0x01))
 	{
-		device_t *samples = space->machine().device("samples");
-		UINT8 *prom = space->machine().region("targ")->base();
+		running_device *samples = space->machine->device("samples");
+		UINT8 *prom = memory_region(space->machine, "targ");
 
 		tone_pointer = (tone_pointer + 1) & 0x0f;
 
@@ -128,7 +128,7 @@ WRITE8_HANDLER( targ_audio_2_w )
 
 WRITE8_HANDLER( spectar_audio_2_w )
 {
-	device_t *samples = space->machine().device("samples");
+	running_device *samples = space->machine->device("samples");
 	adjust_sample(samples, data);
 }
 
@@ -145,9 +145,9 @@ static const char *const sample_names[] =
 };
 
 
-static void common_audio_start(running_machine &machine, int freq)
+static void common_audio_start(running_machine *machine, int freq)
 {
-	device_t *samples = machine.device("samples");
+	running_device *samples = machine->device("samples");
 	max_freq = freq;
 
 	tone_freq = 0;
@@ -165,14 +165,14 @@ static void common_audio_start(running_machine &machine, int freq)
 
 static SAMPLES_START( spectar_audio_start )
 {
-	running_machine &machine = device->machine();
+	running_machine *machine = device->machine;
 	common_audio_start(machine, SPECTAR_MAXFREQ);
 }
 
 
 static SAMPLES_START( targ_audio_start )
 {
-	running_machine &machine = device->machine();
+	running_machine *machine = device->machine;
 	common_audio_start(machine, TARG_MAXFREQ);
 
 	tone_pointer = 0;
@@ -197,27 +197,27 @@ static const samples_interface targ_samples_interface =
 };
 
 
-MACHINE_CONFIG_FRAGMENT( spectar_audio )
+MACHINE_DRIVER_START( spectar_audio )
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("samples", SAMPLES, 0)
-	MCFG_SOUND_CONFIG(spectar_samples_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("samples", SAMPLES, 0)
+	MDRV_SOUND_CONFIG(spectar_samples_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-MACHINE_CONFIG_FRAGMENT( targ_audio )
+MACHINE_DRIVER_START( targ_audio )
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("samples", SAMPLES, 0)
-	MCFG_SOUND_CONFIG(targ_samples_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("samples", SAMPLES, 0)
+	MDRV_SOUND_CONFIG(targ_samples_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END

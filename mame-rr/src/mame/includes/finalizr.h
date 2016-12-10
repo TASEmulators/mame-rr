@@ -4,36 +4,34 @@
 
 ***************************************************************************/
 
-class finalizr_state : public driver_device
+class finalizr_state
 {
 public:
-	finalizr_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, finalizr_state(machine)); }
+
+	finalizr_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *       m_videoram;
-	UINT8 *       m_colorram;
-	UINT8 *       m_videoram2;
-	UINT8 *       m_colorram2;
-	UINT8 *       m_scroll;
-	UINT8 *       m_spriteram;
-	UINT8 *       m_spriteram_2;
-	size_t        m_videoram_size;
-	size_t        m_spriteram_size;
+	UINT8 *       videoram;
+	UINT8 *       colorram;
+	UINT8 *       videoram2;
+	UINT8 *       colorram2;
+	UINT8 *       scroll;
+	UINT8 *       spriteram;
+	UINT8 *       spriteram_2;
+	size_t        videoram_size;
+	size_t        spriteram_size;
 
 	/* video-related */
-	tilemap_t       *m_fg_tilemap;
-	tilemap_t       *m_bg_tilemap;
-	int           m_spriterambank;
-	int           m_charbank;
+	tilemap_t       *fg_tilemap, *bg_tilemap;
+	int           spriterambank, charbank;
 
 	/* misc */
-	int           m_T1_line;
-	UINT8         m_nmi_enable;
-	UINT8         m_irq_enable;
+	int           T1_line;
+	UINT8         nmi_enable, irq_enable;
 
 	/* devices */
-	device_t *m_audio_cpu;
+	running_device *audio_cpu;
 };
 
 
@@ -43,4 +41,4 @@ WRITE8_HANDLER( finalizr_videoctrl_w );
 
 PALETTE_INIT( finalizr );
 VIDEO_START( finalizr );
-SCREEN_UPDATE( finalizr );
+VIDEO_UPDATE( finalizr );

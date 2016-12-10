@@ -5,24 +5,25 @@
 *************************************************************************/
 
 
-class malzak_state : public driver_device
+class malzak_state
 {
 public:
-	malzak_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, malzak_state(machine)); }
+
+	malzak_state(running_machine &machine) { }
 
 	/* misc */
 //  int playfield_x[256];
 //  int playfield_y[256];
-	int m_playfield_code[256];
-	int m_malzak_x;
-	int m_malzak_y;
-	int m_collision_counter;
+	int playfield_code[256];
+	int malzak_x;
+	int malzak_y;
+	int collision_counter;
 
 	/* devices */
-	device_t *m_s2636_0;
-	device_t *m_s2636_1;
-	device_t *m_saa5050;
+	running_device *s2636_0;
+	running_device *s2636_1;
+	running_device *saa5050;
 };
 
 
@@ -30,4 +31,4 @@ public:
 
 WRITE8_HANDLER( malzak_playfield_w );
 
-SCREEN_UPDATE( malzak );
+VIDEO_UPDATE( malzak );

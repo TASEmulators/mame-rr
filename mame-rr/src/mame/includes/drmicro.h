@@ -5,26 +5,26 @@
 *************************************************************************/
 
 
-class drmicro_state : public driver_device
+class drmicro_state
 {
 public:
-	drmicro_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, drmicro_state(machine)); }
+
+	drmicro_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *        m_videoram;
+	UINT8 *        videoram;
 
 	/* video-related */
-	tilemap_t        *m_bg1;
-	tilemap_t        *m_bg2;
-	int            m_flipscreen;
+	tilemap_t        *bg1, *bg2;
+	int            flipscreen;
 
 	/* misc */
-	int            m_nmi_enable;
-	int            m_pcm_adr;
+	int            nmi_enable;
+	int            pcm_adr;
 
 	/* devices */
-	device_t *m_msm;
+	running_device *msm;
 };
 
 
@@ -32,6 +32,6 @@ public:
 
 PALETTE_INIT( drmicro );
 VIDEO_START( drmicro );
-SCREEN_UPDATE( drmicro );
+VIDEO_UPDATE( drmicro );
 
 WRITE8_HANDLER( drmicro_videoram_w );

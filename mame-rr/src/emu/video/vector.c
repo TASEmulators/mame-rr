@@ -139,6 +139,9 @@ typedef struct
 
 
 
+UINT8 *vectorram;
+size_t vectorram_size;
+
 static int flicker;                              /* beam flicker value     */
 static float flicker_correction = 0.0f;
 
@@ -175,10 +178,10 @@ float vector_get_beam(void)
 
 VIDEO_START( vector )
 {
-	beam_width = machine.options().beam();
+	beam_width = options_get_float(machine->options(), OPTION_BEAM);
 
 	/* Grab the settings for this session */
-	vector_set_flicker(machine.options().flicker());
+	vector_set_flicker(options_get_float(machine->options(), OPTION_FLICKER));
 
 	vector_index = 0;
 
@@ -191,7 +194,7 @@ VIDEO_START( vector )
  * Adds a line end point to the vertices list. The vector processor emulation
  * needs to call this.
  */
-void vector_add_point (running_machine &machine, int x, int y, rgb_t color, int intensity)
+void vector_add_point (running_machine *machine, int x, int y, rgb_t color, int intensity)
 {
 	point *newpoint;
 
@@ -200,7 +203,7 @@ void vector_add_point (running_machine &machine, int x, int y, rgb_t color, int 
 
 	if (flicker && (intensity > 0))
 	{
-		intensity += (intensity * (0x80-(machine.rand()&0xff)) * flicker)>>16;
+		intensity += (intensity * (0x80-(mame_rand(machine)&0xff)) * flicker)>>16;
 		if (intensity < 0)
 			intensity = 0;
 		if (intensity > 0xff)
@@ -254,9 +257,9 @@ void vector_clear_list (void)
 }
 
 
-SCREEN_UPDATE( vector )
+VIDEO_UPDATE( vector )
 {
-	UINT32 flags = PRIMFLAG_ANTIALIAS(screen->machine().options().antialias() ? 1 : 0) | PRIMFLAG_BLENDMODE(BLENDMODE_ADD);
+	UINT32 flags = PRIMFLAG_ANTIALIAS(options_get_bool(screen->machine->options(), OPTION_ANTIALIAS) ? 1 : 0) | PRIMFLAG_BLENDMODE(BLENDMODE_ADD);
 	const rectangle &visarea = screen->visible_area();
 	float xscale = 1.0f / (65536 * (visarea.max_x - visarea.min_x));
 	float yscale = 1.0f / (65536 * (visarea.max_y - visarea.min_y));
@@ -269,8 +272,8 @@ SCREEN_UPDATE( vector )
 
 	curpoint = vector_list;
 
-	screen->container().empty();
-	screen->container().add_rect(0.0f, 0.0f, 1.0f, 1.0f, MAKE_ARGB(0xff,0x00,0x00,0x00), PRIMFLAG_BLENDMODE(BLENDMODE_ALPHA));
+	render_container_empty(render_container_get_screen(screen));
+	render_screen_add_rect(screen, 0.0f, 0.0f, 1.0f, 1.0f, MAKE_ARGB(0xff,0x00,0x00,0x00), PRIMFLAG_BLENDMODE(BLENDMODE_ALPHA));
 
 	clip.x0 = clip.y0 = 0.0f;
 	clip.x1 = clip.y1 = 1.0f;
@@ -300,7 +303,7 @@ SCREEN_UPDATE( vector )
 
 			if (curpoint->intensity != 0)
 				if (!render_clip_line(&coords, &clip))
-					screen->container().add_line(coords.x0, coords.y0, coords.x1, coords.y1,
+					render_screen_add_line(screen, coords.x0, coords.y0, coords.x1, coords.y1,
 							beam_width * (1.0f / (float)VECTOR_WIDTH_DENOM),
 							(curpoint->intensity << 24) | (curpoint->col & 0xffffff),
 							flags);

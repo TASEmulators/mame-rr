@@ -15,18 +15,18 @@ The DS5002FP has up to 128KB undumped gameplay code making the game unplayable :
 
 static WRITE16_HANDLER( clr_int_w )
 {
-	glass_state *state = space->machine().driver_data<glass_state>();
-	state->m_cause_interrupt = 1;
+	glass_state *state = (glass_state *)space->machine->driver_data;
+	state->cause_interrupt = 1;
 }
 
 static INTERRUPT_GEN( glass_interrupt )
 {
-	glass_state *state = device->machine().driver_data<glass_state>();
+	glass_state *state = (glass_state *)device->machine->driver_data;
 
-	if (state->m_cause_interrupt)
+	if (state->cause_interrupt)
 	{
-		device_set_input_line(device, 6, HOLD_LINE);
-		state->m_cause_interrupt = 0;
+		cpu_set_input_line(device, 6, HOLD_LINE);
+		state->cause_interrupt = 0;
 	}
 }
 
@@ -55,7 +55,7 @@ GFXDECODE_END
 
 static WRITE16_HANDLER( OKIM6295_bankswitch_w )
 {
-	UINT8 *RAM = space->machine().region("oki")->base();
+	UINT8 *RAM = memory_region(space->machine, "oki");
 
 	if (ACCESSING_BITS_0_7)
 		memcpy(&RAM[0x30000], &RAM[0x40000 + (data & 0x0f) * 0x10000], 0x10000);
@@ -67,32 +67,32 @@ static WRITE16_HANDLER( glass_coin_w )
 	{
 		case 0x00:	/* Coin Lockouts */
 		case 0x01:
-			coin_lockout_w(space->machine(), (offset >> 3) & 0x01, ~data & 0x01);
+			coin_lockout_w(space->machine, (offset >> 3) & 0x01, ~data & 0x01);
 			break;
 		case 0x02:	/* Coin Counters */
 		case 0x03:
-			coin_counter_w(space->machine(), (offset >> 3) & 0x01, data & 0x01);
+			coin_counter_w(space->machine, (offset >> 3) & 0x01, data & 0x01);
 			break;
 		case 0x04:	/* Sound Muting (if bit 0 == 1, sound output stream = 0) */
 			break;
 	}
 }
 
-static ADDRESS_MAP_START( glass_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( glass_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM																		/* ROM */
-	AM_RANGE(0x100000, 0x101fff) AM_RAM_WRITE(glass_vram_w) AM_BASE_MEMBER(glass_state, m_videoram)						/* Video RAM */
+	AM_RANGE(0x100000, 0x101fff) AM_RAM_WRITE(glass_vram_w) AM_BASE_MEMBER(glass_state, videoram)						/* Video RAM */
 	AM_RANGE(0x102000, 0x102fff) AM_RAM																		/* Extra Video RAM */
-	AM_RANGE(0x108000, 0x108007) AM_WRITEONLY AM_BASE_MEMBER(glass_state, m_vregs)									/* Video Registers */
+	AM_RANGE(0x108000, 0x108007) AM_WRITEONLY AM_BASE_MEMBER(glass_state, vregs)									/* Video Registers */
 	AM_RANGE(0x108008, 0x108009) AM_WRITE(clr_int_w)														/* CLR INT Video */
 	AM_RANGE(0x200000, 0x2007ff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)	/* Palette */
-	AM_RANGE(0x440000, 0x440fff) AM_RAM AM_BASE_MEMBER(glass_state, m_spriteram)											/* Sprite RAM */
+	AM_RANGE(0x440000, 0x440fff) AM_RAM AM_BASE_MEMBER(glass_state, spriteram)											/* Sprite RAM */
 	AM_RANGE(0x700000, 0x700001) AM_READ_PORT("DSW2")
 	AM_RANGE(0x700002, 0x700003) AM_READ_PORT("DSW1")
 	AM_RANGE(0x700004, 0x700005) AM_READ_PORT("P1")
 	AM_RANGE(0x700006, 0x700007) AM_READ_PORT("P2")
 	AM_RANGE(0x700008, 0x700009) AM_WRITE(glass_blitter_w)													/* serial blitter */
 	AM_RANGE(0x70000c, 0x70000d) AM_WRITE(OKIM6295_bankswitch_w)											/* OKI6295 bankswitch */
-	AM_RANGE(0x70000e, 0x70000f) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)					/* OKI6295 status register */
+	AM_RANGE(0x70000e, 0x70000f) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0x00ff)					/* OKI6295 status register */
 	AM_RANGE(0x70000a, 0x70004b) AM_WRITE(glass_coin_w)														/* Coin Counters/Lockout */
 	AM_RANGE(0xfec000, 0xfeffff) AM_RAM																		/* Work RAM (partially shared with DS5002FP) */
 ADDRESS_MAP_END
@@ -173,57 +173,60 @@ INPUT_PORTS_END
 
 static MACHINE_START( glass )
 {
-	glass_state *state = machine.driver_data<glass_state>();
+	glass_state *state = (glass_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_cause_interrupt));
-	state->save_item(NAME(state->m_current_bit));
-	state->save_item(NAME(state->m_current_command));
-	state->save_item(NAME(state->m_blitter_serial_buffer));
+	state_save_register_global(machine, state->cause_interrupt);
+	state_save_register_global(machine, state->current_bit);
+	state_save_register_global(machine, state->current_command);
+	state_save_register_global_array(machine, state->blitter_serial_buffer);
 }
 
 static MACHINE_RESET( glass )
 {
-	glass_state *state = machine.driver_data<glass_state>();
+	glass_state *state = (glass_state *)machine->driver_data;
 	int i;
 
-	state->m_cause_interrupt = 1;
-	state->m_current_bit = 0;
-	state->m_current_command = 0;
+	state->cause_interrupt = 1;
+	state->current_bit = 0;
+	state->current_command = 0;
 
 	for (i = 0; i < 5; i++)
-		state->m_blitter_serial_buffer[i] = 0;
+		state->blitter_serial_buffer[i] = 0;
 }
 
-static MACHINE_CONFIG_START( glass, glass_state )
+static MACHINE_DRIVER_START( glass )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(glass_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,24000000/2)		/* 12 MHz (M680000 P12) */
-	MCFG_CPU_PROGRAM_MAP(glass_map)
-	MCFG_CPU_VBLANK_INT("screen", glass_interrupt)
+	MDRV_CPU_ADD("maincpu", M68000,24000000/2)		/* 12 MHz (M680000 P12) */
+	MDRV_CPU_PROGRAM_MAP(glass_map)
+	MDRV_CPU_VBLANK_INT("screen", glass_interrupt)
 
-	MCFG_MACHINE_START(glass)
-	MCFG_MACHINE_RESET(glass)
+	MDRV_MACHINE_START(glass)
+	MDRV_MACHINE_RESET(glass)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(0, 368-1, 16, 256-1)
-	MCFG_SCREEN_UPDATE(glass)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(0, 368-1, 16, 256-1)
 
-	MCFG_GFXDECODE(glass)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(glass)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_VIDEO_START(glass)
+	MDRV_VIDEO_START(glass)
+	MDRV_VIDEO_UPDATE(glass)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 ROM_START( glass ) /* Version 1.1 */
 	ROM_REGION( 0x080000, "maincpu", 0 )	/* 68000 code */
@@ -294,15 +297,15 @@ ROM_END
 
 ***************************************************************************/
 
-static void glass_ROM16_split_gfx( running_machine &machine, const char *src_reg, const char *dst_reg, int start, int length, int dest1, int dest2 )
+static void glass_ROM16_split_gfx( running_machine *machine, const char *src_reg, const char *dst_reg, int start, int length, int dest1, int dest2 )
 {
 	int i;
 
 	/* get a pointer to the source data */
-	UINT8 *src = (UINT8 *)machine.region(src_reg)->base();
+	UINT8 *src = (UINT8 *)memory_region(machine, src_reg);
 
 	/* get a pointer to the destination data */
-	UINT8 *dst = (UINT8 *)machine.region(dst_reg)->base();
+	UINT8 *dst = (UINT8 *)memory_region(machine, dst_reg);
 
 	/* fill destination areas with the proper data */
 	for (i = 0; i < length / 2; i++)

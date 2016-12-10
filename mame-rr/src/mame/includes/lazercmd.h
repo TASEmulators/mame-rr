@@ -17,30 +17,28 @@
 #define MARKER_HORZ_ADJ -1
 #define MARKER_VERT_ADJ -10
 
-class lazercmd_state : public driver_device
+class lazercmd_state
 {
 public:
-	lazercmd_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, lazercmd_state(machine)); }
+
+	lazercmd_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	size_t   m_videoram_size;
+	UINT8 *  videoram;
+	size_t   videoram_size;
 
 	/* video-related */
-	int      m_marker_x;
-	int      m_marker_y;
+	int      marker_x, marker_y;
 
 	/* misc */
-	int      m_timer_count;
-	int      m_sense_state;
-	int      m_dac_data;
+	int      timer_count, sense_state, dac_data;
 
 	/* device */
-	device_t *m_dac;
+	running_device *dac;
 };
 
 
 /*----------- defined in video/lazercmd.c -----------*/
 
-SCREEN_UPDATE( lazercmd );
+VIDEO_UPDATE( lazercmd );

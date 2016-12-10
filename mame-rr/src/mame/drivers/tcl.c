@@ -46,24 +46,15 @@ Notes:
 #include "sound/ay8910.h"
 
 
-class tcl_state : public driver_device
-{
-public:
-	tcl_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
 static VIDEO_START( tcl )
 {
 }
-static SCREEN_UPDATE( tcl )
+static VIDEO_UPDATE( tcl )
 {
 	return 0;
 }
 
-static ADDRESS_MAP_START( tcl_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tcl_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM  /* bfff ? */
 ADDRESS_MAP_END
 
@@ -121,35 +112,35 @@ static const ppi8255_interface ppi8255_intf[2] =
 };
 
 
-static MACHINE_CONFIG_START( tcl, tcl_state )
+static MACHINE_DRIVER_START( tcl )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,12000000/4)
-	MCFG_CPU_PROGRAM_MAP(tcl_map)
+	MDRV_CPU_ADD("maincpu", Z80,12000000/4)
+	MDRV_CPU_PROGRAM_MAP(tcl_map)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(tcl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(tcl)
-	MCFG_PALETTE_LENGTH(16*16)
+	MDRV_GFXDECODE(tcl)
+	MDRV_PALETTE_LENGTH(16*16)
 
-	MCFG_VIDEO_START(tcl)
+	MDRV_VIDEO_START(tcl)
+	MDRV_VIDEO_UPDATE(tcl)
 
-	MCFG_PPI8255_ADD( "ppi8255_0", ppi8255_intf[0] )
-	MCFG_PPI8255_ADD( "ppi8255_1", ppi8255_intf[1] )
+	MDRV_PPI8255_ADD( "ppi8255_0", ppi8255_intf[0] )
+	MDRV_PPI8255_ADD( "ppi8255_1", ppi8255_intf[1] )
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 12000000/6)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 12000000/6)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -189,9 +180,9 @@ static DRIVER_INIT(tcl)
 {
 	/* only the first part is decrypted (and verified)*/
 
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	UINT8 *dest = machine.region("maincpu")->base();
-	int len = machine.region("maincpu")->bytes();
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	UINT8 *dest = memory_region(machine, "maincpu");
+	int len = memory_region_length(machine, "maincpu");
 	UINT8 *src = auto_alloc_array(machine, UINT8, len);
 
 	int i,idx=0;
@@ -215,7 +206,7 @@ static DRIVER_INIT(tcl)
 	}
 	auto_free(machine, src);
 
-	space->set_decrypted_region(0x0000, 0x7fff, dest+0x10000);
+	memory_set_decrypted_region(space, 0x0000, 0x7fff, dest+0x10000);
 }
 
 GAME( 1995, tcl,  0,       tcl,  tcl,  tcl, ROT0, "Uniwang", "Taiwan Chess Legend", GAME_NOT_WORKING )

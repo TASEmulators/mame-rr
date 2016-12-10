@@ -25,40 +25,40 @@ Quite similar to Appoooh
 
 static INTERRUPT_GEN( drmicro_interrupt )
 {
-	drmicro_state *state = device->machine().driver_data<drmicro_state>();
+	drmicro_state *state = (drmicro_state *)device->machine->driver_data;
 
-	if (state->m_nmi_enable)
-		 device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	if (state->nmi_enable)
+		 cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static WRITE8_HANDLER( nmi_enable_w )
 {
-	drmicro_state *state = space->machine().driver_data<drmicro_state>();
+	drmicro_state *state = (drmicro_state *)space->machine->driver_data;
 
-	state->m_nmi_enable = data & 1;
-	state->m_flipscreen = (data & 2) ? 1 : 0;
-	flip_screen_set(space->machine(), data & 2);
+	state->nmi_enable = data & 1;
+	state->flipscreen = (data & 2) ? 1 : 0;
+	flip_screen_set(space->machine, data & 2);
 
 	// bit2,3 unknown
 }
 
 
-static void pcm_w(device_t *device)
+static void pcm_w(running_device *device)
 {
-	drmicro_state *state = device->machine().driver_data<drmicro_state>();
-	UINT8 *PCM = device->machine().region("adpcm")->base();
+	drmicro_state *state = (drmicro_state *)device->machine->driver_data;
+	UINT8 *PCM = memory_region(device->machine, "adpcm");
 
-	int data = PCM[state->m_pcm_adr / 2];
+	int data = PCM[state->pcm_adr / 2];
 
 	if (data != 0x70) // ??
 	{
-		if (~state->m_pcm_adr & 1)
+		if (~state->pcm_adr & 1)
 			data >>= 4;
 
 		msm5205_data_w(device, data & 0x0f);
 		msm5205_reset_w(device, 0);
 
-		state->m_pcm_adr = (state->m_pcm_adr + 1) & 0x7fff;
+		state->pcm_adr = (state->pcm_adr + 1) & 0x7fff;
 	}
 	else
 		msm5205_reset_w(device, 1);
@@ -66,9 +66,9 @@ static void pcm_w(device_t *device)
 
 static WRITE8_HANDLER( pcm_set_w )
 {
-	drmicro_state *state = space->machine().driver_data<drmicro_state>();
-	state->m_pcm_adr = ((data & 0x3f) << 9);
-	pcm_w(state->m_msm);
+	drmicro_state *state = (drmicro_state *)space->machine->driver_data;
+	state->pcm_adr = ((data & 0x3f) << 9);
+	pcm_w(state->msm);
 }
 
 /*************************************
@@ -77,14 +77,14 @@ static WRITE8_HANDLER( pcm_set_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( drmicro_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( drmicro_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
 	AM_RANGE(0xe000, 0xefff) AM_RAM_WRITE(drmicro_videoram_w)
 	AM_RANGE(0xf000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("P1") AM_DEVWRITE("sn1", sn76496_w)
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("P2") AM_DEVWRITE("sn2", sn76496_w)
@@ -122,29 +122,29 @@ static INPUT_PORTS_START( drmicro )
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_4WAY PORT_PLAYER(2)
 
 	PORT_START("DSW1")
-	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW1:!1,!2")
+	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x00, "2" )
 	PORT_DIPSETTING(    0x01, "3" )
 	PORT_DIPSETTING(    0x02, "4" )
 	PORT_DIPSETTING(    0x03, "5" )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:!3")
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
-	PORT_DIPNAME( 0x18, 0x08, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW1:!4,!5")
+	PORT_DIPNAME( 0x18, 0x08, DEF_STR( Bonus_Life ) )
 	PORT_DIPSETTING(    0x00, "30000 100000" )
 	PORT_DIPSETTING(    0x08, "50000 150000" )
 	PORT_DIPSETTING(    0x10, "70000 200000" )
 	PORT_DIPSETTING(    0x18, "100000 300000" )
-	PORT_SERVICE_DIPLOC(  0x20, IP_ACTIVE_HIGH, "SW1:!6" )	/* Service Mode shows as "X" */
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:!7")
+	PORT_SERVICE( 0x20, IP_ACTIVE_HIGH )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:!8")
+	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
 	PORT_START("DSW2")
-	PORT_DIPNAME( 0x07, 0x00, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW2:!1,!2,!3")
+	PORT_DIPNAME( 0x07, 0x00, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(    0x07, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(    0x06, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x05, DEF_STR( 2C_1C ) )
@@ -153,11 +153,7 @@ static INPUT_PORTS_START( drmicro )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_5C ) )
-	PORT_DIPUNUSED_DIPLOC( 0x08, IP_ACTIVE_HIGH, "SW2:!4" ) /* Service Mode shows as "X" */
-	PORT_DIPUNUSED_DIPLOC( 0x10, IP_ACTIVE_HIGH, "SW2:!5" ) /* Service Mode shows as "X" */
-	PORT_DIPUNUSED_DIPLOC( 0x20, IP_ACTIVE_HIGH, "SW2:!6" ) /* Service Mode shows as "X" */
-	PORT_DIPUNUSED_DIPLOC( 0x40, IP_ACTIVE_HIGH, "SW2:!7" ) /* Service Mode shows as "X" */
-	PORT_DIPUNUSED_DIPLOC( 0x80, IP_ACTIVE_HIGH, "SW2:!8" ) /* Service Mode shows as "X" */
+	PORT_BIT( 0xf8, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // 4-8
 INPUT_PORTS_END
 
 /*************************************
@@ -232,69 +228,72 @@ static const msm5205_interface msm5205_config =
 
 static MACHINE_START( drmicro )
 {
-	drmicro_state *state = machine.driver_data<drmicro_state>();
+	drmicro_state *state = (drmicro_state *)machine->driver_data;
 
-	state->m_msm = machine.device("msm");
+	state->msm = machine->device("msm");
 
-	state->save_item(NAME(state->m_nmi_enable));
-	state->save_item(NAME(state->m_pcm_adr));
-	state->save_item(NAME(state->m_flipscreen));
+	state_save_register_global(machine, state->nmi_enable);
+	state_save_register_global(machine, state->pcm_adr);
+	state_save_register_global(machine, state->flipscreen);
 }
 
 static MACHINE_RESET( drmicro )
 {
-	drmicro_state *state = machine.driver_data<drmicro_state>();
+	drmicro_state *state = (drmicro_state *)machine->driver_data;
 
-	state->m_nmi_enable = 0;
-	state->m_pcm_adr = 0;
-	state->m_flipscreen = 0;
+	state->nmi_enable = 0;
+	state->pcm_adr = 0;
+	state->flipscreen = 0;
 }
 
 
-static MACHINE_CONFIG_START( drmicro, drmicro_state )
+static MACHINE_DRIVER_START( drmicro )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(drmicro_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,MCLK/6)	/* 3.072MHz? */
-	MCFG_CPU_PROGRAM_MAP(drmicro_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", drmicro_interrupt)
+	MDRV_CPU_ADD("maincpu", Z80,MCLK/6)	/* 3.072MHz? */
+	MDRV_CPU_PROGRAM_MAP(drmicro_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", drmicro_interrupt)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	MDRV_QUANTUM_TIME(HZ(60))
 
-	MCFG_MACHINE_START(drmicro)
-	MCFG_MACHINE_RESET(drmicro)
+	MDRV_MACHINE_START(drmicro)
+	MDRV_MACHINE_RESET(drmicro)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(drmicro)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(drmicro)
-	MCFG_PALETTE_LENGTH(512)
+	MDRV_GFXDECODE(drmicro)
+	MDRV_PALETTE_LENGTH(512)
 
-	MCFG_PALETTE_INIT(drmicro)
-	MCFG_VIDEO_START(drmicro)
+	MDRV_PALETTE_INIT(drmicro)
+	MDRV_VIDEO_START(drmicro)
+	MDRV_VIDEO_UPDATE(drmicro)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76496, MCLK/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_SOUND_ADD("sn1", SN76496, MCLK/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("sn2", SN76496, MCLK/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_SOUND_ADD("sn2", SN76496, MCLK/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("sn3", SN76496, MCLK/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_SOUND_ADD("sn3", SN76496, MCLK/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("msm", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+MACHINE_DRIVER_END
 
 /*************************************
  *

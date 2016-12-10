@@ -4,35 +4,34 @@
 
 *************************************************************************/
 
-class crospang_state : public driver_device
+class crospang_state
 {
 public:
-	crospang_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, crospang_state(machine)); }
+
+	crospang_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_bg_videoram;
-	UINT16 *  m_fg_videoram;
-	UINT16 *  m_spriteram;
-//  UINT16 *  m_paletteram;       // currently this uses generic palette handling
-	size_t    m_spriteram_size;
+	UINT16 *  bg_videoram;
+	UINT16 *  fg_videoram;
+	UINT16 *  spriteram;
+//  UINT16 *  paletteram;       // currently this uses generic palette handling
+	size_t    spriteram_size;
 
 	/* video-related */
-	tilemap_t   *m_bg_layer;
-	tilemap_t   *m_fg_layer;
-	int       m_xsproff;
-	int       m_ysproff;
-	int       m_bestri_tilebank;
+	tilemap_t   *bg_layer,*fg_layer;
+	int       xsproff, ysproff;
+	int       bestri_tilebank;
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
 /*----------- defined in video/crospang.c -----------*/
 
 VIDEO_START( crospang );
-SCREEN_UPDATE( crospang );
+VIDEO_UPDATE( crospang );
 
 WRITE16_HANDLER ( crospang_fg_scrolly_w );
 WRITE16_HANDLER ( crospang_bg_scrolly_w );

@@ -21,8 +21,8 @@ TODO:
 ***************************************************************************/
 
 #include "emu.h"
-#include "sound/discrete.h"
-#include "audio/galaxian.h"
+#include "streams.h"
+#include "includes/galaxian.h"
 
 /*************************************
  *
@@ -479,22 +479,22 @@ WRITE8_DEVICE_HANDLER( galaxian_sound_w )
  *
  *************************************/
 
-MACHINE_CONFIG_FRAGMENT( galaxian_audio )
+MACHINE_DRIVER_START( galaxian_audio )
 
-	MCFG_SOUND_START(galaxian)
+	MDRV_SOUND_START(galaxian)
 
-	MCFG_SOUND_ADD(GAL_AUDIO, DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(galaxian)
+	MDRV_SOUND_ADD(GAL_AUDIO, DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(galaxian)
 
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-MACHINE_CONFIG_FRAGMENT( mooncrst_audio )
+MACHINE_DRIVER_START( mooncrst_audio )
 
-	MCFG_SOUND_START(galaxian)
+	MDRV_SOUND_START(galaxian)
 
-	MCFG_SOUND_ADD(GAL_AUDIO, DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(mooncrst)
+	MDRV_SOUND_ADD(GAL_AUDIO, DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(mooncrst)
 
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END

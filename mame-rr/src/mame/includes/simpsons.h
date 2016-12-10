@@ -1,33 +1,33 @@
 
-class simpsons_state : public driver_device
+class simpsons_state
 {
 public:
-	simpsons_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, simpsons_state(machine)); }
+
+	simpsons_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_ram;
-	UINT8 *    m_xtraram;
-	UINT16 *   m_spriteram;
-//  UINT8 *    m_paletteram;    // currently this uses generic palette handling
+	UINT8 *    ram;
+	UINT8 *    xtraram;
+	UINT16 *   spriteram;
+//  UINT8 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int        m_sprite_colorbase;
-	int        m_layer_colorbase[3];
-	int        m_layerpri[3];
+	int        sprite_colorbase, layer_colorbase[3];
+	int        layerpri[3];
 
 	/* misc */
-	int        m_firq_enabled;
-	int        m_video_bank;
-	//int        m_nmi_enabled;
+	int        firq_enabled;
+	int        video_bank;
+	//int        nmi_enabled;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k053260;
-	device_t *m_k052109;
-	device_t *m_k053246;
-	device_t *m_k053251;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k053260;
+	running_device *k052109;
+	running_device *k053246;
+	running_device *k053251;
 };
 
 /*----------- defined in machine/simpsons.c -----------*/
@@ -41,8 +41,8 @@ MACHINE_START( simpsons );
 
 /*----------- defined in video/simpsons.c -----------*/
 
-void simpsons_video_banking( running_machine &machine, int select );
-SCREEN_UPDATE( simpsons );
+void simpsons_video_banking( running_machine *machine, int select );
+VIDEO_UPDATE( simpsons );
 
-extern void simpsons_tile_callback(running_machine &machine, int layer,int bank,int *code,int *color,int *flags,int *priority);
-extern void simpsons_sprite_callback(running_machine &machine, int *code,int *color,int *priority_mask);
+extern void simpsons_tile_callback(running_machine *machine, int layer,int bank,int *code,int *color,int *flags,int *priority);
+extern void simpsons_sprite_callback(running_machine *machine, int *code,int *color,int *priority_mask);

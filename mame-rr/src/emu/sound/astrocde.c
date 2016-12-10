@@ -40,6 +40,7 @@
 ***********************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "astrocde.h"
 
 
@@ -69,10 +70,10 @@ struct _astrocade_state
 };
 
 
-INLINE astrocade_state *get_safe_token(device_t *device)
+INLINE astrocade_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == ASTROCADE);
+	assert(device->type() == SOUND_ASTROCADE);
 	return (astrocade_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -233,24 +234,24 @@ static DEVICE_RESET( astrocade )
  *
  *************************************/
 
-static void astrocade_state_save_register(astrocade_state *chip, device_t *device)
+static void astrocade_state_save_register(astrocade_state *chip, running_device *device)
 {
-	device->save_item(NAME(chip->reg));
+	state_save_register_device_item_array(device, 0, chip->reg);
 
-	device->save_item(NAME(chip->master_count));
-	device->save_item(NAME(chip->vibrato_clock));
+	state_save_register_device_item(device, 0, chip->master_count);
+	state_save_register_device_item(device, 0, chip->vibrato_clock);
 
-	device->save_item(NAME(chip->noise_clock));
-	device->save_item(NAME(chip->noise_state));
+	state_save_register_device_item(device, 0, chip->noise_clock);
+	state_save_register_device_item(device, 0, chip->noise_state);
 
-	device->save_item(NAME(chip->a_count));
-	device->save_item(NAME(chip->a_state));
+	state_save_register_device_item(device, 0, chip->a_count);
+	state_save_register_device_item(device, 0, chip->a_state);
 
-	device->save_item(NAME(chip->b_count));
-	device->save_item(NAME(chip->b_state));
+	state_save_register_device_item(device, 0, chip->b_count);
+	state_save_register_device_item(device, 0, chip->b_state);
 
-	device->save_item(NAME(chip->c_count));
-	device->save_item(NAME(chip->c_state));
+	state_save_register_device_item(device, 0, chip->c_count);
+	state_save_register_device_item(device, 0, chip->c_state);
 }
 
 
@@ -271,7 +272,7 @@ static DEVICE_START( astrocade )
 		chip->bitswap[i] = BITSWAP8(i, 0,1,2,3,4,5,6,7);
 
 	/* allocate a stream for output */
-	chip->stream = device->machine().sound().stream_alloc(*device, 0, 1, device->clock(), chip, astrocade_update);
+	chip->stream = stream_create(device, 0, 1, device->clock(), chip, astrocade_update);
 
 	/* reset state */
 	DEVICE_RESET_CALL(astrocade);
@@ -296,7 +297,7 @@ WRITE8_DEVICE_HANDLER( astrocade_sound_w )
 		offset &= 7;
 
 	/* update */
-	chip->stream->update();
+	stream_update(chip->stream);
 
 	/* stash the new register value */
 	chip->reg[offset & 7] = data;

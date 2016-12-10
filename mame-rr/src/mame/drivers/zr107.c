@@ -176,22 +176,7 @@ Check gticlub.c for details on the bottom board.
 #include "video/konicdev.h"
 #include "video/gticlub.h"
 
-
-class zr107_state : public driver_device
-{
-public:
-	zr107_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 m_led_reg0;
-	UINT8 m_led_reg1;
-	int m_ccu_vcth;
-	int m_ccu_vctl;
-	UINT32 *m_workram;
-	UINT32 *m_sharc_dataram;
-};
-
-
+static UINT8 led_reg0, led_reg1;
 
 
 
@@ -202,21 +187,20 @@ static VIDEO_START( jetwave )
 }
 
 
-static SCREEN_UPDATE( jetwave )
+static VIDEO_UPDATE( jetwave )
 {
-	zr107_state *state = screen->machine().driver_data<zr107_state>();
-	device_t *k001604 = screen->machine().device("k001604");
+	running_device *k001604 = screen->machine->device("k001604");
 
-	bitmap_fill(bitmap, cliprect, screen->machine().pens[0]);
+	bitmap_fill(bitmap, cliprect, screen->machine->pens[0]);
 
 	K001005_draw(bitmap, cliprect);
 
 	k001604_draw_front_layer(k001604, bitmap, cliprect);
 
-	draw_7segment_led(bitmap, 3, 3, state->m_led_reg0);
-	draw_7segment_led(bitmap, 9, 3, state->m_led_reg1);
+	draw_7segment_led(bitmap, 3, 3, led_reg0);
+	draw_7segment_led(bitmap, 9, 3, led_reg1);
 
-	sharc_set_flag_input(screen->machine().device("dsp"), 1, ASSERT_LINE);
+	sharc_set_flag_input(screen->machine->device("dsp"), 1, ASSERT_LINE);
 	return 0;
 }
 
@@ -225,22 +209,22 @@ static SCREEN_UPDATE( jetwave )
 
 static WRITE32_HANDLER( paletteram32_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
-	data = space->machine().generic.paletteram.u32[offset];
-	palette_set_color_rgb(space->machine(), (offset * 2) + 0, pal5bit(data >> 26), pal5bit(data >> 21), pal5bit(data >> 16));
-	palette_set_color_rgb(space->machine(), (offset * 2) + 1, pal5bit(data >> 10), pal5bit(data >> 5), pal5bit(data >> 0));
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
+	data = space->machine->generic.paletteram.u32[offset];
+	palette_set_color_rgb(space->machine, (offset * 2) + 0, pal5bit(data >> 26), pal5bit(data >> 21), pal5bit(data >> 16));
+	palette_set_color_rgb(space->machine, (offset * 2) + 1, pal5bit(data >> 10), pal5bit(data >> 5), pal5bit(data >> 0));
 }
 
 #define NUM_LAYERS	2
 
-static void game_tile_callback(running_machine &machine, int layer, int *code, int *color, int *flags)
+static void game_tile_callback(running_machine *machine, int layer, int *code, int *color, int *flags)
 {
 	*color += layer * 0x40;
 }
 
 static VIDEO_START( zr107 )
 {
-	device_t *k056832 = machine.device("k056832");
+	running_device *k056832 = machine->device("k056832");
 
 	k056832_set_layer_offs(k056832, 0, -29, -27);
 	k056832_set_layer_offs(k056832, 1, -29, -27);
@@ -255,20 +239,19 @@ static VIDEO_START( zr107 )
 	K001005_init(machine);
 }
 
-static SCREEN_UPDATE( zr107 )
+static VIDEO_UPDATE( zr107 )
 {
-	zr107_state *state = screen->machine().driver_data<zr107_state>();
-	device_t *k056832 = screen->machine().device("k056832");
-	bitmap_fill(bitmap, cliprect, screen->machine().pens[0]);
+	running_device *k056832 = screen->machine->device("k056832");
+	bitmap_fill(bitmap, cliprect, screen->machine->pens[0]);
 
 	k056832_tilemap_draw(k056832, bitmap, cliprect, 1, 0, 0);
 	K001005_draw(bitmap, cliprect);
 	k056832_tilemap_draw(k056832, bitmap, cliprect, 0, 0, 0);
 
-	draw_7segment_led(bitmap, 3, 3, state->m_led_reg0);
-	draw_7segment_led(bitmap, 9, 3, state->m_led_reg1);
+	draw_7segment_led(bitmap, 3, 3, led_reg0);
+	draw_7segment_led(bitmap, 9, 3, led_reg1);
 
-	sharc_set_flag_input(screen->machine().device("dsp"), 1, ASSERT_LINE);
+	sharc_set_flag_input(screen->machine->device("dsp"), 1, ASSERT_LINE);
 	return 0;
 }
 
@@ -286,7 +269,7 @@ static READ8_HANDLER( sysreg_r )
 		case 2:	/* I/O port 2 */
 		case 3:	/* System Port 0 */
 		case 4:	/* System Port 1 */
-			r = input_port_read(space->machine(), portnames[offset]);
+			r = input_port_read(space->machine, portnames[offset]);
 			break;
 
 		case 5:	/* Parallel data port */
@@ -297,15 +280,14 @@ static READ8_HANDLER( sysreg_r )
 
 static WRITE8_HANDLER( sysreg_w )
 {
-	zr107_state *state = space->machine().driver_data<zr107_state>();
 	switch (offset)
 	{
 		case 0:	/* LED Register 0 */
-			state->m_led_reg0 = data;
+			led_reg0 = data;
 			break;
 
 		case 1:	/* LED Register 1 */
-			state->m_led_reg1 = data;
+			led_reg1 = data;
 			break;
 
 		case 2: /* Parallel data register */
@@ -323,8 +305,8 @@ static WRITE8_HANDLER( sysreg_w )
                 0x02 = EEPCLK
                 0x01 = EEPDI
             */
-			input_port_write(space->machine(), "EEPROMOUT", data & 0x07, 0xff);
-			cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_RESET, (data & 0x10) ? CLEAR_LINE : ASSERT_LINE);
+			input_port_write(space->machine, "EEPROMOUT", data & 0x07, 0xff);
+			cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_RESET, (data & 0x10) ? CLEAR_LINE : ASSERT_LINE);
 			mame_printf_debug("System register 0 = %02X\n", data);
 			break;
 
@@ -340,11 +322,11 @@ static WRITE8_HANDLER( sysreg_w )
                 0x01 = ADDSCLK (ADC SCLK)
             */
 			if (data & 0x80)	/* CG Board 1 IRQ Ack */
-				cputag_set_input_line(space->machine(), "maincpu", INPUT_LINE_IRQ1, CLEAR_LINE);
+				cputag_set_input_line(space->machine, "maincpu", INPUT_LINE_IRQ1, CLEAR_LINE);
 			if (data & 0x40)	/* CG Board 0 IRQ Ack */
-				cputag_set_input_line(space->machine(), "maincpu", INPUT_LINE_IRQ0, CLEAR_LINE);
+				cputag_set_input_line(space->machine, "maincpu", INPUT_LINE_IRQ0, CLEAR_LINE);
 			set_cgboard_id((data >> 4) & 3);
-			input_port_write(space->machine(), "OUT4", data, 0xff);
+			input_port_write(space->machine, "OUT4", data, 0xff);
 			mame_printf_debug("System register 1 = %02X\n", data);
 			break;
 
@@ -353,15 +335,16 @@ static WRITE8_HANDLER( sysreg_w )
                 0x01 = AFE
             */
 			if (data & 0x01)
-				watchdog_reset(space->machine());
+				watchdog_reset(space->machine);
 			break;
 
 	}
 }
 
+static int ccu_vcth = 0;
+static int ccu_vctl = 0;
 static READ32_HANDLER( ccu_r )
 {
-	zr107_state *state = space->machine().driver_data<zr107_state>();
 	UINT32 r = 0;
 	switch (offset)
 	{
@@ -370,14 +353,14 @@ static READ32_HANDLER( ccu_r )
 			// Midnight Run polls the vertical counter in vblank
 			if (ACCESSING_BITS_24_31)
 			{
-				state->m_ccu_vcth ^= 0xff;
-				r |= state->m_ccu_vcth << 24;
+				ccu_vcth ^= 0xff;
+				r |= ccu_vcth << 24;
 			}
 			if (ACCESSING_BITS_8_15)
 			{
-				state->m_ccu_vctl++;
-				state->m_ccu_vctl &= 0x1ff;
-				r |= (state->m_ccu_vctl >> 2) << 8;
+				ccu_vctl++;
+				ccu_vctl &= 0x1ff;
+				r |= (ccu_vctl >> 2) << 8;
 			}
 		}
 	}
@@ -392,18 +375,18 @@ static WRITE32_HANDLER( ccu_w )
 
 /******************************************************************/
 
+static UINT32 *workram;
 static MACHINE_START( zr107 )
 {
-	zr107_state *state = machine.driver_data<zr107_state>();
 	/* set conservative DRC options */
-	ppcdrc_set_options(machine.device("maincpu"), PPCDRC_COMPATIBLE_OPTIONS);
+	ppcdrc_set_options(machine->device("maincpu"), PPCDRC_COMPATIBLE_OPTIONS);
 
 	/* configure fast RAM regions for DRC */
-	ppcdrc_add_fastram(machine.device("maincpu"), 0x00000000, 0x000fffff, FALSE, state->m_workram);
+	ppcdrc_add_fastram(machine->device("maincpu"), 0x00000000, 0x000fffff, FALSE, workram);
 }
 
-static ADDRESS_MAP_START( zr107_map, AS_PROGRAM, 32 )
-	AM_RANGE(0x00000000, 0x000fffff) AM_RAM	AM_BASE_MEMBER(zr107_state, m_workram)	/* Work RAM */
+static ADDRESS_MAP_START( zr107_map, ADDRESS_SPACE_PROGRAM, 32 )
+	AM_RANGE(0x00000000, 0x000fffff) AM_RAM	AM_BASE(&workram)	/* Work RAM */
 	AM_RANGE(0x74000000, 0x74003fff) AM_DEVREADWRITE("k056832", k056832_ram_long_r, k056832_ram_long_w)
 	AM_RANGE(0x74020000, 0x7402003f) AM_DEVREADWRITE("k056832", k056832_long_r, k056832_long_w)
 	AM_RANGE(0x74060000, 0x7406003f) AM_READWRITE(ccu_r, ccu_w)
@@ -425,12 +408,12 @@ ADDRESS_MAP_END
 
 static WRITE32_HANDLER( jetwave_palette_w )
 {
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
-	data = space->machine().generic.paletteram.u32[offset];
-	palette_set_color_rgb(space->machine(), offset, pal5bit(data >> 10), pal5bit(data >> 5), pal5bit(data >> 0));
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
+	data = space->machine->generic.paletteram.u32[offset];
+	palette_set_color_rgb(space->machine, offset, pal5bit(data >> 10), pal5bit(data >> 5), pal5bit(data >> 0));
 }
 
-static ADDRESS_MAP_START( jetwave_map, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( jetwave_map, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x00000000, 0x000fffff) AM_MIRROR(0x80000000) AM_RAM		/* Work RAM */
 	AM_RANGE(0x74000000, 0x740000ff) AM_MIRROR(0x80000000) AM_DEVREADWRITE("k001604", k001604_reg_r, k001604_reg_w)
 	AM_RANGE(0x74010000, 0x7401ffff) AM_MIRROR(0x80000000) AM_RAM_WRITE(jetwave_palette_w) AM_BASE_GENERIC(paletteram)
@@ -460,9 +443,9 @@ static READ16_HANDLER( dual539_r )
 	UINT16 ret = 0;
 
 	if (ACCESSING_BITS_0_7)
-		ret |= k054539_r(space->machine().device("konami2"), offset);
+		ret |= k054539_r(space->machine->device("konami2"), offset);
 	if (ACCESSING_BITS_8_15)
-		ret |= k054539_r(space->machine().device("konami1"), offset)<<8;
+		ret |= k054539_r(space->machine->device("konami1"), offset)<<8;
 
 	return ret;
 }
@@ -470,12 +453,12 @@ static READ16_HANDLER( dual539_r )
 static WRITE16_HANDLER( dual539_w )
 {
 	if (ACCESSING_BITS_0_7)
-		k054539_w(space->machine().device("konami2"), offset, data);
+		k054539_w(space->machine->device("konami2"), offset, data);
 	if (ACCESSING_BITS_8_15)
-		k054539_w(space->machine().device("konami1"), offset, data>>8);
+		k054539_w(space->machine->device("konami1"), offset, data>>8);
 }
 
-static ADDRESS_MAP_START( sound_memmap, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( sound_memmap, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x01ffff) AM_ROM
 	AM_RANGE(0x100000, 0x103fff) AM_RAM		/* Work RAM */
 	AM_RANGE(0x200000, 0x2004ff) AM_READWRITE(dual539_r, dual539_w)
@@ -491,20 +474,19 @@ static const k054539_interface k054539_config =
 
 /*****************************************************************************/
 
+static UINT32 *sharc_dataram;
 
 static READ32_HANDLER( dsp_dataram_r )
 {
-	zr107_state *state = space->machine().driver_data<zr107_state>();
-	return state->m_sharc_dataram[offset] & 0xffff;
+	return sharc_dataram[offset] & 0xffff;
 }
 
 static WRITE32_HANDLER( dsp_dataram_w )
 {
-	zr107_state *state = space->machine().driver_data<zr107_state>();
-	state->m_sharc_dataram[offset] = data;
+	sharc_dataram[offset] = data;
 }
 
-static ADDRESS_MAP_START( sharc_map, AS_DATA, 32 )
+static ADDRESS_MAP_START( sharc_map, ADDRESS_SPACE_DATA, 32 )
 	AM_RANGE(0x400000, 0x41ffff) AM_READWRITE(cgboard_0_shared_sharc_r, cgboard_0_shared_sharc_w)
 	AM_RANGE(0x500000, 0x5fffff) AM_READWRITE(dsp_dataram_r, dsp_dataram_w)
 	AM_RANGE(0x600000, 0x6fffff) AM_READWRITE(K001005_r, K001005_w)
@@ -516,11 +498,11 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( zr107 )
 	PORT_START("IN0")
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("View Button")		// View switch
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON6 ) PORT_NAME("Shift Up")		// Shift up
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Shift Down")		// Shift down
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("AT/MT Switch")	PORT_TOGGLE	// AT/MT switch
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service Button") PORT_CODE(KEYCODE_9)
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON1 )		// View switch
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON2 )		// Shift up
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON3 )		// Shift down
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_TOGGLE		// AT/MT switch
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service Button") PORT_CODE(KEYCODE_8)
 	PORT_BIT( 0x0b, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("IN1")
@@ -534,12 +516,12 @@ static INPUT_PORTS_START( zr107 )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_SPECIAL ) /* PARAACK */
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_UNUSED )
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("adc0838",adc083x_sars_read)
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom",eeprom_device,read_bit)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom",eeprom_read_bit)
 
 	PORT_START("EEPROMOUT")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, write_bit)
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_clock_line)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_cs_line)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_write_bit)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_clock_line)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_cs_line)
 
 	PORT_START("OUT4")
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("adc0838", adc083x_cs_write)
@@ -552,9 +534,9 @@ static INPUT_PORTS_START( midnrun )
 
 	PORT_START("IN3")
 	PORT_SERVICE_NO_TOGGLE( 0x80, IP_ACTIVE_LOW )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service Button") PORT_CODE(KEYCODE_8)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN1 )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN ) // COIN2?
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_DIPNAME( 0x0c, 0x00, "Network ID" ) PORT_DIPLOCATION("SW:2,1")
 	PORT_DIPSETTING( 0x0c, "1" )
 	PORT_DIPSETTING( 0x08, "2" )
@@ -583,9 +565,9 @@ static INPUT_PORTS_START( windheat )
 
 	PORT_START("IN3")
 	PORT_SERVICE_NO_TOGGLE( 0x80, IP_ACTIVE_LOW )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service Button") PORT_CODE(KEYCODE_8)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN1 )
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN ) // COIN2?
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_DIPNAME( 0x0c, 0x00, "Network ID" ) PORT_DIPLOCATION("SW:2,1")
 	PORT_DIPSETTING( 0x0c, "1" )
 	PORT_DIPSETTING( 0x08, "2" )
@@ -612,17 +594,9 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( jetwave )
 	PORT_INCLUDE( zr107 )
 
-	PORT_MODIFY("IN0")
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("View Shift")		// View Shift
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("T-Center")		// T-Center
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH,IPT_BUTTON3 ) PORT_NAME("Angle")			// Angle
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("Left Turn")		// Left Turn
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON6 ) PORT_NAME("Right Turn")		// Right Turn
-	PORT_BIT( 0x07, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
 	PORT_START("IN3")
 	PORT_SERVICE_NO_TOGGLE( 0x80, IP_ACTIVE_LOW )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service Button") PORT_CODE(KEYCODE_9)
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service Button") PORT_CODE(KEYCODE_8)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN1 )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_DIPNAME( 0x08, 0x00, "DIP 1" ) PORT_DIPLOCATION("SW:1")
@@ -657,16 +631,16 @@ static const sharc_config sharc_cfg =
 
 /* ADC0838 Interface */
 
-static double adc0838_callback( device_t *device, UINT8 input )
+static double adc0838_callback( running_device *device, UINT8 input )
 {
 	switch (input)
 	{
 	case ADC083X_CH0:
-		return (double)(5 * input_port_read(device->machine(), "ANALOG1")) / 255.0;
+		return (double)(5 * input_port_read(device->machine, "ANALOG1")) / 255.0;
 	case ADC083X_CH1:
-		return (double)(5 * input_port_read(device->machine(), "ANALOG2")) / 255.0;
+		return (double)(5 * input_port_read(device->machine, "ANALOG2")) / 255.0;
 	case ADC083X_CH2:
-		return (double)(5 * input_port_read(device->machine(), "ANALOG3")) / 255.0;
+		return (double)(5 * input_port_read(device->machine, "ANALOG3")) / 255.0;
 	case ADC083X_CH3:
 		return 0;
 	case ADC083X_COM:
@@ -690,12 +664,12 @@ static TIMER_CALLBACK( irq_off )
 	cputag_set_input_line(machine, "audiocpu", param, CLEAR_LINE);
 }
 
-static void sound_irq_callback( running_machine &machine, int irq )
+static void sound_irq_callback( running_machine *machine, int irq )
 {
 	int line = (irq == 0) ? INPUT_LINE_IRQ1 : INPUT_LINE_IRQ2;
 
 	cputag_set_input_line(machine, "audiocpu", line, ASSERT_LINE);
-	machine.scheduler().timer_set(attotime::from_usec(1), FUNC(irq_off), line);
+	timer_set(machine, ATTOTIME_IN_USEC(1), NULL, line, irq_off);
 }
 
 static const k056800_interface zr107_k056800_interface =
@@ -727,7 +701,7 @@ static const k056230_interface zr107_k056230_intf =
 */
 static INTERRUPT_GEN( zr107_vblank )
 {
-	device_set_input_line(device, INPUT_LINE_IRQ0, ASSERT_LINE);
+	cpu_set_input_line(device, INPUT_LINE_IRQ0, ASSERT_LINE);
 }
 
 static MACHINE_RESET( zr107 )
@@ -735,58 +709,58 @@ static MACHINE_RESET( zr107 )
 	cputag_set_input_line(machine, "dsp", INPUT_LINE_RESET, ASSERT_LINE);
 }
 
-static MACHINE_CONFIG_START( zr107, zr107_state )
+static MACHINE_DRIVER_START( zr107 )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", PPC403GA, 64000000/2)	/* PowerPC 403GA 32MHz */
-	MCFG_CPU_PROGRAM_MAP(zr107_map)
-	MCFG_CPU_VBLANK_INT("screen", zr107_vblank)
+	MDRV_CPU_ADD("maincpu", PPC403GA, 64000000/2)	/* PowerPC 403GA 32MHz */
+	MDRV_CPU_PROGRAM_MAP(zr107_map)
+	MDRV_CPU_VBLANK_INT("screen", zr107_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M68000, 64000000/8)	/* 8MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_memmap)
+	MDRV_CPU_ADD("audiocpu", M68000, 64000000/8)	/* 8MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_memmap)
 
-	MCFG_CPU_ADD("dsp", ADSP21062, 36000000)
-	MCFG_CPU_CONFIG(sharc_cfg)
-	MCFG_CPU_DATA_MAP(sharc_map)
+	MDRV_CPU_ADD("dsp", ADSP21062, 36000000)
+	MDRV_CPU_CONFIG(sharc_cfg)
+	MDRV_CPU_DATA_MAP(sharc_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(30000))
+	MDRV_QUANTUM_TIME(HZ(30000))
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
-	MCFG_MACHINE_START(zr107)
-	MCFG_MACHINE_RESET(zr107)
+	MDRV_EEPROM_93C46_ADD("eeprom")
+	MDRV_MACHINE_START(zr107)
+	MDRV_MACHINE_RESET(zr107)
 
-	MCFG_K056230_ADD("k056230", zr107_k056230_intf)
+	MDRV_K056230_ADD("k056230", zr107_k056230_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(64*8, 48*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 48*8-1)
-	MCFG_SCREEN_UPDATE(zr107)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(64*8, 48*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 48*8-1)
 
-	MCFG_PALETTE_LENGTH(65536)
+	MDRV_PALETTE_LENGTH(65536)
 
-	MCFG_VIDEO_START(zr107)
+	MDRV_VIDEO_START(zr107)
+	MDRV_VIDEO_UPDATE(zr107)
 
-	MCFG_K056832_ADD("k056832", zr107_k056832_intf)
+	MDRV_K056832_ADD("k056832", zr107_k056832_intf)
 
-	MCFG_K056800_ADD("k056800", zr107_k056800_interface)
+	MDRV_K056800_ADD("k056800", zr107_k056800_interface)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("konami1", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("konami1", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("konami2", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("konami2", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_ADC0838_ADD("adc0838", zr107_adc_interface)
-MACHINE_CONFIG_END
+	MDRV_ADC0838_ADD("adc0838", zr107_adc_interface)
+MACHINE_DRIVER_END
 
 
 static const k001604_interface jetwave_k001604_intf =
@@ -796,69 +770,68 @@ static const k001604_interface jetwave_k001604_intf =
 	0		/* slrasslt hack */
 };
 
-static MACHINE_CONFIG_START( jetwave, zr107_state )
+static MACHINE_DRIVER_START( jetwave )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", PPC403GA, 64000000/2)	/* PowerPC 403GA 32MHz */
-	MCFG_CPU_PROGRAM_MAP(jetwave_map)
-	MCFG_CPU_VBLANK_INT("screen", zr107_vblank)
+	MDRV_CPU_ADD("maincpu", PPC403GA, 64000000/2)	/* PowerPC 403GA 32MHz */
+	MDRV_CPU_PROGRAM_MAP(jetwave_map)
+	MDRV_CPU_VBLANK_INT("screen", zr107_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M68000, 64000000/8)	/* 8MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_memmap)
+	MDRV_CPU_ADD("audiocpu", M68000, 64000000/8)	/* 8MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_memmap)
 
-	MCFG_CPU_ADD("dsp", ADSP21062, 36000000)
-	MCFG_CPU_CONFIG(sharc_cfg)
-	MCFG_CPU_DATA_MAP(sharc_map)
+	MDRV_CPU_ADD("dsp", ADSP21062, 36000000)
+	MDRV_CPU_CONFIG(sharc_cfg)
+	MDRV_CPU_DATA_MAP(sharc_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(30000))
+	MDRV_QUANTUM_TIME(HZ(30000))
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
-	MCFG_MACHINE_START(zr107)
-	MCFG_MACHINE_RESET(zr107)
+	MDRV_EEPROM_93C46_ADD("eeprom")
+	MDRV_MACHINE_START(zr107)
+	MDRV_MACHINE_RESET(zr107)
 
-	MCFG_K056230_ADD("k056230", zr107_k056230_intf)
+	MDRV_K056230_ADD("k056230", zr107_k056230_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(64*8, 48*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 48*8-1)
-	MCFG_SCREEN_UPDATE(jetwave)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(64*8, 48*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0*8, 48*8-1)
 
-	MCFG_PALETTE_LENGTH(65536)
+	MDRV_PALETTE_LENGTH(65536)
 
-	MCFG_VIDEO_START(jetwave)
+	MDRV_VIDEO_START(jetwave)
+	MDRV_VIDEO_UPDATE(jetwave)
 
-	MCFG_K001604_ADD("k001604", jetwave_k001604_intf)
+	MDRV_K001604_ADD("k001604", jetwave_k001604_intf)
 
-	MCFG_K056800_ADD("k056800", zr107_k056800_interface)
+	MDRV_K056800_ADD("k056800", zr107_k056800_interface)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("konami1", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("konami1", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("konami2", K054539, 48000)
-	MCFG_SOUND_CONFIG(k054539_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("konami2", K054539, 48000)
+	MDRV_SOUND_CONFIG(k054539_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_ADC0838_ADD("adc0838", zr107_adc_interface)
-MACHINE_CONFIG_END
+	MDRV_ADC0838_ADD("adc0838", zr107_adc_interface)
+MACHINE_DRIVER_END
 
 /*****************************************************************************/
 
-static void init_zr107(running_machine &machine)
+static void init_zr107(running_machine *machine)
 {
-	zr107_state *state = machine.driver_data<zr107_state>();
-	state->m_sharc_dataram = auto_alloc_array(machine, UINT32, 0x100000/4);
-	state->m_led_reg0 = state->m_led_reg1 = 0x7f;
-	state->m_ccu_vcth = state->m_ccu_vctl = 0;
+	sharc_dataram = auto_alloc_array(machine, UINT32, 0x100000/4);
+	led_reg0 = led_reg1 = 0x7f;
+	ccu_vcth = ccu_vctl = 0;
 
-	K001005_preprocess_texture_data(machine.region("gfx1")->base(), machine.region("gfx1")->bytes(), 0);
+	K001005_preprocess_texture_data(memory_region(machine, "gfx1"), memory_region_length(machine, "gfx1"), 0);
 }
 
 static DRIVER_INIT(zr107)

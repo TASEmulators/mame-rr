@@ -34,7 +34,7 @@
 typedef struct _saa5050_state  saa5050_state;
 struct _saa5050_state
 {
-	device_t *screen;
+	running_device *screen;
 	int         gfxnum;
 	int         x, y;
 	int         size;
@@ -56,7 +56,7 @@ struct _saa5050_state
  *
  *************************************/
 
-INLINE saa5050_state *get_safe_token( device_t *device )
+INLINE saa5050_state *get_safe_token( running_device *device )
 {
 	assert(device != NULL);
 	assert(device->type() == SAA5050);
@@ -64,11 +64,11 @@ INLINE saa5050_state *get_safe_token( device_t *device )
 	return (saa5050_state *)downcast<legacy_device_base *>(device)->token();
 }
 
-INLINE const saa5050_interface *get_interface( device_t *device )
+INLINE const saa5050_interface *get_interface( running_device *device )
 {
 	assert(device != NULL);
 	assert((device->type() == SAA5050));
-	return (const saa5050_interface *) device->static_config();
+	return (const saa5050_interface *) device->baseconfig().static_config();
 }
 
 /*************************************
@@ -154,18 +154,18 @@ PALETTE_INIT( saa5050 )
 {
 	UINT8 i, r, g, b;
 
-	machine.colortable = colortable_alloc(machine, 8);
+	machine->colortable = colortable_alloc(machine, 8);
 
 	for ( i = 0; i < 8; i++ )
 	{
 		r = saa5050_colors[i * 3];
 		g = saa5050_colors[i * 3 + 1];
 		b = saa5050_colors[i * 3 + 2];
-		colortable_palette_set_color(machine.colortable, i, MAKE_RGB(r, g, b));
+		colortable_palette_set_color(machine->colortable, i, MAKE_RGB(r, g, b));
 	}
 
 	for (i = 0; i < 128; i++)
-		colortable_entry_set_value(machine.colortable, i, saa5050_palette[i]);
+		colortable_entry_set_value(machine->colortable, i, saa5050_palette[i]);
 }
 
 /*************************************
@@ -197,7 +197,7 @@ READ8_DEVICE_HANDLER( saa5050_videoram_r )
 /* this should probably be put at the end of saa5050 update,
 but p2000t in MESS does not seem to currently support it.
 Hence, we leave it independent for the moment */
-void saa5050_frame_advance( device_t *device )
+void saa5050_frame_advance( running_device *device )
 {
 	saa5050_state *saa5050 = get_safe_token(device);
 
@@ -206,7 +206,7 @@ void saa5050_frame_advance( device_t *device )
 		saa5050->frame_count = 0;
 }
 
-void saa5050_update( device_t *device, bitmap_t *bitmap, const rectangle *cliprect  )
+void saa5050_update( running_device *device, bitmap_t *bitmap, const rectangle *cliprect  )
 {
 	saa5050_state *saa5050 = get_safe_token(device);
 	int code, colour;
@@ -319,12 +319,12 @@ void saa5050_update( device_t *device, bitmap_t *bitmap, const rectangle *clipre
 			{
 				if (saa5050->flags & SAA5050_DBLHI)
 				{
-					drawgfxzoom_opaque(bitmap, cliprect, saa5050->screen->machine().gfx[saa5050->gfxnum + 1], code, colour, 0, 0, sx * 12, ssy * 20, 0x20000, 0x20000);
-					drawgfxzoom_opaque(bitmap, cliprect, saa5050->screen->machine().gfx[saa5050->gfxnum + 2], code, colour, 0, 0, sx * 12, (ssy + 1) * 20, 0x20000, 0x20000);
+					drawgfx_opaque(bitmap, cliprect, saa5050->screen->machine->gfx[saa5050->gfxnum + 1], code, colour, 0, 0, sx * 6, ssy * 10);
+					drawgfx_opaque(bitmap, cliprect, saa5050->screen->machine->gfx[saa5050->gfxnum + 2], code, colour, 0, 0, sx * 6, (ssy + 1) * 10);
 				}
 				else
 				{
-					drawgfxzoom_opaque(bitmap, cliprect, saa5050->screen->machine().gfx[saa5050->gfxnum + 0], code, colour, 0, 0, sx * 12, ssy * 20, 0x20000, 0x20000);
+					drawgfx_opaque(bitmap, cliprect, saa5050->screen->machine->gfx[saa5050->gfxnum + 0], code, colour, 0, 0, sx * 6, ssy * 10);
 				}
 			}
 		}
@@ -346,22 +346,22 @@ static DEVICE_START( saa5050 )
 	saa5050_state *saa5050 = get_safe_token(device);
 	const saa5050_interface *intf = get_interface(device);
 
-	saa5050->screen = device->machine().device(intf->screen);
+	saa5050->screen = device->machine->device(intf->screen);
 	saa5050->gfxnum = intf->gfxnum;
 	saa5050->x = intf->x;
 	saa5050->y = intf->y;
 	saa5050->size = intf->size;
 	saa5050->rev = intf->rev;
 
-	saa5050->videoram = auto_alloc_array(device->machine(), UINT8, 0x800);
+	saa5050->videoram = auto_alloc_array(device->machine, UINT8, 0x800);
 
-	device->save_pointer(NAME(saa5050->videoram), 0x800);
-	device->save_item(NAME(saa5050->flags));
-	device->save_item(NAME(saa5050->forecol));
-	device->save_item(NAME(saa5050->backcol));
-	device->save_item(NAME(saa5050->prvcol));
-	device->save_item(NAME(saa5050->prvchr));
-	device->save_item(NAME(saa5050->frame_count));
+	state_save_register_device_item_pointer(device, 0, saa5050->videoram, 0x800);
+	state_save_register_device_item(device, 0, saa5050->flags);
+	state_save_register_device_item(device, 0, saa5050->forecol);
+	state_save_register_device_item(device, 0, saa5050->backcol);
+	state_save_register_device_item(device, 0, saa5050->prvcol);
+	state_save_register_device_item(device, 0, saa5050->prvchr);
+	state_save_register_device_item(device, 0, saa5050->frame_count);
 }
 
 static DEVICE_RESET( saa5050 )

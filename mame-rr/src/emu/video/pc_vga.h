@@ -9,15 +9,17 @@
 #ifndef PC_VGA_H
 #define PC_VGA_H
 
-typedef void (*pc_video_update_proc)(bitmap_t *bitmap);
+#include "osdepend.h"
+#include "pc_video.h"
 
-MACHINE_CONFIG_EXTERN( pcvideo_vga );
+MACHINE_DRIVER_EXTERN( pcvideo_vga );
+MACHINE_DRIVER_EXTERN( pcvideo_pc1640 );
 
 struct pc_vga_interface
 {
 	/* VGA memory mapper */
 	const char *vga_memory_bank;
-	void (*map_vga_memory)(running_machine &machine, offs_t begin, offs_t end, read8_space_func rh, const char *rh_name, write8_space_func wh, const char *wh_name);
+	void (*map_vga_memory)(running_machine *machine, offs_t begin, offs_t end, read8_space_func rh, write8_space_func wh);
 
 	/* VGA dipswitch (???) */
 	read8_space_func read_dipswitch;
@@ -36,10 +38,29 @@ struct pc_svga_interface
 	pc_video_update_proc (*choosevideomode)(const UINT8 *sequencer, const UINT8 *crtc, const UINT8 *gc, int *width, int *height);
 };
 
-void pc_vga_init(running_machine &machine, const struct pc_vga_interface *vga_intf, const struct pc_svga_interface *svga_intf);
-void pc_vga_reset(running_machine &machine);
+void pc_vga_init(running_machine *machine, const struct pc_vga_interface *vga_intf, const struct pc_svga_interface *svga_intf);
+void pc_vga_reset(running_machine *machine);
 void *pc_vga_memory(void);
 size_t pc_vga_memory_size(void);
+
+READ8_HANDLER( ega_port_03c0_r );
+
+READ8_HANDLER( paradise_ega_03c0_r );
+READ16_HANDLER( paradise_ega16le_03c0_r );
+
+READ8_HANDLER( vga_port_03b0_r );
+READ8_HANDLER( vga_port_03c0_r );
+READ8_HANDLER( vga_port_03d0_r );
+WRITE8_HANDLER( vga_port_03b0_w );
+WRITE8_HANDLER( vga_port_03c0_w );
+WRITE8_HANDLER( vga_port_03d0_w );
+
+READ16_HANDLER( vga_port16le_03b0_r );
+READ16_HANDLER( vga_port16le_03c0_r );
+READ16_HANDLER( vga_port16le_03d0_r );
+WRITE16_HANDLER( vga_port16le_03b0_w );
+WRITE16_HANDLER( vga_port16le_03c0_w );
+WRITE16_HANDLER( vga_port16le_03d0_w );
 
 /*
   pega notes (paradise)
@@ -82,7 +103,7 @@ size_t pc_vga_memory_size(void);
 */
 #if 0
         int i;
-        UINT8 *memory=machine.region("maincpu")->base()+0xc0000;
+        UINT8 *memory=memory_region(machine, "maincpu")+0xc0000;
         UINT8 chksum;
 
 		/* oak vga */

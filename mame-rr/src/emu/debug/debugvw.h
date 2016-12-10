@@ -40,8 +40,6 @@
 #ifndef __DEBUGVIEW_H__
 #define __DEBUGVIEW_H__
 
-#include "express.h"
-
 
 //**************************************************************************
 //  CONSTANTS
@@ -104,6 +102,8 @@ const int DCH_CTRLLEFT		= 12;		// ctrl+left
 
 // forward references
 class debug_view;
+typedef struct _symbol_table symbol_table;
+typedef struct _parsed_expression parsed_expression;
 
 
 // OSD callback function for a view
@@ -145,14 +145,12 @@ public:
 	const char *name() const { return m_name; }
 	debug_view_source *next() const { return m_next; }
 	device_t *device() const { return m_device; }
-	bool is_octal() const { return m_is_octal; }
 
 private:
 	// internal state
 	debug_view_source *		m_next;					// link to next item
 	astring					m_name;					// name of the source item
 	device_t *				m_device;				// associated device (if applicable)
-	bool					m_is_octal;				// is view in octal or hex
 };
 
 
@@ -167,7 +165,6 @@ public:
 	~debug_view_source_list();
 
 	// getters
-	running_machine &machine() const { return m_machine; }
 	const debug_view_source *head() const { return m_head; }
 	int count() const { return m_count; }
 	int index(const debug_view_source &source) const;
@@ -242,6 +239,7 @@ protected:
 protected:
 	// core view data
 	debug_view *			m_next;				// link to the next view
+	running_machine &		m_machine;			// machine associated with this view
 	debug_view_type			m_type;				// type of view
 	const debug_view_source *m_source;			// currently selected data source
 	debug_view_source_list	m_source_list;		// list of available data sources
@@ -265,9 +263,6 @@ protected:
 	bool					m_osd_update_pending; // true if there is a pending update
 	debug_view_char *		m_viewdata;			// current array of view data
 	int						m_viewdata_size;	// number of elements of the viewdata array
-
-private:
-	running_machine &		m_machine;			// machine associated with this view
 };
 
 
@@ -278,9 +273,6 @@ public:
 	// construction/destruction
 	debug_view_manager(running_machine &machine);
 	~debug_view_manager();
-
-	// getters
-	running_machine &machine() const { return m_machine; }
 
 	// view allocation
 	debug_view *alloc_view(debug_view_type type, debug_view_osd_update_func osdupdate, void *osdprivate);
@@ -309,16 +301,15 @@ public:
 	~debug_view_expression();
 
 	// getters
-	running_machine &machine() const { return m_machine; }
 	bool dirty() const { return m_dirty; }
 	UINT64 last_value() const { return m_result; }
 	UINT64 value() { recompute(); return m_result; }
 	const char *string() const { return m_string; }
-	symbol_table *context() const { return m_parsed.symbols(); }
+	symbol_table *context() const { return m_context; }
 
 	// setters
 	void mark_dirty() { m_dirty = true; }
-	void set_string(const char *string) { m_string.cpy(string); m_dirty = true; }
+	void set_string(const char *string);
 	void set_context(symbol_table *context);
 
 private:
@@ -329,8 +320,9 @@ private:
 	running_machine &	m_machine;				// reference to the machine
 	bool				m_dirty;				// true if the expression needs to be re-evaluated
 	UINT64				m_result;				// last result from the expression
-	parsed_expression	m_parsed;				// parsed expression data
+	parsed_expression *	m_parsed;				// parsed expression data
 	astring				m_string;				// copy of the expression string
+	symbol_table *		m_context;				// context we are using
 };
 
 

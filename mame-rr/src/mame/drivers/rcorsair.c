@@ -49,17 +49,7 @@ so even the Main CPU is unknown, assuming the 8085 is the sound CPU
 #include "emu.h"
 #include "cpu/i8085/i8085.h"
 
-
-class rcorsair_state : public driver_device
-{
-public:
-	rcorsair_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
-static ADDRESS_MAP_START( rcorsair_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( rcorsair_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 ADDRESS_MAP_END
 
@@ -110,34 +100,34 @@ static VIDEO_START( rcorsair )
 {
 }
 
-static SCREEN_UPDATE( rcorsair )
+static VIDEO_UPDATE( rcorsair )
 {
 
 	return 0;
 }
 
-static MACHINE_CONFIG_START( rcorsair, rcorsair_state )
+static MACHINE_DRIVER_START( rcorsair )
 
 	/* Main CPU is probably inside Custom Block with
        program code, unknown type */
 
-	MCFG_CPU_ADD("maincpu", I8085A,8000000)		 /* Sound CPU? */
-	MCFG_CPU_PROGRAM_MAP(rcorsair_map)
-//  MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", I8085A,8000000)		 /* Sound CPU? */
+	MDRV_CPU_PROGRAM_MAP(rcorsair_map)
+//  MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(rcorsair)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-1)
 
-	MCFG_GFXDECODE(rcorsair)
-	MCFG_PALETTE_LENGTH(0x100)
+	MDRV_GFXDECODE(rcorsair)
+	MDRV_PALETTE_LENGTH(0x100)
 
-	MCFG_VIDEO_START(rcorsair)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(rcorsair)
+	MDRV_VIDEO_UPDATE(rcorsair)
+MACHINE_DRIVER_END
 
 ROM_START( rcorsair )
 	ROM_REGION( 0x2000, "maincpu", 0 )

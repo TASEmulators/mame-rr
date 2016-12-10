@@ -66,7 +66,7 @@ struct _kaneko_pandora_state
     INLINE FUNCTIONS
 *****************************************************************************/
 
-INLINE kaneko_pandora_state *get_safe_token( device_t *device )
+INLINE kaneko_pandora_state *get_safe_token( running_device *device )
 {
 	assert(device != NULL);
 	assert(device->type() == KANEKO_PANDORA);
@@ -74,30 +74,30 @@ INLINE kaneko_pandora_state *get_safe_token( device_t *device )
 	return (kaneko_pandora_state *)downcast<legacy_device_base *>(device)->token();
 }
 
-INLINE const kaneko_pandora_interface *get_interface( device_t *device )
+INLINE const kaneko_pandora_interface *get_interface( running_device *device )
 {
 	assert(device != NULL);
 	assert((device->type() == KANEKO_PANDORA));
-	return (const kaneko_pandora_interface *) device->static_config();
+	return (const kaneko_pandora_interface *) device->baseconfig().static_config();
 }
 
 /*****************************************************************************
     IMPLEMENTATION
 *****************************************************************************/
 
-void pandora_set_bg_pen( device_t *device, int pen )
+void pandora_set_bg_pen( running_device *device, int pen )
 {
 	kaneko_pandora_state *pandora = get_safe_token(device);
 	pandora->bg_pen = pen;
 }
 
-void pandora_set_clear_bitmap( device_t *device, int clear )
+void pandora_set_clear_bitmap( running_device *device, int clear )
 {
 	kaneko_pandora_state *pandora = get_safe_token(device);
 	pandora->clear_bitmap = clear;
 }
 
-void pandora_update( device_t *device, bitmap_t *bitmap, const rectangle *cliprect )
+void pandora_update( running_device *device, bitmap_t *bitmap, const rectangle *cliprect )
 {
 	kaneko_pandora_state *pandora = get_safe_token(device);
 
@@ -111,7 +111,7 @@ void pandora_update( device_t *device, bitmap_t *bitmap, const rectangle *clipre
 }
 
 
-static void pandora_draw( device_t *device, bitmap_t *bitmap, const rectangle *cliprect )
+static void pandora_draw( running_device *device, bitmap_t *bitmap, const rectangle *cliprect )
 {
 	kaneko_pandora_state *pandora = get_safe_token(device);
 	int sx = 0, sy = 0, x = 0, y = 0, offs;
@@ -162,7 +162,7 @@ static void pandora_draw( device_t *device, bitmap_t *bitmap, const rectangle *c
 			y = dy;
 		}
 
-		if (flip_screen_get(device->machine()))
+		if (flip_screen_get(device->machine))
 		{
 			sx = 240 - x;
 			sy = 240 - y;
@@ -187,7 +187,7 @@ static void pandora_draw( device_t *device, bitmap_t *bitmap, const rectangle *c
 		if (sy & 0x100)
 			sy -= 0x200;
 
-		drawgfx_transpen(bitmap,cliprect,device->machine().gfx[pandora->region],
+		drawgfx_transpen(bitmap,cliprect,device->machine->gfx[pandora->region],
 				tile,
 				(tilecolour & 0xf0) >> 4,
 				flipx, flipy,
@@ -195,7 +195,7 @@ static void pandora_draw( device_t *device, bitmap_t *bitmap, const rectangle *c
 	}
 }
 
-void pandora_eof( device_t *device )
+void pandora_eof( running_device *device )
 {
 	kaneko_pandora_state *pandora = get_safe_token(device);
 	assert(pandora->spriteram != NULL);
@@ -301,19 +301,19 @@ static DEVICE_START( kaneko_pandora )
 	kaneko_pandora_state *pandora = get_safe_token(device);
 	const kaneko_pandora_interface *intf = get_interface(device);
 
-	pandora->screen = device->machine().device<screen_device>(intf->screen);
+	pandora->screen = device->machine->device<screen_device>(intf->screen);
 	pandora->region = intf->gfx_region;
 	pandora->xoffset = intf->x;
 	pandora->yoffset = intf->y;
 	pandora->bg_pen = 0;
 
-	pandora->spriteram = auto_alloc_array(device->machine(), UINT8, 0x1000);
+	pandora->spriteram = auto_alloc_array(device->machine, UINT8, 0x1000);
 
 	pandora->sprites_bitmap = pandora->screen->alloc_compatible_bitmap();
 
-	device->save_item(NAME(pandora->clear_bitmap));
-	device->save_pointer(NAME(pandora->spriteram), 0x1000);
-	device->save_item(NAME(*pandora->sprites_bitmap));
+	state_save_register_device_item(device, 0, pandora->clear_bitmap);
+	state_save_register_device_item_pointer(device, 0, pandora->spriteram, 0x1000);
+	state_save_register_device_item_bitmap(device, 0, pandora->sprites_bitmap);
 }
 
 static DEVICE_RESET( kaneko_pandora )

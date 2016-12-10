@@ -34,6 +34,7 @@ Registers per channel:
 ***************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "gaelco.h"
 #include "wavwrite.h"
 
@@ -47,6 +48,8 @@ Registers per channel:
 
 #define GAELCO_NUM_CHANNELS 	0x07
 #define VOLUME_LEVELS			0x10
+
+UINT16 *gaelco_sndregs;
 
 /* this structure defines a channel */
 typedef struct _gaelco_sound_channel gaelco_sound_channel;
@@ -66,18 +69,16 @@ struct _gaelco_sound_state
 	int banks[4];											/* start of each ROM bank */
 	gaelco_sound_channel channel[GAELCO_NUM_CHANNELS];	/* 7 stereo channels */
 
-	UINT16 sndregs[0x38];
-
 	/* table for converting from 8 to 16 bits with volume control */
 	INT16 volume_table[VOLUME_LEVELS][256];
 };
 
 static wav_file *	wavraw;					/* raw waveform */
 
-INLINE gaelco_sound_state *get_safe_token(device_t *device)
+INLINE gaelco_sound_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == GAELCO_GAE1 || device->type() == GAELCO_CG1V);
+	assert(device->type() == SOUND_GAELCO_GAE1 || device->type() == SOUND_GAELCO_CG1V);
 	return (gaelco_sound_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -114,47 +115,47 @@ static STREAM_UPDATE( gaelco_update )
 				base_offset = ch*8 + chunkNum*4;
 
 				/* get channel parameters */
-				type = ((info->sndregs[base_offset + 1] >> 4) & 0x0f);
-				bank = info->banks[((info->sndregs[base_offset + 1] >> 0) & 0x03)];
-				vol_l = ((info->sndregs[base_offset + 1] >> 12) & 0x0f);
-				vol_r = ((info->sndregs[base_offset + 1] >> 8) & 0x0f);
-				end_pos = info->sndregs[base_offset + 2] << 8;
+				type = ((gaelco_sndregs[base_offset + 1] >> 4) & 0x0f);
+				bank = info->banks[((gaelco_sndregs[base_offset + 1] >> 0) & 0x03)];
+				vol_l = ((gaelco_sndregs[base_offset + 1] >> 12) & 0x0f);
+				vol_r = ((gaelco_sndregs[base_offset + 1] >> 8) & 0x0f);
+				end_pos = gaelco_sndregs[base_offset + 2] << 8;
 
 				/* generates output data (range 0x00000..0xffff) */
 				if (type == 0x08){
 					/* PCM, 8 bits mono */
-					data = info->snd_data[bank + end_pos + info->sndregs[base_offset + 3]];
+					data = info->snd_data[bank + end_pos + gaelco_sndregs[base_offset + 3]];
 					ch_data_l = info->volume_table[vol_l][data];
 					ch_data_r = info->volume_table[vol_r][data];
 
-					info->sndregs[base_offset + 3]--;
+					gaelco_sndregs[base_offset + 3]--;
 				} else if (type == 0x0c){
 					/* PCM, 8 bits stereo */
-					data = info->snd_data[bank + end_pos + info->sndregs[base_offset + 3]];
+					data = info->snd_data[bank + end_pos + gaelco_sndregs[base_offset + 3]];
 					ch_data_l = info->volume_table[vol_l][data];
 
-					info->sndregs[base_offset + 3]--;
+					gaelco_sndregs[base_offset + 3]--;
 
-					if (info->sndregs[base_offset + 3] > 0){
-						data = info->snd_data[bank + end_pos + info->sndregs[base_offset + 3]];
+					if (gaelco_sndregs[base_offset + 3] > 0){
+						data = info->snd_data[bank + end_pos + gaelco_sndregs[base_offset + 3]];
 						ch_data_r = info->volume_table[vol_r][data];
 
-						info->sndregs[base_offset + 3]--;
+						gaelco_sndregs[base_offset + 3]--;
 					}
 				} else {
-					LOG_SOUND(("(GAE1) Playing unknown sample format in channel: %02d, type: %02x, bank: %02x, end: %08x, Length: %04x\n", ch, type, bank, end_pos, info->sndregs[base_offset + 3]));
+					LOG_SOUND(("(GAE1) Playing unknown sample format in channel: %02d, type: %02x, bank: %02x, end: %08x, Length: %04x\n", ch, type, bank, end_pos, gaelco_sndregs[base_offset + 3]));
 					channel->active = 0;
 				}
 
 				/* check if the current sample has finished playing */
-				if (info->sndregs[base_offset + 3] == 0){
+				if (gaelco_sndregs[base_offset + 3] == 0){
 					if (channel->loop == 0){	/* if no looping, we're done */
 						channel->active = 0;
 					} else {					/* if we're looping, swap chunks */
 						channel->chunkNum = (channel->chunkNum + 1) & 0x01;
 
 						/* if the length of the next chunk is 0, we're done */
-						if (info->sndregs[ch*8 + channel->chunkNum*4 + 3] == 0){
+						if (gaelco_sndregs[ch*8 + channel->chunkNum*4 + 3] == 0){
 							channel->active = 0;
 						}
 					}
@@ -193,11 +194,9 @@ static STREAM_UPDATE( gaelco_update )
 
 READ16_DEVICE_HANDLER( gaelcosnd_r )
 {
-	gaelco_sound_state *info = get_safe_token(device);
+	LOG_READ_WRITES(("%s: (GAE1): read from %04x\n", cpuexec_describe_context(device->machine), offset));
 
-	LOG_READ_WRITES(("%s: (GAE1): read from %04x\n", device->machine().describe_context(), offset));
-
-	return info->sndregs[offset];
+	return gaelco_sndregs[offset];
 }
 
 /*============================================================================
@@ -209,22 +208,22 @@ WRITE16_DEVICE_HANDLER( gaelcosnd_w )
 	gaelco_sound_state *info = get_safe_token(device);
 	gaelco_sound_channel *channel = &info->channel[offset >> 3];
 
-	LOG_READ_WRITES(("%s: (GAE1): write %04x to %04x\n", device->machine().describe_context(), data, offset));
+	LOG_READ_WRITES(("%s: (GAE1): write %04x to %04x\n", cpuexec_describe_context(device->machine), data, offset));
 
 	/* first update the stream to this point in time */
-	info->stream->update();
+	stream_update(info->stream);
 
-	COMBINE_DATA(&info->sndregs[offset]);
+	COMBINE_DATA(&gaelco_sndregs[offset]);
 
 	switch(offset & 0x07){
 		case 0x03:
 			/* trigger sound */
-			if ((info->sndregs[offset - 1] != 0) && (data != 0)){
+			if ((gaelco_sndregs[offset - 1] != 0) && (data != 0)){
 				if (!channel->active){
 					channel->active = 1;
 					channel->chunkNum = 0;
 					channel->loop = 0;
-					LOG_SOUND(("(GAE1) Playing sample channel: %02d, type: %02x, bank: %02x, end: %08x, Length: %04x\n", offset >> 3, (info->sndregs[offset - 2] >> 4) & 0x0f, info->sndregs[offset - 2] & 0x03, info->sndregs[offset - 1] << 8, data));
+					LOG_SOUND(("(GAE1) Playing sample channel: %02d, type: %02x, bank: %02x, end: %08x, Length: %04x\n", offset >> 3, (gaelco_sndregs[offset - 2] >> 4) & 0x0f, gaelco_sndregs[offset - 2] & 0x03, gaelco_sndregs[offset - 1] << 8, data));
 				}
 			} else {
 				channel->active = 0;
@@ -233,8 +232,8 @@ WRITE16_DEVICE_HANDLER( gaelcosnd_w )
 			break;
 
 		case 0x07: /* enable/disable looping */
-			if ((info->sndregs[offset - 1] != 0) && (data != 0)){
-				LOG_SOUND(("(GAE1) Looping in channel: %02d, type: %02x, bank: %02x, end: %08x, Length: %04x\n", offset >> 3, (info->sndregs[offset - 2] >> 4) & 0x0f, info->sndregs[offset - 2] & 0x03, info->sndregs[offset - 1] << 8, data));
+			if ((gaelco_sndregs[offset - 1] != 0) && (data != 0)){
+				LOG_SOUND(("(GAE1) Looping in channel: %02d, type: %02x, bank: %02x, end: %08x, Length: %04x\n", offset >> 3, (gaelco_sndregs[offset - 2] >> 4) & 0x0f, gaelco_sndregs[offset - 2] & 0x03, gaelco_sndregs[offset - 1] << 8, data));
 				channel->loop = 1;
 			} else {
 				channel->loop = 0;
@@ -251,7 +250,7 @@ WRITE16_DEVICE_HANDLER( gaelcosnd_w )
 static DEVICE_START( gaelco )
 {
 	int j, vol;
-	const gaelcosnd_interface *intf = (const gaelcosnd_interface *)device->static_config();
+	const gaelcosnd_interface *intf = (const gaelcosnd_interface *)device->baseconfig().static_config();
 
 	gaelco_sound_state *info = get_safe_token(device);
 
@@ -259,8 +258,8 @@ static DEVICE_START( gaelco )
 	for (j = 0; j < 4; j++){
 		info->banks[j] = intf->banks[j];
 	}
-	info->stream = device->machine().sound().stream_alloc(*device, 0, 2, 8000, info, gaelco_update);
-	info->snd_data = (UINT8 *)device->machine().region(intf->gfxregion)->base();
+	info->stream = stream_create(device, 0, 2, 8000, info, gaelco_update);
+	info->snd_data = (UINT8 *)memory_region(device->machine, intf->gfxregion);
 	if (info->snd_data == NULL)
 		info->snd_data = *device->region();
 

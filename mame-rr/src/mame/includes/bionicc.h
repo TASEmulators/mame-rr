@@ -4,27 +4,26 @@
 
 ***************************************************************************/
 
-class bionicc_state : public driver_device
+class bionicc_state
 {
 public:
-	bionicc_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, bionicc_state(machine)); }
+
+	bionicc_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_bgvideoram;
-	UINT16 *  m_fgvideoram;
-	UINT16 *  m_txvideoram;
-	UINT16 *  m_paletteram;
-//  UINT16 *  m_spriteram;  // needed for EOF, but currently handled through buffer_spriteram16
+	UINT16 *  bgvideoram;
+	UINT16 *  fgvideoram;
+	UINT16 *  txvideoram;
+	UINT16 *  paletteram;
+//  UINT16 *  spriteram;  // needed for EOF, but currently handled through buffer_spriteram16
 
 	/* video-related */
-	tilemap_t   *m_tx_tilemap;
-	tilemap_t   *m_bg_tilemap;
-	tilemap_t   *m_fg_tilemap;
-	UINT16    m_scroll[4];
+	tilemap_t   *tx_tilemap, *bg_tilemap, *fg_tilemap;
+	UINT16    scroll[4];
 
-	UINT16    m_inp[3];
-	UINT16    m_soundcommand;
+	UINT16    inp[3];
+	UINT16    soundcommand;
 };
 
 
@@ -38,5 +37,5 @@ WRITE16_HANDLER( bionicc_scroll_w );
 WRITE16_HANDLER( bionicc_gfxctrl_w );
 
 VIDEO_START( bionicc );
-SCREEN_UPDATE( bionicc );
-SCREEN_EOF( bionicc );
+VIDEO_UPDATE( bionicc );
+VIDEO_EOF( bionicc );

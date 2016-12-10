@@ -9,6 +9,7 @@
 */
 
 #include "emu.h"
+#include "streams.h"
 #include "aica.h"
 #include "aicadsp.h"
 
@@ -135,16 +136,12 @@ struct _SLOT
 #define MIFULL(aica)		((aica->udata.data[4]>>0x0)&0x0200)
 #define MIEMPTY(aica)		((aica->udata.data[4]>>0x0)&0x0100)
 
-#define AFSEL(aica)		((aica->udata.data[0xc/2]>>0x0)&0x4000)
-#define MSLC(aica)		((aica->udata.data[0xc/2]>>0x8)&0x3F)
+#define AFSEL(aica)		((aica->udata.data[6]>>0x0)&0x4000)
+#define MSLC(aica)		((aica->udata.data[6]>>0x8)&0x3F)
 
 #define SCILV0(aica)    	((aica->udata.data[0xa8/2]>>0x0)&0xff)
 #define SCILV1(aica)    	((aica->udata.data[0xac/2]>>0x0)&0xff)
 #define SCILV2(aica)    	((aica->udata.data[0xb0/2]>>0x0)&0xff)
-
-#define MCIEB(aica) 	((aica->udata.data[0xb4/2]>>0x0)&0xff)
-#define MCIPD(aica) 	((aica->udata.data[0xb8/2]>>0x0)&0xff)
-#define MCIRE(aica) 	((aica->udata.data[0xbc/2]>>0x0)&0xff)
 
 #define SCIEX0	0
 #define SCIEX1	1
@@ -171,7 +168,7 @@ struct _AICA
 	unsigned char *AICARAM;
 	UINT32 AICARAM_LENGTH, RAM_MASK, RAM_MASK16;
 	char Master;
-	void (*IntARMCB)(device_t *device, int irq);
+	void (*IntARMCB)(running_device *device, int irq);
 	sound_stream * stream;
 
 	INT32 *buffertmpl, *buffertmpr;
@@ -201,7 +198,7 @@ struct _AICA
 	int ARTABLE[64], DRTABLE[64];
 
 	struct _AICADSP DSP;
-	device_t *device;
+	running_device *device;
 };
 
 static const float SDLT[16]={-1000000.0,-42.0,-39.0,-36.0,-33.0,-30.0,-27.0,-24.0,-21.0,-18.0,-15.0,-12.0,-9.0,-6.0,-3.0,0.0};
@@ -213,10 +210,10 @@ static int length;
 
 static signed short *RBUFDST;	//this points to where the sample will be stored in the RingBuf
 
-INLINE aica_state *get_safe_token(device_t *device)
+INLINE aica_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == AICA);
+	assert(device->type() == SOUND_AICA);
 	return (aica_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -496,7 +493,7 @@ static void AICA_StopSlot(struct _SLOT *slot,int keyoff)
 
 #define log_base_2(n) (log((float) n)/log((float) 2))
 
-static void AICA_Init(device_t *device, aica_state *AICA, const aica_interface *intf)
+static void AICA_Init(running_device *device, aica_state *AICA, const aica_interface *intf)
 {
 	int i;
 
@@ -521,9 +518,9 @@ static void AICA_Init(device_t *device, aica_state *AICA, const aica_interface *
 		}
 	}
 
-	AICA->timerA = device->machine().scheduler().timer_alloc(FUNC(timerA_cb), AICA);
-	AICA->timerB = device->machine().scheduler().timer_alloc(FUNC(timerB_cb), AICA);
-	AICA->timerC = device->machine().scheduler().timer_alloc(FUNC(timerC_cb), AICA);
+	AICA->timerA = timer_alloc(device->machine, timerA_cb, AICA);
+	AICA->timerB = timer_alloc(device->machine, timerB_cb, AICA);
+	AICA->timerC = timer_alloc(device->machine, timerC_cb, AICA);
 
 	for(i=0;i<0x400;++i)
 	{
@@ -614,9 +611,9 @@ static void AICA_Init(device_t *device, aica_state *AICA, const aica_interface *
 		AICA->Slots[i].lpend=1;
 	}
 
-	AICALFO_Init(device->machine());
-	AICA->buffertmpl=auto_alloc_array_clear(device->machine(), signed int, 44100);
-	AICA->buffertmpr=auto_alloc_array_clear(device->machine(), signed int, 44100);
+	AICALFO_Init(device->machine);
+	AICA->buffertmpl=auto_alloc_array_clear(device->machine, signed int, 44100);
+	AICA->buffertmpr=auto_alloc_array_clear(device->machine, signed int, 44100);
 
 	// no "pend"
 	AICA[0].udata.data[0xa0/2] = 0;
@@ -726,7 +723,7 @@ static void AICA_UpdateReg(aica_state *AICA, int reg)
 					time = (44100 / AICA->TimPris[0]) / (255-(AICA->udata.data[0x90/2]&0xff));
 					if (time)
 					{
-						AICA->timerA->adjust(attotime::from_hz(time));
+						timer_adjust_oneshot(AICA->timerA, ATTOTIME_IN_HZ(time), 0);
 					}
 				}
 			}
@@ -745,7 +742,7 @@ static void AICA_UpdateReg(aica_state *AICA, int reg)
 					time = (44100 / AICA->TimPris[1]) / (255-(AICA->udata.data[0x94/2]&0xff));
 					if (time)
 					{
-						AICA->timerB->adjust(attotime::from_hz(time));
+						timer_adjust_oneshot(AICA->timerB, ATTOTIME_IN_HZ(time), 0);
 					}
 				}
 			}
@@ -764,7 +761,7 @@ static void AICA_UpdateReg(aica_state *AICA, int reg)
 					time = (44100 / AICA->TimPris[2]) / (255-(AICA->udata.data[0x98/2]&0xff));
 					if (time)
 					{
-						AICA->timerC->adjust(attotime::from_hz(time));
+						timer_adjust_oneshot(AICA->timerC, ATTOTIME_IN_HZ(time), 0);
 					}
 				}
 			}
@@ -806,16 +803,6 @@ static void AICA_UpdateReg(aica_state *AICA, int reg)
 				AICA->IrqMidi=DecodeSCI(AICA,SCIMID);
 			}
 			break;
-
-		case 0xb4:
-		case 0xb5:
-		case 0xb6:
-		case 0xb7:
-			if (MCIEB(AICA) & 0x20)
-			{
-				logerror("AICA: Interrupt requested on SH-4!\n");
-			}
-			break;
 	}
 }
 
@@ -847,11 +834,11 @@ static void AICA_UpdateRegR(aica_state *AICA, int reg)
 		case 0x10:	// LP check
 		case 0x11:
 			{
-				int slotnum = MSLC(AICA);
-				struct _SLOT *slot=AICA->Slots + slotnum;
-				UINT16 LP = 0;
+				int MSLC = (AICA->udata.data[0xc/2]>>8) & 0x3f;	// which slot are we monitoring?
 				if (!(AFSEL(AICA)))
 				{
+					struct _SLOT *slot=AICA->Slots + MSLC;
+					UINT16 LP;
 					UINT16 SGC;
 					int EG;
 
@@ -865,29 +852,14 @@ static void AICA_UpdateRegR(aica_state *AICA, int reg)
 
 					AICA->udata.data[0x10/2] = (EG & 0x1FF8) | SGC | LP;
 				}
-				else
-				{
-					LP = slot->lpend ? 0x8000 : 0x0000;
-					AICA->udata.data[0x10/2] = LP;
-				}
 			}
 			break;
 
 		case 0x14:	// CA (slot address)
 		case 0x15:
 			{
-				int slotnum = MSLC(AICA);
-				struct _SLOT *slot=AICA->Slots+slotnum;
-				unsigned int CA = 0;
-
-				if (PCMS(slot) == 0)	// 16-bit samples
-				{
-					CA = (slot->cur_addr>>(SHIFT-1))&AICA->RAM_MASK16;
-				}
-				else	// 8-bit PCM and 4-bit ADPCM
-				{
-					CA = (slot->cur_addr>>SHIFT)&AICA->RAM_MASK;
-				}
+				int MSLC = (AICA->udata.data[0xc/2]>>8) & 0x3f;	// which slot are we monitoring?
+				unsigned int CA = AICA->Slots[MSLC].cur_addr>>(SHIFT+12);
 
 				AICA->udata.data[0x14/2] = CA;
 			}
@@ -1274,7 +1246,7 @@ static DEVICE_START( aica )
 
 	aica_state *AICA = get_safe_token(device);
 
-	intf = (const aica_interface *)device->static_config();
+	intf = (const aica_interface *)device->baseconfig().static_config();
 
 	// init the emulation
 	AICA_Init(device, AICA, intf);
@@ -1283,7 +1255,7 @@ static DEVICE_START( aica )
 	{
 		AICA->IntARMCB = intf->irq_callback;
 
-		AICA->stream = device->machine().sound().stream_alloc(*device, 0, 2, 44100, AICA, AICA_Update);
+		AICA->stream = stream_create(device, 0, 2, 44100, AICA, AICA_Update);
 	}
 }
 
@@ -1291,7 +1263,7 @@ static DEVICE_STOP( aica )
 {
 }
 
-void aica_set_ram_base(device_t *device, void *base, int size)
+void aica_set_ram_base(running_device *device, void *base, int size)
 {
 	aica_state *AICA = get_safe_token(device);
 	if (AICA)

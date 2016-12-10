@@ -6,42 +6,40 @@
 
 #include "sound/okim6295.h"
 
-class mitchell_state : public driver_device
+class mitchell_state
 {
 public:
-	mitchell_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_audiocpu(*this, "audiocpu"),
-		  m_oki(*this, "oki") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mitchell_state(machine)); }
+
+	mitchell_state(running_machine &machine)
+		: audiocpu(machine.device<cpu_device>("audiocpu")),
+		  oki(machine.device<okim6295_device>("oki")) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
-	size_t     m_videoram_size;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
+	size_t     videoram_size;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	UINT8      *m_objram;           /* Sprite RAM */
-	int        m_flipscreen;
-	int        m_video_bank;
-	int        m_paletteram_bank;
+	tilemap_t    *bg_tilemap;
+	UINT8      *objram;           /* Sprite RAM */
+	int        flipscreen;
+	int        video_bank;
+	int        paletteram_bank;
 
 	/* sound-related */
-	int        m_sample_buffer;
-	int        m_sample_select;
+	int        sample_buffer;
+	int        sample_select;
 
 	/* misc */
-	int        m_input_type;
-	int        m_dial[2];
-	int        m_dial_selected;
-	int        m_dir[2];
-	int        m_keymatrix;
+	int        input_type;
+	int        dial[2], dial_selected;
+	int        dir[2];
+	int        keymatrix;
 
 	/* devices */
-	optional_device<cpu_device> m_audiocpu;
-	optional_device<okim6295_device> m_oki;
-	UINT8 *m_nvram;
-	size_t m_nvram_size;
+	cpu_device *audiocpu;
+	okim6295_device *oki;
 };
 
 
@@ -68,4 +66,4 @@ WRITE8_HANDLER( mstworld_gfxctrl_w );
 WRITE8_HANDLER( mstworld_video_bank_w );
 
 VIDEO_START( pang );
-SCREEN_UPDATE( pang );
+VIDEO_UPDATE( pang );

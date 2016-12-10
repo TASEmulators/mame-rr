@@ -322,9 +322,9 @@ TODO:
 
 static WRITE8_HANDLER( welltris_sh_bankswitch_w )
 {
-	UINT8 *rom = space->machine().region("audiocpu")->base() + 0x10000;
+	UINT8 *rom = memory_region(space->machine, "audiocpu") + 0x10000;
 
-	memory_set_bankptr(space->machine(), "bank1",rom + (data & 0x03) * 0x8000);
+	memory_set_bankptr(space->machine, "bank1",rom + (data & 0x03) * 0x8000);
 }
 
 
@@ -332,35 +332,35 @@ static WRITE16_HANDLER( sound_command_w )
 {
 	if (ACCESSING_BITS_0_7)
 	{
-		welltris_state *state = space->machine().driver_data<welltris_state>();
+		welltris_state *state = (welltris_state *)space->machine->driver_data;
 
-		state->m_pending_command = 1;
+		state->pending_command = 1;
 		soundlatch_w(space, 0, data & 0xff);
-		cputag_set_input_line(space->machine(), "audiocpu", INPUT_LINE_NMI, PULSE_LINE);
+		cputag_set_input_line(space->machine, "audiocpu", INPUT_LINE_NMI, PULSE_LINE);
 	}
 }
 
 static CUSTOM_INPUT( pending_sound_r )
 {
-	welltris_state *state = field.machine().driver_data<welltris_state>();
-	return state->m_pending_command ? 1 : 0;
+	welltris_state *state = (welltris_state *)field->port->machine->driver_data;
+	return state->pending_command ? 1 : 0;
 }
 
 static WRITE8_HANDLER( pending_command_clear_w )
 {
-	welltris_state *state = space->machine().driver_data<welltris_state>();
+	welltris_state *state = (welltris_state *)space->machine->driver_data;
 
-	state->m_pending_command = 0;
+	state->pending_command = 0;
 }
 
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x17ffff) AM_ROM
-	AM_RANGE(0x800000, 0x81ffff) AM_RAM AM_BASE_MEMBER(welltris_state,m_pixelram)	/* Graph_1 & 2*/
+	AM_RANGE(0x800000, 0x81ffff) AM_RAM AM_BASE_MEMBER(welltris_state,pixelram)	/* Graph_1 & 2*/
 	AM_RANGE(0xff8000, 0xffbfff) AM_RAM								/* work */
-	AM_RANGE(0xffc000, 0xffc3ff) AM_RAM_WRITE(welltris_spriteram_w) AM_BASE_MEMBER(welltris_state,m_spriteram)			/* Sprite */
-	AM_RANGE(0xffd000, 0xffdfff) AM_RAM_WRITE(welltris_charvideoram_w) AM_BASE_MEMBER(welltris_state,m_charvideoram)		/* Char */
+	AM_RANGE(0xffc000, 0xffc3ff) AM_RAM_WRITE(welltris_spriteram_w) AM_BASE_MEMBER(welltris_state,spriteram)			/* Sprite */
+	AM_RANGE(0xffd000, 0xffdfff) AM_RAM_WRITE(welltris_charvideoram_w) AM_BASE_MEMBER(welltris_state,charvideoram)		/* Char */
 	AM_RANGE(0xffe000, 0xffefff) AM_RAM_WRITE(paletteram16_xRRRRRGGGGGBBBBB_word_w) AM_BASE_GENERIC(paletteram)	/* Palette */
 	AM_RANGE(0xfff000, 0xfff001) AM_READ_PORT("P1")					/* Bottom Controls */
 	AM_RANGE(0xfff000, 0xfff001) AM_WRITE(welltris_palette_bank_w)
@@ -378,13 +378,13 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xfff00e, 0xfff00f) AM_WRITENOP					/* ?? */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
 	AM_RANGE(0x7800, 0x7fff) AM_RAM
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank1")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_port_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_port_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_WRITE(welltris_sh_bankswitch_w)
 	AM_RANGE(0x08, 0x0b) AM_DEVREADWRITE("ymsnd", ym2610_r, ym2610_w)
@@ -676,9 +676,9 @@ GFXDECODE_END
 
 
 
-static void irqhandler(device_t *device, int irq)
+static void irqhandler(running_device *device, int irq)
 {
-	cputag_set_input_line(device->machine(), "audiocpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(device->machine, "audiocpu", 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2610_interface ym2610_config =
@@ -692,7 +692,7 @@ static DRIVER_INIT( welltris )
 {
 #if WELLTRIS_4P_HACK
 	/* A Hack which shows 4 player mode in code which is disabled */
-	UINT16 *RAM = (UINT16 *)machine.region("maincpu")->base();
+	UINT16 *RAM = (UINT16 *)memory_region(machine, "maincpu");
 	RAM[0xB91C/2] = 0x4e71;
 	RAM[0xB91E/2] = 0x4e71;
 #endif
@@ -705,48 +705,51 @@ static DRIVER_INIT( quiz18k )
 
 
 
-static MACHINE_CONFIG_START( welltris, welltris_state )
+static MACHINE_DRIVER_START( welltris )
+
+	MDRV_DRIVER_DATA( welltris_state )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,20000000/2)	/* 10 MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,20000000/2)	/* 10 MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,8000000/2)		/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_port_map)	/* IRQs are triggered by the YM2610 */
+	MDRV_CPU_ADD("audiocpu", Z80,8000000/2)		/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_port_map)	/* IRQs are triggered by the YM2610 */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(15, 367-1, 8, 248-1)
-	MCFG_SCREEN_UPDATE(welltris)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(15, 367-1, 8, 248-1)
 
-	MCFG_GFXDECODE(welltris)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(welltris)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(welltris)
+	MDRV_VIDEO_START(welltris)
+	MDRV_VIDEO_UPDATE(welltris)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, 8000000)
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 0.75)
-	MCFG_SOUND_ROUTE(2, "mono", 0.75)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2610, 8000000)
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 0.75)
+	MDRV_SOUND_ROUTE(2, "mono", 0.75)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( quiz18k, welltris )
+static MACHINE_DRIVER_START( quiz18k )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM( welltris )
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(15, 335-1, 0, 224-1)
-MACHINE_CONFIG_END
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_VISIBLE_AREA(15, 335-1, 0, 224-1)
+MACHINE_DRIVER_END
 
 
 

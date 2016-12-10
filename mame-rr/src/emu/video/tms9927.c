@@ -52,15 +52,15 @@ struct _tms9927_state
 };
 
 
-static void tms9927_state_save_postload(tms9927_state *state);
+static STATE_POSTLOAD( tms9927_state_save_postload );
 static void recompute_parameters(tms9927_state *tms, int postload);
 
 
-const tms9927_interface tms9927_null_interface = { 0 };
+tms9927_interface tms9927_null_interface = { 0 };
 
 
 /* makes sure that the passed in device is the right type */
-INLINE tms9927_state *get_safe_token(device_t *device)
+INLINE tms9927_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TMS9927);
@@ -68,13 +68,13 @@ INLINE tms9927_state *get_safe_token(device_t *device)
 }
 
 
-static void tms9927_state_save_postload(tms9927_state *state)
+static STATE_POSTLOAD( tms9927_state_save_postload )
 {
-	recompute_parameters(state, TRUE);
+	recompute_parameters((tms9927_state *)param, TRUE);
 }
 
 
-static void generic_access(device_t *device, offs_t offset)
+static void generic_access(running_device *device, offs_t offset)
 {
 	tms9927_state *tms = get_safe_token(device);
 
@@ -174,21 +174,21 @@ READ8_DEVICE_HANDLER( tms9927_r )
 }
 
 
-int tms9927_screen_reset(device_t *device)
+int tms9927_screen_reset(running_device *device)
 {
 	tms9927_state *tms = get_safe_token(device);
 	return tms->reset;
 }
 
 
-int tms9927_upscroll_offset(device_t *device)
+int tms9927_upscroll_offset(running_device *device)
 {
 	tms9927_state *tms = get_safe_token(device);
 	return tms->start_datarow;
 }
 
 
-int tms9927_cursor_bounds(device_t *device, rectangle *bounds)
+int tms9927_cursor_bounds(running_device *device, rectangle *bounds)
 {
 	tms9927_state *tms = get_safe_token(device);
 	int cursorx = CURSOR_CHAR_ADDRESS(tms);
@@ -259,7 +259,7 @@ static DEVICE_START( tms9927 )
 	/* validate arguments */
 	assert(device != NULL);
 
-	tms->intf = (const tms9927_interface *)device->static_config();
+	tms->intf = (const tms9927_interface *)device->baseconfig().static_config();
 
 	if (tms->intf != NULL)
 	{
@@ -271,25 +271,25 @@ static DEVICE_START( tms9927 )
 		tms->hpixels_per_column = tms->intf->hpixels_per_column;
 
 		/* get the screen device */
-		tms->screen = downcast<screen_device *>(device->machine().device(tms->intf->screen_tag));
+		tms->screen = downcast<screen_device *>(device->machine->device(tms->intf->screen_tag));
 		assert(tms->screen != NULL);
 
 		/* get the self-load PROM */
 		if (tms->intf->selfload_region != NULL)
 		{
-			tms->selfload = device->machine().region(tms->intf->selfload_region)->base();
+			tms->selfload = memory_region(device->machine, tms->intf->selfload_region);
 			assert(tms->selfload != NULL);
 		}
 	}
 
 	/* register for state saving */
-	device->machine().save().register_postload(save_prepost_delegate(FUNC(tms9927_state_save_postload), tms));
+	state_save_register_postload(device->machine, tms9927_state_save_postload, tms);
 
-	device->save_item(NAME(tms->clock));
-	device->save_item(NAME(tms->reg));
-	device->save_item(NAME(tms->start_datarow));
-	device->save_item(NAME(tms->reset));
-	device->save_item(NAME(tms->hpixels_per_column));
+	state_save_register_device_item(device, 0, tms->clock);
+	state_save_register_device_item_array(device, 0, tms->reg);
+	state_save_register_device_item(device, 0, tms->start_datarow);
+	state_save_register_device_item(device, 0, tms->reset);
+	state_save_register_device_item(device, 0, tms->hpixels_per_column);
 }
 
 

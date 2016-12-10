@@ -1,19 +1,18 @@
 
 
-class funybubl_state : public driver_device
+class funybubl_state
 {
 public:
-	funybubl_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, funybubl_state(machine)); }
+
+	funybubl_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_paletteram;
+	UINT8 *    banked_vram;
+	UINT8 *    paletteram;
 
 	/* devices */
-	device_t *m_audiocpu;
-
-	/* memory */
-	UINT8      m_banked_vram[0x2000];
+	running_device *audiocpu;
 };
 
 
@@ -23,4 +22,4 @@ public:
 WRITE8_HANDLER ( funybubl_paldatawrite );
 
 VIDEO_START(funybubl);
-SCREEN_UPDATE(funybubl);
+VIDEO_UPDATE(funybubl);

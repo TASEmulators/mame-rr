@@ -31,25 +31,15 @@ dip 1X8
 #include "machine/8255ppi.h"
 #include "video/mc6845.h"
 
-
-class fortecar_state : public driver_device
-{
-public:
-	fortecar_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_ram;
-	int m_bank;
-};
-
+static UINT8 *fortecar_ram;
+static int bank;
 
 static VIDEO_START(fortecar)
 {
 }
 
-static SCREEN_UPDATE(fortecar)
+static VIDEO_UPDATE(fortecar)
 {
-	fortecar_state *state = screen->machine().driver_data<fortecar_state>();
 	int x,y,count;
 	count = 0;
 
@@ -59,10 +49,10 @@ static SCREEN_UPDATE(fortecar)
 		{
 			int tile,color;
 
-			tile = (state->m_ram[(count*4)+1] | (state->m_ram[(count*4)+2]<<8)) & 0xfff;
-			color = state->m_ram[(count*4)+3] & 3;
+			tile = (fortecar_ram[(count*4)+1] | (fortecar_ram[(count*4)+2]<<8)) & 0xfff;
+			color = fortecar_ram[(count*4)+3] & 3;
 
-			drawgfx_opaque(bitmap,cliprect,screen->machine().gfx[0],tile,color,0,0,x*8,y*8);
+			drawgfx_opaque(bitmap,cliprect,screen->machine->gfx[0],tile,color,0,0,x*8,y*8);
 			count++;
 
 		}
@@ -73,17 +63,15 @@ static SCREEN_UPDATE(fortecar)
 
 static WRITE8_DEVICE_HANDLER( ppi0_portc_w )
 {
-	eeprom_device *eeprom = downcast<eeprom_device *>(device);
-	eeprom->write_bit(data & 0x04);
-	eeprom->set_cs_line((data & 0x01) ? CLEAR_LINE : ASSERT_LINE);
-	eeprom->set_clock_line((data & 0x02) ? ASSERT_LINE : CLEAR_LINE);
+	eeprom_write_bit(device, data & 0x04);
+	eeprom_set_cs_line(device, (data & 0x01) ? CLEAR_LINE : ASSERT_LINE);
+	eeprom_set_clock_line(device, (data & 0x02) ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static READ8_DEVICE_HANDLER( ppi0_portc_r )
 {
-//  popmessage("%s",device->machine().describe_context());
-	eeprom_device *eeprom = downcast<eeprom_device *>(device);
-	return (~(eeprom->read_bit()<<1) & 2);
+//  popmessage("%s",cpuexec_describe_context(device->machine));
+	return (~(eeprom_read_bit(device)<<1) & 2);
 }
 
 static const ppi8255_interface ppi0intf =
@@ -125,17 +113,17 @@ static const ay8910_interface ay8910_config =
 	DEVCB_HANDLER(ayportb_w)
 };
 
-static ADDRESS_MAP_START( fortecar_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fortecar_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_ROM
 	AM_RANGE(0xd000, 0xd7ff) AM_RAM
-	AM_RANGE(0xd800, 0xffff) AM_RAM AM_BASE_MEMBER(fortecar_state, m_ram)
+	AM_RANGE(0xd800, 0xffff) AM_RAM AM_BASE(&fortecar_ram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( fortecar_ports, AS_IO, 8 )
+static ADDRESS_MAP_START( fortecar_ports, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
-	AM_RANGE(0x20, 0x20) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0x21, 0x21) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
+	AM_RANGE(0x20, 0x20) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0x21, 0x21) AM_DEVWRITE("crtc", mc6845_register_w)
 	AM_RANGE(0x40, 0x40) AM_DEVREAD("aysnd", ay8910_r)
 	AM_RANGE(0x40, 0x41) AM_DEVWRITE("aysnd", ay8910_address_data_w)
 	AM_RANGE(0x60, 0x63) AM_DEVREADWRITE("fcppi0", ppi8255_r, ppi8255_w)//M5L8255AP
@@ -256,8 +244,7 @@ GFXDECODE_END
 
 static MACHINE_RESET(fortecar)
 {
-	fortecar_state *state = machine.driver_data<fortecar_state>();
-	state->m_bank = -1;
+	bank = -1;
 }
 
 /* WRONG, just to see something */
@@ -290,43 +277,43 @@ static const mc6845_interface mc6845_intf =
 };
 
 //51f
-static MACHINE_CONFIG_START( fortecar, fortecar_state )
+static MACHINE_DRIVER_START( fortecar )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,6000000)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(fortecar_map)
-	MCFG_CPU_IO_MAP(fortecar_ports)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_CPU_ADD("maincpu", Z80,6000000)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(fortecar_map)
+	MDRV_CPU_IO_MAP(fortecar_ports)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(640, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 640-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(fortecar)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(640, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 640-1, 0, 256-1)
 
-	MCFG_MACHINE_RESET(fortecar)
+	MDRV_MACHINE_RESET(fortecar)
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
-	MCFG_EEPROM_DEFAULT_VALUE(0)
+	MDRV_EEPROM_93C46_ADD("eeprom")
+	MDRV_EEPROM_DEFAULT_VALUE(0)
 
-	MCFG_PPI8255_ADD("fcppi0", ppi0intf)
+	MDRV_PPI8255_ADD("fcppi0", ppi0intf)
 
-	MCFG_GFXDECODE(fortecar)
-	MCFG_PALETTE_LENGTH(0x100)
-	MCFG_PALETTE_INIT(fortecar)
+	MDRV_GFXDECODE(fortecar)
+	MDRV_PALETTE_LENGTH(0x100)
+	MDRV_PALETTE_INIT(fortecar)
 
-	MCFG_VIDEO_START(fortecar)
+	MDRV_VIDEO_START(fortecar)
+	MDRV_VIDEO_UPDATE(fortecar)
 
-	MCFG_MC6845_ADD("crtc", MC6845, 6000000/4, mc6845_intf)	/* unknown type / hand tuned to get ~60 fps */
+	MDRV_MC6845_ADD("crtc", MC6845, 6000000/4, mc6845_intf)	/* unknown type / hand tuned to get ~60 fps */
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 1500000)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 1500000)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 ROM_START( fortecar )
 	ROM_REGION( 0x10000, "maincpu", 0 )

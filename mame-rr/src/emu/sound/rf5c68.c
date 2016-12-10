@@ -3,6 +3,7 @@
 /*********************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "rf5c68.h"
 
 
@@ -31,15 +32,15 @@ struct _rf5c68_state
 	UINT8				wbank;
 	UINT8				enable;
 	UINT8				data[0x10000];
-	void				(*sample_callback)(device_t* device,int channel);
-	device_t* device;
+	void				(*sample_callback)(running_device* device,int channel);
+	running_device* device;
 };
 
 
-INLINE rf5c68_state *get_safe_token(device_t *device)
+INLINE rf5c68_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == RF5C68);
+	assert(device->type() == SOUND_RF5C68);
 	return (rf5c68_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -139,13 +140,13 @@ static STREAM_UPDATE( rf5c68_update )
 
 static DEVICE_START( rf5c68 )
 {
-	const rf5c68_interface* intf = (const rf5c68_interface*)device->static_config();
+	const rf5c68_interface* intf = (const rf5c68_interface*)device->baseconfig().static_config();
 
 	/* allocate memory for the chip */
 	rf5c68_state *chip = get_safe_token(device);
 
 	/* allocate the stream */
-	chip->stream = device->machine().sound().stream_alloc(*device, 0, 2, device->clock() / 384, chip, rf5c68_update);
+	chip->stream = stream_create(device, 0, 2, device->clock() / 384, chip, rf5c68_update);
 
 	chip->device = device;
 
@@ -161,19 +162,6 @@ static DEVICE_START( rf5c68 )
 /*    RF5C68 write register                     */
 /************************************************/
 
-READ8_DEVICE_HANDLER( rf5c68_r )
-{
-	rf5c68_state *chip = get_safe_token(device);
-	UINT8 shift;
-
-	chip->stream->update();
-	shift = (offset & 1) ? 11 + 8 : 11;
-
-//  printf("%08x\n",(chip->chan[(offset & 0x0e) >> 1].addr));
-
-	return (chip->chan[(offset & 0x0e) >> 1].addr) >> (shift);
-}
-
 WRITE8_DEVICE_HANDLER( rf5c68_w )
 {
 	rf5c68_state *chip = get_safe_token(device);
@@ -181,7 +169,7 @@ WRITE8_DEVICE_HANDLER( rf5c68_w )
 	int i;
 
 	/* force the stream to update first */
-	chip->stream->update();
+	stream_update(chip->stream);
 
 	/* switch off the address */
 	switch (offset)

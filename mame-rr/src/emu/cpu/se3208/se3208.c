@@ -24,8 +24,7 @@ struct _se3208_state_t
 
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	UINT8 IRQ;
 	UINT8 NMI;
 
@@ -59,61 +58,61 @@ typedef void (*_OP)(se3208_state_t *se3208_state, UINT16 Opcode);
 #define INST(a) static void a(se3208_state_t *se3208_state, UINT16 Opcode)
 static _OP *OpTable=NULL;
 
-INLINE se3208_state_t *get_safe_token(device_t *device)
+INLINE se3208_state_t *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == SE3208);
 	return (se3208_state_t *)downcast<legacy_cpu_device *>(device)->token();
 }
 
-INLINE UINT32 read_dword_unaligned(address_space *space, UINT32 address)
+INLINE UINT32 read_dword_unaligned(const address_space *space, UINT32 address)
 {
 	if (address & 3)
-		return space->read_byte(address) | space->read_byte(address+1)<<8 | space->read_byte(address+2)<<16 | space->read_byte(address+3)<<24;
+		return memory_read_byte_32le(space,address) | memory_read_byte_32le(space,address+1)<<8 | memory_read_byte_32le(space,address+2)<<16 | memory_read_byte_32le(space,address+3)<<24;
 	else
-		return space->read_dword(address);
+		return memory_read_dword_32le(space,address);
 }
 
-INLINE UINT16 read_word_unaligned(address_space *space, UINT32 address)
+INLINE UINT16 read_word_unaligned(const address_space *space, UINT32 address)
 {
 	if (address & 1)
-		return space->read_byte(address) | space->read_byte(address+1)<<8;
+		return memory_read_byte_32le(space,address) | memory_read_byte_32le(space,address+1)<<8;
 	else
-		return space->read_word(address);
+		return memory_read_word_32le(space,address);
 }
 
-INLINE void write_dword_unaligned(address_space *space, UINT32 address, UINT32 data)
+INLINE void write_dword_unaligned(const address_space *space, UINT32 address, UINT32 data)
 {
 	if (address & 3)
 	{
-		space->write_byte(address, data & 0xff);
-		space->write_byte(address+1, (data>>8)&0xff);
-		space->write_byte(address+2, (data>>16)&0xff);
-		space->write_byte(address+3, (data>>24)&0xff);
+		memory_write_byte_32le(space, address, data & 0xff);
+		memory_write_byte_32le(space, address+1, (data>>8)&0xff);
+		memory_write_byte_32le(space, address+2, (data>>16)&0xff);
+		memory_write_byte_32le(space, address+3, (data>>24)&0xff);
 	}
 	else
 	{
-		space->write_dword(address, data);
+		memory_write_dword_32le(space, address, data);
 	}
 }
 
-INLINE void write_word_unaligned(address_space *space, UINT32 address, UINT16 data)
+INLINE void write_word_unaligned(const address_space *space, UINT32 address, UINT16 data)
 {
 	if (address & 1)
 	{
-		space->write_byte(address, data & 0xff);
-		space->write_byte(address+1, (data>>8)&0xff);
+		memory_write_byte_32le(space, address, data & 0xff);
+		memory_write_byte_32le(space, address+1, (data>>8)&0xff);
 	}
 	else
 	{
-		space->write_word(address, data);
+		memory_write_word_32le(space, address, data);
 	}
 }
 
 
 INLINE UINT8 SE3208_Read8(se3208_state_t *se3208_state, UINT32 addr)
 {
-	return se3208_state->program->read_byte(addr);
+	return memory_read_byte_32le(se3208_state->program,addr);
 }
 
 INLINE UINT16 SE3208_Read16(se3208_state_t *se3208_state, UINT32 addr)
@@ -128,7 +127,7 @@ INLINE UINT32 SE3208_Read32(se3208_state_t *se3208_state, UINT32 addr)
 
 INLINE void SE3208_Write8(se3208_state_t *se3208_state, UINT32 addr,UINT8 val)
 {
-	se3208_state->program->write_byte(addr,val);
+	memory_write_byte_32le(se3208_state->program,addr,val);
 }
 
 INLINE void SE3208_Write16(se3208_state_t *se3208_state, UINT32 addr,UINT16 val)
@@ -1719,7 +1718,6 @@ static CPU_RESET( se3208 )
 	se3208_state->irq_callback = save_irqcallback;
 	se3208_state->device = device;
 	se3208_state->program = device->space(AS_PROGRAM);
-	se3208_state->direct = &se3208_state->program->direct();
 	se3208_state->PC=SE3208_Read32(se3208_state, 0);
 	se3208_state->SR=0;
 	se3208_state->IRQ=CLEAR_LINE;
@@ -1760,7 +1758,7 @@ static CPU_EXECUTE( se3208 )
 
 	do
 	{
-		UINT16 Opcode=se3208_state->direct->read_decrypted_word(se3208_state->PC, WORD_XOR_LE(0));
+		UINT16 Opcode=memory_decrypted_read_word(se3208_state->program, WORD_XOR_LE(se3208_state->PC));
 
 		debugger_instruction_hook(device, se3208_state->PC);
 
@@ -1790,7 +1788,6 @@ static CPU_INIT( se3208 )
 	se3208_state->irq_callback = irqcallback;
 	se3208_state->device = device;
 	se3208_state->program = device->space(AS_PROGRAM);
-	se3208_state->direct = &se3208_state->program->direct();
 }
 
 static CPU_EXIT( se3208 )
@@ -1857,15 +1854,15 @@ CPU_GET_INFO( se3208 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + SE3208_INT:		info->i = se3208_state->IRQ;					break;
 		case CPUINFO_INT_INPUT_STATE + INPUT_LINE_NMI:	info->i = se3208_state->NMI;					break;

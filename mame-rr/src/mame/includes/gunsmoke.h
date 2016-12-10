@@ -4,27 +4,25 @@
 
 *************************************************************************/
 
-class gunsmoke_state : public driver_device
+class gunsmoke_state
 {
 public:
-	gunsmoke_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, gunsmoke_state(machine)); }
+
+	gunsmoke_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_videoram;
-	UINT8 *    m_colorram;
-	UINT8 *    m_spriteram;
-	UINT8 *    m_scrollx;
-	UINT8 *    m_scrolly;
-	size_t     m_spriteram_size;
+	UINT8 *    videoram;
+	UINT8 *    colorram;
+	UINT8 *    spriteram;
+	UINT8 *    scrollx;
+	UINT8 *    scrolly;
+	size_t     spriteram_size;
 
 	/* video-related */
-	tilemap_t    *m_bg_tilemap;
-	tilemap_t    *m_fg_tilemap;
-	UINT8      m_chon;
-	UINT8      m_objon;
-	UINT8      m_bgon;
-	UINT8      m_sprite3bank;
+	tilemap_t    *bg_tilemap, *fg_tilemap;
+	UINT8      chon, objon, bgon;
+	UINT8      sprite3bank;
 };
 
 
@@ -37,5 +35,5 @@ WRITE8_HANDLER( gunsmoke_colorram_w );
 
 PALETTE_INIT( gunsmoke );
 VIDEO_START( gunsmoke );
-SCREEN_UPDATE( gunsmoke );
+VIDEO_UPDATE( gunsmoke );
 

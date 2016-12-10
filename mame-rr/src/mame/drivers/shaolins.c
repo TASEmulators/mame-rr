@@ -10,24 +10,36 @@ driver by Allard Van Der Bas
 #include "cpu/m6809/m6809.h"
 #include "deprecat.h"
 #include "sound/sn76496.h"
-#include "includes/shaolins.h"
 
 #define MASTER_CLOCK XTAL_18_432MHz
 
+UINT8 shaolins_nmi_enable;
+
+extern UINT8 *shaolins_videoram;
+extern UINT8 *shaolins_colorram;
+WRITE8_HANDLER( shaolins_videoram_w );
+WRITE8_HANDLER( shaolins_colorram_w );
+WRITE8_HANDLER( shaolins_palettebank_w );
+WRITE8_HANDLER( shaolins_scroll_w );
+WRITE8_HANDLER( shaolins_nmi_w );
+
+PALETTE_INIT( shaolins );
+VIDEO_START( shaolins );
+VIDEO_UPDATE( shaolins );
+
+
 static INTERRUPT_GEN( shaolins_interrupt )
 {
-	shaolins_state *state = device->machine().driver_data<shaolins_state>();
-
-	if (cpu_getiloops(device) == 0) device_set_input_line(device, 0, HOLD_LINE);
+	if (cpu_getiloops(device) == 0) cpu_set_input_line(device, 0, HOLD_LINE);
 	else if (cpu_getiloops(device) % 2)
 	{
-		if (state->m_nmi_enable & 0x02) device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+		if (shaolins_nmi_enable & 0x02) cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 	}
 }
 
 
 
-static ADDRESS_MAP_START( shaolins_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( shaolins_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0000) AM_WRITE(shaolins_nmi_w)	/* bit 0 = flip screen, bit 1 = nmi enable, bit 2 = ? */
 														/* bit 3, bit 4 = coin counters */
 	AM_RANGE(0x0100, 0x0100) AM_WRITE(watchdog_reset_w)
@@ -46,9 +58,9 @@ static ADDRESS_MAP_START( shaolins_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x2000, 0x2000) AM_WRITE(shaolins_scroll_w)
 	AM_RANGE(0x2800, 0x2bff) AM_RAM							/* RAM BANK 2 */
 	AM_RANGE(0x3000, 0x30ff) AM_RAM							/* RAM BANK 1 */
-	AM_RANGE(0x3100, 0x33ff) AM_RAM AM_BASE_SIZE_MEMBER(shaolins_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x3800, 0x3bff) AM_RAM_WRITE(shaolins_colorram_w) AM_BASE_MEMBER(shaolins_state, m_colorram)
-	AM_RANGE(0x3c00, 0x3fff) AM_RAM_WRITE(shaolins_videoram_w) AM_BASE_MEMBER(shaolins_state, m_videoram)
+	AM_RANGE(0x3100, 0x33ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
+	AM_RANGE(0x3800, 0x3bff) AM_RAM_WRITE(shaolins_colorram_w) AM_BASE(&shaolins_colorram)
+	AM_RANGE(0x3c00, 0x3fff) AM_RAM_WRITE(shaolins_videoram_w) AM_BASE(&shaolins_videoram)
 	AM_RANGE(0x4000, 0x5fff) AM_ROM 						/* Machine checks for extra rom */
 	AM_RANGE(0x6000, 0xffff) AM_ROM
 ADDRESS_MAP_END
@@ -188,48 +200,47 @@ GFXDECODE_END
 
 
 
-static MACHINE_CONFIG_START( shaolins, shaolins_state )
+static MACHINE_DRIVER_START( shaolins )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, MASTER_CLOCK/12)        /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(shaolins_map)
-	MCFG_CPU_VBLANK_INT_HACK(shaolins_interrupt,16)	/* 1 IRQ + 8 NMI */
+	MDRV_CPU_ADD("maincpu", M6809, MASTER_CLOCK/12)        /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(shaolins_map)
+	MDRV_CPU_VBLANK_INT_HACK(shaolins_interrupt,16)	/* 1 IRQ + 8 NMI */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(shaolins)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(shaolins)
-	MCFG_PALETTE_LENGTH(16*8*16+16*8*16)
+	MDRV_GFXDECODE(shaolins)
+	MDRV_PALETTE_LENGTH(16*8*16+16*8*16)
 
-	MCFG_PALETTE_INIT(shaolins)
-	MCFG_VIDEO_START(shaolins)
+	MDRV_PALETTE_INIT(shaolins)
+	MDRV_VIDEO_START(shaolins)
+	MDRV_VIDEO_UPDATE(shaolins)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76489A, MASTER_CLOCK/12)        /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("sn1", SN76489A, MASTER_CLOCK/12)        /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("sn2", SN76489A, MASTER_CLOCK/6)        /* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("sn2", SN76489A, MASTER_CLOCK/6)        /* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
-#if 0 // a bootleg board was found with downgraded sound hardware, but is otherwise the same
-static MACHINE_CONFIG_DERIVED( shaolinb, shaolins )
+static MACHINE_DRIVER_START( shaolinb )
+	MDRV_IMPORT_FROM(shaolins)
 
-	MCFG_SOUND_REPLACE("sn1", SN76489, MASTER_CLOCK/12) /* only type verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_REPLACE("sn1", SN76489, MASTER_CLOCK/12) /* only type verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_REPLACE("sn2", SN76489, MASTER_CLOCK/6)  /* only type verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
-#endif
+	MDRV_SOUND_REPLACE("sn2", SN76489, MASTER_CLOCK/6)  /* only type verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -282,7 +293,7 @@ ROM_START( shaolins )
 ROM_END
 
 /*
-    Shao-lin's Road (Bootleg) - has also been found on an original board
+    Shao-lin's Road (Bootleg)
 
     Main Board:    VWXYZ
     Daughterboard: QSTU (Replaces 3 custom Konami chips)
@@ -326,8 +337,8 @@ ROM_START( shaolinb )
 	ROM_LOAD( "7.j1", 0x2000, 0x4000, CRC(d9a7cff6) SHA1(47244426b9a674326c5303347112aa9d33bcf1df) ) /* 27128 */
 
 	ROM_REGION( 0x8000, "gfx2", 0 ) /* All roms are 27128 */
-	ROM_LOAD( "2.m8", 0x0000, 0x4000, CRC(560521c7) SHA1(f8a50c66364995041e29ed7be2e4ea1ad16aa735) )
-	ROM_LOAD( "1.l8", 0x4000, 0x4000, CRC(a79959b2) SHA1(9c58975c55f7be32add0dccb259d9680410fa9bc) )
+	ROM_LOAD( "1.l8", 0x0000, 0x4000, CRC(a79959b2) SHA1(9c58975c55f7be32add0dccb259d9680410fa9bc) )
+	ROM_LOAD( "2.m8", 0x4000, 0x4000, CRC(560521c7) SHA1(f8a50c66364995041e29ed7be2e4ea1ad16aa735) )
 
 	ROM_REGION( 0x0500, "proms", 0 ) /* All proms are N82S129N */
 	ROM_LOAD( "3.k1", 0x0000, 0x0100, CRC(b09db4b4) SHA1(d21176cdc7def760da109083eb52e5b6a515021f) ) /* palette red component */
@@ -338,7 +349,7 @@ ROM_START( shaolinb )
 ROM_END
 
 
-/*    YEAR, NAME,     PARENT, MACHINE,  INPUT,    INIT, MONITOR, COMPANY,  FULLNAME,                  FLAGS */
-GAME( 1985, kicker,   0,      shaolins, shaolins, 0,    ROT90,  "Konami",  "Kicker",                  0 )
-GAME( 1985, shaolins, kicker, shaolins, shaolins, 0,    ROT90,  "Konami",  "Shao-lin's Road (set 1)", 0 )
-GAME( 1985, shaolinb, kicker, shaolins, shaolins, 0,    ROT90,  "Konami",  "Shao-lin's Road (set 2)", 0 )
+/*    YEAR, NAME,     PARENT, MACHINE,  INPUT,    INIT, MONITOR, COMPANY,  FULLNAME,                    FLAGS */
+GAME( 1985, kicker,   0,      shaolins, shaolins, 0,    ROT90,  "Konami",  "Kicker",                    0 )
+GAME( 1985, shaolins, kicker, shaolins, shaolins, 0,    ROT90,  "Konami",  "Shao-lin's Road",           0 )
+GAME( 1985, shaolinb, kicker, shaolinb, shaolins, 0,    ROT90,  "bootleg", "Shao-lin's Road (bootleg)", GAME_IMPERFECT_COLORS )

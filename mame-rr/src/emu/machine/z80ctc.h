@@ -5,23 +5,6 @@
     Copyright Nicola Salmoria and the MAME Team.
     Visit http://mamedev.org for licensing and usage restrictions.
 
-****************************************************************************
-                            _____   _____
-                    D4   1 |*    \_/     | 28  D3
-                    D5   2 |             | 27  D2
-                    D6   3 |             | 26  D1
-                    D7   4 |             | 25  D0
-                   GND   5 |             | 24  +5V
-                   _RD   6 |             | 23  CLK/TRG0
-                ZC/TOO   7 |   Z80-CTC   | 22  CLK/TRG1
-                ZC/TO1   8 |             | 21  CLK/TRG2
-                ZC/TO2   9 |             | 20  CLK/TRG3
-                 _IORQ  10 |             | 19  CS1
-                   IEO  11 |             | 18  CS0
-                  _INT  12 |             | 17  _RESET
-                   IEI  13 |             | 16  _CE
-                   _M1  14 |_____________| 15  CLK
-
 ***************************************************************************/
 
 #ifndef __Z80CTC_H__
@@ -49,9 +32,9 @@ const int NOTIMER_3 = (1<<3);
 	const z80ctc_interface (name)=
 
 
-#define MCFG_Z80CTC_ADD(_tag, _clock, _intrf) \
-	MCFG_DEVICE_ADD(_tag, Z80CTC, _clock) \
-	MCFG_DEVICE_CONFIG(_intrf)
+#define MDRV_Z80CTC_ADD(_tag, _clock, _intrf) \
+	MDRV_DEVICE_ADD(_tag, Z80CTC, _clock) \
+	MDRV_DEVICE_CONFIG(_intrf)
 
 
 
@@ -65,10 +48,33 @@ const int NOTIMER_3 = (1<<3);
 struct z80ctc_interface
 {
 	UINT8				m_notimer;	// timer disabler mask
-	devcb_write_line	m_intr_cb;	// callback when change interrupt status
-	devcb_write_line	m_zc0_cb;	// ZC/TO0 callback
-	devcb_write_line	m_zc1_cb;	// ZC/TO1 callback
-	devcb_write_line	m_zc2_cb;	// ZC/TO2 callback
+	devcb_write_line	m_intr;		// callback when change interrupt status
+	devcb_write_line	m_zc0;		// ZC/TO0 callback
+	devcb_write_line	m_zc1;		// ZC/TO1 callback
+	devcb_write_line	m_zc2;		// ZC/TO2 callback
+};
+
+
+
+// ======================> z80ctc_device_config
+
+class z80ctc_device_config :	public device_config,
+								public device_config_z80daisy_interface,
+								public z80ctc_interface
+{
+	friend class z80ctc_device;
+
+	// construction/destruction
+	z80ctc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+
+public:
+	// allocators
+	static device_config *static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock);
+	virtual device_t *alloc_device(running_machine &machine) const;
+
+protected:
+	// device_config overrides
+	virtual void device_config_complete();
 };
 
 
@@ -76,13 +82,14 @@ struct z80ctc_interface
 // ======================> z80ctc_device
 
 class z80ctc_device :	public device_t,
-						public device_z80daisy_interface,
-						public z80ctc_interface
+						public device_z80daisy_interface
 {
-public:
-	// construction/destruction
-	z80ctc_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock);
+	friend class z80ctc_device_config;
 
+	// construction/destruction
+	z80ctc_device(running_machine &_machine, const z80ctc_device_config &_config);
+
+public:
 	// state getters
 	attotime period(int ch) const { return m_channel[ch].period(); }
 
@@ -93,7 +100,6 @@ public:
 
 private:
 	// device-level overrides
-	virtual void device_config_complete();
 	virtual void device_start();
 	virtual void device_reset();
 
@@ -112,7 +118,7 @@ private:
 	public:
 		ctc_channel();
 
-		void start(z80ctc_device *device, int index, bool notimer, const devcb_write_line &write_line);
+		void start(z80ctc_device *device, int index, bool notimer, const devcb_write_line *write_line);
 		void reset();
 
 		UINT8 read();
@@ -138,6 +144,7 @@ private:
 	};
 
 	// internal state
+	const z80ctc_device_config &m_config;
 	devcb_resolved_write_line m_intr;			// interrupt callback
 
 	UINT8				m_vector;				// interrupt vector

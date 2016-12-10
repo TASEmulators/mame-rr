@@ -4,28 +4,29 @@
 
 ***************************************************************************/
 
-class blueprnt_state : public driver_device
+class blueprnt_state
 {
 public:
-	blueprnt_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, blueprnt_state(machine)); }
+
+	blueprnt_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 * m_videoram;
-	UINT8 * m_colorram;
-	UINT8 * m_spriteram;
-	UINT8 * m_scrollram;
-	size_t  m_spriteram_size;
+	UINT8 * videoram;
+	UINT8 * colorram;
+	UINT8 * spriteram;
+	UINT8 * scrollram;
+	size_t  spriteram_size;
 
 	/* video-related */
-	tilemap_t *m_bg_tilemap;
-	int     m_gfx_bank;
+	tilemap_t *bg_tilemap;
+	int     gfx_bank;
 
 	/* misc */
-	int     m_dipsw;
+	int     dipsw;
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 
@@ -37,4 +38,4 @@ WRITE8_HANDLER( blueprnt_flipscreen_w );
 
 PALETTE_INIT( blueprnt );
 VIDEO_START( blueprnt );
-SCREEN_UPDATE( blueprnt );
+VIDEO_UPDATE( blueprnt );

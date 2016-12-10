@@ -23,26 +23,13 @@
 #include "cpu/z80/z80.h"
 #include "sound/2413intf.h"
 
-
-class d9final_state : public driver_device
-{
-public:
-	d9final_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_lo_vram;
-	UINT8 *m_hi_vram;
-	UINT8 *m_cram;
-	tilemap_t *m_sc0_tilemap;
-};
-
-
+static UINT8 *lo_vram,*hi_vram,*cram;
+static tilemap_t *sc0_tilemap;
 
 static TILE_GET_INFO( get_sc0_tile_info )
 {
-	d9final_state *state = machine.driver_data<d9final_state>();
-	int tile = ((state->m_hi_vram[tile_index] & 0x3f)<<8) | state->m_lo_vram[tile_index];
-	int color = state->m_cram[tile_index] & 0x3f;
+	int tile = ((hi_vram[tile_index] & 0x3f)<<8) | lo_vram[tile_index];
+	int color = cram[tile_index] & 0x3f;
 
 	SET_TILE_INFO(
 			0,
@@ -53,69 +40,64 @@ static TILE_GET_INFO( get_sc0_tile_info )
 
 static VIDEO_START(d9final)
 {
-	d9final_state *state = machine.driver_data<d9final_state>();
-	state->m_sc0_tilemap = tilemap_create(machine, get_sc0_tile_info,tilemap_scan_rows,8,8,64,32);
+	sc0_tilemap = tilemap_create(machine, get_sc0_tile_info,tilemap_scan_rows,8,8,64,32);
 }
 
-static SCREEN_UPDATE(d9final)
+static VIDEO_UPDATE(d9final)
 {
-	d9final_state *state = screen->machine().driver_data<d9final_state>();
-	tilemap_draw(bitmap,cliprect,state->m_sc0_tilemap,0,0);
+	tilemap_draw(bitmap,cliprect,sc0_tilemap,0,0);
 	return 0;
 }
 
 static WRITE8_HANDLER( sc0_lovram )
 {
-	d9final_state *state = space->machine().driver_data<d9final_state>();
-	state->m_lo_vram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_sc0_tilemap,offset);
+	lo_vram[offset] = data;
+	tilemap_mark_tile_dirty(sc0_tilemap,offset);
 }
 
 static WRITE8_HANDLER( sc0_hivram )
 {
-	d9final_state *state = space->machine().driver_data<d9final_state>();
-	state->m_hi_vram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_sc0_tilemap,offset);
+	hi_vram[offset] = data;
+	tilemap_mark_tile_dirty(sc0_tilemap,offset);
 }
 
 static WRITE8_HANDLER( sc0_cram )
 {
-	d9final_state *state = space->machine().driver_data<d9final_state>();
-	state->m_cram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_sc0_tilemap,offset);
+	cram[offset] = data;
+	tilemap_mark_tile_dirty(sc0_tilemap,offset);
 }
 
 static WRITE8_HANDLER( d9final_bank_w )
 {
-	UINT8 *ROM = space->machine().region("maincpu")->base();
+	UINT8 *ROM = memory_region(space->machine, "maincpu");
 	UINT32 bankaddress;
 
 	bankaddress = 0x10000+(0x4000 * (data & 0x7));
-	memory_set_bankptr(space->machine(), "bank1", &ROM[bankaddress]);
+	memory_set_bankptr(space->machine, "bank1", &ROM[bankaddress]);
 }
 
 /* game checks this after three attract cycles, otherwise coin inputs stop to work. */
 static READ8_HANDLER( prot_latch_r )
 {
-//  printf("PC=%06x\n",cpu_get_pc(&space->device()));
+//  printf("PC=%06x\n",cpu_get_pc(space->cpu));
 
 	return 0x04;
 }
 
 
-static ADDRESS_MAP_START( d9final_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( d9final_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xcbff) AM_RAM_WRITE(paletteram_xxxxBBBBRRRRGGGG_split1_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xcc00, 0xcfff) AM_RAM_WRITE(paletteram_xxxxBBBBRRRRGGGG_split2_w) AM_BASE_GENERIC(paletteram2)
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(sc0_lovram) AM_BASE_MEMBER(d9final_state, m_lo_vram)
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(sc0_hivram) AM_BASE_MEMBER(d9final_state, m_hi_vram)
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(sc0_cram) AM_BASE_MEMBER(d9final_state, m_cram)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(sc0_lovram) AM_BASE(&lo_vram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(sc0_hivram) AM_BASE(&hi_vram)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(sc0_cram) AM_BASE(&cram)
 	AM_RANGE(0xf000, 0xf000) AM_READ(prot_latch_r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( d9final_io, AS_IO, 8 )
+static ADDRESS_MAP_START( d9final_io, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 //  AM_RANGE(0x00, 0x00) AM_WRITENOP //bit 0: irq enable? screen enable?
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("DSWA")
@@ -238,7 +220,7 @@ static INPUT_PORTS_START( d9final )
 	PORT_DIPSETTING(    0x05, "1 Coin / 20 Credits" )
 	PORT_DIPSETTING(    0x03, "1 Coin / 25 Credits" )
 	PORT_DIPSETTING(    0x07, "1 Coin / 50 Credits" )
-	PORT_DIPNAME( 0x38, 0x00, "Key In Credit" ) PORT_DIPLOCATION("SW4:4,5,6")
+	PORT_DIPNAME( 0x38, 0x00, "Key In" ) PORT_DIPLOCATION("SW4:4,5,6")
 	PORT_DIPSETTING(    0x00, "1 Coin / 10 Credits" )
 	PORT_DIPSETTING(    0x20, "1 Coin / 20 Credits" )
 	PORT_DIPSETTING(    0x10, "1 Coin / 40 Credits" )
@@ -268,40 +250,40 @@ GFXDECODE_END
 
 static MACHINE_RESET( d9final )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_set_bankptr(machine, "bank1", &ROM[0x10000]);
 }
 
-static MACHINE_CONFIG_START( d9final, d9final_state )
+static MACHINE_DRIVER_START( d9final )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 24000000/4)/* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(d9final_map)
-	MCFG_CPU_IO_MAP(d9final_io)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 24000000/4)/* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(d9final_map)
+	MDRV_CPU_IO_MAP(d9final_io)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_RESET( d9final )
+	MDRV_MACHINE_RESET( d9final )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 16, 256-16-1)
-	MCFG_SCREEN_UPDATE(d9final)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 16, 256-16-1)
 
-	MCFG_GFXDECODE(d9final)
-	MCFG_PALETTE_LENGTH(0x400)
-	MCFG_PALETTE_INIT(all_black)
+	MDRV_GFXDECODE(d9final)
+	MDRV_PALETTE_LENGTH(0x400)
+	MDRV_PALETTE_INIT(all_black)
 
-	MCFG_VIDEO_START(d9final)
+	MDRV_VIDEO_START(d9final)
+	MDRV_VIDEO_UPDATE(d9final)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2413, XTAL_3_579545MHz)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2413, XTAL_3_579545MHz)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+MACHINE_DRIVER_END
 
 
 ROM_START( d9final )

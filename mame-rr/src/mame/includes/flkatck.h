@@ -4,27 +4,28 @@
 
 *************************************************************************/
 
-class flkatck_state : public driver_device
+class flkatck_state
 {
 public:
-	flkatck_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, flkatck_state(machine)); }
+
+	flkatck_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_k007121_ram;
+	UINT8 *    k007121_ram;
 //  UINT8 *    paletteram;  // this currently uses generic palette handling
 
 	/* video-related */
-	tilemap_t    *m_k007121_tilemap[2];
-	int        m_flipscreen;
+	tilemap_t    *k007121_tilemap[2];
+	int        flipscreen;
 
 	/* misc */
-	int        m_irq_enabled;
-	int        m_multiply_reg[2];
+	int        irq_enabled;
+	int        multiply_reg[2];
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_k007121;
+	running_device *audiocpu;
+	running_device *k007121;
 };
 
 
@@ -37,4 +38,4 @@ WRITE8_HANDLER( flkatck_k007121_w );
 WRITE8_HANDLER( flkatck_k007121_regs_w );
 
 VIDEO_START( flkatck );
-SCREEN_UPDATE( flkatck );
+VIDEO_UPDATE( flkatck );

@@ -85,9 +85,8 @@ struct _v30mz_state
 
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *io;
+	const address_space *program;
+	const address_space *io;
 	int icount;
 
 	UINT32 prefix_base;	/* base address of the latest prefix segment */
@@ -102,7 +101,7 @@ struct _v30mz_state
 
 extern int necv_dasm_one(char *buffer, UINT32 eip, const UINT8 *oprom, const nec_config *config);
 
-INLINE v30mz_state *get_safe_token(device_t *device)
+INLINE v30mz_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == V30MZ);
@@ -140,7 +139,6 @@ static CPU_RESET( nec )
 	cpustate->irq_callback = save_irqcallback;
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->io = device->space(AS_IO);
 
 	cpustate->sregs[CS] = 0xffff;
@@ -378,12 +376,12 @@ OP( 0x60, i_pusha  ) {
 	PUSH(cpustate->regs.w[IY]);
 	CLK(9);
 }
-static unsigned nec_v30mz_popa_tmp;
 OP( 0x61, i_popa  ) {
+    unsigned tmp;
 	POP(cpustate->regs.w[IY]);
 	POP(cpustate->regs.w[IX]);
 	POP(cpustate->regs.w[BP]);
-    POP(nec_v30mz_popa_tmp);
+    POP(tmp);
 	POP(cpustate->regs.w[BW]);
 	POP(cpustate->regs.w[DW]);
 	POP(cpustate->regs.w[CW]);
@@ -753,8 +751,8 @@ OP( 0xd3, i_rotshft_wcl ) {
 	}
 }
 
-OP( 0xd4, i_aam    ) { FETCH; cpustate->regs.b[AH] = cpustate->regs.b[AL] / 10; cpustate->regs.b[AL] %= 10; SetSZPF_Word(cpustate->regs.w[AW]); CLK(17); }
-OP( 0xd5, i_aad    ) { FETCH; cpustate->regs.b[AL] = cpustate->regs.b[AH] * 10 + cpustate->regs.b[AL]; cpustate->regs.b[AH] = 0; SetSZPF_Byte(cpustate->regs.b[AL]); CLK(5); }
+OP( 0xd4, i_aam    ) { UINT32 mult=FETCH; mult=0; cpustate->regs.b[AH] = cpustate->regs.b[AL] / 10; cpustate->regs.b[AL] %= 10; SetSZPF_Word(cpustate->regs.w[AW]); CLK(17); }
+OP( 0xd5, i_aad    ) { UINT32 mult=FETCH; mult=0; cpustate->regs.b[AL] = cpustate->regs.b[AH] * 10 + cpustate->regs.b[AL]; cpustate->regs.b[AH] = 0; SetSZPF_Byte(cpustate->regs.b[AL]); CLK(5); }
 OP( 0xd6, i_setalc ) { cpustate->regs.b[AL] = (CF)?0xff:0x00; CLK(3); logerror("%06x: Undefined opcode (SETALC)\n",PC(cpustate)); }
 OP( 0xd7, i_trans  ) { UINT32 dest = (cpustate->regs.w[BW]+cpustate->regs.b[AL])&0xffff; cpustate->regs.b[AL] = GetMemB(DS, dest); CLK(5); }
 OP( 0xd8, i_fpo    ) { GetModRM; CLK(1);	logerror("%06x: Unimplemented floating point control %04x\n",PC(cpustate),ModRM); }
@@ -939,24 +937,24 @@ static void nec_init(legacy_cpu_device *device, device_irq_callback irqcallback,
 
 	const nec_config *config = &default_config;
 
-	device->save_item(NAME(cpustate->regs.w));
-	device->save_item(NAME(cpustate->sregs));
+	state_save_register_device_item_array(device, 0, cpustate->regs.w);
+	state_save_register_device_item_array(device, 0, cpustate->sregs);
 
-	device->save_item(NAME(cpustate->ip));
-	device->save_item(NAME(cpustate->TF));
-	device->save_item(NAME(cpustate->IF));
-	device->save_item(NAME(cpustate->DF));
-	device->save_item(NAME(cpustate->MF));
-	device->save_item(NAME(cpustate->SignVal));
-	device->save_item(NAME(cpustate->int_vector));
-	device->save_item(NAME(cpustate->pending_irq));
-	device->save_item(NAME(cpustate->nmi_state));
-	device->save_item(NAME(cpustate->irq_state));
-	device->save_item(NAME(cpustate->AuxVal));
-	device->save_item(NAME(cpustate->OverVal));
-	device->save_item(NAME(cpustate->ZeroVal));
-	device->save_item(NAME(cpustate->CarryVal));
-	device->save_item(NAME(cpustate->ParityVal));
+	state_save_register_device_item(device, 0, cpustate->ip);
+	state_save_register_device_item(device, 0, cpustate->TF);
+	state_save_register_device_item(device, 0, cpustate->IF);
+	state_save_register_device_item(device, 0, cpustate->DF);
+	state_save_register_device_item(device, 0, cpustate->MF);
+	state_save_register_device_item(device, 0, cpustate->SignVal);
+	state_save_register_device_item(device, 0, cpustate->int_vector);
+	state_save_register_device_item(device, 0, cpustate->pending_irq);
+	state_save_register_device_item(device, 0, cpustate->nmi_state);
+	state_save_register_device_item(device, 0, cpustate->irq_state);
+	state_save_register_device_item(device, 0, cpustate->AuxVal);
+	state_save_register_device_item(device, 0, cpustate->OverVal);
+	state_save_register_device_item(device, 0, cpustate->ZeroVal);
+	state_save_register_device_item(device, 0, cpustate->CarryVal);
+	state_save_register_device_item(device, 0, cpustate->ParityVal);
 
 	cpustate->config = config;
 	cpustate->irq_callback = irqcallback;
@@ -1069,15 +1067,15 @@ CPU_GET_INFO( v30mz )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 80;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 20;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 20;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + 0:				info->i = (cpustate->pending_irq & INT_IRQ) ? ASSERT_LINE : CLEAR_LINE; break;
 		case CPUINFO_INT_INPUT_STATE + INPUT_LINE_NMI:	info->i = cpustate->nmi_state;					break;

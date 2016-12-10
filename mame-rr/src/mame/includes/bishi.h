@@ -7,35 +7,35 @@
 #define CPU_CLOCK       (XTAL_24MHz / 2)		/* 68000 clock */
 #define SOUND_CLOCK     XTAL_16_9344MHz		/* YMZ280 clock */
 
-class bishi_state : public driver_device
+class bishi_state
 {
 public:
-	bishi_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, bishi_state(machine)); }
+
+	bishi_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_ram;
-//  UINT8 *    m_paletteram;    // currently this uses generic palette handling
+	UINT8 *    ram;
+//  UINT8 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int        m_layer_colorbase[4];
+	int        layer_colorbase[4];
 
 	/* misc */
-	UINT16     m_cur_control;
-	UINT16     m_cur_control2;
+	UINT16     cur_control, cur_control2;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k007232;
-	device_t *m_k056832;
-	device_t *m_k054338;
-	device_t *m_k055555;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k007232;
+	running_device *k056832;
+	running_device *k054338;
+	running_device *k055555;
 };
 
 /*----------- defined in video/bishi.c -----------*/
 
-extern void bishi_tile_callback(running_machine &machine, int layer, int *code, int *color, int *flags);
+extern void bishi_tile_callback(running_machine *machine, int layer, int *code, int *color, int *flags);
 
 VIDEO_START(bishi);
-SCREEN_UPDATE(bishi);
+VIDEO_UPDATE(bishi);

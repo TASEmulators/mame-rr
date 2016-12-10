@@ -102,29 +102,25 @@ Notes:
 #include "sound/ay8910.h"
 
 
-class jollyjgr_state : public driver_device
+class jollyjgr_state
 {
 public:
-	jollyjgr_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, jollyjgr_state(machine)); }
+
+	jollyjgr_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	UINT8 *  m_colorram;
-	UINT8 *  m_spriteram;
-	UINT8 *  m_bulletram;
-	UINT8 *  m_bitmap;
+	UINT8 *  videoram;
+	UINT8 *  colorram;
+	UINT8 *  spriteram;
+	UINT8 *  bulletram;
+	UINT8 *  bitmap;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
+	tilemap_t  *bg_tilemap;
 
 	/* misc */
-	UINT8      m_nmi_enable;
-	UINT8      m_flip_x;
-	UINT8      m_flip_y;
-	UINT8      m_bitmap_disable;
-	UINT8      m_tilemap_bank;
-	UINT8      m_pri;
+	UINT8      nmi_enable, flip_x, flip_y, bitmap_disable, tilemap_bank, pri;
 };
 
 
@@ -136,14 +132,14 @@ public:
 
 static WRITE8_HANDLER( jollyjgr_videoram_w )
 {
-	jollyjgr_state *state = space->machine().driver_data<jollyjgr_state>();
-	state->m_videoram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_bg_tilemap, offset);
+	jollyjgr_state *state = (jollyjgr_state *)space->machine->driver_data;
+	state->videoram[offset] = data;
+	tilemap_mark_tile_dirty(state->bg_tilemap, offset);
 }
 
 static WRITE8_HANDLER( jollyjgr_attrram_w )
 {
-	jollyjgr_state *state = space->machine().driver_data<jollyjgr_state>();
+	jollyjgr_state *state = (jollyjgr_state *)space->machine->driver_data;
 
 	if (offset & 1)
 	{
@@ -151,38 +147,38 @@ static WRITE8_HANDLER( jollyjgr_attrram_w )
 		int i;
 
 		for (i = offset >> 1; i < 0x0400; i += 32)
-			tilemap_mark_tile_dirty(state->m_bg_tilemap, i);
+			tilemap_mark_tile_dirty(state->bg_tilemap, i);
 	}
 	else
 	{
-		tilemap_set_scrolly(state->m_bg_tilemap, offset >> 1, data);
+		tilemap_set_scrolly(state->bg_tilemap, offset >> 1, data);
 	}
 
-	state->m_colorram[offset] = data;
+	state->colorram[offset] = data;
 }
 
 static WRITE8_HANDLER( jollyjgr_misc_w )
 {
-	jollyjgr_state *state = space->machine().driver_data<jollyjgr_state>();
+	jollyjgr_state *state = (jollyjgr_state *)space->machine->driver_data;
 
 	// they could be swapped, because it always set "data & 3"
-	state->m_flip_x = data & 1;
-	state->m_flip_y = data & 2;
+	state->flip_x = data & 1;
+	state->flip_y = data & 2;
 
 	// same for these two (used by Frog & Spiders)
-	state->m_bitmap_disable = data & 0x40;
-	state->m_tilemap_bank = data & 0x20;
+	state->bitmap_disable = data & 0x40;
+	state->tilemap_bank = data & 0x20;
 
-	state->m_pri = data & 4;
+	state->pri = data & 4;
 
-	tilemap_set_flip(state->m_bg_tilemap, (state->m_flip_x ? TILEMAP_FLIPX : 0) | (state->m_flip_y ? TILEMAP_FLIPY : 0));
+	tilemap_set_flip(state->bg_tilemap, (state->flip_x ? TILEMAP_FLIPX : 0) | (state->flip_y ? TILEMAP_FLIPY : 0));
 
-	state->m_nmi_enable = data & 0x80;
+	state->nmi_enable = data & 0x80;
 }
 
 static WRITE8_HANDLER( jollyjgr_coin_lookout_w )
 {
-	coin_lockout_global_w(space->machine(), data & 1);
+	coin_lockout_global_w(space->machine, data & 1);
 
 	/* bits 4, 5, 6 and 7 are used too */
 }
@@ -193,7 +189,7 @@ static WRITE8_HANDLER( jollyjgr_coin_lookout_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( jollyjgr_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( jollyjgr_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x8ff8, 0x8ff8) AM_READ_PORT("DSW1")
@@ -203,14 +199,14 @@ static ADDRESS_MAP_START( jollyjgr_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8ffc, 0x8ffc) AM_WRITE(jollyjgr_misc_w)
 	AM_RANGE(0x8ffd, 0x8ffd) AM_WRITE(jollyjgr_coin_lookout_w)
 	AM_RANGE(0x8fff, 0x8fff) AM_READ_PORT("DSW2")
-	AM_RANGE(0x9000, 0x93ff) AM_RAM_WRITE(jollyjgr_videoram_w) AM_BASE_MEMBER(jollyjgr_state, m_videoram)
-	AM_RANGE(0x9800, 0x983f) AM_RAM_WRITE(jollyjgr_attrram_w) AM_BASE_MEMBER(jollyjgr_state, m_colorram)
-	AM_RANGE(0x9840, 0x987f) AM_RAM AM_BASE_MEMBER(jollyjgr_state, m_spriteram)
+	AM_RANGE(0x9000, 0x93ff) AM_RAM_WRITE(jollyjgr_videoram_w) AM_BASE_MEMBER(jollyjgr_state, videoram)
+	AM_RANGE(0x9800, 0x983f) AM_RAM_WRITE(jollyjgr_attrram_w) AM_BASE_MEMBER(jollyjgr_state, colorram)
+	AM_RANGE(0x9840, 0x987f) AM_RAM AM_BASE_MEMBER(jollyjgr_state, spriteram)
 	AM_RANGE(0x9880, 0x9bff) AM_RAM
-	AM_RANGE(0xa000, 0xffff) AM_RAM AM_BASE_MEMBER(jollyjgr_state, m_bitmap)
+	AM_RANGE(0xa000, 0xffff) AM_RAM AM_BASE_MEMBER(jollyjgr_state, bitmap)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( fspider_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( fspider_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x8ff8, 0x8ff8) AM_READ_PORT("DSW1")
@@ -220,13 +216,13 @@ static ADDRESS_MAP_START( fspider_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x8ffc, 0x8ffc) AM_WRITE(jollyjgr_misc_w)
 	AM_RANGE(0x8ffd, 0x8ffd) AM_WRITE(jollyjgr_coin_lookout_w)
 	AM_RANGE(0x8fff, 0x8fff) AM_READ_PORT("DSW2")
-	AM_RANGE(0x9000, 0x93ff) AM_RAM_WRITE(jollyjgr_videoram_w) AM_BASE_MEMBER(jollyjgr_state, m_videoram)
-	AM_RANGE(0x9800, 0x983f) AM_RAM_WRITE(jollyjgr_attrram_w) AM_BASE_MEMBER(jollyjgr_state, m_colorram)
-	AM_RANGE(0x9840, 0x987f) AM_RAM AM_BASE_MEMBER(jollyjgr_state, m_spriteram)
+	AM_RANGE(0x9000, 0x93ff) AM_RAM_WRITE(jollyjgr_videoram_w) AM_BASE_MEMBER(jollyjgr_state, videoram)
+	AM_RANGE(0x9800, 0x983f) AM_RAM_WRITE(jollyjgr_attrram_w) AM_BASE_MEMBER(jollyjgr_state, colorram)
+	AM_RANGE(0x9840, 0x987f) AM_RAM AM_BASE_MEMBER(jollyjgr_state, spriteram)
 	AM_RANGE(0x9880, 0x989f) AM_RAM // ?
-	AM_RANGE(0x98a0, 0x98af) AM_RAM AM_BASE_MEMBER(jollyjgr_state, m_bulletram)
+	AM_RANGE(0x98a0, 0x98af) AM_RAM AM_BASE_MEMBER(jollyjgr_state, bulletram)
 	AM_RANGE(0x98b0, 0x9bff) AM_RAM // ?
-	AM_RANGE(0xa000, 0xffff) AM_RAM AM_BASE_MEMBER(jollyjgr_state, m_bitmap)
+	AM_RANGE(0xa000, 0xffff) AM_RAM AM_BASE_MEMBER(jollyjgr_state, bitmap)
 ADDRESS_MAP_END
 
 
@@ -430,24 +426,24 @@ static PALETTE_INIT( jollyjgr )
 /* Tilemap is the same as in Galaxian */
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	jollyjgr_state *state = machine.driver_data<jollyjgr_state>();
-	int color = state->m_colorram[((tile_index & 0x1f) << 1) | 1] & 7;
-	int region = (state->m_tilemap_bank & 0x20) ? 2 : 0;
-	SET_TILE_INFO(region, state->m_videoram[tile_index], color, 0);
+	jollyjgr_state *state = (jollyjgr_state *)machine->driver_data;
+	int color = state->colorram[((tile_index & 0x1f) << 1) | 1] & 7;
+	int region = (state->tilemap_bank & 0x20) ? 2 : 0;
+	SET_TILE_INFO(region, state->videoram[tile_index], color, 0);
 }
 
 static VIDEO_START( jollyjgr )
 {
-	jollyjgr_state *state = machine.driver_data<jollyjgr_state>();
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
+	jollyjgr_state *state = (jollyjgr_state *)machine->driver_data;
+	state->bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows, 8, 8, 32, 32);
 
-	tilemap_set_transparent_pen(state->m_bg_tilemap, 0);
-	tilemap_set_scroll_cols(state->m_bg_tilemap, 32);
+	tilemap_set_transparent_pen(state->bg_tilemap, 0);
+	tilemap_set_scroll_cols(state->bg_tilemap, 32);
 }
 
-static void draw_bitmap( running_machine &machine, bitmap_t *bitmap )
+static void draw_bitmap( running_machine *machine, bitmap_t *bitmap )
 {
-	jollyjgr_state *state = machine.driver_data<jollyjgr_state>();
+	jollyjgr_state *state = (jollyjgr_state *)machine->driver_data;
 	int x, y, count;
 	int i, bit0, bit1, bit2;
 	int color;
@@ -459,18 +455,18 @@ static void draw_bitmap( running_machine &machine, bitmap_t *bitmap )
 		{
 			for(i = 0; i < 8; i++)
 			{
-				bit0 = (state->m_bitmap[count] >> i) & 1;
-				bit1 = (state->m_bitmap[count + 0x2000] >> i) & 1;
-				bit2 = (state->m_bitmap[count + 0x4000] >> i) & 1;
+				bit0 = (state->bitmap[count] >> i) & 1;
+				bit1 = (state->bitmap[count + 0x2000] >> i) & 1;
+				bit2 = (state->bitmap[count + 0x4000] >> i) & 1;
 				color = bit0 | (bit1 << 1) | (bit2 << 2);
 
 				if(color)
 				{
-					if(state->m_flip_x && state->m_flip_y)
+					if(state->flip_x && state->flip_y)
 						*BITMAP_ADDR16(bitmap, y, x * 8 + i) = color + 32;
-					else if(state->m_flip_x && !state->m_flip_y)
+					else if(state->flip_x && !state->flip_y)
 						*BITMAP_ADDR16(bitmap, 255 - y, x * 8 + i) = color + 32;
-					else if(!state->m_flip_x && state->m_flip_y)
+					else if(!state->flip_x && state->flip_y)
 						*BITMAP_ADDR16(bitmap, y, 255 - x * 8 - i) = color + 32;
 					else
 						*BITMAP_ADDR16(bitmap, 255 - y, 255 - x * 8 - i) = color + 32;
@@ -482,27 +478,27 @@ static void draw_bitmap( running_machine &machine, bitmap_t *bitmap )
 	}
 }
 
-static SCREEN_UPDATE( jollyjgr )
+static VIDEO_UPDATE( jollyjgr )
 {
-	jollyjgr_state *state = screen->machine().driver_data<jollyjgr_state>();
-	UINT8 *spriteram = state->m_spriteram;
+	jollyjgr_state *state = (jollyjgr_state *)screen->machine->driver_data;
+	UINT8 *spriteram = state->spriteram;
 	int offs;
 
 	bitmap_fill(bitmap, cliprect, 32);
 
-	if(state->m_pri) //used in Frog & Spiders level 3
+	if(state->pri) //used in Frog & Spiders level 3
 	{
-		if(!(state->m_bitmap_disable))
-			draw_bitmap(screen->machine(), bitmap);
+		if(!(state->bitmap_disable))
+			draw_bitmap(screen->machine, bitmap);
 
-		tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+		tilemap_draw(bitmap, cliprect, state->bg_tilemap, 0, 0);
 	}
 	else
 	{
-		tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+		tilemap_draw(bitmap, cliprect, state->bg_tilemap, 0, 0);
 
-		if(!(state->m_bitmap_disable))
-			draw_bitmap(screen->machine(), bitmap);
+		if(!(state->bitmap_disable))
+			draw_bitmap(screen->machine, bitmap);
 	}
 
 	/* Sprites are the same as in Galaxian */
@@ -515,13 +511,13 @@ static SCREEN_UPDATE( jollyjgr )
 		int code = spriteram[offs + 1] & 0x3f;
 		int color = spriteram[offs + 2] & 7;
 
-		if (state->m_flip_x)
+		if (state->flip_x)
 		{
 			sx = 240 - sx;
 			flipx = !flipx;
 		}
 
-		if (state->m_flip_y)
+		if (state->flip_y)
 			flipy = !flipy;
 		else
 			sy = 240 - sy;
@@ -529,7 +525,7 @@ static SCREEN_UPDATE( jollyjgr )
 		if (offs < 3 * 4)
 			sy++;
 
-		drawgfx_transpen(bitmap,cliprect,screen->machine().gfx[1],
+		drawgfx_transpen(bitmap,cliprect,screen->machine->gfx[1],
 				code,color,
 				flipx,flipy,
 				sx,sy,0);
@@ -538,26 +534,26 @@ static SCREEN_UPDATE( jollyjgr )
 	return 0;
 }
 
-static SCREEN_UPDATE( fspider )
+static VIDEO_UPDATE( fspider )
 {
-	jollyjgr_state *state = screen->machine().driver_data<jollyjgr_state>();
+	jollyjgr_state *state = (jollyjgr_state *)screen->machine->driver_data;
 
 	// Draw bg and sprites
-	SCREEN_UPDATE_CALL(jollyjgr);
+	VIDEO_UPDATE_CALL(jollyjgr);
 
 	/* Draw bullets
     16 bytes, 2 bytes per bullet (y,x). 2 player bullets, 6 enemy bullets.
     Assume bullets to look the same as on Galaxian hw,
     that is, simply 4 pixels. Colours are unknown. */
 	for (int offs=0;offs<0x10;offs+=2) {
-		UINT8 sy=~state->m_bulletram[offs];
-		UINT8 sx=~state->m_bulletram[offs|1];
+		UINT8 sy=~state->bulletram[offs];
+		UINT8 sx=~state->bulletram[offs|1];
 		UINT16 bc=(offs<4)?
 			32+7: // player, white
 			32+3; // enemy, yellow
 
-		if (state->m_flip_y) sy^=0xff;
-		if (state->m_flip_x) sx+=8;
+		if (state->flip_y) sy^=0xff;
+		if (state->flip_x) sx+=8;
 
 		if (sy>=cliprect->min_y && sy<=cliprect->max_y)
 			for (int x=sx-4;x<sx;x++)
@@ -613,75 +609,78 @@ GFXDECODE_END
 
 static INTERRUPT_GEN( jollyjgr_interrupt )
 {
-	jollyjgr_state *state = device->machine().driver_data<jollyjgr_state>();
-	if(state->m_nmi_enable)
-		device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	jollyjgr_state *state = (jollyjgr_state *)device->machine->driver_data;
+	if(state->nmi_enable)
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 
 static MACHINE_START( jollyjgr )
 {
-	jollyjgr_state *state = machine.driver_data<jollyjgr_state>();
+	jollyjgr_state *state = (jollyjgr_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_nmi_enable));
-	state->save_item(NAME(state->m_flip_x));
-	state->save_item(NAME(state->m_flip_y));
-	state->save_item(NAME(state->m_bitmap_disable));
-	state->save_item(NAME(state->m_tilemap_bank));
+	state_save_register_global(machine, state->nmi_enable);
+	state_save_register_global(machine, state->flip_x);
+	state_save_register_global(machine, state->flip_y);
+	state_save_register_global(machine, state->bitmap_disable);
+	state_save_register_global(machine, state->tilemap_bank);
 }
 
 static MACHINE_RESET( jollyjgr )
 {
-	jollyjgr_state *state = machine.driver_data<jollyjgr_state>();
+	jollyjgr_state *state = (jollyjgr_state *)machine->driver_data;
 
-	state->m_nmi_enable = 0;
-	state->m_flip_x = 0;
-	state->m_flip_y = 0;
-	state->m_bitmap_disable = 0;
-	state->m_tilemap_bank = 0;
+	state->nmi_enable = 0;
+	state->flip_x = 0;
+	state->flip_y = 0;
+	state->bitmap_disable = 0;
+	state->tilemap_bank = 0;
 }
 
-static MACHINE_CONFIG_START( jollyjgr, jollyjgr_state )
+static MACHINE_DRIVER_START( jollyjgr )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(jollyjgr_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 3579545)		 /* 3,579545 MHz */
-	MCFG_CPU_PROGRAM_MAP(jollyjgr_map)
-	MCFG_CPU_VBLANK_INT("screen", jollyjgr_interrupt)
+	MDRV_CPU_ADD("maincpu", Z80, 3579545)		 /* 3,579545 MHz */
+	MDRV_CPU_PROGRAM_MAP(jollyjgr_map)
+	MDRV_CPU_VBLANK_INT("screen", jollyjgr_interrupt)
 
-	MCFG_MACHINE_START(jollyjgr)
-	MCFG_MACHINE_RESET(jollyjgr)
+	MDRV_MACHINE_START(jollyjgr)
+	MDRV_MACHINE_RESET(jollyjgr)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(jollyjgr)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(jollyjgr)
-	MCFG_PALETTE_LENGTH(32+8) /* 32 for tilemap and sprites + 8 for the bitmap */
+	MDRV_GFXDECODE(jollyjgr)
+	MDRV_PALETTE_LENGTH(32+8) /* 32 for tilemap and sprites + 8 for the bitmap */
 
-	MCFG_PALETTE_INIT(jollyjgr)
-	MCFG_VIDEO_START(jollyjgr)
+	MDRV_PALETTE_INIT(jollyjgr)
+	MDRV_VIDEO_START(jollyjgr)
+	MDRV_VIDEO_UPDATE(jollyjgr)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 3579545)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.45)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 3579545)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.45)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( fspider, jollyjgr )
+static MACHINE_DRIVER_START( fspider )
+	MDRV_IMPORT_FROM( jollyjgr )
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(fspider_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(fspider_map)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE(fspider)
+	MDRV_VIDEO_UPDATE(fspider)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 /*************************************
  *

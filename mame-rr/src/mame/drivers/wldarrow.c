@@ -22,23 +22,16 @@ todo:
 #include "emu.h"
 #include "cpu/i8085/i8085.h"
 #include "sound/dac.h"
-#include "machine/nvram.h"
-
-
-class wldarrow_state : public driver_device
-{
-public:
-	wldarrow_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 *m_videoram_0;
-	UINT8 *m_videoram_1;
-	UINT8 *m_videoram_2;
-	size_t m_videoram_size;
-};
 
 
 #define NUM_PENS	(8)
+
+
+static UINT8 *wldarrow_videoram_0;
+static UINT8 *wldarrow_videoram_1;
+static UINT8 *wldarrow_videoram_2;
+static size_t wldarrow_videoram_size;
+
 
 
 /*************************************
@@ -58,24 +51,23 @@ static void get_pens(pen_t *pens)
 }
 
 
-static SCREEN_UPDATE( wldarrow )
+static VIDEO_UPDATE( wldarrow )
 {
-	wldarrow_state *state = screen->machine().driver_data<wldarrow_state>();
 	pen_t pens[NUM_PENS];
 	offs_t offs;
 
 	get_pens(pens);
 
-	for (offs = 0; offs < state->m_videoram_size; offs++)
+	for (offs = 0; offs < wldarrow_videoram_size; offs++)
 	{
 		int i;
 
 		UINT8 y = offs >> 5;
 		UINT8 x = offs << 3;
 
-		UINT8 data0 = state->m_videoram_0[offs];
-		UINT8 data1 = state->m_videoram_1[offs];
-		UINT8 data2 = state->m_videoram_2[offs];
+		UINT8 data0 = wldarrow_videoram_0[offs];
+		UINT8 data1 = wldarrow_videoram_1[offs];
+		UINT8 data2 = wldarrow_videoram_2[offs];
 
 		/* weird equations, but it matches every flyer screenshot -
            perhaphs they used a look-up PROM? */
@@ -124,7 +116,7 @@ static WRITE8_HANDLER( lights_2_w )
 
 static WRITE8_HANDLER( counter_w )
 {
-	coin_counter_w(space->machine(), 0, data);
+	coin_counter_w(space->machine, 0, data);
 }
 
 
@@ -171,13 +163,13 @@ static WRITE8_DEVICE_HANDLER( wldarrow_dac_4_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( wldarrow_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( wldarrow_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x37ff) AM_ROM
 	AM_RANGE(0x3800, 0x3800) AM_READ_PORT("IN0")
-	AM_RANGE(0x4000, 0x5fff) AM_RAM AM_BASE_MEMBER(wldarrow_state, m_videoram_0) AM_SIZE_MEMBER(wldarrow_state, m_videoram_size)
-	AM_RANGE(0x6000, 0x7fff) AM_RAM AM_BASE_MEMBER(wldarrow_state, m_videoram_1)
-	AM_RANGE(0x8000, 0x9fff) AM_RAM AM_BASE_MEMBER(wldarrow_state, m_videoram_2)
-	AM_RANGE(0xcd00, 0xcdff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x5fff) AM_RAM AM_BASE(&wldarrow_videoram_0) AM_SIZE(&wldarrow_videoram_size)
+	AM_RANGE(0x6000, 0x7fff) AM_RAM AM_BASE(&wldarrow_videoram_1)
+	AM_RANGE(0x8000, 0x9fff) AM_RAM AM_BASE(&wldarrow_videoram_2)
+	AM_RANGE(0xcd00, 0xcdff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0xf000, 0xf000) AM_READ_PORT("BITSW") AM_DEVWRITE("dac", wldarrow_dac_1_w)
 	AM_RANGE(0xf004, 0xf004) AM_READ_PORT("IN1") AM_WRITE(lights_1_w)
 	AM_RANGE(0xf006, 0xf006) AM_READ_PORT("IN2") AM_WRITE(lights_2_w)
@@ -352,29 +344,30 @@ INPUT_PORTS_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( wldarrow, wldarrow_state )
+static MACHINE_DRIVER_START( wldarrow )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", I8080, 2000000)
-	MCFG_CPU_PROGRAM_MAP(wldarrow_map)
+	MDRV_CPU_ADD("maincpu", I8080, 2000000)
+	MDRV_CPU_PROGRAM_MAP(wldarrow_map)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 4*8, 32*8-1)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_UPDATE(wldarrow)
+	MDRV_VIDEO_UPDATE(wldarrow)
+
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 4*8, 32*8-1)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
 
 	/* audio hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
 
@@ -483,7 +476,7 @@ ROM_END
 static DRIVER_INIT( wldarrow )
 {
 	offs_t i;
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 
 	for (i = 0; i < 0x3800; i++)
 		rom[i] ^= 0xff;

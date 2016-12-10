@@ -45,7 +45,7 @@ WRITE16_HANDLER( K055550_word_w )
 
 				lim = adr+bsize*count;
 				for(i=adr; i<lim; i+=2)
-					space->write_word(i, prot_data[0x1a/2]);
+					memory_write_word(space, i, prot_data[0x1a/2]);
 			break;
 
 			// WARNING: The following cases are speculation based with questionable accuracy!(AAT)
@@ -76,41 +76,41 @@ WRITE16_HANDLER( K055550_word_w )
 				// let's hope GCC will inline the mem24bew calls
 				for (src=adr; src<srcend; src+=bsize)
 				{
-					cx1 = (short)space->read_word(src);
-					sx1 = (short)space->read_word(src + 2);
-					wx1 = (short)space->read_word(src + 4);
+					cx1 = (short)memory_read_word(space, src);
+					sx1 = (short)memory_read_word(space, src + 2);
+					wx1 = (short)memory_read_word(space, src + 4);
 
-					cy1 = (short)space->read_word(src + 6);
-					sy1 = (short)space->read_word(src + 8);
-					wy1 = (short)space->read_word(src +10);
+					cy1 = (short)memory_read_word(space, src + 6);
+					sy1 = (short)memory_read_word(space, src + 8);
+					wy1 = (short)memory_read_word(space, src +10);
 
-					cz1 = (short)space->read_word(src +12);
-					sz1 = (short)space->read_word(src +14);
-					wz1 = (short)space->read_word(src +16);
+					cz1 = (short)memory_read_word(space, src +12);
+					sz1 = (short)memory_read_word(space, src +14);
+					wz1 = (short)memory_read_word(space, src +16);
 
 					count = i = src + skip;
 					tgt = src + bsize;
 
-					for (; count<tgt; count++) space->write_byte(count, 0);
+					for (; count<tgt; count++) memory_write_byte(space, count, 0);
 
 					for (; tgt<tgtend; i++, tgt+=bsize)
 					{
-						c2 = (short)space->read_word(tgt);
-						s2 = (short)space->read_word(tgt + 2);
-						w2 = (short)space->read_word(tgt + 4);
+						c2 = (short)memory_read_word(space, tgt);
+						s2 = (short)memory_read_word(space, tgt + 2);
+						w2 = (short)memory_read_word(space, tgt + 4);
 						if (abs((cx1+sx1)-(c2+s2))>=wx1+w2) continue; // X rejection
 
-						c2 = (short)space->read_word(tgt + 6);
-						s2 = (short)space->read_word(tgt + 8);
-						w2 = (short)space->read_word(tgt +10);
+						c2 = (short)memory_read_word(space, tgt + 6);
+						s2 = (short)memory_read_word(space, tgt + 8);
+						w2 = (short)memory_read_word(space, tgt +10);
 						if (abs((cy1+sy1)-(c2+s2))>=wy1+w2) continue; // Y rejection
 
-						c2 = (short)space->read_word(tgt +12);
-						s2 = (short)space->read_word(tgt +14);
-						w2 = (short)space->read_word(tgt +16);
+						c2 = (short)memory_read_word(space, tgt +12);
+						s2 = (short)memory_read_word(space, tgt +14);
+						w2 = (short)memory_read_word(space, tgt +16);
 						if (abs((cz1+sz1)-(c2+s2))>=wz1+w2) continue; // Z rejection
 
-						space->write_byte(i, 0x80); // collision confirmed
+						memory_write_byte(space, i, 0x80); // collision confirmed
 					}
 				}
 			break;
@@ -137,13 +137,13 @@ WRITE16_HANDLER( K055550_word_w )
 				else
 					if (dy < 0) i = 0x80;
 				else
-					i = space->machine().rand() & 0xff; // vector direction indeterminate
+					i = mame_rand(space->machine) & 0xff; // vector direction indeterminate
 
 				prot_data[0x10] = i;
 			break;
 
 			default:
-//              logerror("%06x: unknown K055550 command %02x\n", cpu_get_pc(&space->device()), data);
+//              logerror("%06x: unknown K055550 command %02x\n", cpu_get_pc(space->cpu), data);
 			break;
 		}
 	}
@@ -184,13 +184,13 @@ WRITE16_HANDLER( K053990_martchmp_word_w )
 				if (element_size == 1)
 				for (i=src_count; i; i--)
 				{
-					space->write_byte(dst_addr, space->read_byte(src_addr));
+					memory_write_byte(space, dst_addr, memory_read_byte(space, src_addr));
 					src_addr += src_skip;
 					dst_addr += dst_skip;
 				}
 				else for (i=src_count; i; i--)
 				{
-					space->write_word(dst_addr, space->read_word(src_addr));
+					memory_write_word(space, dst_addr, memory_read_word(space, src_addr));
 					src_addr += src_skip;
 					dst_addr += dst_skip;
 				}
@@ -215,15 +215,15 @@ WRITE16_HANDLER( K053990_martchmp_word_w )
 
 				for (i=mod_count; i; i--)
 				{
-					mod_val  = space->read_word(mod_addr);
+					mod_val  = memory_read_word(space, mod_addr);
 					mod_addr += mod_skip;
 
-					mod_data = space->read_word(src_addr);
+					mod_data = memory_read_word(space, src_addr);
 					src_addr += src_skip;
 
 					mod_data += mod_val;
 
-					space->write_word(dst_addr, mod_data);
+					memory_write_word(space, dst_addr, mod_data);
 					dst_addr += dst_skip;
 				}
 			break;
@@ -260,7 +260,7 @@ static const UINT8 ptable[7][8] =
 	{0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x10}
 };
 
-	INT32 data1, data2, i, j, vpos, hpos, voffs, hoffs, vcorr, hcorr, vmask, magicid;
+	INT32 data1, data2, i, j, vpos, hpos, voffs, hoffs, vcorr, hcorr, vmask, hmask, magicid;
 	UINT32 *src, *srcend, *obj, *objend;
 	UINT16 *dst;
 	const UINT8  *zcode, *pcode;
@@ -347,7 +347,7 @@ if((data1=obj[0])&0x80000000)\
 		// I can't make out anything meaningful.
 		magicid = srcbase[0x71f0/4];
 
-		vmask = 0x3ff;
+		hmask = vmask = 0x3ff;
 		if (magicid != 0x11010111)
 		{
 			switch (magicid)
@@ -439,10 +439,10 @@ if((data1=obj[0])&0x80000000)\
 
 static UINT32 fantjour_dma[8];
 
-void fantjour_dma_install(running_machine &machine)
+void fantjour_dma_install(running_machine *machine)
 {
 	state_save_register_global_array(machine, fantjour_dma);
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0xdb0000, 0xdb001f, FUNC(fantjour_dma_w));
+	memory_install_write32_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xdb0000, 0xdb001f, 0, 0, fantjour_dma_w);
 	memset(fantjour_dma, 0, sizeof(fantjour_dma));
 }
 
@@ -468,14 +468,14 @@ static WRITE32_HANDLER(fantjour_dma_w)
 		if(mode == 0x93)
 			for(i1=0; i1 <= sz2; i1++)
 				for(i2=0; i2 < db; i2+=4) {
-					space->write_dword(da, space->read_dword(sa) ^ x);
+					memory_write_dword(space, da, memory_read_dword(space, sa) ^ x);
 					da += 4;
 					sa += 4;
 				}
 		else if(mode == 0x8f)
 			for(i1=0; i1 <= sz2; i1++)
 				for(i2=0; i2 < db; i2+=4) {
-					space->write_dword(da, x);
+					memory_write_dword(space, da, x);
 					da += 4;
 				}
 	}

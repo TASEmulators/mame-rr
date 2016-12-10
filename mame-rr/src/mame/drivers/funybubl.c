@@ -56,20 +56,20 @@ Note: SW2, SW3 & SW4 not populated
 
 static WRITE8_HANDLER ( funybubl_vidram_bank_w )
 {
-	memory_set_bank(space->machine(), "bank1", data & 1);
+	memory_set_bank(space->machine, "bank1", data & 1);
 }
 
 static WRITE8_HANDLER ( funybubl_cpurombank_w )
 {
-	memory_set_bank(space->machine(), "bank2", data & 0x3f);	// should we add a check that (data&0x3f) < #banks?
+	memory_set_bank(space->machine, "bank2", data & 0x3f);	// should we add a check that (data&0x3f) < #banks?
 }
 
 
 static WRITE8_HANDLER( funybubl_soundcommand_w )
 {
-	funybubl_state *state = space->machine().driver_data<funybubl_state>();
+	funybubl_state *state = (funybubl_state *)space->machine->driver_data;
 	soundlatch_w(space, 0, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 }
 
 static WRITE8_DEVICE_HANDLER( funybubl_oki_bank_sw )
@@ -79,15 +79,15 @@ static WRITE8_DEVICE_HANDLER( funybubl_oki_bank_sw )
 }
 
 
-static ADDRESS_MAP_START( funybubl_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( funybubl_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank2") // banked port 1?
-	AM_RANGE(0xc400, 0xcfff) AM_RAM_WRITE(funybubl_paldatawrite) AM_BASE_MEMBER(funybubl_state, m_paletteram) // palette
+	AM_RANGE(0xc400, 0xcfff) AM_RAM_WRITE(funybubl_paldatawrite) AM_BASE_MEMBER(funybubl_state, paletteram) // palette
 	AM_RANGE(0xd000, 0xdfff) AM_RAMBANK("bank1") // banked port 0?
 	AM_RANGE(0xe000, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("SYSTEM") AM_WRITE(funybubl_vidram_bank_w)	// vidram bank
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("P1") AM_WRITE(funybubl_cpurombank_w)		// rom bank?
@@ -100,11 +100,11 @@ ADDRESS_MAP_END
 
 /* Sound CPU */
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x9000, 0x9000) AM_DEVWRITE("oki", funybubl_oki_bank_sw)
-	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0x9800, 0x9800) AM_DEVREADWRITE("oki", okim6295_r, okim6295_w)
 	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
@@ -202,54 +202,58 @@ GFXDECODE_END
 
 static MACHINE_START( funybubl )
 {
-	funybubl_state *state = machine.driver_data<funybubl_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	funybubl_state *state = (funybubl_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
-	state->m_audiocpu = machine.device("audiocpu");
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_banked_vram));
+	state->banked_vram = auto_alloc_array(machine, UINT8, 0x2000);
+	state_save_register_global_pointer(machine, state->banked_vram, 0x2000);
 
-	memory_configure_bank(machine, "bank1", 0, 2, &state->m_banked_vram[0x0000], 0x1000);
+	memory_configure_bank(machine, "bank1", 0, 2, &state->banked_vram[0x0000], 0x1000);
 	memory_configure_bank(machine, "bank2", 0, 0x10, &ROM[0x10000], 0x4000);
 
 	memory_set_bank(machine, "bank1", 0);
 }
 
 
-static MACHINE_CONFIG_START( funybubl, funybubl_state )
+static MACHINE_DRIVER_START( funybubl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(funybubl_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,12000000/2)		 /* 6 MHz?? */
-	MCFG_CPU_PROGRAM_MAP(funybubl_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,12000000/2)		 /* 6 MHz?? */
+	MDRV_CPU_PROGRAM_MAP(funybubl_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,8000000/2)		 /* 4 MHz?? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,8000000/2)		 /* 4 MHz?? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(funybubl)
+	MDRV_MACHINE_START(funybubl)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(12*8, 512-12*8-1, 16, 256-16-1)
-//  MCFG_SCREEN_VISIBLE_AREA(0*8, 512-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE(funybubl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(12*8, 512-12*8-1, 16, 256-16-1)
+//  MDRV_SCREEN_VISIBLE_AREA(0*8, 512-1, 0, 256-1)
 
-	MCFG_GFXDECODE(funybubl)
-	MCFG_PALETTE_LENGTH(0x400)
+	MDRV_GFXDECODE(funybubl)
+	MDRV_PALETTE_LENGTH(0x400)
 
-	MCFG_VIDEO_START(funybubl)
+	MDRV_VIDEO_START(funybubl)
+	MDRV_VIDEO_UPDATE(funybubl)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH) // clock frequency & pin 7 not verified
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 
@@ -317,4 +321,4 @@ ROM_END
 
 
 GAME( 1999, funybubl, 0,        funybubl, funybubl, 0, ROT0, "In Chang Electronic Co", "Funny Bubble", GAME_SUPPORTS_SAVE )
-GAME( 1999, funybublc,funybubl, funybubl, funybubl, 0, ROT0, "Comad", "Funny Bubble (Comad version)", GAME_SUPPORTS_SAVE )
+GAME( 1999, funybublc,funybubl, funybubl, funybubl, 0, ROT0, "Comad Industry Co Ltd",  "Funny Bubble (Comad version)", GAME_SUPPORTS_SAVE )

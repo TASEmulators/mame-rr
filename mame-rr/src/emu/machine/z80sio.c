@@ -13,9 +13,6 @@
 #include "cpu/z80/z80daisy.h"
 
 
-// device type definition
-const device_type Z80SIO = &device_creator<z80sio_device>;
-
 
 //**************************************************************************
 //  DEBUGGING
@@ -243,8 +240,8 @@ const UINT8 z80sio_device::k_int_priority[] =
 inline void z80sio_device::update_interrupt_state()
 {
 	// if we have a callback, update it with the current state
-	if (m_irq_cb != NULL)
-		(*m_irq_cb)(this, (z80daisy_irq_state() & Z80_DAISY_INT) ? ASSERT_LINE : CLEAR_LINE);
+	if (m_config.m_irq_cb != NULL)
+		(*m_config.m_irq_cb)(this, (z80daisy_irq_state() & Z80_DAISY_INT) ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
@@ -284,25 +281,44 @@ inline void z80sio_device::sio_channel::clear_interrupt(int type)
 inline attotime z80sio_device::sio_channel::compute_time_per_character()
 {
 	// fix me -- should compute properly and include data, stop, parity bit
-	return attotime::from_hz(9600) * 10;
+	return attotime_mul(ATTOTIME_IN_HZ(9600), 10);
 }
 
 
 
 //**************************************************************************
-//  LIVE DEVICE
+//  DEVICE CONFIGURATION
 //**************************************************************************
 
 //-------------------------------------------------
-//  z80sio_device - constructor
+//  z80sio_device_config - constructor
 //-------------------------------------------------
 
-z80sio_device::z80sio_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock)
-	: device_t(mconfig, Z80SIO, "Zilog Z80 SIO", tag, owner, clock),
-	  device_z80daisy_interface(mconfig, *this)
+z80sio_device_config::z80sio_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock)
+	: device_config(mconfig, static_alloc_device_config, "Zilog Z80 SIO", tag, owner, clock),
+	  device_config_z80daisy_interface(mconfig, *this)
 {
-	for (int i = 0; i < 8; i++)
-		m_int_state[i] = 0;
+}
+
+
+//-------------------------------------------------
+//  static_alloc_device_config - allocate a new
+//  configuration object
+//-------------------------------------------------
+
+device_config *z80sio_device_config::static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock)
+{
+	return global_alloc(z80sio_device_config(mconfig, tag, owner, clock));
+}
+
+
+//-------------------------------------------------
+//  alloc_device - allocate a new device object
+//-------------------------------------------------
+
+device_t *z80sio_device_config::alloc_device(running_machine &machine) const
+{
+	return auto_alloc(&machine, z80sio_device(machine, *this));
 }
 
 
@@ -312,7 +328,7 @@ z80sio_device::z80sio_device(const machine_config &mconfig, const char *tag, dev
 //  complete
 //-------------------------------------------------
 
-void z80sio_device::device_config_complete()
+void z80sio_device_config::device_config_complete()
 {
 	// inherit a copy of the static data
 	const z80sio_interface *intf = reinterpret_cast<const z80sio_interface *>(static_config());
@@ -329,6 +345,23 @@ void z80sio_device::device_config_complete()
 		m_transmit_cb = NULL;
 		m_receive_poll_cb = NULL;
 	}
+}
+
+
+
+//**************************************************************************
+//  LIVE DEVICE
+//**************************************************************************
+
+//-------------------------------------------------
+//  z80sio_device - constructor
+//-------------------------------------------------
+
+z80sio_device::z80sio_device(running_machine &_machine, const z80sio_device_config &config)
+	: device_t(_machine, config),
+	  device_z80daisy_interface(_machine, config, *this),
+	  m_config(config)
+{
 }
 
 
@@ -481,7 +514,7 @@ void z80sio_device::sio_channel::start(z80sio_device *device, int index)
 {
 	m_device = device;
 	m_index = index;
-	m_receive_timer = device->machine().scheduler().timer_alloc(FUNC(static_serial_callback), this);
+	m_receive_timer = timer_alloc(&m_device->m_machine, static_serial_callback, this);
 }
 
 
@@ -505,7 +538,7 @@ void z80sio_device::sio_channel::reset()
 
 	// start the receive timer running
 	attotime tpc = compute_time_per_character();
-	m_receive_timer->adjust(tpc, 0, tpc);
+	timer_adjust_periodic(m_receive_timer, tpc, 0, tpc);
 }
 
 
@@ -518,7 +551,7 @@ void z80sio_device::sio_channel::control_write(UINT8 data)
 	int regnum = m_regs[0] & 7;
 
 	if (regnum != 0 || (regnum & 0xf8) != 0)
-		VPRINTF(("%s:sio_reg_w(%c,%d) = %02X\n", m_device->machine().describe_context(), 'A' + m_index, regnum, data));
+		VPRINTF(("%s:sio_reg_w(%c,%d) = %02X\n", cpuexec_describe_context(&m_device->m_machine), 'A' + m_index, regnum, data));
 
 	// write a new value to the selected register
 	UINT8 old = m_regs[regnum];
@@ -536,7 +569,7 @@ void z80sio_device::sio_channel::control_write(UINT8 data)
 			switch (data & SIO_WR0_COMMAND_MASK)
 			{
 				case SIO_WR0_COMMAND_CH_RESET:
-					VPRINTF(("%s:SIO reset channel %c\n", m_device->machine().describe_context(), 'A' + m_index));
+					VPRINTF(("%s:SIO reset channel %c\n", cpuexec_describe_context(&m_device->m_machine), 'A' + m_index));
 					reset();
 					break;
 
@@ -566,12 +599,12 @@ void z80sio_device::sio_channel::control_write(UINT8 data)
 
 		// SIO write register 5
 		case 5:
-			if (((old ^ data) & SIO_WR5_DTR) && m_device->m_dtr_changed_cb)
-				(*m_device->m_dtr_changed_cb)(m_device, m_index, (data & SIO_WR5_DTR) != 0);
-			if (((old ^ data) & SIO_WR5_SEND_BREAK) && m_device->m_break_changed_cb)
-				(*m_device->m_break_changed_cb)(m_device, m_index, (data & SIO_WR5_SEND_BREAK) != 0);
-			if (((old ^ data) & SIO_WR5_RTS) && m_device->m_rts_changed_cb)
-				(*m_device->m_rts_changed_cb)(m_device, m_index, (data & SIO_WR5_RTS) != 0);
+			if (((old ^ data) & SIO_WR5_DTR) && m_device->m_config.m_dtr_changed_cb)
+				(*m_device->m_config.m_dtr_changed_cb)(m_device, m_index, (data & SIO_WR5_DTR) != 0);
+			if (((old ^ data) & SIO_WR5_SEND_BREAK) && m_device->m_config.m_break_changed_cb)
+				(*m_device->m_config.m_break_changed_cb)(m_device, m_index, (data & SIO_WR5_SEND_BREAK) != 0);
+			if (((old ^ data) & SIO_WR5_RTS) && m_device->m_config.m_rts_changed_cb)
+				(*m_device->m_config.m_rts_changed_cb)(m_device, m_index, (data & SIO_WR5_RTS) != 0);
 			break;
 	}
 }
@@ -597,7 +630,7 @@ UINT8 z80sio_device::sio_channel::control_read()
 			break;
 	}
 
-	VPRINTF(("%s:sio_reg_r(%c,%d) = %02x\n", m_device->machine().describe_context(), 'A' + m_index, regnum, m_status[regnum]));
+	VPRINTF(("%s:sio_reg_r(%c,%d) = %02x\n", cpuexec_describe_context(&m_device->m_machine), 'A' + m_index, regnum, m_status[regnum]));
 
 	return m_status[regnum];
 }
@@ -609,7 +642,7 @@ UINT8 z80sio_device::sio_channel::control_read()
 
 void z80sio_device::sio_channel::data_write(UINT8 data)
 {
-	VPRINTF(("%s:sio_data_w(%c) = %02X\n", m_device->machine().describe_context(), 'A' + m_index, data));
+	VPRINTF(("%s:sio_data_w(%c) = %02X\n", cpuexec_describe_context(&m_device->m_machine), 'A' + m_index, data));
 
 	// if tx not enabled, just ignore it
 	if (!(m_regs[5] & SIO_WR5_TX_ENABLE))
@@ -638,7 +671,7 @@ UINT8 z80sio_device::sio_channel::data_read()
 	// reset the receive interrupt
 	clear_interrupt(INT_RECEIVE);
 
-	VPRINTF(("%s:sio_data_r(%c) = %02X\n", m_device->machine().describe_context(), 'A' + m_index, m_inbuf));
+	VPRINTF(("%s:sio_data_r(%c) = %02X\n", cpuexec_describe_context(&m_device->m_machine), 'A' + m_index, m_inbuf));
 
 	return m_inbuf;
 }
@@ -670,7 +703,7 @@ int z80sio_device::sio_channel::rts()
 
 void z80sio_device::sio_channel::set_cts(int state)
 {
-	m_device->machine().scheduler().synchronize(FUNC(static_change_input_line), (SIO_RR0_CTS << 1) + (state != 0), this);
+	timer_call_after_resynch(&m_device->m_machine, this, (SIO_RR0_CTS << 1) + (state != 0), static_change_input_line);
 }
 
 
@@ -680,7 +713,7 @@ void z80sio_device::sio_channel::set_cts(int state)
 
 void z80sio_device::sio_channel::set_dcd(int state)
 {
-	m_device->machine().scheduler().synchronize(FUNC(static_change_input_line), (SIO_RR0_DCD << 1) + (state != 0), this);
+	timer_call_after_resynch(&m_device->m_machine, this, (SIO_RR0_DCD << 1) + (state != 0), static_change_input_line);
 }
 
 
@@ -741,8 +774,8 @@ void z80sio_device::sio_channel::serial_callback()
 		VPRINTF(("serial_callback(%c): Transmitting %02x\n", 'A' + m_index, m_outbuf));
 
 		// actually transmit the character
-		if (m_device->m_transmit_cb != NULL)
-			(*m_device->m_transmit_cb)(m_device, m_index, m_outbuf);
+		if (m_device->m_config.m_transmit_cb != NULL)
+			(*m_device->m_config.m_transmit_cb)(m_device, m_index, m_outbuf);
 
 		// update the status register
 		m_status[0] |= SIO_RR0_TX_BUFFER_EMPTY;
@@ -756,8 +789,8 @@ void z80sio_device::sio_channel::serial_callback()
 	}
 
 	// ask the polling callback if there is data to receive
-	if (m_device->m_receive_poll_cb != NULL)
-		data = (*m_device->m_receive_poll_cb)(m_device, m_index);
+	if (m_device->m_config.m_receive_poll_cb != NULL)
+		data = (*m_device->m_config.m_receive_poll_cb)(m_device, m_index);
 
 	// if we have buffered data, pull it
 	if (m_receive_inptr != m_receive_outptr)
@@ -863,3 +896,5 @@ WRITE8_DEVICE_HANDLER( z80sio_ba_cd_w )
 		case 3: z80sio_c_w(device, 1, data); break;
 	}
 }
+
+const device_type Z80SIO = z80sio_device_config::static_alloc_device_config;

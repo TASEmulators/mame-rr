@@ -293,26 +293,26 @@ static INPUT_CHANGED( service_switch )
 {
 	/* pressing the service switch sends an NMI */
 	if (newval)
-		cputag_set_input_line(field.machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE);
+		cputag_set_input_line(field->port->machine, "maincpu", INPUT_LINE_NMI, PULSE_LINE);
 }
 
 
 static INTERRUPT_GEN( vblank_int )
 {
-	zaxxon_state *state = device->machine().driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)device->machine->driver_data;
 
-	if (state->m_int_enabled)
-		device_set_input_line(device, 0, ASSERT_LINE);
+	if (state->int_enabled)
+		cpu_set_input_line(device, 0, ASSERT_LINE);
 }
 
 
 static WRITE8_HANDLER( int_enable_w )
 {
-	zaxxon_state *state = space->machine().driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)space->machine->driver_data;
 
-	state->m_int_enabled = data & 1;
-	if (!state->m_int_enabled)
-		cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
+	state->int_enabled = data & 1;
+	if (!state->int_enabled)
+		cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
 }
 
 
@@ -325,12 +325,19 @@ static WRITE8_HANDLER( int_enable_w )
 
 static MACHINE_START( zaxxon )
 {
-	zaxxon_state *state = machine.driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)machine->driver_data;
 
 	/* register for save states */
-	state->save_item(NAME(state->m_int_enabled));
-	state->save_item(NAME(state->m_coin_status));
-	state->save_item(NAME(state->m_coin_enable));
+	state_save_register_global(machine, state->int_enabled);
+	state_save_register_global_array(machine, state->coin_status);
+	state_save_register_global_array(machine, state->coin_enable);
+}
+
+
+static MACHINE_RESET( razmataz )
+{
+	/* the timer value is unknown, but this seems to work well */
+	sega_usb_reset(machine, 0x10);
 }
 
 
@@ -343,36 +350,36 @@ static MACHINE_START( zaxxon )
 
 static READ8_HANDLER( razmataz_counter_r )
 {
-	zaxxon_state *state = space->machine().driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)space->machine->driver_data;
 
 	/* this behavior is really unknown; however, the code is using this */
 	/* counter as a sort of timeout when talking to the sound board */
 	/* it needs to be increasing at a reasonable rate but not too fast */
 	/* or else the sound will mess up */
-	return state->m_razmataz_counter++ >> 8;
+	return state->razmataz_counter++ >> 8;
 }
 
 
 static CUSTOM_INPUT( razmataz_dial_r )
 {
-	zaxxon_state *state = field.machine().driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)field->port->machine->driver_data;
 	static const char *const dialname[2] = { "DIAL0", "DIAL1" };
 	int num = (FPTR)param;
 	int delta, res;
 
-	delta = input_port_read(field.machine(), dialname[num]);
+	delta = input_port_read(field->port->machine, dialname[num]);
 
 	if (delta < 0x80)
 	{
 		// right
-		state->m_razmataz_dial_pos[num] -= delta;
-		res = (state->m_razmataz_dial_pos[num] << 1) | 1;
+		state->razmataz_dial_pos[num] -= delta;
+		res = (state->razmataz_dial_pos[num] << 1) | 1;
 	}
 	else
 	{
 		// left
-		state->m_razmataz_dial_pos[num] += delta;
-		res = (state->m_razmataz_dial_pos[num] << 1);
+		state->razmataz_dial_pos[num] += delta;
+		res = (state->razmataz_dial_pos[num] << 1);
 	}
 
 	return res;
@@ -388,7 +395,7 @@ static CUSTOM_INPUT( razmataz_dial_r )
 
 static WRITE8_HANDLER( zaxxon_coin_counter_w )
 {
-	coin_counter_w(space->machine(), offset, data & 0x01);
+	coin_counter_w(space->machine, offset, data & 0x01);
 }
 
 
@@ -396,11 +403,11 @@ static WRITE8_HANDLER( zaxxon_coin_counter_w )
 // the coin input, which then needs to be explicitly cleared by the game.
 static WRITE8_HANDLER( zaxxon_coin_enable_w )
 {
-	zaxxon_state *state = space->machine().driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)space->machine->driver_data;
 
-	state->m_coin_enable[offset] = data & 1;
-	if (!state->m_coin_enable[offset])
-		state->m_coin_status[offset] = 0;
+	state->coin_enable[offset] = data & 1;
+	if (!state->coin_enable[offset])
+		state->coin_status[offset] = 0;
 }
 
 
@@ -408,18 +415,18 @@ static INPUT_CHANGED( zaxxon_coin_inserted )
 {
 	if (newval)
 	{
-		zaxxon_state *state = field.machine().driver_data<zaxxon_state>();
+		zaxxon_state *state = (zaxxon_state *)field->port->machine->driver_data;
 
-		state->m_coin_status[(int)(FPTR)param] = state->m_coin_enable[(int)(FPTR)param];
+		state->coin_status[(int)(FPTR)param] = state->coin_enable[(int)(FPTR)param];
 	}
 }
 
 
 static CUSTOM_INPUT( zaxxon_coin_r )
 {
-	zaxxon_state *state = field.machine().driver_data<zaxxon_state>();
+	zaxxon_state *state = (zaxxon_state *)field->port->machine->driver_data;
 
-	return state->m_coin_status[(int)(FPTR)param];
+	return state->coin_status[(int)(FPTR)param];
 }
 
 
@@ -431,11 +438,11 @@ static CUSTOM_INPUT( zaxxon_coin_r )
  *************************************/
 
 /* complete memory map derived from schematics */
-static ADDRESS_MAP_START( zaxxon_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( zaxxon_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROM
 	AM_RANGE(0x6000, 0x6fff) AM_RAM
-	AM_RANGE(0x8000, 0x83ff) AM_MIRROR(0x1c00) AM_RAM_WRITE(zaxxon_videoram_w) AM_BASE_MEMBER(zaxxon_state,m_videoram)
-	AM_RANGE(0xa000, 0xa0ff) AM_MIRROR(0x1f00) AM_RAM AM_BASE_MEMBER(zaxxon_state,m_spriteram)
+	AM_RANGE(0x8000, 0x83ff) AM_MIRROR(0x1c00) AM_RAM_WRITE(zaxxon_videoram_w) AM_BASE_MEMBER(zaxxon_state,videoram)
+	AM_RANGE(0xa000, 0xa0ff) AM_MIRROR(0x1f00) AM_RAM AM_BASE_MEMBER(zaxxon_state,spriteram)
 	AM_RANGE(0xc000, 0xc000) AM_MIRROR(0x18fc) AM_READ_PORT("SW00")
 	AM_RANGE(0xc001, 0xc001) AM_MIRROR(0x18fc) AM_READ_PORT("SW01")
 	AM_RANGE(0xc002, 0xc002) AM_MIRROR(0x18fc) AM_READ_PORT("DSW02")
@@ -454,11 +461,11 @@ ADDRESS_MAP_END
 
 
 /* complete memory map derived from schematics */
-static ADDRESS_MAP_START( congo_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( congo_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x8fff) AM_RAM
-	AM_RANGE(0xa000, 0xa3ff) AM_MIRROR(0x1800) AM_RAM_WRITE(zaxxon_videoram_w) AM_BASE_MEMBER(zaxxon_state,m_videoram)
-	AM_RANGE(0xa400, 0xa7ff) AM_MIRROR(0x1800) AM_RAM_WRITE(congo_colorram_w) AM_BASE_MEMBER(zaxxon_state,m_colorram)
+	AM_RANGE(0xa000, 0xa3ff) AM_MIRROR(0x1800) AM_RAM_WRITE(zaxxon_videoram_w) AM_BASE_MEMBER(zaxxon_state,videoram)
+	AM_RANGE(0xa400, 0xa7ff) AM_MIRROR(0x1800) AM_RAM_WRITE(congo_colorram_w) AM_BASE_MEMBER(zaxxon_state,colorram)
 	AM_RANGE(0xc000, 0xc000) AM_MIRROR(0x1fc4) AM_READ_PORT("SW00")
 	AM_RANGE(0xc001, 0xc001) AM_MIRROR(0x1fc4) AM_READ_PORT("SW01")
 	AM_RANGE(0xc002, 0xc002) AM_MIRROR(0x1fc4) AM_READ_PORT("DSW02")
@@ -480,7 +487,7 @@ ADDRESS_MAP_END
 
 
 /* complete memory map derived from schematics */
-static ADDRESS_MAP_START( congo_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( congo_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x4000, 0x47ff) AM_MIRROR(0x1800) AM_RAM
 	AM_RANGE(0x6000, 0x6000) AM_MIRROR(0x1fff) AM_DEVWRITE("sn1", sn76496_w)
@@ -617,7 +624,7 @@ static INPUT_PORTS_START( futspy )
 	PORT_BIT( 0xc0, IP_ACTIVE_HIGH, IPT_UNUSED )
 
 	PORT_MODIFY("DSW02")
-	PORT_DIPNAME( 0x0f, 0x00, DEF_STR ( Coin_A ) )		PORT_DIPLOCATION("SW1:1,2,3,4")
+	PORT_DIPNAME( 0x0f, 0x00, DEF_STR ( Coin_A ) )
 	PORT_DIPSETTING(    0x08, DEF_STR ( 4C_1C ) )
 	PORT_DIPSETTING(    0x07, DEF_STR ( 3C_1C ) )
 	PORT_DIPSETTING(    0x06, DEF_STR ( 2C_1C ) )
@@ -634,7 +641,7 @@ static INPUT_PORTS_START( futspy )
 	PORT_DIPSETTING(    0x03, DEF_STR ( 1C_4C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR ( 1C_5C ) )
 	PORT_DIPSETTING(    0x05, DEF_STR ( 1C_6C ) )
-	PORT_DIPNAME( 0xf0, 0x00, DEF_STR ( Coin_B ) )		PORT_DIPLOCATION("SW1:5,6,7,8")
+	PORT_DIPNAME( 0xf0, 0x00, DEF_STR ( Coin_B ) )
 	PORT_DIPSETTING(    0x80, DEF_STR ( 4C_1C ) )
 	PORT_DIPSETTING(    0x70, DEF_STR ( 3C_1C ) )
 	PORT_DIPSETTING(    0x60, DEF_STR ( 2C_1C ) )
@@ -653,23 +660,23 @@ static INPUT_PORTS_START( futspy )
 	PORT_DIPSETTING(    0x50, DEF_STR ( 1C_6C ) )
 
 	PORT_MODIFY("DSW03")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW2:1")
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW2:2")
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0c, 0x00, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:3,4")
+	PORT_DIPNAME( 0x0c, 0x00, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x00, "3" )
 	PORT_DIPSETTING(    0x04, "4" )
 	PORT_DIPSETTING(    0x08, "5" )
 	PORT_DIPSETTING(    0x0c, DEF_STR( Free_Play ) )
-	PORT_DIPNAME( 0x30, 0x00, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x00, DEF_STR( Bonus_Life ) )
 	PORT_DIPSETTING(    0x00, "20K 40K 60K" )
 	PORT_DIPSETTING(    0x10, "30K 60K 90K" )
 	PORT_DIPSETTING(    0x20, "40K 70K 100K" )
 	PORT_DIPSETTING(    0x30, "40K 80K 120K" )
-	PORT_DIPNAME( 0xc0, 0x40, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW2:7,8")
+	PORT_DIPNAME( 0xc0, 0x40, DEF_STR( Difficulty ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Hard ) )
@@ -717,7 +724,7 @@ static INPUT_PORTS_START( razmataz )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_SERVICE1 ) PORT_CHANGED(zaxxon_coin_inserted, (void *)2)
 
 	PORT_START("SERVICESW")
-	PORT_SERVICE_NO_TOGGLE( 0x01, IP_ACTIVE_HIGH ) PORT_CHANGED(service_switch, 0)
+	PORT_SERVICE_NO_TOGGLE( 0x01, IP_ACTIVE_HIGH )
 
 	PORT_START("DSW02")
 	PORT_DIPNAME( 0x03, 0x00, DEF_STR( Bonus_Life ) )
@@ -927,92 +934,97 @@ GFXDECODE_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( root, zaxxon_state )
+static MACHINE_DRIVER_START( root )
+
+	MDRV_DRIVER_DATA(zaxxon_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/16)
-	MCFG_CPU_PROGRAM_MAP(zaxxon_map)
-	MCFG_CPU_VBLANK_INT("screen", vblank_int)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/16)
+	MDRV_CPU_PROGRAM_MAP(zaxxon_map)
+	MDRV_CPU_VBLANK_INT("screen", vblank_int)
 
-	MCFG_MACHINE_START(zaxxon)
+	MDRV_MACHINE_START(zaxxon)
 
-	MCFG_PPI8255_ADD( "ppi8255", zaxxon_ppi_intf )
-
-	/* video hardware */
-	MCFG_GFXDECODE(zaxxon)
-	MCFG_PALETTE_LENGTH(256)
-
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART)
-	MCFG_SCREEN_UPDATE(zaxxon)
-
-	MCFG_PALETTE_INIT(zaxxon)
-	MCFG_VIDEO_START(zaxxon)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( zaxxon, root )
-
-	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_FRAGMENT_ADD(zaxxon_samples)
-MACHINE_CONFIG_END
-
-
-static MACHINE_CONFIG_DERIVED( futspy, root )
+	MDRV_PPI8255_ADD( "ppi8255", zaxxon_ppi_intf )
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE(futspy)
+	MDRV_GFXDECODE(zaxxon)
+	MDRV_PALETTE_LENGTH(256)
+
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART)
+
+	MDRV_PALETTE_INIT(zaxxon)
+	MDRV_VIDEO_START(zaxxon)
+	MDRV_VIDEO_UPDATE(zaxxon)
+MACHINE_DRIVER_END
+
+
+static MACHINE_DRIVER_START( zaxxon )
+	MDRV_IMPORT_FROM(root)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_FRAGMENT_ADD(zaxxon_samples)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_IMPORT_FROM(zaxxon_samples)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( razmataz, root )
+static MACHINE_DRIVER_START( futspy )
+	MDRV_IMPORT_FROM(root)
 
 	/* video hardware */
-	MCFG_VIDEO_START(razmataz)
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE(razmataz)
+	MDRV_VIDEO_UPDATE(futspy)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_FRAGMENT_ADD(sega_universal_sound_board_rom)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_IMPORT_FROM(zaxxon_samples)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( congo, root )
+static MACHINE_DRIVER_START( razmataz )
+	MDRV_IMPORT_FROM(root)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(congo_map)
-
-	MCFG_PPI8255_RECONFIG( "ppi8255", congo_ppi_intf )
-
-	MCFG_CPU_ADD("audiocpu", Z80, SOUND_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(congo_sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold, (double)SOUND_CLOCK/16/16/16/4)
+	MDRV_MACHINE_RESET(razmataz)
 
 	/* video hardware */
-	MCFG_PALETTE_LENGTH(512)
-	MCFG_VIDEO_START(congo)
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_UPDATE(congo)
+	MDRV_VIDEO_START(razmataz)
+	MDRV_VIDEO_UPDATE(razmataz)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_IMPORT_FROM(sega_universal_sound_board_rom)
+MACHINE_DRIVER_END
 
-	MCFG_SOUND_ADD("sn1", SN76496, SOUND_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("sn2", SN76496, SOUND_CLOCK/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+static MACHINE_DRIVER_START( congo )
+	MDRV_IMPORT_FROM(root)
 
-	MCFG_FRAGMENT_ADD(congo_samples)
-MACHINE_CONFIG_END
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(congo_map)
+
+	MDRV_PPI8255_RECONFIG( "ppi8255", congo_ppi_intf )
+
+	MDRV_CPU_ADD("audiocpu", Z80, SOUND_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(congo_sound_map)
+	MDRV_CPU_PERIODIC_INT(irq0_line_hold, (double)SOUND_CLOCK/16/16/16/4)
+
+	/* video hardware */
+	MDRV_PALETTE_LENGTH(512)
+	MDRV_VIDEO_START(congo)
+	MDRV_VIDEO_UPDATE(congo)
+
+	/* sound hardware */
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+
+	MDRV_SOUND_ADD("sn1", SN76496, SOUND_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+
+	MDRV_SOUND_ADD("sn2", SN76496, SOUND_CLOCK/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+
+	MDRV_IMPORT_FROM(congo_samples)
+MACHINE_DRIVER_END
 
 
 
@@ -1181,33 +1193,33 @@ ROM_END
 
 ROM_START( szaxxon )
 	ROM_REGION( 0x6000, "maincpu", 0 )
-	ROM_LOAD( "1804e.u27",   0x0000, 0x2000, CRC(af7221da) SHA1(b5d3beb296d52ed69b4ceacf329c20a72e3a1dce) )
-	ROM_LOAD( "1803e.u28",   0x2000, 0x2000, CRC(1b90fb2a) SHA1(afb2bd2ffee3f5e589064f59b6ac21ed915094df) )
-	ROM_LOAD( "1802e.u29",   0x4000, 0x1000, CRC(07258b4a) SHA1(91e3a0c0df6c9cf66980d1ffcc3830ffdbef8c2f) )
+	ROM_LOAD( "suzaxxon3.u27",  0x0000, 0x2000, CRC(af7221da) SHA1(b5d3beb296d52ed69b4ceacf329c20a72e3a1dce) )
+	ROM_LOAD( "suzaxxon2.u28",  0x2000, 0x2000, CRC(1b90fb2a) SHA1(afb2bd2ffee3f5e589064f59b6ac21ed915094df) )
+	ROM_LOAD( "suzaxxon1.u29",  0x4000, 0x1000, CRC(07258b4a) SHA1(91e3a0c0df6c9cf66980d1ffcc3830ffdbef8c2f) )
 
 	ROM_REGION( 0x1000, "gfx_tx", 0 )
-	ROM_LOAD( "1815b.u68",   0x0000, 0x0800, CRC(bccf560c) SHA1(9f92bd15466048a5665bfc2ebc8c6504af9353eb) )
-	ROM_LOAD( "1816b.u69",   0x0800, 0x0800, CRC(d28c628b) SHA1(42ab7dc0e4e0d09213054597373383cdb6a55699) )
+	ROM_LOAD( "suzaxxon14.u68", 0x0000, 0x0800, CRC(bccf560c) SHA1(9f92bd15466048a5665bfc2ebc8c6504af9353eb) )
+	ROM_LOAD( "suzaxxon15.u69", 0x0800, 0x0800, CRC(d28c628b) SHA1(42ab7dc0e4e0d09213054597373383cdb6a55699) )
 
 	ROM_REGION( 0x6000, "gfx_bg", 0 )
-	ROM_LOAD( "1807b.u113",  0x0000, 0x2000, CRC(f51af375) SHA1(8682217dc800f43b73cd5e8501dbf3b7cd136dc1) )
-	ROM_LOAD( "1806b.u112",  0x2000, 0x2000, CRC(a7de021d) SHA1(a1bee07aa906366aa69866d1bdff38e2d90fafdd) )
-	ROM_LOAD( "1805b.u111",  0x4000, 0x2000, CRC(5bfb3b04) SHA1(f898e42d6bc1fd3629c9caee3c2af27805969ac6) )
+	ROM_LOAD( "suzaxxon6.u113", 0x0000, 0x2000, CRC(f51af375) SHA1(8682217dc800f43b73cd5e8501dbf3b7cd136dc1) )
+	ROM_LOAD( "suzaxxon5.u112", 0x2000, 0x2000, CRC(a7de021d) SHA1(a1bee07aa906366aa69866d1bdff38e2d90fafdd) )
+	ROM_LOAD( "suzaxxon4.u111", 0x4000, 0x2000, CRC(5bfb3b04) SHA1(f898e42d6bc1fd3629c9caee3c2af27805969ac6) )
 
 	ROM_REGION( 0x6000, "gfx_spr", 0 )
-	ROM_LOAD( "1812e.u77",   0x0000, 0x2000, CRC(1503ae41) SHA1(d4085f15fcbfb9547a7f9e2cb7ce9276c4d6c08d) )
-	ROM_LOAD( "1813e.u78",   0x2000, 0x2000, CRC(3b53d83f) SHA1(118e9d2b4f5daf96f5a38ccd92d0b046a470b0b2) )
-	ROM_LOAD( "1814e.u79",   0x4000, 0x2000, CRC(581e8793) SHA1(2b3305dd55dc09d7394ed8ae691773972dba28b9) )
+	ROM_LOAD( "suzaxxon11.u77", 0x0000, 0x2000, CRC(1503ae41) SHA1(d4085f15fcbfb9547a7f9e2cb7ce9276c4d6c08d) )
+	ROM_LOAD( "suzaxxon12.u78", 0x2000, 0x2000, CRC(3b53d83f) SHA1(118e9d2b4f5daf96f5a38ccd92d0b046a470b0b2) )
+	ROM_LOAD( "suzaxxon13.u79", 0x4000, 0x2000, CRC(581e8793) SHA1(2b3305dd55dc09d7394ed8ae691773972dba28b9) )
 
 	ROM_REGION( 0x8000, "tilemap_dat", 0 )
-	ROM_LOAD( "1809b.u91",   0x0000, 0x2000, CRC(dd1b52df) SHA1(8170dd9f81c41104694951a2c74405d0c6d8b9b6) )
-	ROM_LOAD( "1808b.u90",   0x2000, 0x2000, CRC(b5bc07f0) SHA1(1e4d460ce8cca66b081ee8ec1a9adb6ef98274ec) )
-	ROM_LOAD( "1811b.u93",   0x4000, 0x2000, CRC(68e84174) SHA1(b78c44d92078552835a20bcb7125fc9ca8af5048) )
-	ROM_LOAD( "1810b.u92",   0x6000, 0x2000, CRC(a509994b) SHA1(51541ec78ab3f8241a5ddf7f99a46f5e44292992) )
+	ROM_LOAD( "suzaxxon8.u91",  0x0000, 0x2000, CRC(dd1b52df) SHA1(8170dd9f81c41104694951a2c74405d0c6d8b9b6) )
+	ROM_LOAD( "suzaxxon7.u90",  0x2000, 0x2000, CRC(b5bc07f0) SHA1(1e4d460ce8cca66b081ee8ec1a9adb6ef98274ec) )
+	ROM_LOAD( "suzaxxon10.u93", 0x4000, 0x2000, CRC(68e84174) SHA1(b78c44d92078552835a20bcb7125fc9ca8af5048) )
+	ROM_LOAD( "suzaxxon9.u92",  0x6000, 0x2000, CRC(a509994b) SHA1(51541ec78ab3f8241a5ddf7f99a46f5e44292992) )
 
 	ROM_REGION( 0x0200, "proms", 0 )
-	ROM_LOAD( "pr-5168.u98", 0x0000, 0x0100, CRC(15727a9f) SHA1(42840e9ab303fb64102a1dbae03d66c9cf743a9f) ) /* TBP24S10N */
-	ROM_LOAD( "pr-5167.u72", 0x0100, 0x0100, CRC(deaa21f7) SHA1(0cf08fb62f77d93ff7cb883c633e0db35906e11d) ) /* TBP28L22 */
+	ROM_LOAD( "suzaxxon.u98",   0x0000, 0x0100, CRC(15727a9f) SHA1(42840e9ab303fb64102a1dbae03d66c9cf743a9f) )
+	ROM_LOAD( "suzaxxon.u72",   0x0100, 0x0100, CRC(deaa21f7) SHA1(0cf08fb62f77d93ff7cb883c633e0db35906e11d) )
 ROM_END
 
 
@@ -1393,7 +1405,7 @@ ROM_END
  *
  *************************************/
 
-static void zaxxonj_decode(running_machine &machine, const char *cputag)
+static void zaxxonj_decode(running_machine *machine, const char *cputag)
 {
 /*
     the values vary, but the translation mask is always laid out like this:
@@ -1438,12 +1450,12 @@ static void zaxxonj_decode(running_machine &machine, const char *cputag)
 	};
 
 	int A;
-	address_space *space = machine.device(cputag)->memory().space(AS_PROGRAM);
-	UINT8 *rom = machine.region(cputag)->base();
-	int size = machine.region(cputag)->bytes();
+	const address_space *space = cputag_get_address_space(machine, cputag, ADDRESS_SPACE_PROGRAM);
+	UINT8 *rom = memory_region(machine, cputag);
+	int size = memory_region_length(machine, cputag);
 	UINT8 *decrypt = auto_alloc_array(machine, UINT8, size);
 
-	space->set_decrypted_region(0x0000, size - 1, decrypt);
+	memory_set_decrypted_region(space, 0x0000, size - 1, decrypt);
 
 	for (A = 0x0000; A < size; A++)
 	{
@@ -1498,38 +1510,33 @@ static DRIVER_INIT( futspy )
 
 static DRIVER_INIT( razmataz )
 {
-	zaxxon_state *state = machine.driver_data<zaxxon_state>();
-	address_space *pgmspace = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	device_t *usbsnd = machine.device("usbsnd");
+	zaxxon_state *state = (zaxxon_state *)machine->driver_data;
 
 	nprinces_decode(machine, "maincpu");
 
 	/* additional input ports are wired */
-	pgmspace->install_read_port(0xc004, 0xc004, 0, 0x18f3, "SW04");
-	pgmspace->install_read_port(0xc008, 0xc008, 0, 0x18f3, "SW08");
-	pgmspace->install_read_port(0xc00c, 0xc00c, 0, 0x18f3, "SW0C");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xc004, 0xc004, 0, 0x18f3, "SW04");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xc008, 0xc008, 0, 0x18f3, "SW08");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xc00c, 0xc00c, 0, 0x18f3, "SW0C");
 
 	/* unknown behavior expected here */
-	pgmspace->install_legacy_read_handler(0xc80a, 0xc80a, FUNC(razmataz_counter_r));
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xc80a, 0xc80a, 0, 0, razmataz_counter_r);
 
 	/* connect the universal sound board */
-	pgmspace->install_legacy_readwrite_handler(*usbsnd, 0xe03c, 0xe03c, 0, 0x1f00, FUNC(sega_usb_status_r), FUNC(sega_usb_data_w));
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe03c, 0xe03c, 0, 0x1f00, sega_usb_status_r, sega_usb_data_w);
 
 	/* additional state saving */
-	state->save_item(NAME(state->m_razmataz_dial_pos));
-	state->save_item(NAME(state->m_razmataz_counter));
+	state_save_register_global_array(machine, state->razmataz_dial_pos);
+	state_save_register_global(machine, state->razmataz_counter);
 }
 
 
 static DRIVER_INIT( ixion )
 {
-	address_space *pgmspace = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	device_t *usbsnd = machine.device("usbsnd");
-
 	szaxxon_decode(machine, "maincpu");
 
 	/* connect the universal sound board */
-	pgmspace->install_legacy_readwrite_handler(*usbsnd, 0xe03c, 0xe03c, 0, 0x1f00, FUNC(sega_usb_status_r), FUNC(sega_usb_data_w));
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe03c, 0xe03c, 0, 0x1f00, sega_usb_status_r, sega_usb_data_w);
 }
 
 
@@ -1547,10 +1554,7 @@ GAME( 1982, zaxxon3,  zaxxon, zaxxon,   zaxxon,   0,        ROT90,  "Sega",    "
 GAME( 1982, zaxxonj,  zaxxon, zaxxon,   zaxxon,   zaxxonj,  ROT90,  "Sega",    "Zaxxon (Japan)",  GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
 GAME( 1982, zaxxonb,  zaxxon, zaxxon,   zaxxon,   zaxxonj,  ROT90,  "bootleg", "Jackson",  GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
 
-/* standard Zaxxon hardware but extra sound board plugged into 8255 PPI socket and encrypted cpu */
 GAME( 1982, szaxxon,  0,      zaxxon,   szaxxon,  szaxxon,  ROT90,  "Sega",    "Super Zaxxon (315-5013)",  GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
-
-/* standard Zaxxon hardware? but encrypted cpu */
 GAME( 1984, futspy,   0,      futspy,   futspy,   futspy,   ROT90,  "Sega",    "Future Spy (315-5061)",  GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
 
 /* these games run on modified Zaxxon hardware with no skewing, extra inputs, and a */

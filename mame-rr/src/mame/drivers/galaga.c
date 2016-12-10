@@ -712,86 +712,89 @@ TODO:
 #define MASTER_CLOCK (XTAL_18_432MHz)
 
 
+static emu_timer *cpu3_interrupt_timer;
+static UINT8 custom_mod;
+
+
 
 static READ8_HANDLER( bosco_dsw_r )
 {
 	int bit0,bit1;
 
-	bit0 = (input_port_read(space->machine(), "DSWB") >> offset) & 1;
-	bit1 = (input_port_read(space->machine(), "DSWA") >> offset) & 1;
+	bit0 = (input_port_read(space->machine, "DSWB") >> offset) & 1;
+	bit1 = (input_port_read(space->machine, "DSWA") >> offset) & 1;
 
 	return bit0 | (bit1 << 1);
 }
 
 static WRITE8_HANDLER( galaga_flip_screen_w )
 {
-	flip_screen_set(space->machine(), data & 1);
+	flip_screen_set(space->machine, data & 1);
 }
 
 static WRITE8_HANDLER( bosco_flip_screen_w )
 {
-	flip_screen_set(space->machine(), ~data & 1);
+	flip_screen_set(space->machine, ~data & 1);
 }
 
 
 static WRITE8_HANDLER( bosco_latch_w )
 {
-	galaga_state *state = space->machine().driver_data<galaga_state>();
 	int bit = data & 1;
 
 	switch (offset)
 	{
 		case 0x00:	/* IRQ1 */
-			cpu_interrupt_enable(space->machine().device("maincpu"), bit);
+			cpu_interrupt_enable(space->machine->device("maincpu"), bit);
 			if (!bit)
-				cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
+				cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
 			break;
 
 		case 0x01:	/* IRQ2 */
-			cpu_interrupt_enable(space->machine().device("sub"), bit);
+			cpu_interrupt_enable(space->machine->device("sub"), bit);
 			if (!bit)
-				cputag_set_input_line(space->machine(), "sub", 0, CLEAR_LINE);
+				cputag_set_input_line(space->machine, "sub", 0, CLEAR_LINE);
 			break;
 
 		case 0x02:	/* NMION */
-			cpu_interrupt_enable(space->machine().device("sub2"), !bit);
+			cpu_interrupt_enable(space->machine->device("sub2"), !bit);
 			break;
 
 		case 0x03:	/* RESET */
-			cputag_set_input_line(space->machine(), "sub", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
-			cputag_set_input_line(space->machine(), "sub2", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
+			cputag_set_input_line(space->machine, "sub", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
+			cputag_set_input_line(space->machine, "sub2", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
 			break;
 
 		case 0x04:	/* n.c. */
 			break;
 
 		case 0x05:	/* MOD 0 (xevious: n.c.) */
-			state->m_custom_mod = (state->m_custom_mod & ~0x01) | (bit << 0);
+			custom_mod = (custom_mod & ~0x01) | (bit << 0);
 			break;
 
 		case 0x06:	/* MOD 1 (xevious: n.c.) */
-			state->m_custom_mod = (state->m_custom_mod & ~0x02) | (bit << 1);
+			custom_mod = (custom_mod & ~0x02) | (bit << 1);
 			break;
 
 		case 0x07:	/* MOD 2 (xevious: n.c.) */
-			state->m_custom_mod = (state->m_custom_mod & ~0x04) | (bit << 2);
+			custom_mod = (custom_mod & ~0x04) | (bit << 2);
 			break;
 	}
 }
 
-static CUSTOM_INPUT( shifted_port_r ) { return input_port_read(field.machine(), (const char *)param) >> 4; }
+static CUSTOM_INPUT( shifted_port_r ) { return input_port_read(field->port->machine, (const char *)param) >> 4; }
 
 static WRITE8_DEVICE_HANDLER( out_0 )
 {
-	set_led_status(device->machine(), 1,data & 1);
-	set_led_status(device->machine(), 0,data & 2);
-	coin_counter_w(device->machine(), 1,~data & 4);
-	coin_counter_w(device->machine(), 0,~data & 8);
+	set_led_status(device->machine, 1,data & 1);
+	set_led_status(device->machine, 0,data & 2);
+	coin_counter_w(device->machine, 1,~data & 4);
+	coin_counter_w(device->machine, 0,~data & 8);
 }
 
 static WRITE8_DEVICE_HANDLER( out_1 )
 {
-	coin_lockout_global_w(device->machine(), data & 1);
+	coin_lockout_global_w(device->machine, data & 1);
 }
 
 static const namco_51xx_interface namco_51xx_intf =
@@ -811,7 +814,7 @@ static const namco_51xx_interface namco_51xx_intf =
 
 static READ8_DEVICE_HANDLER( namco_52xx_rom_r )
 {
-	UINT32 length = device->machine().region("52xx")->bytes();
+	UINT32 length = memory_region_length(device->machine, "52xx");
 //printf("ROM read %04X\n", offset);
 	if (!(offset & 0x1000))
 		offset = (offset & 0xfff) | 0x0000;
@@ -821,7 +824,7 @@ static READ8_DEVICE_HANDLER( namco_52xx_rom_r )
 		offset = (offset & 0xfff) | 0x2000;
 	else if (!(offset & 0x8000))
 		offset = (offset & 0xfff) | 0x3000;
-	return (offset < length) ? device->machine().region("52xx")->base()[offset] : 0xff;
+	return (offset < length) ? memory_region(device->machine, "52xx")[offset] : 0xff;
 }
 
 static READ8_DEVICE_HANDLER( namco_52xx_si_r )
@@ -842,9 +845,8 @@ static const namco_52xx_interface namco_52xx_intf =
 
 static READ8_DEVICE_HANDLER( custom_mod_r )
 {
-	galaga_state *state = device->machine().driver_data<galaga_state>();
 	/* MOD0-2 is connected to K1-3; K0 is left unconnected */
-	return state->m_custom_mod << 1;
+	return custom_mod << 1;
 }
 
 static const namco_53xx_interface namco_53xx_intf =
@@ -862,33 +864,30 @@ static const namco_53xx_interface namco_53xx_intf =
 
 static TIMER_CALLBACK( cpu3_interrupt_callback )
 {
-	galaga_state *state = machine.driver_data<galaga_state>();
 	int scanline = param;
 
-	nmi_line_pulse(machine.device("sub2"));
+	nmi_line_pulse(machine->device("sub2"));
 
 	scanline = scanline + 128;
 	if (scanline >= 272)
 		scanline = 64;
 
 	/* the vertical synch chain is clocked by H256 -- this is probably not important, but oh well */
-	state->m_cpu3_interrupt_timer->adjust(machine.primary_screen->time_until_pos(scanline), scanline);
+	timer_adjust_oneshot(cpu3_interrupt_timer, machine->primary_screen->time_until_pos(scanline), scanline);
 }
 
 
 static MACHINE_START( galaga )
 {
-	galaga_state *state = machine.driver_data<galaga_state>();
-
 	/* create the interrupt timer */
-	state->m_cpu3_interrupt_timer = machine.scheduler().timer_alloc(FUNC(cpu3_interrupt_callback));
-	state->m_custom_mod = 0;
-	state_save_register_global(machine, state->m_custom_mod);
+	cpu3_interrupt_timer = timer_alloc(machine, cpu3_interrupt_callback, NULL);
+	custom_mod = 0;
+	state_save_register_global(machine, custom_mod);
 }
 
-static void bosco_latch_reset(running_machine &machine)
+static void bosco_latch_reset(running_machine *machine)
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	int i;
 
 	/* Reset all latches */
@@ -898,12 +897,10 @@ static void bosco_latch_reset(running_machine &machine)
 
 static MACHINE_RESET( galaga )
 {
-	galaga_state *state = machine.driver_data<galaga_state>();
-
 	/* Reset all latches */
 	bosco_latch_reset(machine);
 
-	state->m_cpu3_interrupt_timer->adjust(machine.primary_screen->time_until_pos(64), 64);
+	timer_adjust_oneshot(cpu3_interrupt_timer, machine->primary_screen->time_until_pos(64), 64);
 }
 
 static MACHINE_RESET( battles )
@@ -914,78 +911,78 @@ static MACHINE_RESET( battles )
 
 
 /* the same memory map is used by all three CPUs; all RAM areas are shared */
-static ADDRESS_MAP_START( bosco_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bosco_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM AM_WRITENOP			/* the only area different for each CPU */
 	AM_RANGE(0x6800, 0x6807) AM_READ(bosco_dsw_r)
-	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w)
+	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w) AM_BASE(&namco_soundregs)
 	AM_RANGE(0x6820, 0x6827) AM_WRITE(bosco_latch_w)						/* misc latches */
 	AM_RANGE(0x6830, 0x6830) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0x7000, 0x70ff) AM_DEVREADWRITE("06xx_0", namco_06xx_data_r, namco_06xx_data_w)
 	AM_RANGE(0x7100, 0x7100) AM_DEVREADWRITE("06xx_0", namco_06xx_ctrl_r, namco_06xx_ctrl_w)
 	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_SHARE("share1")
-	AM_RANGE(0x8000, 0x8fff) AM_RAM_WRITE(bosco_videoram_w) AM_BASE_MEMBER(bosco_state, m_videoram) AM_SHARE("bvr")	/* + sprite registers */
+	AM_RANGE(0x8000, 0x8fff) AM_RAM_WRITE(bosco_videoram_w) AM_BASE_MEMBER(_galaga_state, videoram) AM_SHARE("bvr")	/* + sprite registers */
 	AM_RANGE(0x9000, 0x90ff) AM_DEVREADWRITE("06xx_1", namco_06xx_data_r, namco_06xx_data_w)
 	AM_RANGE(0x9100, 0x9100) AM_DEVREADWRITE("06xx_1", namco_06xx_ctrl_r, namco_06xx_ctrl_w)
-	AM_RANGE(0x9800, 0x980f) AM_WRITEONLY AM_SHARE("share2") AM_BASE_MEMBER(bosco_state, m_bosco_radarattr)
+	AM_RANGE(0x9800, 0x980f) AM_WRITEONLY AM_SHARE("share2") AM_BASE_MEMBER(_galaga_state, bosco_radarattr)
 	AM_RANGE(0x9810, 0x9810) AM_WRITE(bosco_scrollx_w)
 	AM_RANGE(0x9820, 0x9820) AM_WRITE(bosco_scrolly_w)
-	AM_RANGE(0x9830, 0x9830) AM_WRITEONLY AM_BASE_MEMBER(bosco_state, m_bosco_starcontrol) AM_SHARE("bsc")
+	AM_RANGE(0x9830, 0x9830) AM_WRITEONLY AM_BASE_MEMBER(_galaga_state, bosco_starcontrol) AM_SHARE("bsc")
 	AM_RANGE(0x9840, 0x9840) AM_WRITE(bosco_starclr_w)
 	AM_RANGE(0x9870, 0x9870) AM_WRITE(bosco_flip_screen_w)
-	AM_RANGE(0x9874, 0x9875) AM_WRITEONLY AM_BASE_MEMBER(bosco_state, m_bosco_starblink) AM_SHARE("bsb")
+	AM_RANGE(0x9874, 0x9875) AM_WRITEONLY AM_BASE_MEMBER(_galaga_state, bosco_starblink) AM_SHARE("bsb")
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( galaga_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( galaga_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM AM_WRITENOP			/* the only area different for each CPU */
 	AM_RANGE(0x6800, 0x6807) AM_READ(bosco_dsw_r)
-	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w)
+	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w) AM_BASE(&namco_soundregs)
 	AM_RANGE(0x6820, 0x6827) AM_WRITE(bosco_latch_w)						/* misc latches */
 	AM_RANGE(0x6830, 0x6830) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0x7000, 0x70ff) AM_DEVREADWRITE("06xx", namco_06xx_data_r, namco_06xx_data_w)
 	AM_RANGE(0x7100, 0x7100) AM_DEVREADWRITE("06xx", namco_06xx_ctrl_r, namco_06xx_ctrl_w)
-	AM_RANGE(0x8000, 0x87ff) AM_RAM_WRITE(galaga_videoram_w) AM_BASE_MEMBER(galaga_state, m_videoram) AM_SHARE("gvr")
-	AM_RANGE(0x8800, 0x8bff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(galaga_state, m_galaga_ram1)
-	AM_RANGE(0x9000, 0x93ff) AM_RAM AM_SHARE("share2") AM_BASE_MEMBER(galaga_state, m_galaga_ram2)
-	AM_RANGE(0x9800, 0x9bff) AM_RAM AM_SHARE("share3") AM_BASE_MEMBER(galaga_state, m_galaga_ram3)
-	AM_RANGE(0xa000, 0xa005) AM_WRITEONLY AM_BASE_MEMBER(galaga_state, m_galaga_starcontrol) AM_SHARE("gsc")
+	AM_RANGE(0x8000, 0x87ff) AM_RAM_WRITE(galaga_videoram_w) AM_BASE_MEMBER(_galaga_state, videoram) AM_SHARE("gvr")
+	AM_RANGE(0x8800, 0x8bff) AM_RAM AM_SHARE("share1") AM_BASE_MEMBER(_galaga_state, galaga_ram1)
+	AM_RANGE(0x9000, 0x93ff) AM_RAM AM_SHARE("share2") AM_BASE_MEMBER(_galaga_state, galaga_ram2)
+	AM_RANGE(0x9800, 0x9bff) AM_RAM AM_SHARE("share3") AM_BASE_MEMBER(_galaga_state, galaga_ram3)
+	AM_RANGE(0xa000, 0xa005) AM_WRITEONLY AM_BASE_MEMBER(_galaga_state, galaga_starcontrol) AM_SHARE("gsc")
 	AM_RANGE(0xa007, 0xa007) AM_WRITE(galaga_flip_screen_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( xevious_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( xevious_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM AM_WRITENOP			/* the only area different for each CPU */
 	AM_RANGE(0x6800, 0x6807) AM_READ(bosco_dsw_r)
-	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w)
+	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w) AM_BASE(&namco_soundregs)
 	AM_RANGE(0x6820, 0x6827) AM_WRITE(bosco_latch_w)	/* misc latches */
 	AM_RANGE(0x6830, 0x6830) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0x7000, 0x70ff) AM_DEVREADWRITE("06xx", namco_06xx_data_r, namco_06xx_data_w)
 	AM_RANGE(0x7100, 0x7100) AM_DEVREADWRITE("06xx", namco_06xx_ctrl_r, namco_06xx_ctrl_w)
 	AM_RANGE(0x7800, 0x7fff) AM_RAM AM_SHARE("share1")							/* work RAM */
-	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_SHARE("share2") AM_BASE_MEMBER(xevious_state, m_xevious_sr1)	/* work RAM + sprite registers */
-	AM_RANGE(0x9000, 0x97ff) AM_RAM AM_SHARE("share3") AM_BASE_MEMBER(xevious_state, m_xevious_sr2)	/* work RAM + sprite registers */
-	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_SHARE("share4") AM_BASE_MEMBER(xevious_state, m_xevious_sr3)	/* work RAM + sprite registers */
-	AM_RANGE(0xb000, 0xb7ff) AM_RAM_WRITE(xevious_fg_colorram_w) AM_BASE_MEMBER(xevious_state, m_xevious_fg_colorram) AM_SHARE("fgc")
-	AM_RANGE(0xb800, 0xbfff) AM_RAM_WRITE(xevious_bg_colorram_w) AM_BASE_MEMBER(xevious_state, m_xevious_bg_colorram) AM_SHARE("bgc")
-	AM_RANGE(0xc000, 0xc7ff) AM_RAM_WRITE(xevious_fg_videoram_w) AM_BASE_MEMBER(xevious_state, m_xevious_fg_videoram) AM_SHARE("fgv")
-	AM_RANGE(0xc800, 0xcfff) AM_RAM_WRITE(xevious_bg_videoram_w) AM_BASE_MEMBER(xevious_state, m_xevious_bg_videoram) AM_SHARE("bgv")
+	AM_RANGE(0x8000, 0x87ff) AM_RAM AM_SHARE("share2") AM_BASE_MEMBER(_galaga_state, xevious_sr1)	/* work RAM + sprite registers */
+	AM_RANGE(0x9000, 0x97ff) AM_RAM AM_SHARE("share3") AM_BASE_MEMBER(_galaga_state, xevious_sr2)	/* work RAM + sprite registers */
+	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_SHARE("share4") AM_BASE_MEMBER(_galaga_state, xevious_sr3)	/* work RAM + sprite registers */
+	AM_RANGE(0xb000, 0xb7ff) AM_RAM_WRITE(xevious_fg_colorram_w) AM_BASE_MEMBER(_galaga_state, xevious_fg_colorram) AM_SHARE("fgc")
+	AM_RANGE(0xb800, 0xbfff) AM_RAM_WRITE(xevious_bg_colorram_w) AM_BASE_MEMBER(_galaga_state, xevious_bg_colorram) AM_SHARE("bgc")
+	AM_RANGE(0xc000, 0xc7ff) AM_RAM_WRITE(xevious_fg_videoram_w) AM_BASE_MEMBER(_galaga_state, xevious_fg_videoram) AM_SHARE("fgv")
+	AM_RANGE(0xc800, 0xcfff) AM_RAM_WRITE(xevious_bg_videoram_w) AM_BASE_MEMBER(_galaga_state, xevious_bg_videoram) AM_SHARE("bgv")
 	AM_RANGE(0xd000, 0xd07f) AM_WRITE(xevious_vh_latch_w)
 	AM_RANGE(0xf000, 0xffff) AM_READWRITE(xevious_bb_r, xevious_bs_w)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( digdug_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( digdug_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM AM_WRITENOP			/* the only area different for each CPU */
-	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w)
+	AM_RANGE(0x6800, 0x681f) AM_DEVWRITE("namco", pacman_sound_w) AM_BASE(&namco_soundregs)
 	AM_RANGE(0x6820, 0x6827) AM_WRITE(bosco_latch_w)						/* misc latches */
 	AM_RANGE(0x6830, 0x6830) AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0x7000, 0x70ff) AM_DEVREADWRITE("06xx", namco_06xx_data_r, namco_06xx_data_w)
 	AM_RANGE(0x7100, 0x7100) AM_DEVREADWRITE("06xx", namco_06xx_ctrl_r, namco_06xx_ctrl_w)
-	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(digdug_videoram_w) AM_BASE_MEMBER(digdug_state, m_videoram)	AM_SHARE("dvr")/* tilemap RAM (bottom half of RAM 0 */
+	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(digdug_videoram_w) AM_BASE_MEMBER(_galaga_state, videoram)	AM_SHARE("dvr")/* tilemap RAM (bottom half of RAM 0 */
 	AM_RANGE(0x8400, 0x87ff) AM_RAM AM_SHARE("share1")							/* work RAM (top half for RAM 0 */
-	AM_RANGE(0x8800, 0x8bff) AM_RAM AM_SHARE("share2") AM_BASE_MEMBER(digdug_state, m_digdug_objram)	/* work RAM + sprite registers */
-	AM_RANGE(0x9000, 0x93ff) AM_RAM AM_SHARE("share3") AM_BASE_MEMBER(digdug_state, m_digdug_posram)	/* work RAM + sprite registers */
-	AM_RANGE(0x9800, 0x9bff) AM_RAM AM_SHARE("share4") AM_BASE_MEMBER(digdug_state, m_digdug_flpram)	/* work RAM + sprite registers */
+	AM_RANGE(0x8800, 0x8bff) AM_RAM AM_SHARE("share2") AM_BASE_MEMBER(_galaga_state, digdug_objram)	/* work RAM + sprite registers */
+	AM_RANGE(0x9000, 0x93ff) AM_RAM AM_SHARE("share3") AM_BASE_MEMBER(_galaga_state, digdug_posram)	/* work RAM + sprite registers */
+	AM_RANGE(0x9800, 0x9bff) AM_RAM AM_SHARE("share4") AM_BASE_MEMBER(_galaga_state, digdug_flpram)	/* work RAM + sprite registers */
 	AM_RANGE(0xa000, 0xa007) AM_READNOP AM_WRITE(digdug_PORT_w)		/* video latches (spurious reads when setting latch bits) */
 	AM_RANGE(0xb800, 0xb83f) AM_DEVREADWRITE("earom", atari_vg_earom_r, atari_vg_earom_w)	/* non volatile memory data */
 	AM_RANGE(0xb840, 0xb840) AM_DEVWRITE("earom", atari_vg_earom_ctrl_w)					/* non volatile memory control */
@@ -994,12 +991,12 @@ ADDRESS_MAP_END
 
 
 /* bootleg 4th CPU replacing the 5xXX chips */
-static ADDRESS_MAP_START( galaga_mem4, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( galaga_mem4, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x1000, 0x107f) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( battles_mem4, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( battles_mem4, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x4000, 0x4003) AM_READ(battles_input_port_r)
 	AM_RANGE(0x4001, 0x4001) AM_WRITE(battles_CPU4_coin_w)
@@ -1009,7 +1006,7 @@ static ADDRESS_MAP_START( battles_mem4, AS_PROGRAM, 8 )
 	AM_RANGE(0x8000, 0x80ff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( dzigzag_mem4, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dzigzag_mem4, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 	AM_RANGE(0x1000, 0x107f) AM_RAM
 	AM_RANGE(0x4000, 0x4007) AM_READONLY	// dip switches? bits 0 & 1 used
@@ -1042,28 +1039,30 @@ static INPUT_PORTS_START( bosco )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_COCKTAIL
 
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SWB:1,2")
+	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW1:1,2")
 	PORT_DIPSETTING(    0x01, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Hardest ) )
 	PORT_DIPSETTING(    0x00, "Auto" )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Allow_Continue ) )   PORT_DIPLOCATION("SWB:3")
-	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( Yes ) ) // factory default = "Yes"
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) )      PORT_DIPLOCATION("SWB:4")
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW1:3")
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:4")
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x10, "Freeze" )                    PORT_DIPLOCATION("SWB:5")
+	PORT_DIPNAME( 0x10, 0x10, "Freeze" )			PORT_DIPLOCATION("SW1:5")
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x20, IP_ACTIVE_LOW, "SWB:6" ) /* Listed as "Unused" */
-	PORT_DIPUNUSED_DIPLOC( 0x40, IP_ACTIVE_LOW, "SWB:7" ) /* Listed as "Unused" */
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Cabinet ) )          PORT_DIPLOCATION("SWB:8")
+	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW1:6")
+	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Yes ) )
+	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW1:7" )		/* Listed as "Unused" */
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
 
 	PORT_START("DSWB")
-	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coinage ) )      PORT_DIPLOCATION("SWA:1,2,3")
+	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW2:1,2,3")
 	PORT_DIPSETTING(    0x01, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 2C_1C ) )
@@ -1072,17 +1071,17 @@ static INPUT_PORTS_START( bosco )
 	PORT_DIPSETTING(    0x06, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x05, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Free_Play ) )
-	/* bonus scores are different for 5 lives */
-	PORT_DIPNAME( 0x38, 0x20, "Bonus Fighter" )         PORT_DIPLOCATION("SWA:4,5,6")
-	PORT_DIPSETTING(    0x30, "15K and 50K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0) /* Began with 1, 2 or 3 fighters */
+	/* TODO: bonus scores are different for 5 lives */
+	PORT_DIPNAME( 0x38, 0x08, "Bonus Fighter" )		PORT_DIPLOCATION("SW2:4,5,6")
+	PORT_DIPSETTING(    0x30, "15K and 50K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)	/* Began with 1, 2 or 3 fighters */
 	PORT_DIPSETTING(    0x38, "20K and 70K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x08, "10K, 50K, Every 50K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x10, "15K, 50K, Every 50K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x18, "15K, 70K, Every 70K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x20, "20K, 70K, Every 70K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0) // factory default = "20K, 70K, Every70K"
+	PORT_DIPSETTING(    0x20, "20K, 70K, Every 70K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x28, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x30, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0) /* Began with 5 fighters */
+	PORT_DIPSETTING(    0x30, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)		/* Began with 5 fighters */
 	PORT_DIPSETTING(    0x38, "30K, 120K, Every 120K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x08, "15K and 70K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x10, "20K and 70K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
@@ -1090,10 +1089,10 @@ static INPUT_PORTS_START( bosco )
 	PORT_DIPSETTING(    0x20, "30K and 120K Only" )     PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x28, "30K, 80K, Every 80K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPNAME( 0xc0, 0x80, DEF_STR( Lives ) )        PORT_DIPLOCATION("SWA:7,8")
+	PORT_DIPNAME( 0xc0, 0x80, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:7,8")
 	PORT_DIPSETTING(    0x00, "1" )
 	PORT_DIPSETTING(    0x40, "2" )
-	PORT_DIPSETTING(    0x80, "3" ) // factory default = "3"
+	PORT_DIPSETTING(    0x80, "3" )
 	PORT_DIPSETTING(    0xc0, "5" )
 INPUT_PORTS_END
 
@@ -1101,21 +1100,21 @@ static INPUT_PORTS_START( boscomd )
 	PORT_INCLUDE( bosco )
 
 	PORT_MODIFY("DSWA")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits Game" )            PORT_DIPLOCATION("SWB:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits Game" )		PORT_DIPLOCATION("SW1:1")
 	PORT_DIPSETTING(    0x00, "1 Player" )
 	PORT_DIPSETTING(    0x01, "2 Players" )
-	PORT_DIPNAME( 0x06, 0x06, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SWB:2,3")
+	PORT_DIPNAME( 0x06, 0x06, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW1:2,3")
 	PORT_DIPSETTING(    0x02, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x06, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( Hardest ) )
 	PORT_DIPSETTING(    0x00, "Auto" )
-	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Allow_Continue ) )   PORT_DIPLOCATION("SWB:4")
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW1:4")
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0x10, 0x00, DEF_STR( Demo_Sounds ) )      PORT_DIPLOCATION("SWB:5")
+	PORT_DIPNAME( 0x10, 0x00, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:5")
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, "Freeze" )                    PORT_DIPLOCATION("SWB:6")
+	PORT_DIPNAME( 0x20, 0x20, "Freeze" )			PORT_DIPLOCATION("SW1:6")
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
@@ -1147,28 +1146,28 @@ static INPUT_PORTS_START( galaga )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_2WAY PORT_COCKTAIL
 
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )   PORT_DIPLOCATION("SWB:1,2")
+	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW1:1,2")
 	PORT_DIPSETTING(    0x03, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Hardest ) )
-	PORT_DIPUNUSED_DIPLOC( 0x04, IP_ACTIVE_LOW, "SWB:3" ) /* Listed as "Unused" */
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) )  PORT_DIPLOCATION("SWB:4")
+	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW1:3" )		/* Listed as "Unused" */
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:4")
 	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x10, "Freeze" )                PORT_DIPLOCATION("SWB:5")
+	PORT_DIPNAME( 0x10, 0x10, "Freeze" )			PORT_DIPLOCATION("SW1:5")
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x20, 0x20, "Rack Test" )             PORT_DIPLOCATION("SWB:6")
+	PORT_DIPNAME( 0x20, 0x20, "Rack Test" )			PORT_DIPLOCATION("SW1:6")
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x40, IP_ACTIVE_LOW, "SWB:7" ) /* Listed as "Unused" */
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Cabinet ) )      PORT_DIPLOCATION("SWB:8")
+	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW1:7" )		/* Listed as "Unused" */
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
 
 	PORT_START("DSWB")
-	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coinage ) )      PORT_DIPLOCATION("SWA:1,2,3")
+	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW2:1,2,3")
 	PORT_DIPSETTING(    0x04, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x06, DEF_STR( 2C_1C ) )
@@ -1177,16 +1176,16 @@ static INPUT_PORTS_START( galaga )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x05, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Free_Play ) )
-	PORT_DIPNAME( 0x38, 0x10, DEF_STR( Bonus_Life ) )   PORT_DIPLOCATION("SWA:4,5,6")
-	PORT_DIPSETTING(    0x20, "20K, 60K, Every 60K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0) /* Began with 2, 3 or 4 fighters */
+	PORT_DIPNAME( 0x38, 0x10, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW2:4,5,6")
+	PORT_DIPSETTING(    0x20, "20K, 60K, Every 60K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)	/* Began with 2, 3 or 4 fighters */
 	PORT_DIPSETTING(    0x18, "20K and 60K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x10, "20K, 70K, Every 70K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0) // factory default = "20K, 70K, Every70K"
+	PORT_DIPSETTING(    0x10, "20K, 70K, Every 70K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x30, "20K, 80K, Every 80K" )   PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x38, "30K and 80K Only" )      PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x08, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x28, "30K, 120K, Every 120K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWB",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x20, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0) /* Began with 5 fighters */
+	PORT_DIPSETTING(    0x20, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)		/* Began with 5 fighters */
 	PORT_DIPSETTING(    0x18, "30K and 150K Only" )     PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x10, "30K, 120K, Every 120K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x30, "30K, 150K, Every 150K" ) PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
@@ -1194,9 +1193,9 @@ static INPUT_PORTS_START( galaga )
 	PORT_DIPSETTING(    0x08, "30K and 100K Only" )     PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x28, "30K and 120K Only" )     PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWB",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPNAME( 0xc0, 0x80, DEF_STR( Lives ) )        PORT_DIPLOCATION("SWA:7,8")
+	PORT_DIPNAME( 0xc0, 0x80, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:7,8")
 	PORT_DIPSETTING(    0x00, "2" )
-	PORT_DIPSETTING(    0x80, "3" ) // factory default = "3"
+	PORT_DIPSETTING(    0x80, "3" )
 	PORT_DIPSETTING(    0x40, "4" )
 	PORT_DIPSETTING(    0xc0, "5" )
 INPUT_PORTS_END
@@ -1205,10 +1204,10 @@ static INPUT_PORTS_START( galagamw )
 	PORT_INCLUDE( galaga )
 
 	PORT_MODIFY("DSWA")
-	PORT_DIPNAME( 0x01, 0x01, "2 Credits Game" )        PORT_DIPLOCATION("SWB:1")
+	PORT_DIPNAME( 0x01, 0x01, "2 Credits Game" )		PORT_DIPLOCATION("SW1:1")
 	PORT_DIPSETTING(    0x00, "1 Player" )
 	PORT_DIPSETTING(    0x01, "2 Players" )
-	PORT_DIPNAME( 0x06, 0x06, DEF_STR( Difficulty ) )   PORT_DIPLOCATION("SWB:2,3")
+	PORT_DIPNAME( 0x06, 0x06, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW1:2,3")
 	PORT_DIPSETTING(    0x06, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Hard ) )
@@ -1259,16 +1258,16 @@ static INPUT_PORTS_START( xevious )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_COCKTAIL
 
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Coin_A ) )       PORT_DIPLOCATION("SWA:1,2")
+	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Coin_A ) )	PORT_DIPLOCATION("SW1:1,2")
 	PORT_DIPSETTING(    0x01, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 2C_3C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_2C ) )
-	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Bonus_Life ) )   PORT_DIPLOCATION("SWA:3,4,5")
+	PORT_DIPNAME( 0x1c, 0x1c, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW1:3,4,5")
 	PORT_DIPSETTING(    0x18, "10K, 40K, Every 40K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
 	PORT_DIPSETTING(    0x14, "10K, 50K, Every 50K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
 	PORT_DIPSETTING(    0x10, "20K, 50K, Every 50K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
-	PORT_DIPSETTING(    0x1c, "20K, 60K, Every 60K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00) // factory default = "20K, 60K, Every60K"
+	PORT_DIPSETTING(    0x1c, "20K, 60K, Every 60K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
 	PORT_DIPSETTING(    0x0c, "20K, 70K, Every 70K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
 	PORT_DIPSETTING(    0x08, "20K, 80K, Every 80K" )   PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
 	PORT_DIPSETTING(    0x04, "20K and 60K Only" )      PORT_CONDITION("DSWA",0x60,PORTCOND_NOTEQUALS,0x00)
@@ -1281,32 +1280,32 @@ static INPUT_PORTS_START( xevious )
 	PORT_DIPSETTING(    0x08, "30K, 100K, Every 100K" ) PORT_CONDITION("DSWA",0x60,PORTCOND_EQUALS,0x00)
 	PORT_DIPSETTING(    0x04, "20K and 80K Only" )      PORT_CONDITION("DSWA",0x60,PORTCOND_EQUALS,0x00)
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWA",0x60,PORTCOND_EQUALS,0x00)
-	PORT_DIPNAME( 0x60, 0x60, DEF_STR( Lives ) )        PORT_DIPLOCATION("SWA:6,7")
+	PORT_DIPNAME( 0x60, 0x60, DEF_STR( Lives ) )	PORT_DIPLOCATION("SW1:6,7")
 	PORT_DIPSETTING(    0x40, "1" )
 	PORT_DIPSETTING(    0x20, "2" )
-	PORT_DIPSETTING(    0x60, "3" ) // factory default = "3"
+	PORT_DIPSETTING(    0x60, "3" )
 	PORT_DIPSETTING(    0x00, "5" )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Cabinet ) )      PORT_DIPLOCATION("SWA:8")
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Cabinet ) )	PORT_DIPLOCATION("SW1:8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
 
 	PORT_START("DSWB")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON2 )
-	PORT_DIPNAME( 0x02, 0x02, "Flags Award Bonus Life" )    PORT_DIPLOCATION("SWB:2")
+	PORT_DIPNAME( 0x02, 0x02, "Flags Award Bonus Life" )	PORT_DIPLOCATION("SW2:2")
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Coin_B ) )           PORT_DIPLOCATION("SWB:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Coin_B ) )		PORT_DIPLOCATION("SW2:3,4")
 	PORT_DIPSETTING(    0x04, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 2C_3C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_2C ) )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_COCKTAIL
-	PORT_DIPNAME( 0x60, 0x60, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SWB:6,7")
+	PORT_DIPNAME( 0x60, 0x60, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW2:6,7")
 	PORT_DIPSETTING(    0x40, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x60, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
-	PORT_DIPNAME( 0x80, 0x80, "Freeze" )                    PORT_DIPLOCATION("SWB:8")
+	PORT_DIPNAME( 0x80, 0x80, "Freeze" )			PORT_DIPLOCATION("SW2:8")
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
@@ -1316,13 +1315,13 @@ static INPUT_PORTS_START( xeviousa )
 	PORT_INCLUDE( xevious )
 
 	PORT_MODIFY("DSWB")
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Coin_B ) )   PORT_DIPLOCATION("SWB:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Coin_B ) )		PORT_DIPLOCATION("SW2:3,4")
 	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_6C ) )
 	/* when switch is on Namco, high score names are 10 letters long */
-	PORT_DIPNAME( 0x80, 0x80, "Copyright" )         PORT_DIPLOCATION("SWB:8")
+	PORT_DIPNAME( 0x80, 0x80, "Copyright" )			PORT_DIPLOCATION("SW2:8")
 	PORT_DIPSETTING(    0x00, "Namco" )
 	PORT_DIPSETTING(    0x80, "Atari/Namco" )
 INPUT_PORTS_END
@@ -1333,7 +1332,7 @@ static INPUT_PORTS_START( xeviousb )
 
 	PORT_MODIFY("DSWB")
 	/* when switch is on Namco, high score names are 10 letters long */
-	PORT_DIPNAME( 0x80, 0x80, "Copyright" )         PORT_DIPLOCATION("SWB:8")
+	PORT_DIPNAME( 0x80, 0x80, "Copyright" )			PORT_DIPLOCATION("SW2:8")
 	PORT_DIPSETTING(    0x00, "Namco" )
 	PORT_DIPSETTING(    0x80, "Atari/Namco" )
 INPUT_PORTS_END
@@ -1343,12 +1342,12 @@ static INPUT_PORTS_START( sxevious )
 	PORT_INCLUDE( xevious )
 
 	PORT_MODIFY("DSWB")
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Coin_B ) )   PORT_DIPLOCATION("SWB:3,4")
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Coin_B ) )		PORT_DIPLOCATION("SW2:3,4")
 	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_6C ) )
-	PORT_DIPNAME( 0x80, 0x00, "Freeze" )            PORT_DIPLOCATION("SWB:8")
+	PORT_DIPNAME( 0x80, 0x00, "Freeze" )			PORT_DIPLOCATION("SW2:8")
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 INPUT_PORTS_END
@@ -1380,7 +1379,7 @@ static INPUT_PORTS_START( digdug )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_4WAY PORT_COCKTAIL
 
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x07, 0x01, DEF_STR( Coin_B ) )       PORT_DIPLOCATION("SWA:1,2,3")
+	PORT_DIPNAME( 0x07, 0x01, DEF_STR( Coin_B ) )		PORT_DIPLOCATION("SW1:1,2,3")
 	PORT_DIPSETTING(    0x07, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( 1C_1C ) )
@@ -1389,51 +1388,51 @@ static INPUT_PORTS_START( digdug )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_6C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_7C ) )
-	PORT_DIPNAME( 0x38, 0x18, DEF_STR( Bonus_Life ) )   PORT_DIPLOCATION("SWA:4,5,6")
-	PORT_DIPSETTING(    0x20, "10K, 40K, Every 40K" )   PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0) // Atari factory default = "10K, 40K, Every40K"
-	PORT_DIPSETTING(    0x10, "10K, 50K, Every 50K" )   PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x30, "20K, 60K, Every 60K" )   PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x08, "20K, 70K, Every 70K" )   PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x28, "10K and 40K Only" )      PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x18, "20K and 60K Only" )      PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0) // Namco factory default = "20K, 60K"
-	PORT_DIPSETTING(    0x38, "10K Only" )              PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
-	PORT_DIPSETTING(    0x20, "20K, 60K, Every 60K" )   PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x10, "30K, 80K, Every 80K" )   PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x30, "20K and 50K Only" )      PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x08, "20K and 60K Only" )      PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x28, "30K and 70K Only" )      PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x18, "20K Only" )              PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x38, "30K Only" )              PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPSETTING(    0x00, DEF_STR( None ) )         PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
-	PORT_DIPNAME( 0xc0, 0x80, DEF_STR( Lives ) )        PORT_DIPLOCATION("SWA:7,8")
+	PORT_DIPNAME( 0x38, 0x18, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW1:4,5,6")
+	PORT_DIPSETTING(    0x20, "10K, 40K, Every 40K" ) PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x10, "10K, 50K, Every 50K" ) PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x30, "20K, 60K, Every 60K" ) PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x08, "20K, 70K, Every 70K" ) PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x28, "10K and 40K Only" )    PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x18, "20K and 60K Only" )    PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x38, "10K Only" )            PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x00, DEF_STR( None ) )       PORT_CONDITION("DSWA",0xc0,PORTCOND_NOTEQUALS,0xc0)
+	PORT_DIPSETTING(    0x20, "20K, 60K, Every 60K" ) PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x10, "30K, 80K, Every 80K" ) PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x30, "20K and 50K Only" )    PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x08, "20K and 60K Only" )    PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x28, "30K and 70K Only" )    PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x18, "20K Only" )            PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x38, "30K Only" )            PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPSETTING(    0x00, DEF_STR( None ) ) PORT_CONDITION("DSWA",0xc0,PORTCOND_EQUALS,0xc0)
+	PORT_DIPNAME( 0xc0, 0x80, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW1:7,8")
 	PORT_DIPSETTING(    0x00, "1" )
 	PORT_DIPSETTING(    0x40, "2" )
-	PORT_DIPSETTING(    0x80, "3" ) // factory default = "3"
+	PORT_DIPSETTING(    0x80, "3" )
 	PORT_DIPSETTING(    0xc0, "5" )
 
 	PORT_START("DSWA_HI")
 	PORT_BIT( 0x0f, 0x00, IPT_SPECIAL ) PORT_CUSTOM(shifted_port_r, "DSWA")
 
-	PORT_START("DSWB") // reverse order against SWA
-	PORT_DIPNAME( 0xc0, 0x00, DEF_STR( Coin_A ) )           PORT_DIPLOCATION("SWB:1,2")
+	PORT_START("DSWB")
+	PORT_DIPNAME( 0xc0, 0x00, DEF_STR( Coin_A ) )		PORT_DIPLOCATION("SW2:1,2")
 	PORT_DIPSETTING(    0x40, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0xc0, DEF_STR( 2C_3C ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( 1C_2C ) )
-	PORT_DIPNAME( 0x20, 0x20, "Freeze" )                    PORT_DIPLOCATION("SWB:3")
+	PORT_DIPNAME( 0x20, 0x20, "Freeze" )			PORT_DIPLOCATION("SW2:3")
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x10, 0x00, DEF_STR( Demo_Sounds ) )      PORT_DIPLOCATION("SWB:4")
+	PORT_DIPNAME( 0x10, 0x00, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW2:4")
 	PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Allow_Continue ) )   PORT_DIPLOCATION("SWB:5")
-	PORT_DIPSETTING(    0x08, DEF_STR( No ) ) // factory default = "No"
+	PORT_DIPNAME( 0x08, 0x00, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:5")
+	PORT_DIPSETTING(    0x08, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Yes ) )
-	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Cabinet ) )          PORT_DIPLOCATION("SWB:6")
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW2:6")
 	PORT_DIPSETTING(    0x04, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x03, 0x00, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SWB:7,8")
+	PORT_DIPNAME( 0x03, 0x00, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW2:7,8")
 	PORT_DIPSETTING(    0x00, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Medium ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( Hard ) )
@@ -1442,62 +1441,6 @@ static INPUT_PORTS_START( digdug )
 	PORT_START("DSWB_HI")
 	PORT_BIT( 0x0f, 0x00, IPT_SPECIAL ) PORT_CUSTOM(shifted_port_r, "DSWB")
 INPUT_PORTS_END
-
-/*
-static INPUT_PORTS_START( digdugja ) // Namco older?
-    PORT_INCLUDE( digdug )
-
-    PORT_MODIFY("DSWB") // same order as SWA
-    PORT_DIPNAME( 0x03, 0x00, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SWB:2,1")
-    PORT_DIPSETTING(    0x00, DEF_STR( Easy ) )
-    PORT_DIPSETTING(    0x02, DEF_STR( Medium ) )
-    PORT_DIPSETTING(    0x01, DEF_STR( Hard ) )
-    PORT_DIPSETTING(    0x03, DEF_STR( Hardest ) )
-    PORT_DIPNAME( 0x04, 0x00, DEF_STR( Allow_Continue ) )   PORT_DIPLOCATION("SWB:3")
-    PORT_DIPSETTING(    0x04, DEF_STR( No ) ) // Namco factory default = "No"
-    PORT_DIPSETTING(    0x00, DEF_STR( Yes ) )
-    PORT_DIPNAME( 0x08, 0x00, DEF_STR( Demo_Sounds ) )      PORT_DIPLOCATION("SWB:4")
-    PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-    PORT_DIPNAME( 0x10, 0x10, "Freeze" )                    PORT_DIPLOCATION("SWB:5")
-    PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-    PORT_DIPNAME( 0x60, 0x00, DEF_STR( Coin_A ) )           PORT_DIPLOCATION("SWB:7,6")
-    PORT_DIPSETTING(    0x20, DEF_STR( 2C_1C ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
-    PORT_DIPSETTING(    0x60, DEF_STR( 2C_3C ) )
-    PORT_DIPSETTING(    0x40, DEF_STR( 1C_2C ) )
-    PORT_DIPUNUSED_DIPLOC( 0x80, IP_ACTIVE_LOW, "SWB:8" )
-INPUT_PORTS_END
-
-static INPUT_PORTS_START( digdugus ) // Atari older?
-    PORT_INCLUDE( digdug )
-
-    PORT_MODIFY("DSWB") // reverse order against SWA
-    PORT_DIPNAME( 0xc0, 0x00, DEF_STR( Coin_A ) )           PORT_DIPLOCATION("SWB:1,2")
-    PORT_DIPSETTING(    0x40, DEF_STR( 2C_1C ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
-    PORT_DIPSETTING(    0xc0, DEF_STR( 2C_3C ) )
-    PORT_DIPSETTING(    0x80, DEF_STR( 1C_2C ) )
-    PORT_DIPNAME( 0x20, 0x20, "Freeze" )                    PORT_DIPLOCATION("SWB:3")
-    PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-    PORT_DIPNAME( 0x10, 0x00, DEF_STR( Demo_Sounds ) )      PORT_DIPLOCATION("SWB:4")
-    PORT_DIPSETTING(    0x10, DEF_STR( Off ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-    PORT_DIPNAME( 0x08, 0x00, DEF_STR( Allow_Continue ) )   PORT_DIPLOCATION("SWB:5")
-    PORT_DIPSETTING(    0x08, DEF_STR( No ) )
-    PORT_DIPSETTING(    0x00, DEF_STR( Yes ) ) // Atari factory default = "Yes"
-    PORT_DIPNAME( 0x06, 0x00, DEF_STR( Difficulty ) )       PORT_DIPLOCATION("SWB:6,7")
-    PORT_DIPSETTING(    0x00, DEF_STR( Easy ) )
-    PORT_DIPSETTING(    0x04, DEF_STR( Medium ) )
-    PORT_DIPSETTING(    0x02, DEF_STR( Hard ) )
-    PORT_DIPSETTING(    0x06, DEF_STR( Hardest ) )
-    PORT_DIPNAME( 0x01, 0x01, "Number Of Coin Counter(s)" ) PORT_DIPLOCATION("SWB:8")
-    PORT_DIPSETTING(    0x01, "Two Coin Counters" )
-    PORT_DIPSETTING(    0x00, "One Coin Counter" )
-INPUT_PORTS_END
-*/
 
 
 
@@ -1638,266 +1581,277 @@ static const samples_interface battles_samples_interface =
 
 
 
-static MACHINE_CONFIG_START( bosco, bosco_state )
+static MACHINE_DRIVER_START( bosco )
+
+	MDRV_DRIVER_DATA(_galaga_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(bosco_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(bosco_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(bosco_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("sub", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(bosco_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(bosco_map)
+	MDRV_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(bosco_map)
 
-	MCFG_NAMCO_50XX_ADD("50xx_1", MASTER_CLOCK/6/2)	/* 1.536 MHz */
-	MCFG_NAMCO_50XX_ADD("50xx_2", MASTER_CLOCK/6/2)	/* 1.536 MHz */
-	MCFG_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_52XX_ADD("52xx", MASTER_CLOCK/6/2, namco_52xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/6/2, "discrete", NODE_01)	/* 1.536 MHz */
+	MDRV_NAMCO_50XX_ADD("50xx_1", MASTER_CLOCK/6/2)	/* 1.536 MHz */
+	MDRV_NAMCO_50XX_ADD("50xx_2", MASTER_CLOCK/6/2)	/* 1.536 MHz */
+	MDRV_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_52XX_ADD("52xx", MASTER_CLOCK/6/2, namco_52xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/6/2, "discrete", NODE_01)	/* 1.536 MHz */
 
-	MCFG_NAMCO_06XX_ADD("06xx_0", MASTER_CLOCK/6/64, "maincpu", "51xx",   NULL,   "50xx_1", "54xx")
-	MCFG_NAMCO_06XX_ADD("06xx_1", MASTER_CLOCK/6/64, "sub",     "50xx_2", "52xx", NULL,     NULL)
+	MDRV_NAMCO_06XX_ADD("06xx_0", MASTER_CLOCK/6/64, "maincpu", "51xx",   NULL,   "50xx_1", "54xx")
+	MDRV_NAMCO_06XX_ADD("06xx_1", MASTER_CLOCK/6/64, "sub",     "50xx_2", "52xx", NULL,     NULL)
 
-	MCFG_WATCHDOG_VBLANK_INIT(8)
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
+	MDRV_WATCHDOG_VBLANK_INIT(8)
+	MDRV_QUANTUM_TIME(HZ(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
 							/* synchronization of the CPUs */
-	MCFG_MACHINE_START(galaga)
-	MCFG_MACHINE_RESET(galaga)
+	MDRV_MACHINE_START(galaga)
+	MDRV_MACHINE_RESET(galaga)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 16, 224+16)
-	MCFG_SCREEN_UPDATE(bosco)
-	MCFG_SCREEN_EOF(bosco)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 16, 224+16)
 
-	MCFG_GFXDECODE(bosco)
-	MCFG_PALETTE_LENGTH(64*4+64*4+4+64)
+	MDRV_GFXDECODE(bosco)
+	MDRV_PALETTE_LENGTH(64*4+64*4+4+64)
 
-	MCFG_PALETTE_INIT(bosco)
-	MCFG_VIDEO_START(bosco)
+	MDRV_PALETTE_INIT(bosco)
+	MDRV_VIDEO_START(bosco)
+	MDRV_VIDEO_UPDATE(bosco)
+	MDRV_VIDEO_EOF(bosco)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
+	MDRV_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
 
 	/* discrete circuit on the 54XX outputs */
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(bosco)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(bosco)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( galaga, galaga_state )
+static MACHINE_DRIVER_START( galaga )
+
+	MDRV_DRIVER_DATA(_galaga_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(galaga_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(galaga_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(galaga_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("sub", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(galaga_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(galaga_map)
+	MDRV_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(galaga_map)
 
-	MCFG_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/6/2, "discrete", NODE_01)	/* 1.536 MHz */
+	MDRV_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/6/2, "discrete", NODE_01)	/* 1.536 MHz */
 
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, NULL, "54xx")
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, NULL, "54xx")
 
-	MCFG_WATCHDOG_VBLANK_INIT(8)
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
+	MDRV_WATCHDOG_VBLANK_INIT(8)
+	MDRV_QUANTUM_TIME(HZ(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
 							/* synchronization of the CPUs */
-	MCFG_MACHINE_START(galaga)
-	MCFG_MACHINE_RESET(galaga)
+	MDRV_MACHINE_START(galaga)
+	MDRV_MACHINE_RESET(galaga)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 0, 224)
-	MCFG_SCREEN_UPDATE(galaga)
-	MCFG_SCREEN_EOF(galaga)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 0, 224)
 
-	MCFG_GFXDECODE(galaga)
-	MCFG_PALETTE_LENGTH(64*4+64*4+64)
+	MDRV_GFXDECODE(galaga)
+	MDRV_PALETTE_LENGTH(64*4+64*4+64)
 
-	MCFG_PALETTE_INIT(galaga)
-	MCFG_VIDEO_START(galaga)
+	MDRV_PALETTE_INIT(galaga)
+	MDRV_VIDEO_START(galaga)
+	MDRV_VIDEO_UPDATE(galaga)
+	MDRV_VIDEO_EOF(galaga)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
+	MDRV_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
 
 	/* discrete circuit on the 54XX outputs */
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(galaga)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(galaga)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( galagab, galaga )
+static MACHINE_DRIVER_START( galagab )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(galaga)
 
-	MCFG_DEVICE_REMOVE("54xx")
-	MCFG_DEVICE_REMOVE("06xx")
+	MDRV_DEVICE_REMOVE("54xx")
+	MDRV_DEVICE_REMOVE("06xx")
 
 	/* FIXME: bootlegs should not have any Namco custom chip. However, this workaround is needed atm */
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, NULL, NULL)
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, NULL, NULL)
 
-	MCFG_CPU_ADD("sub3", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(galaga_mem4)
+	MDRV_CPU_ADD("sub3", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(galaga_mem4)
 
 	/* sound hardware */
-	MCFG_DEVICE_REMOVE("discrete")
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("discrete")
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( xevious, xevious_state )
+static MACHINE_DRIVER_START( xevious )
+
+	MDRV_DRIVER_DATA(_galaga_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(xevious_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(xevious_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub", Z80,MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(xevious_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("sub", Z80,MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(xevious_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(xevious_map)
+	MDRV_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(xevious_map)
 
-	MCFG_NAMCO_50XX_ADD("50xx", MASTER_CLOCK/6/2)	/* 1.536 MHz */
-	MCFG_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/6/2, "discrete", NODE_01)	/* 1.536 MHz */
+	MDRV_NAMCO_50XX_ADD("50xx", MASTER_CLOCK/6/2)	/* 1.536 MHz */
+	MDRV_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_54XX_ADD("54xx", MASTER_CLOCK/6/2, "discrete", NODE_01)	/* 1.536 MHz */
 
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, "50xx", "54xx")
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, "50xx", "54xx")
 
-	MCFG_WATCHDOG_VBLANK_INIT(8)
-	MCFG_QUANTUM_TIME(attotime::from_hz(60000))	/* 1000 CPU slices per frame - an high value to ensure proper */
+	MDRV_WATCHDOG_VBLANK_INIT(8)
+	MDRV_QUANTUM_TIME(HZ(60000))	/* 1000 CPU slices per frame - an high value to ensure proper */
 							/* synchronization of the CPUs */
-	MCFG_MACHINE_START(galaga)
-	MCFG_MACHINE_RESET(galaga)
+	MDRV_MACHINE_START(galaga)
+	MDRV_MACHINE_RESET(galaga)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 0, 224)
-	MCFG_SCREEN_UPDATE(xevious)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 0, 224)
 
-	MCFG_GFXDECODE(xevious)
-	MCFG_PALETTE_LENGTH(128*4+64*8+64*2)
+	MDRV_GFXDECODE(xevious)
+	MDRV_PALETTE_LENGTH(128*4+64*8+64*2)
 
-	MCFG_PALETTE_INIT(xevious)
-	MCFG_VIDEO_START(xevious)
+	MDRV_PALETTE_INIT(xevious)
+	MDRV_VIDEO_START(xevious)
+	MDRV_VIDEO_UPDATE(xevious)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
+	MDRV_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
 
 	/* discrete circuit on the 54XX outputs */
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(galaga)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(galaga)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( battles, xevious )
+static MACHINE_DRIVER_START( battles )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM( xevious )
 
-	MCFG_DEVICE_REMOVE("50xx")
-	MCFG_DEVICE_REMOVE("54xx")
-	MCFG_DEVICE_REMOVE("06xx")
+	MDRV_DEVICE_REMOVE("50xx")
+	MDRV_DEVICE_REMOVE("54xx")
+	MDRV_DEVICE_REMOVE("06xx")
 
 	/* FIXME: bootlegs should not have any Namco custom chip. However, this workaround is needed atm */
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, NULL, NULL)
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", NULL, NULL, NULL)
 
-	MCFG_CPU_ADD("sub3", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(battles_mem4)
-	MCFG_CPU_VBLANK_INT("screen", battles_interrupt_4)
+	MDRV_CPU_ADD("sub3", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(battles_mem4)
+	MDRV_CPU_VBLANK_INT("screen", battles_interrupt_4)
 
-	MCFG_TIMER_ADD("battles_nmi", battles_nmi_generate)
+	MDRV_TIMER_ADD("battles_nmi", battles_nmi_generate)
 
-	MCFG_MACHINE_RESET(battles)
+	MDRV_MACHINE_RESET(battles)
 
 	/* video hardware */
-	MCFG_PALETTE_INIT(battles)
+	MDRV_PALETTE_INIT(battles)
 
 	/* sound hardware */
-	MCFG_DEVICE_REMOVE("discrete")
+	MDRV_DEVICE_REMOVE("discrete")
 
-	MCFG_SOUND_ADD("samples", SAMPLES, 0)
-	MCFG_SOUND_CONFIG(battles_samples_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("samples", SAMPLES, 0)
+	MDRV_SOUND_CONFIG(battles_samples_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( digdug, digdug_state )
+static MACHINE_DRIVER_START( digdug )
+
+	MDRV_DRIVER_DATA(_galaga_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(digdug_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(digdug_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(digdug_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("sub", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(digdug_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(digdug_map)
+	MDRV_CPU_ADD("sub2", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(digdug_map)
 
-	MCFG_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
-	MCFG_NAMCO_53XX_ADD("53xx", MASTER_CLOCK/6/2, namco_53xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_51XX_ADD("51xx", MASTER_CLOCK/6/2, namco_51xx_intf)		/* 1.536 MHz */
+	MDRV_NAMCO_53XX_ADD("53xx", MASTER_CLOCK/6/2, namco_53xx_intf)		/* 1.536 MHz */
 
-	MCFG_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", "53xx", NULL, NULL)
+	MDRV_NAMCO_06XX_ADD("06xx", MASTER_CLOCK/6/64, "maincpu", "51xx", "53xx", NULL, NULL)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
+	MDRV_QUANTUM_TIME(HZ(6000))	/* 100 CPU slices per frame - an high value to ensure proper */
 							/* synchronization of the CPUs */
-	MCFG_MACHINE_START(galaga)
-	MCFG_MACHINE_RESET(galaga)
+	MDRV_MACHINE_START(galaga)
+	MDRV_MACHINE_RESET(galaga)
 
-	MCFG_ATARIVGEAROM_ADD("earom")
+	MDRV_ATARIVGEAROM_ADD("earom")
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 0, 224)
-	MCFG_SCREEN_UPDATE(digdug)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(MASTER_CLOCK/3, 384, 0, 288, 264, 0, 224)
 
-	MCFG_GFXDECODE(digdug)
-	MCFG_PALETTE_LENGTH(16*2+64*4+64*4)
+	MDRV_GFXDECODE(digdug)
+	MDRV_PALETTE_LENGTH(16*2+64*4+64*4)
 
-	MCFG_PALETTE_INIT(digdug)
-	MCFG_VIDEO_START(digdug)
+	MDRV_PALETTE_INIT(digdug)
+	MDRV_VIDEO_START(digdug)
+	MDRV_VIDEO_UPDATE(digdug)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("namco", NAMCO, MASTER_CLOCK/6/32)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90 * 10.0 / 16.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( dzigzag, digdug )
+static MACHINE_DRIVER_START( dzigzag )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(digdug)
 
-	MCFG_CPU_ADD("sub3", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
-	MCFG_CPU_PROGRAM_MAP(dzigzag_mem4)
-MACHINE_CONFIG_END
+	MDRV_CPU_ADD("sub3", Z80, MASTER_CLOCK/6)	/* 3.072 MHz */
+	MDRV_CPU_PROGRAM_MAP(dzigzag_mem4)
+MACHINE_DRIVER_END
 
 
 
@@ -3247,8 +3201,8 @@ ROM_END
 static DRIVER_INIT (galaga)
 {
 	/* swap bytes for flipped character so we can decode them together with normal characters */
-	UINT8 *rom = machine.region("gfx1")->base();
-	int i, len = machine.region("gfx1")->bytes();
+	UINT8 *rom = memory_region(machine, "gfx1");
+	int i, len = memory_region_length(machine, "gfx1");
 
 	for (i = 0;i < len;i++)
 	{
@@ -3266,7 +3220,7 @@ static DRIVER_INIT (gatsbee)
 	DRIVER_INIT_CALL(galaga);
 
 	/* Gatsbee has a larger character ROM, we need a handler for banking */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0x1000, 0x1000, FUNC(gatsbee_bank_w));
+	memory_install_write8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x1000, 0x1000, 0, 0, gatsbee_bank_w);
 }
 
 
@@ -3275,7 +3229,7 @@ static DRIVER_INIT( xevious )
 	UINT8 *rom;
 	int i;
 
-	rom = machine.region("gfx3")->base() + 0x5000;
+	rom = memory_region(machine, "gfx3") + 0x5000;
 	for (i = 0;i < 0x2000;i++)
 		rom[i + 0x2000] = rom[i] >> 4;
 }
@@ -3287,14 +3241,14 @@ static DRIVER_INIT( xevios )
 
 
 	/* convert one of the sprite ROMs to the format used by Xevious */
-	rom = machine.region("gfx3")->base();
+	rom = memory_region(machine, "gfx3");
 	for (A = 0x5000;A < 0x7000;A++)
 	{
 		rom[A] = BITSWAP8(rom[A],1,3,5,7,0,2,4,6);
 	}
 
 	/* convert one of tile map ROMs to the format used by Xevious */
-	rom = machine.region("gfx4")->base();
+	rom = memory_region(machine, "gfx4");
 	for (A = 0x0000;A < 0x1000;A++)
 	{
 		rom[A] = BITSWAP8(rom[A],3,7,5,1,2,6,4,0);
@@ -3307,8 +3261,8 @@ static DRIVER_INIT( xevios )
 static DRIVER_INIT( battles )
 {
 	/* replace the Namco I/O handlers with interface to the 4th CPU */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x7000, 0x700f, FUNC(battles_customio_data0_r), FUNC(battles_customio_data0_w) );
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x7100, 0x7100, FUNC(battles_customio0_r), FUNC(battles_customio0_w) );
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x7000, 0x700f, 0, 0, battles_customio_data0_r, battles_customio_data0_w );
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x7100, 0x7100, 0, 0, battles_customio0_r, battles_customio0_w );
 
 	DRIVER_INIT_CALL(xevious);
 }
@@ -3316,38 +3270,37 @@ static DRIVER_INIT( battles )
 
 /* Original Namco hardware, with Namco Customs */
 
-//    YEAR, NAME,      PARENT,  MACHINE, INPUT,    INIT,    MONITOR,COMPANY,FULLNAME,FLAGS
-GAME( 1981, bosco,     0,       bosco,   bosco,    0,       ROT0,   "Namco", "Bosconian (new version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, boscoo,    bosco,   bosco,   bosco,    0,       ROT0,   "Namco", "Bosconian (old version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, boscoo2,   bosco,   bosco,   bosco,    0,       ROT0,   "Namco", "Bosconian (older version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, boscomd,   bosco,   bosco,   boscomd,  0,       ROT0,   "Namco (Midway license)", "Bosconian (Midway, new version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, boscomdo,  bosco,   bosco,   boscomd,  0,       ROT0,   "Namco (Midway license)", "Bosconian (Midway, old version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, bosco,    0,       bosco,   bosco,    0,       ROT0,  "Namco", "Bosconian (new version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, boscoo,   bosco,   bosco,   bosco,    0,       ROT0,  "Namco", "Bosconian (old version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, boscoo2,  bosco,   bosco,   bosco,    0,       ROT0,  "Namco", "Bosconian (older version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, boscomd,  bosco,   bosco,   boscomd,  0,       ROT0,  "Namco (Midway license)", "Bosconian (Midway, new version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, boscomdo, bosco,   bosco,   boscomd,  0,       ROT0,  "Namco (Midway license)", "Bosconian (Midway, old version)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
 
-GAME( 1981, galaga,    0,       galaga,  galaga,   galaga,  ROT90,  "Namco", "Galaga (Namco rev. B)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, galagao,   galaga,  galaga,  galaga,   galaga,  ROT90,  "Namco", "Galaga (Namco)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, galagamw,  galaga,  galaga,  galagamw, galaga,  ROT90,  "Namco (Midway license)", "Galaga (Midway set 1)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, galagamk,  galaga,  galaga,  galaga,   galaga,  ROT90,  "Namco (Midway license)", "Galaga (Midway set 2)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
-GAME( 1981, galagamf,  galaga,  galaga,  galaga,   galaga,  ROT90,  "Namco (Midway license)", "Galaga (Midway set 1 with fast shoot hack)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, galaga,   0,       galaga,  galaga,   galaga,  ROT90, "Namco", "Galaga (Namco rev. B)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, galagao,  galaga,  galaga,  galaga,   galaga,  ROT90, "Namco", "Galaga (Namco)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, galagamw, galaga,  galaga,  galagamw, galaga,  ROT90, "Namco (Midway license)", "Galaga (Midway set 1)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, galagamk, galaga,  galaga,  galaga,   galaga,  ROT90, "Namco (Midway license)", "Galaga (Midway set 2)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
+GAME( 1981, galagamf, galaga,  galaga,  galaga,   galaga,  ROT90, "Namco (Midway license)", "Galaga (Midway set 1 with fast shoot hack)", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS )
 
-GAME( 1982, xevious,   0,       xevious, xevious,  xevious, ROT90,  "Namco", "Xevious (Namco)", GAME_SUPPORTS_SAVE )
-GAME( 1982, xeviousa,  xevious, xevious, xeviousa, xevious, ROT90,  "Namco (Atari license)", "Xevious (Atari, harder)", GAME_SUPPORTS_SAVE )
-GAME( 1982, xeviousb,  xevious, xevious, xeviousb, xevious, ROT90,  "Namco (Atari license)", "Xevious (Atari)", GAME_SUPPORTS_SAVE )
-GAME( 1982, xeviousc,  xevious, xevious, xeviousa, xevious, ROT90,  "Namco (Atari license)", "Xevious (Atari, Namco PCB)", GAME_SUPPORTS_SAVE )
-GAME( 1984, sxevious,  xevious, xevious, sxevious, xevious, ROT90,  "Namco", "Super Xevious", GAME_SUPPORTS_SAVE )
-GAME( 1984, sxeviousj, xevious, xevious, sxevious, xevious, ROT90,  "Namco", "Super Xevious (Japan)", GAME_SUPPORTS_SAVE )
+GAME( 1982, xevious,  0,       xevious, xevious,  xevious, ROT90, "Namco", "Xevious (Namco)", GAME_SUPPORTS_SAVE )
+GAME( 1982, xeviousa, xevious, xevious, xeviousa, xevious, ROT90, "Namco (Atari license)", "Xevious (Atari set 1)", GAME_SUPPORTS_SAVE )
+GAME( 1982, xeviousb, xevious, xevious, xeviousb, xevious, ROT90, "Namco (Atari license)", "Xevious (Atari set 2)", GAME_SUPPORTS_SAVE )
+GAME( 1982, xeviousc, xevious, xevious, xeviousa, xevious, ROT90, "Namco (Atari license)", "Xevious (Atari set 3)", GAME_SUPPORTS_SAVE )
+GAME( 1984, sxevious, xevious, xevious, sxevious, xevious, ROT90, "Namco", "Super Xevious", GAME_SUPPORTS_SAVE )
+GAME( 1984, sxeviousj,xevious, xevious, sxevious, xevious, ROT90, "Namco", "Super Xevious (Japan)", GAME_SUPPORTS_SAVE )
 
-GAME( 1982, digdug,    0,       digdug,  digdug,   0,       ROT90,  "Namco", "Dig Dug (rev 2)", GAME_SUPPORTS_SAVE )
-GAME( 1982, digdug1,   digdug,  digdug,  digdug,   0,       ROT90,  "Namco", "Dig Dug (rev 1)", GAME_SUPPORTS_SAVE )
-GAME( 1982, digdugat,  digdug,  digdug,  digdug,   0,       ROT90,  "Namco (Atari license)", "Dig Dug (Atari, rev 2)", GAME_SUPPORTS_SAVE )
-GAME( 1982, digdugat1, digdug,  digdug,  digdug,   0,       ROT90,  "Namco (Atari license)", "Dig Dug (Atari, rev 1)", GAME_SUPPORTS_SAVE )
-GAME( 1982, digsid,    digdug,  digdug,  digdug,   0,       ROT90,  "Namco (Sidam license)", "Dig Dug (manufactured by Sidam)", GAME_SUPPORTS_SAVE )
+GAME( 1982, digdug,   0,       digdug,  digdug,   0,       ROT90, "Namco", "Dig Dug (rev 2)", GAME_SUPPORTS_SAVE )
+GAME( 1982, digdug1,  digdug,  digdug,  digdug,   0,       ROT90, "Namco", "Dig Dug (rev 1)", GAME_SUPPORTS_SAVE )
+GAME( 1982, digdugat, digdug,  digdug,  digdug,   0,       ROT90, "Namco (Atari license)", "Dig Dug (Atari, rev 2)", GAME_SUPPORTS_SAVE )
+GAME( 1982, digdugat1,digdug,  digdug,  digdug,   0,       ROT90, "Namco (Atari license)", "Dig Dug (Atari, rev 1)", GAME_SUPPORTS_SAVE )
+GAME( 1982, digsid,   digdug,  digdug,  digdug,   0,       ROT90, "Namco (Sidam license)", "Dig Dug (manufactured by Sidam)", GAME_SUPPORTS_SAVE )
 
 /* Bootlegs with replacement I/O chips */
 
-GAME( 1981, gallag,    galaga,  galagab, galaga,   galaga,  ROT90,  "bootleg", "Gallag", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
-GAME( 1984, gatsbee,   galaga,  galagab, gatsbee,  gatsbee, ROT90,  "hack", "Gatsbee", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1981, gallag,   galaga,  galagab, galaga,   galaga,  ROT90, "bootleg", "Gallag", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
+GAME( 1984, gatsbee,  galaga,  galagab, gatsbee,  gatsbee, ROT90, "hack", "Gatsbee", GAME_SUPPORTS_SAVE | GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND )
 
-GAME( 1982, xevios,    xevious, xevious, xevious,  xevios,  ROT90,  "bootleg", "Xevios", GAME_SUPPORTS_SAVE )
-GAME( 1982, battles,   xevious, battles, xevious,  battles, ROT90,  "bootleg", "Battles", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
+GAME( 1982, xevios,   xevious, xevious, xevious,  xevios,  ROT90, "bootleg", "Xevios", GAME_SUPPORTS_SAVE )
+GAME( 1982, battles,  xevious, battles, xevious,  battles, ROT90, "bootleg", "Battles", GAME_IMPERFECT_SOUND | GAME_SUPPORTS_SAVE )
 
-GAME( 1982, dzigzag,   digdug,  dzigzag, digdug,   0,       ROT90,  "bootleg", "Zig Zag (Dig Dug hardware)", GAME_SUPPORTS_SAVE )
+GAME( 1982, dzigzag,  digdug,  dzigzag, digdug,   0,       ROT90, "bootleg", "Zig Zag (Dig Dug hardware)", GAME_SUPPORTS_SAVE )

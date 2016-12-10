@@ -35,10 +35,10 @@ Verified Dip locations and recommended settings with manual
                                 Sky Fox
 ***************************************************************************/
 
-static ADDRESS_MAP_START( skyfox_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( skyfox_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM							// ROM
 	AM_RANGE(0xc000, 0xcfff) AM_RAM							// RAM
-	AM_RANGE(0xd000, 0xd3ff) AM_RAM AM_BASE_SIZE_MEMBER(skyfox_state, m_spriteram, m_spriteram_size)	// Sprites
+	AM_RANGE(0xd000, 0xd3ff) AM_RAM AM_BASE_SIZE_MEMBER(skyfox_state, spriteram, spriteram_size)	// Sprites
 	AM_RANGE(0xd400, 0xdfff) AM_RAM							// RAM?
 	AM_RANGE(0xe000, 0xe000) AM_READ_PORT("INPUTS")			// Input Ports
 	AM_RANGE(0xe001, 0xe001) AM_READ_PORT("DSW0")			//
@@ -63,7 +63,7 @@ ADDRESS_MAP_END
 ***************************************************************************/
 
 
-static ADDRESS_MAP_START( skyfox_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( skyfox_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM								// ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM								// RAM
 //  AM_RANGE(0x9000, 0x9001) AM_WRITENOP                        // ??
@@ -84,8 +84,8 @@ ADDRESS_MAP_END
 
 static INPUT_CHANGED( coin_inserted )
 {
-	skyfox_state *state = field.machine().driver_data<skyfox_state>();
-	device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
+	skyfox_state *state = (skyfox_state *)field->port->machine->driver_data;
+	cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, newval ? CLEAR_LINE : ASSERT_LINE);
 }
 
 static INPUT_PORTS_START( skyfox )
@@ -214,66 +214,69 @@ GFXDECODE_END
 
 static INTERRUPT_GEN( skyfox_interrupt )
 {
-	skyfox_state *state = device->machine().driver_data<skyfox_state>();
+	skyfox_state *state = (skyfox_state *)device->machine->driver_data;
 
 	/* Scroll the bg */
-	state->m_bg_pos += (state->m_bg_ctrl >> 1) & 0x7;	// maybe..
+	state->bg_pos += (state->bg_ctrl >> 1) & 0x7;	// maybe..
 }
 
 static MACHINE_START( skyfox )
 {
-	skyfox_state *state = machine.driver_data<skyfox_state>();
+	skyfox_state *state = (skyfox_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
+	state->maincpu = machine->device("maincpu");
 
-	state->save_item(NAME(state->m_bg_pos));
-	state->save_item(NAME(state->m_bg_ctrl));
+	state_save_register_global(machine, state->bg_pos);
+	state_save_register_global(machine, state->bg_ctrl);
 }
 
 static MACHINE_RESET( skyfox )
 {
-	skyfox_state *state = machine.driver_data<skyfox_state>();
+	skyfox_state *state = (skyfox_state *)machine->driver_data;
 
-	state->m_bg_pos = 0;
-	state->m_bg_ctrl = 0;
+	state->bg_pos = 0;
+	state->bg_ctrl = 0;
 }
 
-static MACHINE_CONFIG_START( skyfox, skyfox_state )
+static MACHINE_DRIVER_START( skyfox )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(skyfox_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_8MHz/2) /* Verified at 4MHz */
-	MCFG_CPU_PROGRAM_MAP(skyfox_map)
-	MCFG_CPU_VBLANK_INT("screen", skyfox_interrupt)		/* NMI caused by coin insertion */
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_8MHz/2) /* Verified at 4MHz */
+	MDRV_CPU_PROGRAM_MAP(skyfox_map)
+	MDRV_CPU_VBLANK_INT("screen", skyfox_interrupt)		/* NMI caused by coin insertion */
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_14_31818MHz/8) /* Verified at 1.789772MHz */
-	MCFG_CPU_PROGRAM_MAP(skyfox_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_14_31818MHz/8) /* Verified at 1.789772MHz */
+	MDRV_CPU_PROGRAM_MAP(skyfox_sound_map)
 
-	MCFG_MACHINE_START(skyfox)
-	MCFG_MACHINE_RESET(skyfox)
+	MDRV_MACHINE_START(skyfox)
+	MDRV_MACHINE_RESET(skyfox)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(62.65)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)	// we're using IPT_VBLANK
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0+0x60, 320-1+0x60, 0+16, 256-1-16)	// from $30*2 to $CC*2+8
-	MCFG_SCREEN_UPDATE(skyfox)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(62.65)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)	// we're using IPT_VBLANK
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0+0x60, 320-1+0x60, 0+16, 256-1-16)	// from $30*2 to $CC*2+8
 
-	MCFG_GFXDECODE(skyfox)
-	MCFG_PALETTE_LENGTH(256+256)	/* 256 static colors (+256 for the background??) */
+	MDRV_GFXDECODE(skyfox)
+	MDRV_PALETTE_LENGTH(256+256)	/* 256 static colors (+256 for the background??) */
 
-	MCFG_PALETTE_INIT(skyfox)
+	MDRV_PALETTE_INIT(skyfox)
+	MDRV_VIDEO_UPDATE(skyfox)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, XTAL_14_31818MHz/8) /* Verified at 1.789772MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+	MDRV_SOUND_ADD("ym1", YM2203, XTAL_14_31818MHz/8) /* Verified at 1.789772MHz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
 
-	MCFG_SOUND_ADD("ym2", YM2203, XTAL_14_31818MHz/8) /* Verified at 1.789772MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ym2", YM2203, XTAL_14_31818MHz/8) /* Verified at 1.789772MHz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.80)
+MACHINE_DRIVER_END
 
 
 
@@ -434,8 +437,8 @@ ROM_END
 /* Untangle the graphics: cut each 32x32x8 tile in 16 8x8x8 tiles */
 static DRIVER_INIT( skyfox )
 {
-	UINT8 *RAM = machine.region("gfx1")->base();
-	UINT8 *end = RAM + machine.region("gfx1")->bytes();
+	UINT8 *RAM = memory_region(machine, "gfx1");
+	UINT8 *end = RAM + memory_region_length(machine, "gfx1");
 	UINT8 buf[32 * 32];
 
 	while (RAM < end)

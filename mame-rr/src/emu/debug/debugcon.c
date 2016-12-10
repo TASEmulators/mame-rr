@@ -43,7 +43,7 @@ struct _debug_command
 	char			command[32];
 	const char *	params;
 	const char *	help;
-	void			(*handler)(running_machine &machine, int ref, int params, const char **param);
+	void			(*handler)(running_machine *machine, int ref, int params, const char **param);
 	void			(*handler_ex)(int ref);
 	UINT32			flags;
 	int				ref;
@@ -83,7 +83,7 @@ static void debug_console_exit(running_machine &machine);
     system
 -------------------------------------------------*/
 
-void debug_console_init(running_machine &machine)
+void debug_console_init(running_machine *machine)
 {
 	/* allocate text buffers */
 	console_textbuf = text_buffer_alloc(CONSOLE_BUF_SIZE, CONSOLE_MAX_LINES);
@@ -96,10 +96,10 @@ void debug_console_init(running_machine &machine)
 
 	/* print the opening lines */
 	debug_console_printf(machine, "MAME new debugger version %s\n", build_version);
-	debug_console_printf(machine, "Currently targeting %s (%s)\n", machine.system().name, machine.system().description);
+	debug_console_printf(machine, "Currently targeting %s (%s)\n", machine->gamedrv->name, machine->gamedrv->description);
 
 	/* request callback upon exiting */
-	machine.add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(FUNC(debug_console_exit), &machine));
+	machine->add_notifier(MACHINE_NOTIFY_EXIT, debug_console_exit);
 }
 
 
@@ -193,7 +193,7 @@ static void trim_parameter(char **paramptr, int keep_quotes)
     command
 -------------------------------------------------*/
 
-static CMDERR internal_execute_command(running_machine &machine, int execute, int params, char **param)
+static CMDERR internal_execute_command(running_machine *machine, int execute, int params, char **param)
 {
 	debug_command *cmd, *found = NULL;
 	int i, foundcount = 0;
@@ -268,7 +268,7 @@ static CMDERR internal_execute_command(running_machine &machine, int execute, in
     and either executes or just validates it
 -------------------------------------------------*/
 
-static CMDERR internal_parse_command(running_machine &machine, const char *original_command, int execute)
+static CMDERR internal_parse_command(running_machine *machine, const char *original_command, int execute)
 {
 	char command[MAX_COMMAND_LENGTH], parens[MAX_COMMAND_LENGTH];
 	char *params[MAX_COMMAND_PARAMS] = { 0 };
@@ -338,15 +338,10 @@ static CMDERR internal_parse_command(running_machine &machine, const char *origi
 		/* if it smells like an assignment expression, treat it as such */
 		if (isexpr && paramcount == 1)
 		{
-			try
-			{
-				UINT64 expresult;
-				parsed_expression expression(debug_cpu_get_visible_symtable(machine), command_start, &expresult);
-			}
-			catch (expression_error &err)
-			{
-				return MAKE_CMDERR_EXPRESSION_ERROR(err);
-			}
+			UINT64 expresult;
+			EXPRERR exprerr = expression_evaluate(command_start, debug_cpu_get_visible_symtable(machine), &debug_expression_callbacks, machine, &expresult);
+			if (exprerr != EXPRERR_NONE)
+				return MAKE_CMDERR_EXPRESSION_ERROR(EXPRERR_ERROR_OFFSET(exprerr));
 		}
 		else
 		{
@@ -364,7 +359,7 @@ static CMDERR internal_parse_command(running_machine &machine, const char *origi
     command string
 -------------------------------------------------*/
 
-CMDERR debug_console_execute_command(running_machine &machine, const char *command, int echo)
+CMDERR debug_console_execute_command(running_machine *machine, const char *command, int echo)
 {
 	CMDERR result;
 
@@ -387,7 +382,7 @@ CMDERR debug_console_execute_command(running_machine &machine, const char *comma
 	/* update all views */
 	if (echo)
 	{
-		machine.debug_view().update_all();
+		machine->m_debug_view->update_all();
 		debugger_refresh_display(machine);
 	}
 	return result;
@@ -399,7 +394,7 @@ CMDERR debug_console_execute_command(running_machine &machine, const char *comma
     command string
 -------------------------------------------------*/
 
-CMDERR debug_console_validate_command(running_machine &machine, const char *command)
+CMDERR debug_console_validate_command(running_machine *machine, const char *command)
 {
 	return internal_parse_command(machine, command, FALSE);
 }
@@ -410,12 +405,12 @@ CMDERR debug_console_validate_command(running_machine &machine, const char *comm
     command handler
 -------------------------------------------------*/
 
-void debug_console_register_command(running_machine &machine, const char *command, UINT32 flags, int ref, int minparams, int maxparams, void (*handler)(running_machine &machine, int ref, int params, const char **param))
+void debug_console_register_command(running_machine *machine, const char *command, UINT32 flags, int ref, int minparams, int maxparams, void (*handler)(running_machine *machine, int ref, int params, const char **param))
 {
 	debug_command *cmd;
 
-	assert_always(machine.phase() == MACHINE_PHASE_INIT, "Can only call debug_console_register_command() at init time!");
-	assert_always((machine.debug_flags & DEBUG_FLAG_ENABLED) != 0, "Cannot call debug_console_register_command() when debugger is not running");
+	assert_always(machine->phase() == MACHINE_PHASE_INIT, "Can only call debug_console_register_command() at init time!");
+	assert_always((machine->debug_flags & DEBUG_FLAG_ENABLED) != 0, "Cannot call debug_console_register_command() when debugger is not running");
 
 	cmd = auto_alloc_clear(machine, debug_command);
 
@@ -474,7 +469,7 @@ const char *debug_cmderr_to_string(CMDERR error)
     console
 -------------------------------------------------*/
 
-void CLIB_DECL debug_console_printf(running_machine &machine, const char *format, ...)
+void CLIB_DECL debug_console_printf(running_machine *machine, const char *format, ...)
 {
 	astring buffer;
 	va_list arg;
@@ -486,7 +481,7 @@ void CLIB_DECL debug_console_printf(running_machine &machine, const char *format
 	text_buffer_print(console_textbuf, buffer);
 
 	/* force an update of any console views */
-	machine.debug_view().update_all(DVT_CONSOLE);
+	machine->m_debug_view->update_all(DVT_CONSOLE);
 }
 
 
@@ -496,7 +491,7 @@ void CLIB_DECL debug_console_printf(running_machine &machine, const char *format
     console
 -------------------------------------------------*/
 
-void CLIB_DECL debug_console_vprintf(running_machine &machine, const char *format, va_list args)
+void CLIB_DECL debug_console_vprintf(running_machine *machine, const char *format, va_list args)
 {
 	astring buffer;
 
@@ -504,7 +499,7 @@ void CLIB_DECL debug_console_vprintf(running_machine &machine, const char *forma
 	text_buffer_print(console_textbuf, buffer);
 
 	/* force an update of any console views */
-	machine.debug_view().update_all(DVT_CONSOLE);
+	machine->m_debug_view->update_all(DVT_CONSOLE);
 }
 
 
@@ -514,7 +509,7 @@ void CLIB_DECL debug_console_vprintf(running_machine &machine, const char *forma
     console
 -------------------------------------------------*/
 
-void CLIB_DECL debug_console_printf_wrap(running_machine &machine, int wrapcol, const char *format, ...)
+void CLIB_DECL debug_console_printf_wrap(running_machine *machine, int wrapcol, const char *format, ...)
 {
 	astring buffer;
 	va_list arg;
@@ -526,7 +521,7 @@ void CLIB_DECL debug_console_printf_wrap(running_machine &machine, int wrapcol, 
 	text_buffer_print_wrap(console_textbuf, buffer, wrapcol);
 
 	/* force an update of any console views */
-	machine.debug_view().update_all(DVT_CONSOLE);
+	machine->m_debug_view->update_all(DVT_CONSOLE);
 }
 
 
@@ -552,7 +547,7 @@ void debug_errorlog_write_line(running_machine &machine, const char *line)
 		text_buffer_print(errorlog_textbuf, line);
 
 	/* force an update of any log views */
-	machine.debug_view().update_all(DVT_LOG);
+	machine.m_debug_view->update_all(DVT_LOG);
 }
 
 

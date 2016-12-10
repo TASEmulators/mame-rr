@@ -4,55 +4,51 @@
 
 *************************************************************************/
 
-#include <video/k053250.h>
-
-class xexex_state : public driver_device
+class xexex_state
 {
 public:
-	xexex_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, xexex_state(machine)); }
+
+	xexex_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_workram;
-	UINT16 *    m_spriteram;
-//  UINT16 *    m_paletteram;    // currently this uses generic palette handling
+	UINT16 *    workram;
+	UINT16 *    spriteram;
+//  UINT16 *    paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int        m_layer_colorbase[4];
-	int        m_sprite_colorbase;
-	int        m_layerpri[4];
-	int        m_cur_alpha;
+	int        layer_colorbase[4], sprite_colorbase;
+	int        layerpri[4];
+	int        cur_alpha;
 
 	/* misc */
-	UINT16     m_cur_control2;
-	INT32      m_cur_sound_region;
-	INT32      m_strip_0x1a;
-	int        m_suspension_active;
-	int        m_resume_trigger;
-	emu_timer  *m_dmadelay_timer;
-	int        m_frame;
+	UINT16     cur_control2;
+	INT32      cur_sound_region, strip_0x1a;
+	int        suspension_active, resume_trigger;
+	emu_timer  *dmadelay_timer;
+	int        frame;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k054539;
-	device_t *m_filter1l;
-	device_t *m_filter1r;
-	device_t *m_filter2l;
-	device_t *m_filter2r;
-	device_t *m_k056832;
-	device_t *m_k053246;
-	k053250_t *m_k053250;
-	device_t *m_k053251;
-	device_t *m_k053252;
-	device_t *m_k054338;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k054539;
+	running_device *filter1l;
+	running_device *filter1r;
+	running_device *filter2l;
+	running_device *filter2r;
+	running_device *k056832;
+	running_device *k053246;
+	running_device *k053250;
+	running_device *k053251;
+	running_device *k053252;
+	running_device *k054338;
 };
 
 
 /*----------- defined in video/xexex.c -----------*/
 
-extern void xexex_sprite_callback(running_machine &machine, int *code, int *color, int *priority_mask);
-extern void xexex_tile_callback(running_machine &machine, int layer, int *code, int *color, int *flags);
+extern void xexex_sprite_callback(running_machine *machine, int *code, int *color, int *priority_mask);
+extern void xexex_tile_callback(running_machine *machine, int layer, int *code, int *color, int *flags);
 
 VIDEO_START( xexex );
-SCREEN_UPDATE( xexex );
+VIDEO_UPDATE( xexex );

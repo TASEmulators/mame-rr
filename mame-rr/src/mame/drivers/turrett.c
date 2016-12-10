@@ -61,15 +61,6 @@ Windows showed a 5.94 gig partion empty and a 12.74 unallocated partition
 #include "cpu/mips/r3000.h"
 
 
-class turrett_state : public driver_device
-{
-public:
-	turrett_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-};
-
-
 #define R3041_CLOCK		25000000
 
 
@@ -78,13 +69,13 @@ static VIDEO_START(turrett)
 
 }
 
-static SCREEN_UPDATE(turrett)
+static VIDEO_UPDATE(turrett)
 {
 	return 0;
 }
 
 
-static ADDRESS_MAP_START( cpu_map, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( cpu_map, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x00000000, 0x0007ffff) AM_RAM
 	AM_RANGE(0x1fc00000, 0x1fdfffff) AM_ROM AM_REGION("maincpu", 0)
 	AM_RANGE(0x02000010, 0x02000013) AM_RAM
@@ -104,7 +95,7 @@ static INPUT_PORTS_START( turrett )
 INPUT_PORTS_END
 
 
-static const r3000_cpu_core r3000_config =
+static const r3000_cpu_core config =
 {
 	0,		/* 1 if we have an FPU, 0 otherwise */
 	2048,	/* code cache size */
@@ -112,25 +103,25 @@ static const r3000_cpu_core r3000_config =
 };
 
 
-static MACHINE_CONFIG_START( turrett, turrett_state )
+static MACHINE_DRIVER_START( turrett )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", R3041BE, R3041_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(cpu_map)
-	MCFG_CPU_CONFIG(r3000_config)
+	MDRV_CPU_ADD("maincpu", R3041BE, R3041_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(cpu_map)
+	MDRV_CPU_CONFIG(config)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0, 64*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(turrett)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0, 64*8-1, 0*8, 32*8-1)
 
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(turrett)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(turrett)
+	MDRV_VIDEO_UPDATE(turrett)
+MACHINE_DRIVER_END
 
 
 ROM_START( turrett )

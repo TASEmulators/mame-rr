@@ -3,34 +3,31 @@
 #define MCU_INITIAL_SEED	0x81
 
 
-class chaknpop_state : public driver_device
+class chaknpop_state
 {
 public:
-	chaknpop_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, chaknpop_state(machine)); }
+
+	chaknpop_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_mcu_ram;
-	UINT8 *  m_tx_ram;
-	UINT8 *  m_spr_ram;
-	UINT8 *  m_attr_ram;
-	size_t   m_spr_ram_size;
+	UINT8 *  mcu_ram;
+	UINT8 *  tx_ram;
+	UINT8 *  spr_ram;
+	UINT8 *  attr_ram;
+	size_t   spr_ram_size;
 
 	/* mcu-related */
-	UINT8 m_mcu_seed;
-	UINT8 m_mcu_select;
-	UINT8 m_mcu_result;
+	UINT8 mcu_seed;
+	UINT8 mcu_select;
+	UINT8 mcu_result;
 
 
 	/* video-related */
-	tilemap_t  *m_tx_tilemap;
-	UINT8    *m_vram1;
-	UINT8    *m_vram2;
-	UINT8    *m_vram3;
-	UINT8    *m_vram4;
-	UINT8    m_gfxmode;
-	UINT8    m_flip_x;
-	UINT8    m_flip_y;
+	tilemap_t  *tx_tilemap;
+	UINT8    *vram1, *vram2, *vram3, *vram4;
+	UINT8    gfxmode;
+	UINT8    flip_x, flip_y;
 };
 
 
@@ -49,7 +46,7 @@ WRITE8_HANDLER( chaknpop_mcu_port_c_w );
 
 PALETTE_INIT( chaknpop );
 VIDEO_START( chaknpop );
-SCREEN_UPDATE( chaknpop );
+VIDEO_UPDATE( chaknpop );
 
 READ8_HANDLER( chaknpop_gfxmode_r );
 WRITE8_HANDLER( chaknpop_gfxmode_w );

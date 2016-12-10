@@ -4,46 +4,39 @@
 
 *************************************************************************/
 
-#include "cpu/m6502/m6502.h"
-#include "machine/x2212.h"
-
-class ccastles_state : public driver_device
+class ccastles_state
 {
 public:
-	ccastles_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_maincpu(*this, "maincpu"),
-		  m_nvram_4b(*this, "nvram_4b"),
-		  m_nvram_4a(*this, "nvram_4a") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ccastles_state(machine)); }
+
+	ccastles_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	UINT8 *  m_spriteram;
+	UINT8 *  videoram;
+	UINT8 *  spriteram;
+//  UINT8 *  nvram_stage;   // currently this uses generic nvram handlers
+//  UINT8 *  nvram;     // currently this uses generic nvram handlers
 
 	/* video-related */
-	const UINT8 *m_syncprom;
-	const UINT8 *m_wpprom;
-	const UINT8 *m_priprom;
-	bitmap_t *m_spritebitmap;
-	double m_rweights[3];
-	double m_gweights[3];
-	double m_bweights[3];
-	UINT8 m_video_control[8];
-	UINT8 m_bitmode_addr[2];
-	UINT8 m_hscroll;
-	UINT8 m_vscroll;
+	const UINT8 *syncprom;
+	const UINT8 *wpprom;
+	const UINT8 *priprom;
+	bitmap_t *spritebitmap;
+	double rweights[3], gweights[3], bweights[3];
+	UINT8 video_control[8];
+	UINT8 bitmode_addr[2];
+	UINT8 hscroll;
+	UINT8 vscroll;
 
 	/* misc */
-	int      m_vblank_start;
-	int      m_vblank_end;
-	emu_timer *m_irq_timer;
-	UINT8    m_irq_state;
-	UINT8    m_nvram_store[2];
+	int      vblank_start;
+	int      vblank_end;
+	emu_timer *irq_timer;
+	UINT8    irq_state;
+	UINT8    nvram_store[2];
 
 	/* devices */
-	required_device<m6502_device> m_maincpu;
-	required_device<x2212_device> m_nvram_4b;
-	required_device<x2212_device> m_nvram_4a;
+	running_device *maincpu;
 };
 
 
@@ -51,7 +44,7 @@ public:
 
 
 VIDEO_START( ccastles );
-SCREEN_UPDATE( ccastles );
+VIDEO_UPDATE( ccastles );
 
 WRITE8_HANDLER( ccastles_hscroll_w );
 WRITE8_HANDLER( ccastles_vscroll_w );

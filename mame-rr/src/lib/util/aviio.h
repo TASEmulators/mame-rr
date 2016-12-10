@@ -38,7 +38,6 @@
 ***************************************************************************/
 
 #ifndef __AVIIO_H__
-#define __AVIIO_H__
 
 #include "osdcore.h"
 #include "bitmap.h"

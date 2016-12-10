@@ -60,7 +60,7 @@ Known Info
 ----------
 
 2K Character RAM at write only address $f000-$f7fff looks to be organised
-64x32 chars with the screen rotated through 90 degrees clockwise. There
+64x32 chars with the screen rotated thru 90 degrees clockwise. There
 appears to be some kind of attribute(?) RAM above at $f800-$ffff organised
 in the same manner.
 
@@ -269,67 +269,69 @@ Stephh's notes (based on the games Z80 code and some tests) :
 #include "sound/ay8910.h"
 #include "includes/slapfght.h"
 
+int getstar_id;
 
-static ADDRESS_MAP_START( perfrman_map, AS_PROGRAM, 8 )
+
+static ADDRESS_MAP_START( perfrman_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x8800, 0x880f) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0x8810, 0x8fff) AM_RAMBANK("bank1") /* Shared RAM with sound CPU */
-	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_videoram)
-	AM_RANGE(0x9800, 0x9fff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_colorram)
+	AM_RANGE(0x9000, 0x97ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE(&slapfight_videoram)
+	AM_RANGE(0x9800, 0x9fff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE(&slapfight_colorram)
 	AM_RANGE(0xa000, 0xa7ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tigerh_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tigerh_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xc80f) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xc810, 0xcfff) AM_RAM
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_videoram)
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_colorram)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE(&slapfight_videoram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE(&slapfight_colorram)
 	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
-	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrollx_lo)
-	AM_RANGE(0xe801, 0xe801) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrollx_hi)
-	AM_RANGE(0xe802, 0xe802) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrolly)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(slapfight_fixram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_fixvideoram)
-	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(slapfight_fixcol_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_fixcolorram)
+	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE(&slapfight_scrollx_lo)
+	AM_RANGE(0xe801, 0xe801) AM_WRITEONLY AM_BASE(&slapfight_scrollx_hi)
+	AM_RANGE(0xe802, 0xe802) AM_WRITEONLY AM_BASE(&slapfight_scrolly)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(slapfight_fixram_w) AM_BASE(&slapfight_fixvideoram)
+	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(slapfight_fixcol_w) AM_BASE(&slapfight_fixcolorram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slapfght_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slapfght_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xc80f) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xc810, 0xcfff) AM_RAM
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_videoram)
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_colorram)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE(&slapfight_videoram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE(&slapfight_colorram)
 	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
-	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrollx_lo)
-	AM_RANGE(0xe801, 0xe801) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrollx_hi)
-	AM_RANGE(0xe802, 0xe802) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrolly)
+	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE(&slapfight_scrollx_lo)
+	AM_RANGE(0xe801, 0xe801) AM_WRITEONLY AM_BASE(&slapfight_scrollx_hi)
+	AM_RANGE(0xe802, 0xe802) AM_WRITEONLY AM_BASE(&slapfight_scrolly)
 //  AM_RANGE(0xe803, 0xe803) AM_READWRITE(slapfight_mcu_r, slapfight_mcu_w)
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(slapfight_fixram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_fixvideoram)
-	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(slapfight_fixcol_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_fixcolorram)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(slapfight_fixram_w) AM_BASE(&slapfight_fixvideoram)
+	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(slapfight_fixcol_w) AM_BASE(&slapfight_fixcolorram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slapfighb2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slapfighb2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xc80f) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xc810, 0xcfff) AM_RAM
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_videoram)
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_colorram)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(slapfight_videoram_w) AM_BASE(&slapfight_videoram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(slapfight_colorram_w) AM_BASE(&slapfight_colorram)
 	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_BASE_SIZE_GENERIC(spriteram)
-	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrollx_hi)
-	AM_RANGE(0xe802, 0xe802) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrolly)
-	AM_RANGE(0xe803, 0xe803) AM_WRITEONLY AM_BASE_MEMBER(slapfght_state, m_slapfight_scrollx_lo)
+	AM_RANGE(0xe800, 0xe800) AM_WRITEONLY AM_BASE(&slapfight_scrollx_hi)
+	AM_RANGE(0xe802, 0xe802) AM_WRITEONLY AM_BASE(&slapfight_scrolly)
+	AM_RANGE(0xe803, 0xe803) AM_WRITEONLY AM_BASE(&slapfight_scrollx_lo)
 	AM_RANGE(0xec00, 0xefff) AM_ROM // it reads a copy of the logo from here!
-	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(slapfight_fixram_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_fixvideoram)
-	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(slapfight_fixcol_w) AM_BASE_MEMBER(slapfght_state, m_slapfight_fixcolorram)
+	AM_RANGE(0xf000, 0xf7ff) AM_RAM_WRITE(slapfight_fixram_w) AM_BASE(&slapfight_fixvideoram)
+	AM_RANGE(0xf800, 0xffff) AM_RAM_WRITE(slapfight_fixcol_w) AM_BASE(&slapfight_fixcolorram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slapfght_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( slapfght_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_WRITE(slapfight_port_00_w)
 	AM_RANGE(0x01, 0x01) AM_WRITE(slapfight_port_01_w)
@@ -342,7 +344,7 @@ static ADDRESS_MAP_START( slapfght_io_map, AS_IO, 8 )
 	AM_RANGE(0x0c, 0x0d) AM_WRITE(slapfight_palette_bank_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slapfight_m68705_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slapfight_m68705_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0x7ff)
 	AM_RANGE(0x0000, 0x0000) AM_READWRITE(slapfight_68705_portA_r, slapfight_68705_portA_w)
 	AM_RANGE(0x0001, 0x0001) AM_READWRITE(slapfight_68705_portB_r, slapfight_68705_portB_w)
@@ -359,7 +361,7 @@ static READ8_HANDLER(tigerh_status_r)
 	return (slapfight_port_00_r(space, 0) & 0xf9)| ((tigerh_mcu_status_r(space, 0)));
 }
 
-static ADDRESS_MAP_START( tigerh_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( tigerh_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READWRITE(tigerh_status_r, slapfight_port_00_w)	/* status register */
 	AM_RANGE(0x01, 0x01) AM_WRITE(slapfight_port_01_w)
@@ -368,7 +370,7 @@ static ADDRESS_MAP_START( tigerh_io_map, AS_IO, 8 )
 	AM_RANGE(0x07, 0x07) AM_WRITE(slapfight_port_07_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tigerhb_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( tigerhb_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READWRITE(slapfight_port_00_r, slapfight_port_00_w)	/* status register */
 	AM_RANGE(0x01, 0x01) AM_WRITE(slapfight_port_01_w)
@@ -377,7 +379,7 @@ static ADDRESS_MAP_START( tigerhb_io_map, AS_IO, 8 )
 	AM_RANGE(0x07, 0x07) AM_WRITE(slapfight_port_07_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( tigerh_m68705_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tigerh_m68705_map, ADDRESS_SPACE_PROGRAM, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0x7ff)
 	AM_RANGE(0x0000, 0x0000) AM_READWRITE(tigerh_68705_portA_r,tigerh_68705_portA_w)
 	AM_RANGE(0x0001, 0x0001) AM_READWRITE(tigerh_68705_portB_r,tigerh_68705_portB_w)
@@ -389,7 +391,7 @@ static ADDRESS_MAP_START( tigerh_m68705_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x0080, 0x07ff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( perfrman_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( perfrman_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x8800, 0x880f) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0x8810, 0x8fff) AM_RAMBANK("bank1") /* Shared RAM with main CPU */
@@ -403,7 +405,7 @@ static ADDRESS_MAP_START( perfrman_sound_map, AS_PROGRAM, 8 )
 //  AM_RANGE(0xa0f0, 0xa0f0) AM_WRITENOP
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slapfght_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( slapfght_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0xa080, 0xa080) AM_DEVWRITE("ay1", ay8910_address_w)
 	AM_RANGE(0xa081, 0xa081) AM_DEVREAD("ay1", ay8910_r)
@@ -735,221 +737,223 @@ static const ay8910_interface ay8910_interface_2 =
 	DEVCB_NULL
 };
 
-static SCREEN_EOF( perfrman )
+static VIDEO_EOF( perfrman )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	buffer_spriteram_w(space, 0, 0);
 }
 
-static MACHINE_CONFIG_START( perfrman, slapfght_state )
+static MACHINE_DRIVER_START( perfrman )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,16000000/4)			/* 4MHz ???, 16MHz Oscillator */
-	MCFG_CPU_PROGRAM_MAP(perfrman_map)
-	MCFG_CPU_IO_MAP(slapfght_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,16000000/4)			/* 4MHz ???, 16MHz Oscillator */
+	MDRV_CPU_PROGRAM_MAP(perfrman_map)
+	MDRV_CPU_IO_MAP(slapfght_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,16000000/8)			/* 2MHz ???, 16MHz Oscillator */
-	MCFG_CPU_PROGRAM_MAP(perfrman_sound_map)
-	MCFG_CPU_VBLANK_INT_HACK(getstar_interrupt,4)	/* music speed, verified */
+	MDRV_CPU_ADD("audiocpu", Z80,16000000/8)			/* 2MHz ???, 16MHz Oscillator */
+	MDRV_CPU_PROGRAM_MAP(perfrman_sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(getstar_interrupt,4)	/* music speed, verified */
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))		/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
+	MDRV_QUANTUM_TIME(HZ(600))		/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
 
-	MCFG_MACHINE_RESET(slapfight)
+	MDRV_MACHINE_RESET(slapfight)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 34*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(perfrman)
-	MCFG_SCREEN_EOF(perfrman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 34*8-1, 2*8, 32*8-1)
 
-	MCFG_GFXDECODE(perfrman)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(perfrman)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(perfrman)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(perfrman)
+	MDRV_VIDEO_EOF(perfrman)
+	MDRV_VIDEO_UPDATE(perfrman)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, 16000000/8)
-	MCFG_SOUND_CONFIG(ay8910_interface_1)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay1", AY8910, 16000000/8)
+	MDRV_SOUND_CONFIG(ay8910_interface_1)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 16000000/8)
-	MCFG_SOUND_CONFIG(ay8910_interface_2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, 16000000/8)
+	MDRV_SOUND_CONFIG(ay8910_interface_2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( tigerhb, slapfght_state )
+static MACHINE_DRIVER_START( tigerhb )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 6000000)
-	MCFG_CPU_PROGRAM_MAP(tigerh_map)
-	MCFG_CPU_IO_MAP(tigerhb_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 6000000)
+	MDRV_CPU_PROGRAM_MAP(tigerh_map)
+	MDRV_CPU_IO_MAP(tigerhb_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 6000000)
-	MCFG_CPU_PROGRAM_MAP(slapfght_sound_map)
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse,6*60)    /* ??? */
+	MDRV_CPU_ADD("audiocpu", Z80, 6000000)
+	MDRV_CPU_PROGRAM_MAP(slapfght_sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(nmi_line_pulse,6)    /* ??? */
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
+	MDRV_QUANTUM_TIME(HZ(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
 
-	MCFG_MACHINE_RESET(slapfight)
+	MDRV_MACHINE_RESET(slapfight)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 36*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(slapfight)
-	MCFG_SCREEN_EOF(perfrman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 36*8-1, 2*8, 32*8-1)
 
-	MCFG_GFXDECODE(slapfght)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(slapfght)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(slapfight)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(slapfight)
+	MDRV_VIDEO_EOF(perfrman)
+	MDRV_VIDEO_UPDATE(slapfight)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, 1500000)
-	MCFG_SOUND_CONFIG(ay8910_interface_1)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay1", AY8910, 1500000)
+	MDRV_SOUND_CONFIG(ay8910_interface_1)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 1500000)
-	MCFG_SOUND_CONFIG(ay8910_interface_2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, 1500000)
+	MDRV_SOUND_CONFIG(ay8910_interface_2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( tigerh, slapfght_state )
+static MACHINE_DRIVER_START( tigerh )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_36MHz/6) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(tigerh_map)
-	MCFG_CPU_IO_MAP(tigerh_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_36MHz/6) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(tigerh_map)
+	MDRV_CPU_IO_MAP(tigerh_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_36MHz/12) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(slapfght_sound_map)
-	MCFG_CPU_PERIODIC_INT(nmi_line_pulse,6*60)    /* ??? */
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_36MHz/12) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(slapfght_sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(nmi_line_pulse,6)    /* ??? */
 
-	MCFG_CPU_ADD("mcu", M68705,XTAL_36MHz/12) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(tigerh_m68705_map)
+	MDRV_CPU_ADD("mcu", M68705,XTAL_36MHz/12) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(tigerh_m68705_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
+	MDRV_QUANTUM_TIME(HZ(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
 
-	MCFG_MACHINE_RESET(slapfight)
+	MDRV_MACHINE_RESET(slapfight)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 36*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(slapfight)
-	MCFG_SCREEN_EOF(perfrman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 36*8-1, 2*8, 32*8-1)
 
-	MCFG_GFXDECODE(slapfght)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(slapfght)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(slapfight)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(slapfight)
+	MDRV_VIDEO_EOF(perfrman)
+	MDRV_VIDEO_UPDATE(slapfight)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, XTAL_36MHz/24) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ay8910_interface_1)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay1", AY8910, XTAL_36MHz/24) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ay8910_interface_1)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ay2", AY8910, XTAL_36MHz/24) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ay8910_interface_2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, XTAL_36MHz/24) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ay8910_interface_2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( slapfigh, slapfght_state )
+static MACHINE_DRIVER_START( slapfigh )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu",Z80, XTAL_36MHz/6) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(slapfght_map)
-	MCFG_CPU_IO_MAP(slapfght_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu",Z80, XTAL_36MHz/6) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(slapfght_map)
+	MDRV_CPU_IO_MAP(slapfght_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_36MHz/12) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(slapfght_sound_map)
-	MCFG_CPU_VBLANK_INT_HACK(getstar_interrupt, 3)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_36MHz/12) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(slapfght_sound_map)
+	MDRV_CPU_VBLANK_INT_HACK(getstar_interrupt, 3)
 
-	MCFG_CPU_ADD("mcu", M68705, XTAL_36MHz/12) /* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(slapfight_m68705_map)
+	MDRV_CPU_ADD("mcu", M68705, XTAL_36MHz/12) /* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(slapfight_m68705_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
+	MDRV_QUANTUM_TIME(HZ(600))	/* 10 CPU slices per frame - enough for the sound CPU to read all commands */
 
-	MCFG_MACHINE_RESET(slapfight)
+	MDRV_MACHINE_RESET(slapfight)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_BUFFERS_SPRITERAM)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 36*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(slapfight)
-	MCFG_SCREEN_EOF(perfrman)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 36*8-1, 2*8, 32*8-1)
 
-	MCFG_GFXDECODE(slapfght)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(slapfght)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_VIDEO_START(slapfight)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_VIDEO_START(slapfight)
+	MDRV_VIDEO_EOF(perfrman)
+	MDRV_VIDEO_UPDATE(slapfight)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, XTAL_36MHz/24) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ay8910_interface_1)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+	MDRV_SOUND_ADD("ay1", AY8910, XTAL_36MHz/24) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ay8910_interface_1)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
 
-	MCFG_SOUND_ADD("ay2", AY8910, XTAL_36MHz/24) /* verified on pcb */
-	MCFG_SOUND_CONFIG(ay8910_interface_2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, XTAL_36MHz/24) /* verified on pcb */
+	MDRV_SOUND_CONFIG(ay8910_interface_2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.25)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( slapfighb1, slapfigh )
+static MACHINE_DRIVER_START( slapfighb1 )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(slapfigh)
 
-	MCFG_DEVICE_REMOVE("mcu")
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("mcu")
+MACHINE_DRIVER_END
 
 /* identical to slapfigh_ but the scroll registers are located elsewhere in memory */
-static MACHINE_CONFIG_DERIVED( slapfighb2, slapfigh )
+static MACHINE_DRIVER_START( slapfighb2 )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(slapfigh)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(slapfighb2_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(slapfighb2_map)
 
-	MCFG_DEVICE_REMOVE("mcu")
-MACHINE_CONFIG_END
+	MDRV_DEVICE_REMOVE("mcu")
+MACHINE_DRIVER_END
 
 
 ROM_START( perfrman )
@@ -1742,12 +1746,12 @@ ROM_END
 
 static DRIVER_INIT( tigerh )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0xe803, 0xe803, FUNC(tigerh_mcu_r), FUNC(tigerh_mcu_w)  );
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe803, 0xe803, 0, 0, tigerh_mcu_r, tigerh_mcu_w  );
 }
 
 static DRIVER_INIT( tigerhb )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0xe803, 0xe803, FUNC(tigerhb_e803_r), FUNC(tigerhb_e803_w)  );
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe803, 0xe803, 0, 0, tigerhb_e803_r, tigerhb_e803_w  );
 }
 
 
@@ -1772,10 +1776,10 @@ static READ8_HANDLER( gtstarb1_port_0_read )
         6D38: 20 F8         jr   nz,$6D32
         6D3A: 10 E0         djnz $6D1C
     */
-	if (cpu_get_pc(&space->device()) == 0x6d1e) return 0;
-	if (cpu_get_pc(&space->device()) == 0x6d24) return 6;
-	if (cpu_get_pc(&space->device()) == 0x6d2c) return 2;
-	if (cpu_get_pc(&space->device()) == 0x6d34) return 4;
+	if (cpu_get_pc(space->cpu) == 0x6d1e) return 0;
+	if (cpu_get_pc(space->cpu) == 0x6d24) return 6;
+	if (cpu_get_pc(space->cpu) == 0x6d2c) return 2;
+	if (cpu_get_pc(space->cpu) == 0x6d34) return 4;
 
 	/* The bootleg hangs in the "test mode" before diplaying (wrong) lives settings :
         6AD4: DB 00         in   a,($00)
@@ -1796,45 +1800,42 @@ static READ8_HANDLER( gtstarb1_port_0_read )
         6AF7: 20 FA         jr   nz,$6AF3
        This seems to be what used to be the MCU status.
     */
-	if (cpu_get_pc(&space->device()) == 0x6ad6) return 2; /* bit 1 must be ON */
-	if (cpu_get_pc(&space->device()) == 0x6ae4) return 2; /* bit 1 must be ON */
-	if (cpu_get_pc(&space->device()) == 0x6af5) return 0; /* bit 2 must be OFF */
+	if (cpu_get_pc(space->cpu) == 0x6ad6) return 2; /* bit 1 must be ON */
+	if (cpu_get_pc(space->cpu) == 0x6ae4) return 2; /* bit 1 must be ON */
+	if (cpu_get_pc(space->cpu) == 0x6af5) return 0; /* bit 2 must be OFF */
 
-	logerror("Port Read PC=%04x\n",cpu_get_pc(&space->device()));
+	logerror("Port Read PC=%04x\n",cpu_get_pc(space->cpu));
 
 	return 0;
 }
 
-static void getstar_init( running_machine &machine )
+static void getstar_init( running_machine *machine )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0xe803, 0xe803, FUNC(getstar_e803_r), FUNC(getstar_e803_w) );
-	machine.device("maincpu")->memory().space(AS_IO)->install_legacy_read_handler(0x00, 0x00, FUNC(slapfight_port_00_r) );
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe803, 0xe803, 0, 0, getstar_e803_r, getstar_e803_w );
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x00, 0x00, 0, 0, slapfight_port_00_r );
 }
 
 static DRIVER_INIT( getstar )
 {
-	slapfght_state *state = machine.driver_data<slapfght_state>();
-	state->m_getstar_id = GETSTAR;
+	getstar_id = GETSTAR;
 	getstar_init(machine);
 }
 
 static DRIVER_INIT( getstarj )
 {
-	slapfght_state *state = machine.driver_data<slapfght_state>();
-	state->m_getstar_id = GETSTARJ;
+	getstar_id = GETSTARJ;
 	getstar_init(machine);
 }
 
 static DRIVER_INIT( gtstarb1 )
 {
-	slapfght_state *state = machine.driver_data<slapfght_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
-	state->m_getstar_id = GTSTARB1;
+	getstar_id = GTSTARB1;
 	getstar_init(machine);
 
 	/* specific handlers for this bootleg */
-	machine.device("maincpu")->memory().space(AS_IO)->install_legacy_read_handler(0x0, 0x0, FUNC(gtstarb1_port_0_read) );
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x0, 0x0, 0, 0, gtstarb1_port_0_read );
 	/* requires this or it gets stuck with 'rom test' on screen */
 	/* it is possible the program roms are slighly corrupt like the gfx roms, or
        that the bootleg simply shouldn't execute the code due to the modified roms */
@@ -1844,20 +1845,19 @@ static DRIVER_INIT( gtstarb1 )
 
 static DRIVER_INIT( gtstarb2 )
 {
-	slapfght_state *state = machine.driver_data<slapfght_state>();
-	state->m_getstar_id = GTSTARB2;
+	getstar_id = GTSTARB2;
 	getstar_init(machine);
 }
 
 static DRIVER_INIT( slapfigh )
 {
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0xe803, 0xe803, FUNC(slapfight_mcu_r), FUNC(slapfight_mcu_w) );
-	machine.device("maincpu")->memory().space(AS_IO)->install_legacy_read_handler(0x00, 0x00, FUNC(slapfight_mcu_status_r) );
+	memory_install_readwrite8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0xe803, 0xe803, 0, 0, slapfight_mcu_r, slapfight_mcu_w );
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x00, 0x00, 0, 0, slapfight_mcu_status_r );
 }
 
 static DRIVER_INIT( perfrman )
 {
-	machine.device("maincpu")->memory().space(AS_IO)->install_legacy_read_handler(0x00, 0x00, FUNC(perfrman_port_00_r) );
+	memory_install_read8_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_IO), 0x00, 0x00, 0, 0, perfrman_port_00_r );
 }
 
 /*  ( YEAR  NAME        PARENT    MACHINE     INPUT     INIT      MONITOR  COMPANY    FULLNAME     FLAGS ) */

@@ -100,49 +100,48 @@ produces a high clock frequency, slow movements a low freq.
 #include "sound/okim6295.h"
 #include "includes/wrally.h"
 
+static UINT16 *wrally_shareram;
 
-static ADDRESS_MAP_START( wrally_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( wrally_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x0fffff) AM_ROM															/* ROM */
-	AM_RANGE(0x100000, 0x103fff) AM_RAM_WRITE(wrally_vram_w) AM_BASE_MEMBER(wrally_state, m_videoram)	/* encrypted Video RAM */
-	AM_RANGE(0x108000, 0x108007) AM_RAM AM_BASE_MEMBER(wrally_state, m_vregs)									/* Video Registers */
+	AM_RANGE(0x100000, 0x103fff) AM_RAM_WRITE(wrally_vram_w) AM_BASE(&wrally_videoram)	/* encrypted Video RAM */
+	AM_RANGE(0x108000, 0x108007) AM_RAM AM_BASE(&wrally_vregs)									/* Video Registers */
 	AM_RANGE(0x10800c, 0x10800d) AM_WRITENOP												/* CLR INT Video */
 	AM_RANGE(0x200000, 0x203fff) AM_RAM_WRITE(paletteram16_xxxxBBBBRRRRGGGG_word_w) AM_BASE_GENERIC(paletteram)	/* Palette */
-	AM_RANGE(0x440000, 0x440fff) AM_RAM AM_BASE_MEMBER(wrally_state, m_spriteram)								/* Sprite RAM */
+	AM_RANGE(0x440000, 0x440fff) AM_RAM AM_BASE(&wrally_spriteram)								/* Sprite RAM */
 	AM_RANGE(0x700000, 0x700001) AM_READ_PORT("DSW")
 	AM_RANGE(0x700002, 0x700003) AM_READ_PORT("P1_P2")
 	AM_RANGE(0x700004, 0x700005) AM_READ_PORT("WHEEL")
 	AM_RANGE(0x700008, 0x700009) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x70000c, 0x70000d) AM_WRITE(OKIM6295_bankswitch_w)								/* OKI6295 bankswitch */
-	AM_RANGE(0x70000e, 0x70000f) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)	/* OKI6295 status/data register */
+	AM_RANGE(0x70000e, 0x70000f) AM_DEVREADWRITE8("oki", okim6295_r, okim6295_w, 0x00ff)	/* OKI6295 status/data register */
 	AM_RANGE(0x70000a, 0x70001b) AM_WRITE(wrally_coin_lockout_w)								/* Coin lockouts */
 	AM_RANGE(0x70002a, 0x70003b) AM_WRITE(wrally_coin_counter_w)								/* Coin counters */
 	AM_RANGE(0x70004a, 0x70004b) AM_WRITENOP												/* Sound muting */
 	AM_RANGE(0x70005a, 0x70005b) AM_WRITE(wrally_flipscreen_w)									/* Flip screen */
 	AM_RANGE(0x70006a, 0x70007b) AM_WRITENOP												/* ??? */
-	AM_RANGE(0xfec000, 0xfeffff) AM_RAM AM_BASE_MEMBER(wrally_state, m_shareram)										/* Work RAM (shared with DS5002FP) */
+	AM_RANGE(0xfec000, 0xfeffff) AM_RAM AM_BASE(&wrally_shareram)										/* Work RAM (shared with DS5002FP) */
 ADDRESS_MAP_END
 
 static READ8_HANDLER( dallas_share_r )
 {
-	wrally_state *state = space->machine().driver_data<wrally_state>();
-	UINT8 *shareram = (UINT8 *)state->m_shareram;
+	UINT8 *shareram = (UINT8 *)wrally_shareram;
 
 	return shareram[BYTE_XOR_LE(offset) ^ 1];
 }
 
 static WRITE8_HANDLER( dallas_share_w )
 {
-	wrally_state *state = space->machine().driver_data<wrally_state>();
-	UINT8 *shareram = (UINT8 *)state->m_shareram;
+	UINT8 *shareram = (UINT8 *)wrally_shareram;
 
 	shareram[BYTE_XOR_LE(offset) ^ 1] = data;
 }
 
-static ADDRESS_MAP_START( dallas_rom, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dallas_rom, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM									/* Code in NVRAM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( dallas_ram, AS_IO, 8 )
+static ADDRESS_MAP_START( dallas_ram, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x0000, 0xffff) AM_READWRITE(dallas_share_r, dallas_share_w)	AM_MASK(0x3fff)		/* Shared RAM with the main CPU */
 ADDRESS_MAP_END
 
@@ -246,39 +245,39 @@ static GFXDECODE_START( wrally )
 GFXDECODE_END
 
 
-static MACHINE_CONFIG_START( wrally, wrally_state )
+static MACHINE_DRIVER_START( wrally )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,XTAL_24MHz/2)		/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(wrally_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,XTAL_24MHz/2)		/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(wrally_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
-	MCFG_CPU_ADD("mcu", DS5002FP, XTAL_24MHz/2)	/* verified on pcb */
-	MCFG_CPU_CONFIG(dallas_config)
-	MCFG_CPU_PROGRAM_MAP(dallas_rom)
-	MCFG_CPU_IO_MAP(dallas_ram)
+	MDRV_CPU_ADD("mcu", DS5002FP, XTAL_24MHz/2)	/* verified on pcb */
+	MDRV_CPU_CONFIG(dallas_config)
+	MDRV_CPU_PROGRAM_MAP(dallas_rom)
+	MDRV_CPU_IO_MAP(dallas_ram)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(38400))					/* heavy sync */
+	MDRV_QUANTUM_TIME(HZ(38400))					/* heavy sync */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 32*16)
-	MCFG_SCREEN_VISIBLE_AREA(8, 24*16-8-1, 16, 16*16-8-1)
-	MCFG_SCREEN_UPDATE(wrally)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500)) /* not accurate */
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 32*16)
+	MDRV_SCREEN_VISIBLE_AREA(8, 24*16-8-1, 16, 16*16-8-1)
 
-	MCFG_GFXDECODE(wrally)
-	MCFG_PALETTE_LENGTH(1024*8)
+	MDRV_GFXDECODE(wrally)
+	MDRV_PALETTE_LENGTH(1024*8)
 
-	MCFG_VIDEO_START(wrally)
+	MDRV_VIDEO_START(wrally)
+	MDRV_VIDEO_UPDATE(wrally)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", XTAL_1MHz, OKIM6295_PIN7_HIGH)					/* verified on pcb */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", XTAL_1MHz, OKIM6295_PIN7_HIGH)					/* verified on pcb */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 ROM_START( wrally )

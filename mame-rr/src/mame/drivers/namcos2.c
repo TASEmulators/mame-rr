@@ -445,10 +445,10 @@ $a00000 checks have been seen on the Final Lap boards.
 #include "emu.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/m6805/m6805.h"
+#include "deprecat.h"
 #include "includes/namcos2.h"
 #include "cpu/m6809/m6809.h"
 #include "includes/namcoic.h"
-#include "machine/nvram.h"
 #include "sound/2151intf.h"
 #include "sound/c140.h"
 
@@ -589,7 +589,7 @@ static WRITE8_HANDLER( namcos2_dpram_byte_w )
     0xc00000 ONWARDS are unverified memory locations on the video board
 */
 
-static ADDRESS_MAP_START( namcos2_68k_default_cpu_board_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( namcos2_68k_default_cpu_board_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x200000, 0x3fffff) AM_READ(namcos2_68k_data_rom_r)
 	AM_RANGE(0x400000, 0x41ffff) AM_READWRITE(namco_tilemapvideoram16_r,namco_tilemapvideoram16_w)
 	AM_RANGE(0x420000, 0x42003f) AM_READWRITE(namco_tilemapcontrol16_r,namco_tilemapcontrol16_w)
@@ -602,7 +602,7 @@ ADDRESS_MAP_END
 
 /*************************************************************/
 
-static ADDRESS_MAP_START( common_default_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( common_default_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0xc00000, 0xc03fff) AM_READWRITE(namcos2_sprite_ram_r,namcos2_sprite_ram_w) AM_BASE(&namcos2_sprite_ram)
 	AM_RANGE(0xc40000, 0xc40001) AM_READWRITE(namcos2_gfx_ctrl_r,namcos2_gfx_ctrl_w)
 	AM_RANGE(0xc80000, 0xc9ffff) AM_READWRITE(namcos2_68k_roz_ram_r,namcos2_68k_roz_ram_w) AM_BASE(&namcos2_68k_roz_ram)
@@ -611,7 +611,7 @@ static ADDRESS_MAP_START( common_default_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( namcos2_68k_default_cpu_board_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( master_default_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( master_default_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAMBANK(NAMCOS2_68K_MASTER_RAM)
 	AM_RANGE(0x180000, 0x183fff) AM_READWRITE(NAMCOS2_68K_eeprom_R,NAMCOS2_68K_eeprom_W)
@@ -619,7 +619,7 @@ static ADDRESS_MAP_START( master_default_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( common_default_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_default_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( slave_default_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x13ffff) AM_RAMBANK(NAMCOS2_68K_SLAVE_RAM)
 	AM_RANGE(0x1c0000, 0x1fffff) AM_READWRITE(namcos2_68k_slave_C148_r,namcos2_68k_slave_C148_w)
@@ -629,7 +629,7 @@ ADDRESS_MAP_END
 
 /*************************************************************/
 
-static ADDRESS_MAP_START( common_finallap_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( common_finallap_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x300000, 0x33ffff) AM_READ(namcos2_flap_prot_r)
 	AM_RANGE(0x800000, 0x80ffff) AM_READ(namcos2_sprite_ram_r) AM_WRITE(namcos2_sprite_ram_w) AM_BASE(&namcos2_sprite_ram)
 	AM_RANGE(0x840000, 0x840001) AM_READ(namcos2_gfx_ctrl_r) AM_WRITE(namcos2_gfx_ctrl_w)
@@ -638,7 +638,7 @@ static ADDRESS_MAP_START( common_finallap_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( namcos2_68k_default_cpu_board_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( master_finallap_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( master_finallap_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAMBANK(NAMCOS2_68K_MASTER_RAM)
 	AM_RANGE(0x180000, 0x183fff) AM_READWRITE(NAMCOS2_68K_eeprom_R,NAMCOS2_68K_eeprom_W)
@@ -646,7 +646,7 @@ static ADDRESS_MAP_START( master_finallap_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( common_finallap_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_finallap_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( slave_finallap_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x13ffff) AM_RAMBANK(NAMCOS2_68K_SLAVE_RAM)
 	AM_RANGE(0x1c0000, 0x1fffff) AM_READWRITE(namcos2_68k_slave_C148_r,namcos2_68k_slave_C148_w)
@@ -655,14 +655,14 @@ ADDRESS_MAP_END
 
 /*************************************************************/
 
-static ADDRESS_MAP_START( common_sgunner_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( common_sgunner_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x800000, 0x8141ff) AM_READWRITE(namco_obj16_r,namco_obj16_w)
 	AM_RANGE(0x818000, 0x818001) AM_WRITENOP
 	AM_RANGE(0xa00000, 0xa0000f) AM_READWRITE(namcos2_68k_key_r,namcos2_68k_key_w)
 	AM_IMPORT_FROM( namcos2_68k_default_cpu_board_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( master_sgunner_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( master_sgunner_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAMBANK(NAMCOS2_68K_MASTER_RAM)
 	AM_RANGE(0x180000, 0x183fff) AM_READWRITE(NAMCOS2_68K_eeprom_R,NAMCOS2_68K_eeprom_W)
@@ -670,7 +670,7 @@ static ADDRESS_MAP_START( master_sgunner_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( common_sgunner_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_sgunner_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( slave_sgunner_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x13ffff) AM_RAMBANK(NAMCOS2_68K_SLAVE_RAM)
 	AM_RANGE(0x1c0000, 0x1fffff) AM_READWRITE(namcos2_68k_slave_C148_r,namcos2_68k_slave_C148_w)
@@ -679,7 +679,7 @@ ADDRESS_MAP_END
 
 /*************************************************************/
 
-static ADDRESS_MAP_START( common_metlhawk_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( common_metlhawk_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0xc00000, 0xc03fff) AM_READWRITE(namcos2_sprite_ram_r,namcos2_sprite_ram_w) AM_BASE(&namcos2_sprite_ram) \
 	AM_RANGE(0xc40000, 0xc4ffff) AM_READWRITE(namco_rozvideoram16_r,namco_rozvideoram16_w) \
 	AM_RANGE(0xd00000, 0xd0001f) AM_READWRITE(namco_rozcontrol16_r,namco_rozcontrol16_w) \
@@ -687,7 +687,7 @@ static ADDRESS_MAP_START( common_metlhawk_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( namcos2_68k_default_cpu_board_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( master_metlhawk_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( master_metlhawk_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAMBANK(NAMCOS2_68K_MASTER_RAM)
 	AM_RANGE(0x180000, 0x183fff) AM_READWRITE(NAMCOS2_68K_eeprom_R,NAMCOS2_68K_eeprom_W)
@@ -695,7 +695,7 @@ static ADDRESS_MAP_START( master_metlhawk_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( common_metlhawk_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_metlhawk_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( slave_metlhawk_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x13ffff) AM_RAMBANK(NAMCOS2_68K_SLAVE_RAM)
 	AM_RANGE(0x1c0000, 0x1fffff) AM_READWRITE(namcos2_68k_slave_C148_r,namcos2_68k_slave_C148_w)
@@ -704,7 +704,7 @@ ADDRESS_MAP_END
 
 /*************************************************************/
 
-static ADDRESS_MAP_START( common_luckywld_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( common_luckywld_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x800000, 0x8141ff) AM_READWRITE(namco_obj16_r,namco_obj16_w)
 	AM_RANGE(0x818000, 0x818001) AM_NOP /* enable? */
 	AM_RANGE(0x81a000, 0x81a001) AM_WRITENOP /* enable? */
@@ -717,7 +717,7 @@ static ADDRESS_MAP_START( common_luckywld_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( namcos2_68k_default_cpu_board_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( master_luckywld_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( master_luckywld_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x10ffff) AM_RAMBANK(NAMCOS2_68K_MASTER_RAM)
 	AM_RANGE(0x180000, 0x183fff) AM_READWRITE(NAMCOS2_68K_eeprom_R,NAMCOS2_68K_eeprom_W)
@@ -725,7 +725,7 @@ static ADDRESS_MAP_START( master_luckywld_am, AS_PROGRAM, 16 )
 	AM_IMPORT_FROM( common_luckywld_am )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( slave_luckywld_am, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( slave_luckywld_am, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x100000, 0x13ffff) AM_RAMBANK(NAMCOS2_68K_SLAVE_RAM)
 	AM_RANGE(0x1c0000, 0x1fffff) AM_READWRITE(namcos2_68k_slave_C148_r,namcos2_68k_slave_C148_w)
@@ -736,7 +736,7 @@ ADDRESS_MAP_END
 /* 6809 SOUND CPU Memory declarations                        */
 /*************************************************************/
 
-static ADDRESS_MAP_START( sound_default_am, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_default_am, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROMBANK("bank6") /* banked */
 	AM_RANGE(0x4000, 0x4001) AM_DEVREADWRITE("ymsnd", ym2151_r,ym2151_w)
 	AM_RANGE(0x5000, 0x6fff) AM_DEVREADWRITE("c140", c140_r,c140_w)
@@ -755,7 +755,7 @@ ADDRESS_MAP_END
 /* 68705 IO CPU Memory declarations                          */
 /*************************************************************/
 
-static ADDRESS_MAP_START( mcu_default_am, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mcu_default_am, ADDRESS_SPACE_PROGRAM, 8 )
 	/* input ports and dips are mapped here */
 	AM_RANGE(0x0000, 0x0000) AM_READNOP /* Keep logging quiet */
 	AM_RANGE(0x0001, 0x0001) AM_READ(namcos2_input_port_0_r)
@@ -1329,7 +1329,7 @@ static INPUT_PORTS_START( luckywld )
 	PORT_START("AN4")
 	PORT_BIT( 0xff, 0x80, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_SENSITIVITY(50) PORT_KEYDELTA(8)
 	PORT_START("AN5")		/* Steering Wheel */
-	PORT_BIT( 0xff, 0x80, IPT_PADDLE ) PORT_SENSITIVITY(100) PORT_KEYDELTA(20) PORT_CODE(INPUT_CODE_INVALID) PORT_CODE_DEC(KEYCODE_Z) PORT_CODE_INC(KEYCODE_X)
+	PORT_BIT( 0xff, 0x80, IPT_PADDLE ) PORT_SENSITIVITY(100) PORT_KEYDELTA(20) PORT_CODE(0) PORT_CODE_DEC(KEYCODE_Z) PORT_CODE_INC(KEYCODE_X)
 	PORT_START("AN6")		/* Brake pedal */
 	PORT_BIT( 0xff, 0x00, IPT_PEDAL2 ) PORT_MINMAX(0x00,0x7f) PORT_SENSITIVITY(100) PORT_KEYDELTA(30)
 	PORT_START("AN7")		/* Accelerator pedal */
@@ -1605,332 +1605,335 @@ via software as INT1
 /*                                                           */
 /*************************************************************/
 
-static MACHINE_CONFIG_START( default, driver_device )
-	MCFG_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(master_default_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
+static MACHINE_DRIVER_START( default )
+	MDRV_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(master_default_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
 
-	MCFG_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /*  12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(slave_default_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
+	MDRV_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /*  12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(slave_default_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
-	MCFG_CPU_PROGRAM_MAP(sound_default_am)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,2*60)
-	MCFG_CPU_PERIODIC_INT(irq1_line_hold, 120)
+	MDRV_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
+	MDRV_CPU_PROGRAM_MAP(sound_default_am)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_PERIODIC_INT(irq1_line_hold, 120)
 
-	MCFG_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
-	MCFG_CPU_PROGRAM_MAP(mcu_default_am)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
+	MDRV_CPU_PROGRAM_MAP(mcu_default_am)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(12000)) /* CPU slices per frame */
+	MDRV_QUANTUM_TIME(HZ(12000)) /* CPU slices per frame */
 
-	MCFG_MACHINE_START(namcos2)
-	MCFG_MACHINE_RESET(namcos2)
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_MACHINE_START(namcos2)
+	MDRV_MACHINE_RESET(namcos2)
+	MDRV_NVRAM_HANDLER(namcos2)
 
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(384, 264)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(namcos2_default)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(384, 264)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(namcos2)
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_GFXDECODE(namcos2)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(namcos2)
+	MDRV_VIDEO_START(namcos2)
+	MDRV_VIDEO_UPDATE(namcos2_default)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
 /* adjusted machine driver start */
-static MACHINE_CONFIG_DERIVED( default2, default )
+static MACHINE_DRIVER_START( default2 )
+	MDRV_IMPORT_FROM(default)
 
-	MCFG_SOUND_REPLACE("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_REPLACE("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 /* end */
 
-static MACHINE_CONFIG_DERIVED( assaultp, default2 )
+static MACHINE_DRIVER_START( assaultp )
+	MDRV_IMPORT_FROM(default2)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(12000*8)) /* CPU slices per frame - boosted (along with MCU speed) so that the Mode Select works */
-MACHINE_CONFIG_END
+	MDRV_QUANTUM_TIME(HZ(12000*8)) /* CPU slices per frame - boosted (along with MCU speed) so that the Mode Select works */
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( default3, default )
+static MACHINE_DRIVER_START( default3 )
+	MDRV_IMPORT_FROM(default)
 
-	MCFG_SOUND_REPLACE("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.45)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.45)
+	MDRV_SOUND_REPLACE("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.45)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.45)
 
-	MCFG_SOUND_REPLACE("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_REPLACE("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( gollygho, driver_device )
-	MCFG_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(master_default_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
+static MACHINE_DRIVER_START( gollygho )
+	MDRV_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(master_default_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
 
-	MCFG_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(slave_default_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
+	MDRV_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(slave_default_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
-	MCFG_CPU_PROGRAM_MAP(sound_default_am)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold, 2*60)
-	MCFG_CPU_PERIODIC_INT(irq1_line_hold, 120)
+	MDRV_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
+	MDRV_CPU_PROGRAM_MAP(sound_default_am)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_PERIODIC_INT(irq1_line_hold, 120)
 
-	MCFG_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
-	MCFG_CPU_PROGRAM_MAP(mcu_default_am)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
+	MDRV_CPU_PROGRAM_MAP(mcu_default_am)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) /* CPU slices per frame */
+	MDRV_QUANTUM_TIME(HZ(6000)) /* CPU slices per frame */
 
-	MCFG_MACHINE_START(namcos2)
-	MCFG_MACHINE_RESET(namcos2)
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_MACHINE_START(namcos2)
+	MDRV_MACHINE_RESET(namcos2)
+	MDRV_NVRAM_HANDLER(namcos2)
 
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(384, 264)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(namcos2_default)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(384, 264)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(namcos2)
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_GFXDECODE(namcos2)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(namcos2)
+	MDRV_VIDEO_START(namcos2)
+	MDRV_VIDEO_UPDATE(namcos2_default)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( finallap, driver_device )
-	MCFG_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(master_finallap_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
+static MACHINE_DRIVER_START( finallap )
+	MDRV_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(master_finallap_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
 
-	MCFG_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(slave_finallap_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
+	MDRV_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(slave_finallap_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
-	MCFG_CPU_PROGRAM_MAP(sound_default_am)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold, 2*60)
-	MCFG_CPU_PERIODIC_INT(irq1_line_hold, 120)
+	MDRV_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
+	MDRV_CPU_PROGRAM_MAP(sound_default_am)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_PERIODIC_INT(irq1_line_hold, 120)
 
-	MCFG_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
-	MCFG_CPU_PROGRAM_MAP(mcu_default_am)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
+	MDRV_CPU_PROGRAM_MAP(mcu_default_am)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) /* CPU slices per frame */
+	MDRV_QUANTUM_TIME(HZ(6000)) /* CPU slices per frame */
 
-	MCFG_MACHINE_START(namcos2)
-	MCFG_MACHINE_RESET(namcos2)
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_MACHINE_START(namcos2)
+	MDRV_MACHINE_RESET(namcos2)
+	MDRV_NVRAM_HANDLER(namcos2)
 
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(384, 264)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(finallap)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(384, 264)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(finallap)
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_GFXDECODE(finallap)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(finallap)
+	MDRV_VIDEO_START(finallap)
+	MDRV_VIDEO_UPDATE(finallap)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( sgunner, driver_device )
-	MCFG_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(master_sgunner_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
+static MACHINE_DRIVER_START( sgunner )
+	MDRV_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(master_sgunner_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
 
-	MCFG_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(slave_sgunner_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
+	MDRV_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(slave_sgunner_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
-	MCFG_CPU_PROGRAM_MAP(sound_default_am)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold, 2*60)
-	MCFG_CPU_PERIODIC_INT(irq1_line_hold, 120)
+	MDRV_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
+	MDRV_CPU_PROGRAM_MAP(sound_default_am)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_PERIODIC_INT(irq1_line_hold, 120)
 
-	MCFG_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
-	MCFG_CPU_PROGRAM_MAP(mcu_default_am)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
+	MDRV_CPU_PROGRAM_MAP(mcu_default_am)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) /* CPU slices per frame */
+	MDRV_QUANTUM_TIME(HZ(6000)) /* CPU slices per frame */
 
-	MCFG_MACHINE_START(namcos2)
-	MCFG_MACHINE_RESET(namcos2)
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_MACHINE_START(namcos2)
+	MDRV_MACHINE_RESET(namcos2)
+	MDRV_NVRAM_HANDLER(namcos2)
 
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(384, 264)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(sgunner)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(384, 264)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(sgunner)
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_GFXDECODE(sgunner)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(sgunner)
+	MDRV_VIDEO_START(sgunner)
+	MDRV_VIDEO_UPDATE(sgunner)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( luckywld, driver_device )
-	MCFG_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(master_luckywld_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
+static MACHINE_DRIVER_START( luckywld )
+	MDRV_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(master_luckywld_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
 
-	MCFG_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(slave_luckywld_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
+	MDRV_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(slave_luckywld_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
-	MCFG_CPU_PROGRAM_MAP(sound_default_am)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,2*60)
-	MCFG_CPU_PERIODIC_INT(irq1_line_hold,120)
+	MDRV_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
+	MDRV_CPU_PROGRAM_MAP(sound_default_am)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_PERIODIC_INT(irq1_line_hold,120)
 
-	MCFG_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
-	MCFG_CPU_PROGRAM_MAP(mcu_default_am)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
+	MDRV_CPU_PROGRAM_MAP(mcu_default_am)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) /* CPU slices per frame */
+	MDRV_QUANTUM_TIME(HZ(6000)) /* CPU slices per frame */
 
-	MCFG_MACHINE_START(namcos2)
-	MCFG_MACHINE_RESET(namcos2)
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_MACHINE_START(namcos2)
+	MDRV_MACHINE_RESET(namcos2)
+	MDRV_NVRAM_HANDLER(namcos2)
 
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(384, 264)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(luckywld)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(384, 264)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(luckywld)
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_GFXDECODE(luckywld)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(luckywld)
+	MDRV_VIDEO_START(luckywld)
+	MDRV_VIDEO_UPDATE(luckywld)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
+	MDRV_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( metlhawk, driver_device )
-	MCFG_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(master_metlhawk_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
+static MACHINE_DRIVER_START( metlhawk )
+	MDRV_CPU_ADD("maincpu", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(master_metlhawk_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_master_vblank)
 
-	MCFG_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
-	MCFG_CPU_PROGRAM_MAP(slave_metlhawk_am)
-	MCFG_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
+	MDRV_CPU_ADD("slave", M68000, M68K_CPU_CLOCK) /* 12.288MHz (49.152MHz OSC/4) */
+	MDRV_CPU_PROGRAM_MAP(slave_metlhawk_am)
+	MDRV_CPU_VBLANK_INT("screen", namcos2_68k_slave_vblank)
 
-	MCFG_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
-	MCFG_CPU_PROGRAM_MAP(sound_default_am)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,2*60)
-	MCFG_CPU_PERIODIC_INT(irq1_line_hold,120)
+	MDRV_CPU_ADD("audiocpu", M6809, M68B09_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - Sound handling */
+	MDRV_CPU_PROGRAM_MAP(sound_default_am)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_PERIODIC_INT(irq1_line_hold,120)
 
-	MCFG_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
-	MCFG_CPU_PROGRAM_MAP(mcu_default_am)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("mcu", HD63705, C65_CPU_CLOCK) /* 2.048MHz (49.152MHz OSC/24) - I/O handling */
+	MDRV_CPU_PROGRAM_MAP(mcu_default_am)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000)) /* CPU slices per frame */
+	MDRV_QUANTUM_TIME(HZ(6000)) /* CPU slices per frame */
 
-	MCFG_MACHINE_START(namcos2)
-	MCFG_MACHINE_RESET(namcos2)
-	MCFG_NVRAM_ADD_1FILL("nvram")
+	MDRV_MACHINE_START(namcos2)
+	MDRV_MACHINE_RESET(namcos2)
+	MDRV_NVRAM_HANDLER(namcos2)
 
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(384, 264)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
-	MCFG_SCREEN_UPDATE(metlhawk)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE( (49152000.0 / 8) / (384 * 264) )
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(384, 264)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 36*8-1, 0*8, 28*8-1)
 
-	MCFG_GFXDECODE(metlhawk)
-	MCFG_PALETTE_LENGTH(0x2000)
+	MDRV_GFXDECODE(metlhawk)
+	MDRV_PALETTE_LENGTH(0x2000)
 
-	MCFG_VIDEO_START(metlhawk)
+	MDRV_VIDEO_START(metlhawk)
+	MDRV_VIDEO_UPDATE(metlhawk)
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
-	MCFG_SOUND_CONFIG(c140_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("c140", C140, C140_SOUND_CLOCK) /* 21.333kHz */
+	MDRV_SOUND_CONFIG(c140_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2151, YM2151_SOUND_CLOCK) /* 3.579545MHz */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
 
 /*************************************************************/
@@ -3045,68 +3048,6 @@ ROM_START( finalap3j )
 	ROM_REGION( 0x100000, "c140", 0 ) /* Sound voices */
 	ROM_LOAD( "fltvoi1",  0x000000, 0x080000, CRC(4fc7c0ba) SHA1(bbfd1764fd79087bba5e6199e8916c28bed4d3f4) )
 	ROM_LOAD( "fltvoi2",  0x080000, 0x080000, CRC(409c62df) SHA1(0c2f088168f1f92f2f767ea47522c0e8f4a10265) )
-
-	ROM_REGION( 8*1024, "user2", 0 ) /* zoom */
-	ROM_LOAD( "04544191.6r", 0, 8*1024, CRC(90db1bf6) SHA1(dbb9e50a8efc3b4012fcf587cc87da9ef42a1b80) )
-
-	ROM_REGION( 0x2000, "nvram", 0 ) /* default settings, including calibration */
-	ROM_LOAD( "finalap3.nv",  0x000000, 0x2000, CRC(efbc6274) SHA1(f542012e467027b7bd5d7102096ff91d8c9adee3) )
-ROM_END
-
-/* FINAL LAP 3 JAPAN (REV. C) */
-ROM_START( finalap3jc )
-	ROM_REGION( 0x040000, "maincpu", 0 ) /* Master CPU */
-	ROM_LOAD16_BYTE( "flt1_mp0c.11d",  0x000000, 0x020000, CRC(ebe1bff8) SHA1(dbfb2ba770dbbaa44d8b83c05365a97ddd18908d) )
-	ROM_LOAD16_BYTE( "flt1_mp1c.13d",  0x000001, 0x020000, CRC(61099bb8) SHA1(c0e5a1bf15f5746d58ee8c510459fe76dde5a5a9) )
-
-	ROM_REGION( 0x040000, "slave", 0 ) /* Slave CPU */
-	ROM_LOAD16_BYTE( "flt1_sp0.11k",  0x000000, 0x020000, CRC(e804ced1) SHA1(b31e1fddd202ba503b28455a270e8d45a348dc2e) )
-	ROM_LOAD16_BYTE( "flt1_sp1.13k",  0x000001, 0x020000, CRC(3a2b24ee) SHA1(e4f16f30516dab13cc8b1cb6c80ec1df129f8851) )
-
-	ROM_REGION( 0x030000, "audiocpu", 0 ) /* Sound CPU (Banked) */
-	ROM_LOAD( "flt1_snd0.7j",  0x00c000, 0x004000, CRC(60b72aed) SHA1(f12e157ae5e9f373ba1d75012b869b1c4ad9fb00) )
-	ROM_CONTINUE( 0x010000, 0x01c000 )
-	ROM_RELOAD(  0x010000, 0x020000 )
-
-	ROM_REGION( 0x010000, "mcu", 0 ) /* M37450S2FP I/O MCU */
-	/* The M37450 is unemulated so we're using the C65/6805 program instead.
-       This particular M37450 variant has no internal ROM. */
-	ROM_LOAD( "sys2mcpu.bin",  0x000000, 0x002000, CRC(a342a97e) SHA1(2c420d34dba21e409bf78ddca710fc7de65a6642) )
-	ROM_LOAD( "sys2_c68.3f",   0x008000, 0x008000, CRC(ca64550a) SHA1(38d1ad1b1287cadef0c999aff9357927315f8e6b) )
-
-	ROM_REGION( 0x400000, "gfx1", 0 ) /* Sprites */
-	ROM_LOAD( "flt_obj-0.4c",  0x000000, 0x80000, CRC(eab19ec6) SHA1(2859e88b94aa873f3b6ba22790f2211f3e172dd1) )
-	ROM_LOAD( "flt_obj-2.4a",  0x080000, 0x80000, CRC(2a3b7ded) SHA1(455d9d6cf7d497687f93af899fc20bbff6129391) )
-	ROM_LOAD( "flt_obj-4.8c",  0x100000, 0x80000, CRC(84aa500c) SHA1(087c0089478a270154f50f3b0f001428e80d74c7) )
-	ROM_LOAD( "flt_obj-6.8a",  0x180000, 0x80000, CRC(33118e63) SHA1(126cc034909e05da953a1a67d6c0f18f5304b407) )
-	ROM_LOAD( "flt_obj-1.2c",  0x200000, 0x80000, CRC(4ef37a51) SHA1(2f43691cfcd852773ae5e1d879f556f232bae877) )
-	ROM_LOAD( "flt_obj-3.2a",  0x280000, 0x80000, CRC(b86dc7cd) SHA1(25402d7111c1277a618b313d1244c1a567ce458a) )
-	ROM_LOAD( "flt_obj-5.5c",  0x300000, 0x80000, CRC(6a53e603) SHA1(6087c694e0e30a98c84227991d9c2e9c39c3e9ca) )
-	ROM_LOAD( "flt_obj-7.6a",  0x380000, 0x80000, CRC(b52a85e2) SHA1(1eea10eb20ae56309397238a52e9ea0756912412) )
-
-	ROM_REGION( 0x200000, "gfx2", 0 ) /* Tiles */
-	ROM_LOAD( "flt_chr-0.11n", 0x000000, 0x40000, CRC(97ed5b62) SHA1(ce076ae71c6b2950be2a303829072d59732315df) )
-	ROM_LOAD( "flt_chr-1.11p", 0x040000, 0x40000, CRC(2e68d13c) SHA1(46bb0628da1f97e0f6865f37e53a01d2e8391255) )
-	ROM_LOAD( "flt_chr-2.11r", 0x080000, 0x40000, CRC(43c3abf8) SHA1(de66bcdb3e419725b7e7d9ae0c95e13ee99ec5c9) )
-	ROM_LOAD( "flt_chr-3.11s", 0x0c0000, 0x40000, CRC(e9b05a1f) SHA1(6b7e08f4f535fb99692920612f751a49c3cd529e) )
-	ROM_LOAD( "flt_chr-4.9n",  0x100000, 0x40000, CRC(5ae43767) SHA1(f3e24dd5ba2cffffd616ddee628e423aa0aec1d2) )
-	ROM_LOAD( "flt_chr-5.9p",  0x140000, 0x40000, CRC(b5f4e780) SHA1(a7d64d150121eda5d82f5651a06a11683220577a) )
-	ROM_LOAD( "flt_chr-6.9r",  0x180000, 0x40000, CRC(4b0baea2) SHA1(a75ba5294f06ddbe170988073b8f4a74a7cbcee1) )
-	ROM_LOAD( "flt_chr-7.9s",  0x1c0000, 0x40000, CRC(85db9e94) SHA1(918f414c1dd51f7451a9a491ba1d60f5f9a38c3e) )
-
-	ROM_REGION( 0x080000, "gfx4", 0 ) /* Mask shape */
-	NAMCOS2_GFXROM_LOAD_256K( "flt sha.7n",  0x000000, CRC(211bbd83) SHA1(17502830d1af1e2cfbc17e2f3bb303f2a0c27e68) )
-
-	ROM_REGION16_BE( 0x200000, "user1", 0 ) /* Shared data ROMs */
-	NAMCOS2_DATA_LOAD_E_128K( "flt1_d0.13s",  0x000000, CRC(80004966) SHA1(112b2a9b0ea792d5dbff1b9cf904da788aeede29) )
-	NAMCOS2_DATA_LOAD_O_128K( "flt1_d1.13p",  0x000000, CRC(a2e93e8c) SHA1(9c8a5431a79153a70eb6939d16e0a5a6be235e75) )
-
-	ROM_REGION( 0x100, "user3", 0 ) /* PROM for road colors */
-	ROM_LOAD( "fl1_3.5b", 0, 0x100, CRC(d179d99a) SHA1(4e64f284c74d2b77f893bd28aaa6489084056aa2) )
-
-	ROM_REGION( 0x100000, "c140", 0 ) /* Sound voices */
-	ROM_LOAD( "flt_voi-1.3m",  0x000000, 0x080000, CRC(4fc7c0ba) SHA1(bbfd1764fd79087bba5e6199e8916c28bed4d3f4) )
-	ROM_LOAD( "flt_voi-2.3l",  0x080000, 0x080000, CRC(409c62df) SHA1(0c2f088168f1f92f2f767ea47522c0e8f4a10265) )
 
 	ROM_REGION( 8*1024, "user2", 0 ) /* zoom */
 	ROM_LOAD( "04544191.6r", 0, 8*1024, CRC(90db1bf6) SHA1(dbb9e50a8efc3b4012fcf587cc87da9ef42a1b80) )
@@ -5034,7 +4975,7 @@ static DRIVER_INIT( assaultp_hack ){
 	//
 	// This is used in conjunction with the interleave increase in the
 	// MACHINE_DRIVER
-	machine.device("mcu")->set_clock_scale(4.0f);
+	machine->device("mcu")->set_clock_scale(4.0f);
 
 	DRIVER_INIT_CALL( assaultp );
 }
@@ -5095,7 +5036,7 @@ static DRIVER_INIT( metlhawk )
 {
 	/* unscramble sprites */
 	int i, j, k, l;
-	UINT8 *data = machine.region("gfx1")->base();
+	UINT8 *data = memory_region(machine, "gfx1");
 	for(i=0; i<0x200000; i+=32*32)
 	{
 		for(j=0; j<32*32; j+=32*4)
@@ -5212,7 +5153,7 @@ static DRIVER_INIT( bubbletr ){
 
 
 static DRIVER_INIT( luckywld ){
-	UINT8 *pData = (UINT8 *)machine.region( "gfx5" )->base();
+	UINT8 *pData = (UINT8 *)memory_region( machine, "gfx5" );
 	int i;
 	for( i=0; i<32*0x4000; i++ )
 	{ /* unscramble gfx mask */
@@ -5296,9 +5237,8 @@ GAME( 1991, cosmogngj, cosmogng, default,  default,  cosmogng, ROT90,  "Namco", 
 GAME( 1992, bubbletr,  0,        gollygho, bubbletr, bubbletr, ROT180, "Namco", "Bubble Trouble (Japan)", GAME_IMPERFECT_GRAPHICS )	/* missing external artwork */
 
 GAMEL(1992, finalap3,  0,        finallap, finalap3, finalap3, ROT0,   "Namco", "Final Lap 3 (World, set 1)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND, layout_finallap  )
-GAMEL(1992, finalap3a, finalap3, finallap, finalap3, finalap3, ROT0,   "Namco", "Final Lap 3 (World, set 2)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND, layout_finallap  )
+GAMEL(1992, finalap3a,    finalap3, finallap, finalap3, finalap3, ROT0,   "Namco", "Final Lap 3 (World, set 2)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND, layout_finallap  )
 GAMEL(1992, finalap3j, finalap3, finallap, finalap3, finalap3, ROT0,   "Namco", "Final Lap 3 (Japan)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND, layout_finallap  )
-GAMEL(1992, finalap3jc,finalap3, finallap, finalap3, finalap3, ROT0,   "Namco", "Final Lap 3 (Japan - Rev C)", GAME_IMPERFECT_GRAPHICS | GAME_IMPERFECT_SOUND, layout_finallap  )
 
 GAME( 1992, luckywld,  0,        luckywld, luckywld, luckywld, ROT0,   "Namco", "Lucky & Wild", 0 )
 GAME( 1992, luckywldj, luckywld, luckywld, luckywld, luckywld, ROT0,   "Namco", "Lucky & Wild (Japan)", 0 )

@@ -14,35 +14,36 @@
 ****************************************************************************/
 
 #include "emu.h"
-#include "imagedev/cassette.h"
+#include "streams.h"
+#ifdef MESS
+#include "devices/cassette.h"
+#endif
 #include "wave.h"
 
 #define ALWAYS_PLAY_SOUND	0
 
 static STREAM_UPDATE( wave_sound_update )
 {
-	cassette_image_device *cass = (cassette_image_device *)param;
-	int speakers = cass->machine().devicelist().count(SPEAKER);
+#ifdef MESS
+	device_image_interface *image = (device_image_interface *)param;
+	int speakers = speaker_output_count(image->device().machine->config);
 	cassette_image *cassette;
 	cassette_state state;
 	double time_index;
 	double duration;
 	stream_sample_t *left_buffer = outputs[0];
-	stream_sample_t *right_buffer = NULL;
+	stream_sample_t *right_buffer = outputs[1];
 	int i;
 
-	if (speakers>1)
-		right_buffer = outputs[1];
-
-	state = cass->get_state();
+	state = cassette_get_state(&image->device());
 
 	state = (cassette_state)(state & (CASSETTE_MASK_UISTATE | CASSETTE_MASK_MOTOR | CASSETTE_MASK_SPEAKER));
 
-	if (cass->exists() && (ALWAYS_PLAY_SOUND || (state == (CASSETTE_PLAY | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED))))
+	if (image->exists() && (ALWAYS_PLAY_SOUND || (state == (CASSETTE_PLAY | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED))))
 	{
-		cassette = cass->get_image();
-		time_index = cass->get_position();
-		duration = ((double) samples) / cass->machine().sample_rate();
+		cassette = cassette_get_image(&image->device());
+		time_index = cassette_get_position(&image->device());
+		duration = ((double) samples) / image->device().machine->sample_rate;
 
 		cassette_get_samples(cassette, 0, time_index, duration, samples, 2, left_buffer, CASSETTE_WAVEFORM_16BIT);
 		if (speakers > 1)
@@ -61,22 +62,25 @@ static STREAM_UPDATE( wave_sound_update )
 		if (speakers > 1)
 			memset(right_buffer, 0, sizeof(*right_buffer) * samples);
 	}
+#endif
 }
 
 
 
 static DEVICE_START( wave )
 {
-	cassette_image_device *image = NULL;
+	device_image_interface *image = NULL;
 
 	assert( device != NULL );
-	assert( device->static_config() != NULL );
-	int speakers = device->machine().config().devicelist().count(SPEAKER);
-	image = dynamic_cast<cassette_image_device *>(device->machine().device( (const char *)device->static_config()));
+	assert( device->baseconfig().static_config() != NULL );
+	int speakers = speaker_output_count(device->machine->config);
+#ifdef MESS
+	image = dynamic_cast<device_image_interface *>(device->machine->device( (const char *)device->baseconfig().static_config()));
+#endif
 	if (speakers > 1)
-		device->machine().sound().stream_alloc(*device, 0, 2, device->machine().sample_rate(), (void *)image, wave_sound_update);
+		stream_create(device, 0, 2, device->machine->sample_rate, (void *)image, wave_sound_update);
 	else
-		device->machine().sound().stream_alloc(*device, 0, 1, device->machine().sample_rate(), (void *)image, wave_sound_update);
+		stream_create(device, 0, 1, device->machine->sample_rate, (void *)image, wave_sound_update);
 }
 
 

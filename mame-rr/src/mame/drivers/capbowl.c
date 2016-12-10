@@ -107,8 +107,8 @@
 
 static INTERRUPT_GEN( capbowl_interrupt )
 {
-	if (input_port_read(device->machine(), "SERVICE") & 1)						/* get status of the F2 key */
-		device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);	/* trigger self test */
+	if (input_port_read(device->machine, "SERVICE") & 1)						/* get status of the F2 key */
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);	/* trigger self test */
 }
 
 
@@ -123,10 +123,10 @@ static TIMER_CALLBACK( capbowl_update )
 {
 	int scanline = param;
 
-	machine.primary_screen->update_partial(scanline - 1);
+	machine->primary_screen->update_partial(scanline - 1);
 	scanline += 32;
 	if (scanline > 240) scanline = 32;
-	machine.scheduler().timer_set(machine.primary_screen->time_until_pos(scanline), FUNC(capbowl_update), scanline);
+	timer_set(machine, machine->primary_screen->time_until_pos(scanline), NULL, scanline, capbowl_update);
 }
 
 
@@ -139,7 +139,7 @@ static TIMER_CALLBACK( capbowl_update )
 static WRITE8_HANDLER( capbowl_rom_select_w )
 {
 	// 2009-11 FP: shall we add a check to be sure that bank < 6?
-	memory_set_bank(space->machine(), "bank1", ((data & 0x0c) >> 1) + (data & 0x01));
+	memory_set_bank(space->machine, "bank1", ((data & 0x0c) >> 1) + (data & 0x01));
 }
 
 
@@ -152,25 +152,25 @@ static WRITE8_HANDLER( capbowl_rom_select_w )
 
 static READ8_HANDLER( track_0_r )
 {
-	capbowl_state *state = space->machine().driver_data<capbowl_state>();
-	return (input_port_read(space->machine(), "IN0") & 0xf0) | ((input_port_read(space->machine(), "TRACKY") - state->m_last_trackball_val[0]) & 0x0f);
+	capbowl_state *state = (capbowl_state *)space->machine->driver_data;
+	return (input_port_read(space->machine, "IN0") & 0xf0) | ((input_port_read(space->machine, "TRACKY") - state->last_trackball_val[0]) & 0x0f);
 }
 
 
 static READ8_HANDLER( track_1_r )
 {
-	capbowl_state *state = space->machine().driver_data<capbowl_state>();
-	return (input_port_read(space->machine(), "IN1") & 0xf0) | ((input_port_read(space->machine(), "TRACKX") - state->m_last_trackball_val[1]) & 0x0f);
+	capbowl_state *state = (capbowl_state *)space->machine->driver_data;
+	return (input_port_read(space->machine, "IN1") & 0xf0) | ((input_port_read(space->machine, "TRACKX") - state->last_trackball_val[1]) & 0x0f);
 }
 
 
 static WRITE8_HANDLER( track_reset_w )
 {
-	capbowl_state *state = space->machine().driver_data<capbowl_state>();
+	capbowl_state *state = (capbowl_state *)space->machine->driver_data;
 
 	/* reset the trackball counters */
-	state->m_last_trackball_val[0] = input_port_read(space->machine(), "TRACKY");
-	state->m_last_trackball_val[1] = input_port_read(space->machine(), "TRACKX");
+	state->last_trackball_val[0] = input_port_read(space->machine, "TRACKY");
+	state->last_trackball_val[1] = input_port_read(space->machine, "TRACKX");
 
 	watchdog_reset_w(space, offset, data);
 }
@@ -185,8 +185,8 @@ static WRITE8_HANDLER( track_reset_w )
 
 static WRITE8_HANDLER( capbowl_sndcmd_w )
 {
-	capbowl_state *state = space->machine().driver_data<capbowl_state>();
-	device_set_input_line(state->m_audiocpu, M6809_IRQ_LINE, HOLD_LINE);
+	capbowl_state *state = (capbowl_state *)space->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, M6809_IRQ_LINE, HOLD_LINE);
 	soundlatch_w(space, offset, data);
 }
 
@@ -199,10 +199,10 @@ static WRITE8_HANDLER( capbowl_sndcmd_w )
  *
  *************************************/
 
-static void firqhandler( device_t *device, int irq )
+static void firqhandler( running_device *device, int irq )
 {
-	capbowl_state *state = device->machine().driver_data<capbowl_state>();
-	device_set_input_line(state->m_audiocpu, 1, irq ? ASSERT_LINE : CLEAR_LINE);
+	capbowl_state *state = (capbowl_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 1, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
@@ -213,12 +213,19 @@ static void firqhandler( device_t *device, int irq )
  *
  *************************************/
 
-void capbowl_state::init_nvram(nvram_device &nvram, void *base, size_t size)
+static NVRAM_HANDLER( capbowl )
 {
-	/* invalidate nvram to make the game initialize it.
-      A 0xff fill will cause the game to malfunction, so we use a
-      0x01 fill which seems OK */
-	memset(base, 0x01, size);
+	if (read_or_write)
+		mame_fwrite(file, machine->generic.nvram.v, machine->generic.nvram_size);
+	else if (file)
+		mame_fread(file, machine->generic.nvram.v, machine->generic.nvram_size);
+	else
+	{
+		/* invalidate nvram to make the game initialize it.
+           A 0xff fill will cause the game to malfunction, so we use a
+           0x01 fill which seems OK */
+		memset(machine->generic.nvram.v, 0x01, machine->generic.nvram_size);
+	}
 }
 
 
@@ -229,11 +236,11 @@ void capbowl_state::init_nvram(nvram_device &nvram, void *base, size_t size)
  *
  *************************************/
 
-static ADDRESS_MAP_START( capbowl_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( capbowl_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x4000, 0x4000) AM_WRITEONLY AM_BASE_MEMBER(capbowl_state, m_rowaddress)
+	AM_RANGE(0x4000, 0x4000) AM_WRITEONLY AM_BASE_MEMBER(capbowl_state, rowaddress)
 	AM_RANGE(0x4800, 0x4800) AM_WRITE(capbowl_rom_select_w)
-	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x5800, 0x5fff) AM_READWRITE(capbowl_tms34061_r, capbowl_tms34061_w)
 	AM_RANGE(0x6000, 0x6000) AM_WRITE(capbowl_sndcmd_w)
 	AM_RANGE(0x6800, 0x6800) AM_WRITE(track_reset_w)	/* + watchdog */
@@ -243,10 +250,10 @@ static ADDRESS_MAP_START( capbowl_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( bowlrama_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( bowlrama_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x001f) AM_READWRITE(bowlrama_blitter_r, bowlrama_blitter_w)
-	AM_RANGE(0x4000, 0x4000) AM_WRITEONLY AM_BASE_MEMBER(capbowl_state, m_rowaddress)
-	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_SHARE("nvram")
+	AM_RANGE(0x4000, 0x4000) AM_WRITEONLY AM_BASE_MEMBER(capbowl_state, rowaddress)
+	AM_RANGE(0x5000, 0x57ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0x5800, 0x5fff) AM_READWRITE(capbowl_tms34061_r, capbowl_tms34061_w)
 	AM_RANGE(0x6000, 0x6000) AM_WRITE(capbowl_sndcmd_w)
 	AM_RANGE(0x6800, 0x6800) AM_WRITE(track_reset_w)	/* + watchdog */
@@ -263,7 +270,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
 	AM_RANGE(0x1000, 0x1001) AM_DEVREADWRITE("ymsnd", ym2203_r, ym2203_w)
 	AM_RANGE(0x2000, 0x2000) AM_WRITENOP				/* Not hooked up according to the schematics */
@@ -340,80 +347,84 @@ static const ym2203_interface ym2203_config =
 
 static MACHINE_START( capbowl )
 {
-	capbowl_state *state = machine.driver_data<capbowl_state>();
+	capbowl_state *state = (capbowl_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_blitter_addr));
-	state->save_item(NAME(state->m_last_trackball_val[0]));
-	state->save_item(NAME(state->m_last_trackball_val[1]));
+	state_save_register_global(machine, state->blitter_addr);
+	state_save_register_global(machine, state->last_trackball_val[0]);
+	state_save_register_global(machine, state->last_trackball_val[1]);
 }
 
 static MACHINE_RESET( capbowl )
 {
-	capbowl_state *state = machine.driver_data<capbowl_state>();
+	capbowl_state *state = (capbowl_state *)machine->driver_data;
 
-	machine.scheduler().timer_set(machine.primary_screen->time_until_pos(32), FUNC(capbowl_update), 32);
+	timer_set(machine, machine->primary_screen->time_until_pos(32), NULL, 32, capbowl_update);
 
-	state->m_blitter_addr = 0;
-	state->m_last_trackball_val[0] = 0;
-	state->m_last_trackball_val[1] = 0;
+	state->blitter_addr = 0;
+	state->last_trackball_val[0] = 0;
+	state->last_trackball_val[1] = 0;
 }
 
 
-static MACHINE_CONFIG_START( capbowl, capbowl_state )
+static MACHINE_DRIVER_START( capbowl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(capbowl_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809E, MASTER_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(capbowl_map)
-	MCFG_CPU_VBLANK_INT("screen", capbowl_interrupt)
+	MDRV_CPU_ADD("maincpu", M6809E, MASTER_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(capbowl_map)
+	MDRV_CPU_VBLANK_INT("screen", capbowl_interrupt)
 
-	MCFG_CPU_ADD("audiocpu", M6809E, MASTER_CLOCK)
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", M6809E, MASTER_CLOCK)
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(capbowl)
-	MCFG_MACHINE_RESET(capbowl)
-	MCFG_NVRAM_ADD_CUSTOM("nvram", capbowl_state, init_nvram)
+	MDRV_MACHINE_START(capbowl)
+	MDRV_MACHINE_RESET(capbowl)
+	MDRV_NVRAM_HANDLER(capbowl)
 
-	MCFG_TICKET_DISPENSER_ADD("ticket", 100, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW)
+	MDRV_TICKET_DISPENSER_ADD("ticket", 100, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW)
 
 	/* video hardware */
-	MCFG_VIDEO_START(capbowl)
+	MDRV_VIDEO_START(capbowl)
+	MDRV_VIDEO_UPDATE(capbowl)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(360, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 359, 0, 244)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_UPDATE(capbowl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(360, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 359, 0, 244)
+	MDRV_SCREEN_REFRESH_RATE(57)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, MASTER_CLOCK/2)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.07)
-	MCFG_SOUND_ROUTE(1, "mono", 0.07)
-	MCFG_SOUND_ROUTE(2, "mono", 0.07)
-	MCFG_SOUND_ROUTE(3, "mono", 0.75)
+	MDRV_SOUND_ADD("ymsnd", YM2203, MASTER_CLOCK/2)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.07)
+	MDRV_SOUND_ROUTE(1, "mono", 0.07)
+	MDRV_SOUND_ROUTE(2, "mono", 0.07)
+	MDRV_SOUND_ROUTE(3, "mono", 0.75)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( bowlrama, capbowl )
+static MACHINE_DRIVER_START( bowlrama )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(capbowl)
 
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(bowlrama_map)
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(bowlrama_map)
 
 	/* video hardware */
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_VISIBLE_AREA(0, 359, 0, 239)
-MACHINE_CONFIG_END
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_VISIBLE_AREA(0, 359, 0, 239)
+MACHINE_DRIVER_END
 
 
 
@@ -504,7 +515,7 @@ ROM_END
 
 static DRIVER_INIT( capbowl )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	/* configure ROM banks in 0x0000-0x3fff */
 	memory_configure_bank(machine, "bank1", 0, 6, &ROM[0x10000], 0x4000);

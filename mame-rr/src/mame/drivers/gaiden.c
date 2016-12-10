@@ -138,23 +138,23 @@ Notes:
 
 static WRITE16_HANDLER( gaiden_sound_command_w )
 {
-	gaiden_state *state = space->machine().driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_0_7)
 		soundlatch_w(space, 0, data & 0xff);	/* Ninja Gaiden */
 	if (ACCESSING_BITS_8_15)
 		soundlatch_w(space, 0, data >> 8);	/* Tecmo Knight */
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static WRITE16_HANDLER( drgnbowl_sound_command_w )
 {
-	gaiden_state *state = space->machine().driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
 	{
 		soundlatch_w(space, 0, data >> 8);
-		device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
+		cpu_set_input_line(state->audiocpu, 0, HOLD_LINE);
 	}
 }
 
@@ -166,7 +166,7 @@ static WRITE16_HANDLER( drgnbowl_sound_command_w )
 
 static WRITE16_HANDLER( wildfang_protection_w )
 {
-	gaiden_state *state = space->machine().driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
 	{
@@ -179,37 +179,37 @@ static WRITE16_HANDLER( wildfang_protection_w )
 
 		data >>= 8;
 
-//      logerror("PC %06x: prot = %02x\n",cpu_get_pc(&space->device()),data);
+//      logerror("PC %06x: prot = %02x\n",cpu_get_pc(space->cpu),data);
 
 		switch (data & 0xf0)
 		{
 			case 0x00:	/* init */
-				state->m_prot = 0x00;
+				state->prot = 0x00;
 				break;
 			case 0x10:	/* high 4 bits of jump code */
-				state->m_jumpcode = (data & 0x0f) << 4;
-				state->m_prot = 0x10;
+				state->jumpcode = (data & 0x0f) << 4;
+				state->prot = 0x10;
 				break;
 			case 0x20:	/* low 4 bits of jump code */
-				state->m_jumpcode |= data & 0x0f;
-				if (state->m_jumpcode >= ARRAY_LENGTH(jumppoints))
+				state->jumpcode |= data & 0x0f;
+				if (state->jumpcode >= ARRAY_LENGTH(jumppoints))
 				{
-					logerror("unknown jumpcode %02x\n", state->m_jumpcode);
-					state->m_jumpcode = 0;
+					logerror("unknown jumpcode %02x\n", state->jumpcode);
+					state->jumpcode = 0;
 				}
-				state->m_prot = 0x20;
+				state->prot = 0x20;
 				break;
 			case 0x30:	/* ask for bits 12-15 of function address */
-				state->m_prot = 0x40 | ((jumppoints[state->m_jumpcode] >> 12) & 0x0f);
+				state->prot = 0x40 | ((jumppoints[state->jumpcode] >> 12) & 0x0f);
 				break;
 			case 0x40:	/* ask for bits 8-11 of function address */
-				state->m_prot = 0x50 | ((jumppoints[state->m_jumpcode] >> 8) & 0x0f);
+				state->prot = 0x50 | ((jumppoints[state->jumpcode] >> 8) & 0x0f);
 				break;
 			case 0x50:	/* ask for bits 4-7 of function address */
-				state->m_prot = 0x60 | ((jumppoints[state->m_jumpcode] >> 4) & 0x0f);
+				state->prot = 0x60 | ((jumppoints[state->jumpcode] >> 4) & 0x0f);
 				break;
 			case 0x60:	/* ask for bits 0-3 of function address */
-				state->m_prot = 0x70 | ((jumppoints[state->m_jumpcode] >> 0) & 0x0f);
+				state->prot = 0x70 | ((jumppoints[state->jumpcode] >> 0) & 0x0f);
 				break;
 		}
 	}
@@ -217,9 +217,9 @@ static WRITE16_HANDLER( wildfang_protection_w )
 
 static READ16_HANDLER( wildfang_protection_r )
 {
-	gaiden_state *state = space->machine().driver_data<gaiden_state>();
-//  logerror("PC %06x: read prot %02x\n", cpu_get_pc(&space->device()), state->m_prot);
-	return state->m_prot;
+	gaiden_state *state = (gaiden_state *)space->machine->driver_data;
+//  logerror("PC %06x: read prot %02x\n", cpu_get_pc(space->cpu), state->prot);
+	return state->prot;
 }
 
 
@@ -295,92 +295,92 @@ static const int jumppoints_other[0x100] =
 
 static MACHINE_RESET( raiga )
 {
-	gaiden_state *state = machine.driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)machine->driver_data;
 
-	state->m_prot = 0;
-	state->m_jumpcode = 0;
+	state->prot = 0;
+	state->jumpcode = 0;
 
-	state->m_tx_scroll_x = 0;
-	state->m_tx_scroll_y = 0;
-	state->m_bg_scroll_x = 0;
-	state->m_bg_scroll_y = 0;
-	state->m_fg_scroll_x = 0;
-	state->m_fg_scroll_y = 0;
+	state->tx_scroll_x = 0;
+	state->tx_scroll_y = 0;
+	state->bg_scroll_x = 0;
+	state->bg_scroll_y = 0;
+	state->fg_scroll_x = 0;
+	state->fg_scroll_y = 0;
 
-	state->m_tx_offset_y = 0;
-	state->m_fg_offset_y = 0;
-	state->m_bg_offset_y = 0;
-	state->m_spr_offset_y = 0;
+	state->tx_offset_y = 0;
+	state->fg_offset_y = 0;
+	state->bg_offset_y = 0;
+	state->spr_offset_y = 0;
 }
 
 static MACHINE_START( raiga )
 {
-	gaiden_state *state = machine.driver_data<gaiden_state>();
-	state->m_audiocpu = machine.device("audiocpu");
+	gaiden_state *state = (gaiden_state *)machine->driver_data;
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_prot));
-	state->save_item(NAME(state->m_jumpcode));
+	state_save_register_global(machine, state->prot);
+	state_save_register_global(machine, state->jumpcode);
 
-	state->save_item(NAME(state->m_tx_scroll_x));
-	state->save_item(NAME(state->m_tx_scroll_y));
-	state->save_item(NAME(state->m_bg_scroll_x));
-	state->save_item(NAME(state->m_bg_scroll_y));
-	state->save_item(NAME(state->m_fg_scroll_x));
-	state->save_item(NAME(state->m_fg_scroll_y));
+	state_save_register_global(machine, state->tx_scroll_x);
+	state_save_register_global(machine, state->tx_scroll_y);
+	state_save_register_global(machine, state->bg_scroll_x);
+	state_save_register_global(machine, state->bg_scroll_y);
+	state_save_register_global(machine, state->fg_scroll_x);
+	state_save_register_global(machine, state->fg_scroll_y);
 
-	state->save_item(NAME(state->m_tx_offset_y));
-	state->save_item(NAME(state->m_fg_offset_y));
-	state->save_item(NAME(state->m_bg_offset_y));
-	state->save_item(NAME(state->m_spr_offset_y));
+	state_save_register_global(machine, state->tx_offset_y);
+	state_save_register_global(machine, state->fg_offset_y);
+	state_save_register_global(machine, state->bg_offset_y);
+	state_save_register_global(machine, state->spr_offset_y);
 }
 
 static WRITE16_HANDLER( raiga_protection_w )
 {
-	gaiden_state *state = space->machine().driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_8_15)
 	{
 		data >>= 8;
 
-//      logerror("PC %06x: prot = %02x\n", cpu_get_pc(&space->device()), data);
+//      logerror("PC %06x: prot = %02x\n", cpu_get_pc(space->cpu), data);
 
 		switch (data & 0xf0)
 		{
 			case 0x00:	/* init */
-				state->m_prot = 0x00;
+				state->prot = 0x00;
 				break;
 			case 0x10:	/* high 4 bits of jump code */
-				state->m_jumpcode = (data & 0x0f) << 4;
-				state->m_prot = 0x10;
+				state->jumpcode = (data & 0x0f) << 4;
+				state->prot = 0x10;
 				break;
 			case 0x20:	/* low 4 bits of jump code */
-				state->m_jumpcode |= data & 0x0f;
-				logerror("requested protection jumpcode %02x\n", state->m_jumpcode);
-//              state->m_jumpcode = 0;
-				if (state->m_raiga_jumppoints[state->m_jumpcode] == -2)
+				state->jumpcode |= data & 0x0f;
+				logerror("requested protection jumpcode %02x\n", state->jumpcode);
+//              state->jumpcode = 0;
+				if (state->raiga_jumppoints[state->jumpcode] == -2)
 				{
-					state->m_raiga_jumppoints = jumppoints_other;
+					state->raiga_jumppoints = jumppoints_other;
 				}
 
-				if (state->m_raiga_jumppoints[state->m_jumpcode] == -1)
+				if (state->raiga_jumppoints[state->jumpcode] == -1)
 				{
-					logerror("unknown jumpcode %02x\n", state->m_jumpcode);
-					popmessage("unknown jumpcode %02x", state->m_jumpcode);
-					state->m_jumpcode = 0;
+					logerror("unknown jumpcode %02x\n", state->jumpcode);
+					popmessage("unknown jumpcode %02x", state->jumpcode);
+					state->jumpcode = 0;
 				}
-				state->m_prot = 0x20;
+				state->prot = 0x20;
 				break;
 			case 0x30:	/* ask for bits 12-15 of function address */
-				state->m_prot = 0x40 | ((state->m_raiga_jumppoints[state->m_jumpcode] >> 12) & 0x0f);
+				state->prot = 0x40 | ((state->raiga_jumppoints[state->jumpcode] >> 12) & 0x0f);
 				break;
 			case 0x40:	/* ask for bits 8-11 of function address */
-				state->m_prot = 0x50 | ((state->m_raiga_jumppoints[state->m_jumpcode] >> 8) & 0x0f);
+				state->prot = 0x50 | ((state->raiga_jumppoints[state->jumpcode] >> 8) & 0x0f);
 				break;
 			case 0x50:	/* ask for bits 4-7 of function address */
-				state->m_prot = 0x60 | ((state->m_raiga_jumppoints[state->m_jumpcode] >> 4) & 0x0f);
+				state->prot = 0x60 | ((state->raiga_jumppoints[state->jumpcode] >> 4) & 0x0f);
 				break;
 			case 0x60:	/* ask for bits 0-3 of function address */
-				state->m_prot = 0x70 | ((state->m_raiga_jumppoints[state->m_jumpcode] >> 0) & 0x0f);
+				state->prot = 0x70 | ((state->raiga_jumppoints[state->jumpcode] >> 0) & 0x0f);
 				break;
 		}
 	}
@@ -388,18 +388,18 @@ static WRITE16_HANDLER( raiga_protection_w )
 
 static READ16_HANDLER( raiga_protection_r )
 {
-	gaiden_state *state = space->machine().driver_data<gaiden_state>();
-//  logerror("PC %06x: read prot %02x\n", cpu_get_pc(&space->device()), state->m_prot);
-	return state->m_prot;
+	gaiden_state *state = (gaiden_state *)space->machine->driver_data;
+//  logerror("PC %06x: read prot %02x\n", cpu_get_pc(space->cpu), state->prot);
+	return state->prot;
 }
 
-static ADDRESS_MAP_START( gaiden_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( gaiden_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x060000, 0x063fff) AM_RAM
-	AM_RANGE(0x070000, 0x070fff) AM_RAM_WRITE(gaiden_videoram_w) AM_BASE_MEMBER(gaiden_state, m_videoram)
-	AM_RANGE(0x072000, 0x073fff) AM_READWRITE(gaiden_videoram2_r, gaiden_videoram2_w) AM_BASE_MEMBER(gaiden_state, m_videoram2)
-	AM_RANGE(0x074000, 0x075fff) AM_READWRITE(gaiden_videoram3_r, gaiden_videoram3_w) AM_BASE_MEMBER(gaiden_state, m_videoram3)
-	AM_RANGE(0x076000, 0x077fff) AM_RAM AM_BASE_SIZE_MEMBER(gaiden_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x070000, 0x070fff) AM_RAM_WRITE(gaiden_videoram_w) AM_BASE_MEMBER(gaiden_state, videoram)
+	AM_RANGE(0x072000, 0x073fff) AM_READWRITE(gaiden_videoram2_r, gaiden_videoram2_w) AM_BASE_MEMBER(gaiden_state, videoram2)
+	AM_RANGE(0x074000, 0x075fff) AM_READWRITE(gaiden_videoram3_r, gaiden_videoram3_w) AM_BASE_MEMBER(gaiden_state, videoram3)
+	AM_RANGE(0x076000, 0x077fff) AM_RAM AM_BASE_SIZE_MEMBER(gaiden_state, spriteram, spriteram_size)
 	AM_RANGE(0x078000, 0x079fff) AM_RAM_WRITE(paletteram16_xxxxBBBBGGGGRRRR_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x07a000, 0x07a001) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x07a002, 0x07a003) AM_READ_PORT("P1_P2") AM_WRITE(gaiden_sproffsety_w)
@@ -419,13 +419,13 @@ static ADDRESS_MAP_START( gaiden_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x07a808, 0x07a809) AM_WRITE(gaiden_flip_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( drgnbowl_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( drgnbowl_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x060000, 0x063fff) AM_RAM
-	AM_RANGE(0x070000, 0x070fff) AM_RAM_WRITE(gaiden_videoram_w) AM_BASE_MEMBER(gaiden_state, m_videoram)
-	AM_RANGE(0x072000, 0x073fff) AM_RAM_WRITE(gaiden_videoram2_w) AM_BASE_MEMBER(gaiden_state, m_videoram2)
-	AM_RANGE(0x074000, 0x075fff) AM_RAM_WRITE(gaiden_videoram3_w) AM_BASE_MEMBER(gaiden_state, m_videoram3)
-	AM_RANGE(0x076000, 0x077fff) AM_RAM AM_BASE_SIZE_MEMBER(gaiden_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x070000, 0x070fff) AM_RAM_WRITE(gaiden_videoram_w) AM_BASE_MEMBER(gaiden_state, videoram)
+	AM_RANGE(0x072000, 0x073fff) AM_RAM_WRITE(gaiden_videoram2_w) AM_BASE_MEMBER(gaiden_state, videoram2)
+	AM_RANGE(0x074000, 0x075fff) AM_RAM_WRITE(gaiden_videoram3_w) AM_BASE_MEMBER(gaiden_state, videoram3)
+	AM_RANGE(0x076000, 0x077fff) AM_RAM AM_BASE_SIZE_MEMBER(gaiden_state, spriteram, spriteram_size)
 	AM_RANGE(0x078000, 0x079fff) AM_RAM_WRITE(paletteram16_xxxxBBBBGGGGRRRR_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x07a000, 0x07a001) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0x07a002, 0x07a003) AM_READ_PORT("P1_P2")
@@ -438,26 +438,26 @@ static ADDRESS_MAP_START( drgnbowl_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x07f006, 0x07f007) AM_WRITE(gaiden_fgscrollx_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xdfff) AM_ROM
 	AM_RANGE(0xe000, 0xefff) AM_ROM	/* raiga only */
 	AM_RANGE(0xf000, 0xf7ff) AM_RAM
-	AM_RANGE(0xf800, 0xf800) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0xf800, 0xf800) AM_DEVREADWRITE("oki", okim6295_r, okim6295_w)
 	AM_RANGE(0xf810, 0xf811) AM_DEVWRITE("ym1", ym2203_w)
 	AM_RANGE(0xf820, 0xf821) AM_DEVWRITE("ym2", ym2203_w)
 	AM_RANGE(0xfc00, 0xfc00) AM_NOP /* ?? */
 	AM_RANGE(0xfc20, 0xfc20) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( drgnbowl_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( drgnbowl_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xf7ff) AM_ROM
 	AM_RANGE(0xf800, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( drgnbowl_sound_port_map, AS_IO, 8 )
+static ADDRESS_MAP_START( drgnbowl_sound_port_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVREADWRITE("ymsnd", ym2151_r, ym2151_w)
-	AM_RANGE(0x80, 0x80) AM_DEVREADWRITE_MODERN("oki", okim6295_device, read, write)
+	AM_RANGE(0x80, 0x80) AM_DEVREADWRITE("oki", okim6295_r, okim6295_w)
 	AM_RANGE(0xc0, 0xc0) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
@@ -525,20 +525,17 @@ static INPUT_PORTS_START( common )
 	PORT_DIPSETTING(      0x3000, "3" )
 	PORT_DIPSETTING(      0x1000, "4" )
 	PORT_DIPSETTING(      0x2000, "5" )
-	PORT_DIPNAME( 0x0c00, 0x0c00, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:6,5")
-	PORT_DIPSETTING(      0x0c00, DEF_STR( Normal ) )
-	PORT_DIPSETTING(      0x0400, "TBL 1" )
-	PORT_DIPSETTING(      0x0800, "TBL 2" )
-	PORT_DIPSETTING(      0x0000, "TBL 3" )
-	PORT_DIPUNUSED_DIPLOC( 0x0200, 0x0200, "SWB:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x0100, 0x0100, "SWB:8" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0800, 0x0800, "SWB:5" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0400, 0x0400, "SWB:6" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0200, 0x0200, "SWB:7" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0100, 0x0100, "SWB:8" )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( drgnbowl )
 	PORT_INCLUDE(  common )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPUNUSED_DIPLOC( 0x0002, 0x0002, "SWA:7" ) /* No Flip Screen */
+	PORT_DIPUNKNOWN_DIPLOC( 0x0002, 0x0002, "SWA:7" ) /* No Flip Screen */
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( wildfang )
@@ -571,9 +568,9 @@ static INPUT_PORTS_START( tknight )
 	PORT_INCLUDE(  wildfang )
 
 	PORT_MODIFY("DSW")
-	PORT_DIPUNUSED_DIPLOC( 0x2000, 0x2000, "SWB:3" ) /* No separate difficulty option like parent set */
-	PORT_DIPUNUSED_DIPLOC( 0x1000, 0x1000, "SWB:4" ) /* No separate difficulty option like parent set */
-	PORT_DIPUNUSED_DIPLOC( 0x0100, 0x0100, "SWB:8" ) /* No title change option */
+	PORT_DIPUNKNOWN_DIPLOC( 0x2000, 0x2000, "SWB:3" ) /* No seperate difficulty option like parent set */
+	PORT_DIPUNKNOWN_DIPLOC( 0x1000, 0x1000, "SWB:4" ) /* No seperate difficulty option like parent set */
+	PORT_DIPUNKNOWN_DIPLOC( 0x0100, 0x0100, "SWB:8" ) /* No title change option */
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( raiga )
@@ -622,7 +619,7 @@ static INPUT_PORTS_START( raiga )
 	PORT_DIPNAME( 0x8000, 0x0000, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("SWB:1")
 	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x4000, 0x4000, "SWB:2" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x4000, 0x4000, "SWB:2" )
 	PORT_DIPNAME( 0x3000, 0x1000, DEF_STR( Difficulty ) ) PORT_DIPLOCATION("SWB:4,3")
 	PORT_DIPSETTING(      0x3000, DEF_STR( Easy ) )
 	PORT_DIPSETTING(      0x1000, DEF_STR( Normal ) )
@@ -751,10 +748,10 @@ static GFXDECODE_START( drgnbowl )
 GFXDECODE_END
 
 /* handler called by the 2203 emulator when the internal timers cause an IRQ */
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	gaiden_state *state = device->machine().driver_data<gaiden_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	gaiden_state *state = (gaiden_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2203_interface ym2203_config =
@@ -767,101 +764,108 @@ static const ym2203_interface ym2203_config =
 	irqhandler
 };
 
-static MACHINE_CONFIG_START( shadoww, gaiden_state )
+static MACHINE_DRIVER_START( shadoww )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(gaiden_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 18432000/2)	/* 9.216 MHz */
-	MCFG_CPU_PROGRAM_MAP(gaiden_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 18432000/2)	/* 9.216 MHz */
+	MDRV_CPU_PROGRAM_MAP(gaiden_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	/* 4 MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 								/* IRQs are triggered by the YM2203 */
 
-	MCFG_MACHINE_START(raiga)
-	MCFG_MACHINE_RESET(raiga)
+	MDRV_MACHINE_START(raiga)
+	MDRV_MACHINE_RESET(raiga)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.17)   /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 4*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(gaiden)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.17)   /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 4*8, 32*8-1)
 
-	MCFG_GFXDECODE(gaiden)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_GFXDECODE(gaiden)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_VIDEO_START(gaiden)
+	MDRV_VIDEO_START(gaiden)
+	MDRV_VIDEO_UPDATE(gaiden)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 4000000)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.15)
-	MCFG_SOUND_ROUTE(1, "mono", 0.15)
-	MCFG_SOUND_ROUTE(2, "mono", 0.15)
-	MCFG_SOUND_ROUTE(3, "mono", 0.60)
+	MDRV_SOUND_ADD("ym1", YM2203, 4000000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.15)
+	MDRV_SOUND_ROUTE(1, "mono", 0.15)
+	MDRV_SOUND_ROUTE(2, "mono", 0.15)
+	MDRV_SOUND_ROUTE(3, "mono", 0.60)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 4000000)
-	MCFG_SOUND_ROUTE(0, "mono", 0.15)
-	MCFG_SOUND_ROUTE(1, "mono", 0.15)
-	MCFG_SOUND_ROUTE(2, "mono", 0.15)
-	MCFG_SOUND_ROUTE(3, "mono", 0.60)
+	MDRV_SOUND_ADD("ym2", YM2203, 4000000)
+	MDRV_SOUND_ROUTE(0, "mono", 0.15)
+	MDRV_SOUND_ROUTE(1, "mono", 0.15)
+	MDRV_SOUND_ROUTE(2, "mono", 0.15)
+	MDRV_SOUND_ROUTE(3, "mono", 0.60)
 
-	MCFG_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( raiga, shadoww )
+static MACHINE_DRIVER_START( raiga )
+	MDRV_IMPORT_FROM(shadoww)
 
-	MCFG_SCREEN_MODIFY("screen")
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_UPDATE(raiga)
+	MDRV_SCREEN_MODIFY("screen")
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
 
-	MCFG_VIDEO_START(raiga)
-	MCFG_GFXDECODE(raiga)
-MACHINE_CONFIG_END
+	MDRV_VIDEO_START(raiga)
+	MDRV_VIDEO_UPDATE(raiga)
+	MDRV_GFXDECODE(raiga)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( drgnbowl, gaiden_state )
+static MACHINE_DRIVER_START( drgnbowl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(gaiden_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 20000000/2)	/* 10 MHz */
-	MCFG_CPU_PROGRAM_MAP(drgnbowl_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 20000000/2)	/* 10 MHz */
+	MDRV_CPU_PROGRAM_MAP(drgnbowl_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 12000000/2)	/* 6 MHz */
-	MCFG_CPU_PROGRAM_MAP(drgnbowl_sound_map)
-	MCFG_CPU_IO_MAP(drgnbowl_sound_port_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 12000000/2)	/* 6 MHz */
+	MDRV_CPU_PROGRAM_MAP(drgnbowl_sound_map)
+	MDRV_CPU_IO_MAP(drgnbowl_sound_port_map)
 
-	MCFG_MACHINE_START(raiga)
-	MCFG_MACHINE_RESET(raiga)
+	MDRV_MACHINE_START(raiga)
+	MDRV_MACHINE_RESET(raiga)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(drgnbowl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(drgnbowl)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_GFXDECODE(drgnbowl)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_VIDEO_START(drgnbowl)
+	MDRV_VIDEO_START(drgnbowl)
+	MDRV_VIDEO_UPDATE(drgnbowl)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, 4000000)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
+	MDRV_SOUND_ADD("ymsnd", YM2151, 4000000)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.40)
 
-	MCFG_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 /*
 Master Ninja
@@ -909,7 +913,7 @@ Others
 2x      8x2 switches DIP
 */
 
-static ADDRESS_MAP_START( mastninj_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mastninj_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xdfff) AM_ROM
 	AM_RANGE(0xf000, 0xf7ff) AM_RAM
 	AM_RANGE(0xc400, 0xc401) AM_DEVWRITE("ym1", ym2203_w)
@@ -918,13 +922,13 @@ static ADDRESS_MAP_START( mastninj_sound_map, AS_PROGRAM, 8 )
 //  AM_RANGE(0xfc20, 0xfc20) AM_READ(soundlatch_r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mastninj_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( mastninj_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x060000, 0x063fff) AM_RAM
-	AM_RANGE(0x070000, 0x070fff) AM_RAM_WRITE(gaiden_videoram_w) AM_BASE_MEMBER(gaiden_state, m_videoram)
-	AM_RANGE(0x072000, 0x073fff) AM_READWRITE(gaiden_videoram2_r, gaiden_videoram2_w) AM_BASE_MEMBER(gaiden_state, m_videoram2)
-	AM_RANGE(0x074000, 0x075fff) AM_READWRITE(gaiden_videoram3_r, gaiden_videoram3_w) AM_BASE_MEMBER(gaiden_state, m_videoram3)
-	AM_RANGE(0x076000, 0x077fff) AM_RAM AM_BASE_SIZE_MEMBER(gaiden_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x070000, 0x070fff) AM_RAM_WRITE(gaiden_videoram_w) AM_BASE_MEMBER(gaiden_state, videoram)
+	AM_RANGE(0x072000, 0x073fff) AM_READWRITE(gaiden_videoram2_r, gaiden_videoram2_w) AM_BASE_MEMBER(gaiden_state, videoram2)
+	AM_RANGE(0x074000, 0x075fff) AM_READWRITE(gaiden_videoram3_r, gaiden_videoram3_w) AM_BASE_MEMBER(gaiden_state, videoram3)
+	AM_RANGE(0x076000, 0x077fff) AM_RAM AM_BASE_SIZE_MEMBER(gaiden_state, spriteram, spriteram_size)
 	AM_RANGE(0x078000, 0x079fff) AM_RAM_WRITE(paletteram16_xxxxBBBBGGGGRRRR_word_w) AM_BASE_GENERIC(paletteram)
 //  AM_RANGE(0x078800, 0x079fff) AM_RAM
 	AM_RANGE(0x07a000, 0x07a001) AM_READ_PORT("SYSTEM")
@@ -942,54 +946,57 @@ static ADDRESS_MAP_START( mastninj_map, AS_PROGRAM, 16 )
 //  AM_RANGE(0x07a808, 0x07a809) AM_WRITE(gaiden_flip_w)
 ADDRESS_MAP_END
 
-static MACHINE_CONFIG_START( mastninj, gaiden_state )
+static MACHINE_DRIVER_START( mastninj )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(gaiden_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 10000000)	/* 10 MHz? */
-	MCFG_CPU_PROGRAM_MAP(mastninj_map)
-	MCFG_CPU_VBLANK_INT("screen", irq5_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, 10000000)	/* 10 MHz? */
+	MDRV_CPU_PROGRAM_MAP(mastninj_map)
+	MDRV_CPU_VBLANK_INT("screen", irq5_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 4000000)	/* ?? MHz */
-	MCFG_CPU_PROGRAM_MAP(mastninj_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)	/* ?? MHz */
+	MDRV_CPU_PROGRAM_MAP(mastninj_sound_map)
 								/* IRQs are triggered by the YM2203 */
 
-	MCFG_MACHINE_START(raiga)
-	MCFG_MACHINE_RESET(raiga)
+	MDRV_MACHINE_START(raiga)
+	MDRV_MACHINE_RESET(raiga)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.17)   /* verified on pcb */
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(gaiden)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.17)   /* verified on pcb */
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(mastninj)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_GFXDECODE(mastninj)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_VIDEO_START(mastninj)
+	MDRV_VIDEO_START(mastninj)
+	MDRV_VIDEO_UPDATE(gaiden)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ym1", YM2203, 4000000) /* ?? MHz */
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.15)
-	MCFG_SOUND_ROUTE(1, "mono", 0.15)
-	MCFG_SOUND_ROUTE(2, "mono", 0.15)
-	MCFG_SOUND_ROUTE(3, "mono", 0.60)
+	MDRV_SOUND_ADD("ym1", YM2203, 4000000) /* ?? MHz */
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.15)
+	MDRV_SOUND_ROUTE(1, "mono", 0.15)
+	MDRV_SOUND_ROUTE(2, "mono", 0.15)
+	MDRV_SOUND_ROUTE(3, "mono", 0.60)
 
-	MCFG_SOUND_ADD("ym2", YM2203, 4000000) /* ?? MHz */
-	MCFG_SOUND_ROUTE(0, "mono", 0.15)
-	MCFG_SOUND_ROUTE(1, "mono", 0.15)
-	MCFG_SOUND_ROUTE(2, "mono", 0.15)
-	MCFG_SOUND_ROUTE(3, "mono", 0.60)
+	MDRV_SOUND_ADD("ym2", YM2203, 4000000) /* ?? MHz */
+	MDRV_SOUND_ROUTE(0, "mono", 0.15)
+	MDRV_SOUND_ROUTE(1, "mono", 0.15)
+	MDRV_SOUND_ROUTE(2, "mono", 0.15)
+	MDRV_SOUND_ROUTE(3, "mono", 0.60)
 
 	/* no OKI on the bootleg */
-//  MCFG_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
-//  MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
-MACHINE_CONFIG_END
+//  MDRV_OKIM6295_ADD("oki", 1000000, OKIM6295_PIN7_HIGH)
+//  MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -1494,43 +1501,43 @@ ROM_END
 
 static DRIVER_INIT( shadoww )
 {
-	gaiden_state *state = machine.driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)machine->driver_data;
 	/* sprite size Y = sprite size X */
-	state->m_sprite_sizey = 0;
-	state->m_raiga_jumppoints = jumppoints_00;
+	state->sprite_sizey = 0;
+	state->raiga_jumppoints = jumppoints_00;
 }
 
 static DRIVER_INIT( wildfang )
 {
-	gaiden_state *state = machine.driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)machine->driver_data;
 	/* sprite size Y = sprite size X */
-	state->m_sprite_sizey = 0;
-	state->m_raiga_jumppoints = jumppoints_00;
+	state->sprite_sizey = 0;
+	state->raiga_jumppoints = jumppoints_00;
 
-	state->m_prot = 0;
-	state->m_jumpcode = 0;
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x07a006, 0x07a007, FUNC(wildfang_protection_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0x07a804, 0x07a805, FUNC(wildfang_protection_w));
+	state->prot = 0;
+	state->jumpcode = 0;
+	memory_install_read16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x07a006, 0x07a007, 0, 0, wildfang_protection_r);
+	memory_install_write16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x07a804, 0x07a805, 0, 0, wildfang_protection_w);
 }
 
 static DRIVER_INIT( raiga )
 {
-	gaiden_state *state = machine.driver_data<gaiden_state>();
+	gaiden_state *state = (gaiden_state *)machine->driver_data;
 	/* sprite size Y independent from sprite size X */
-	state->m_sprite_sizey = 2;
-	state->m_raiga_jumppoints = jumppoints_00;
+	state->sprite_sizey = 2;
+	state->raiga_jumppoints = jumppoints_00;
 
-	state->m_prot = 0;
-	state->m_jumpcode = 0;
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x07a006, 0x07a007, FUNC(raiga_protection_r));
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_write_handler(0x07a804, 0x07a805, FUNC(raiga_protection_w));
+	state->prot = 0;
+	state->jumpcode = 0;
+	memory_install_read16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x07a006, 0x07a007, 0, 0, raiga_protection_r);
+	memory_install_write16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x07a804, 0x07a805, 0, 0, raiga_protection_w);
 }
 
-static void descramble_drgnbowl_gfx(running_machine &machine)
+static void descramble_drgnbowl_gfx(running_machine *machine)
 {
 	int i;
-	UINT8 *ROM = machine.region("maincpu")->base();
-	size_t size = machine.region("maincpu")->bytes();
+	UINT8 *ROM = memory_region(machine, "maincpu");
+	size_t size = memory_region_length(machine, "maincpu");
 	UINT8 *buffer = auto_alloc_array(machine, UINT8, size);
 
 	memcpy(buffer, ROM, size);
@@ -1546,8 +1553,8 @@ static void descramble_drgnbowl_gfx(running_machine &machine)
 
 	auto_free(machine, buffer);
 
-	ROM = machine.region("gfx2")->base();
-	size = machine.region("gfx2")->bytes();
+	ROM = memory_region(machine, "gfx2");
+	size = memory_region_length(machine, "gfx2");
 	buffer = auto_alloc_array(machine, UINT8, size);
 
 	memcpy(buffer,ROM,size);
@@ -1567,13 +1574,13 @@ static void descramble_drgnbowl_gfx(running_machine &machine)
 
 static DRIVER_INIT( drgnbowl )
 {
-	gaiden_state *state = machine.driver_data<gaiden_state>();
-	state->m_raiga_jumppoints = jumppoints_00;
+	gaiden_state *state = (gaiden_state *)machine->driver_data;
+	state->raiga_jumppoints = jumppoints_00;
 
 	descramble_drgnbowl_gfx(machine);
 }
 
-static void descramble_mastninj_gfx(running_machine &machine, UINT8* src)
+static void descramble_mastninj_gfx(running_machine *machine, UINT8* src)
 {
 	UINT8 *buffer;
 	int len = 0x80000;
@@ -1617,21 +1624,20 @@ static void descramble_mastninj_gfx(running_machine &machine, UINT8* src)
 static DRIVER_INIT(mastninj)
 {
 	// rearrange the graphic roms into a format that MAME can decode
-	descramble_mastninj_gfx(machine, machine.region("gfx2")->base());
-	descramble_mastninj_gfx(machine, machine.region("gfx3")->base());
+	descramble_mastninj_gfx(machine, memory_region(machine,"gfx2"));
+	descramble_mastninj_gfx(machine, memory_region(machine,"gfx3"));
 	DRIVER_INIT_CALL(shadoww);
 }
 
-//    YEAR, NAME,      PARENT,   MACHINE,  INPUT,    INIT,     MONITOR,COMPANY,FULLNAME,FLAGS
-GAME( 1988, shadoww,   0,        shadoww,  common,   shadoww,  ROT0,   "Tecmo", "Shadow Warriors (World, set 1)", GAME_SUPPORTS_SAVE )
-GAME( 1988, shadowwa,  shadoww,  shadoww,  common,   shadoww,  ROT0,   "Tecmo", "Shadow Warriors (World, set 2)", GAME_SUPPORTS_SAVE )
-GAME( 1988, gaiden,    shadoww,  shadoww,  common,   shadoww,  ROT0,   "Tecmo", "Ninja Gaiden (US)", GAME_SUPPORTS_SAVE )
-GAME( 1989, ryukendn,  shadoww,  shadoww,  common,   shadoww,  ROT0,   "Tecmo", "Ninja Ryukenden (Japan, set 1)", GAME_SUPPORTS_SAVE )
-GAME( 1989, ryukendna, shadoww,  shadoww,  common,   shadoww,  ROT0,   "Tecmo", "Ninja Ryukenden (Japan, set 2)", GAME_SUPPORTS_SAVE )
-GAME( 1989, mastninj,  shadoww,  mastninj, common,   mastninj, ROT0,   "bootleg", "Master Ninja (bootleg of Shadow Warriors / Ninja Gaiden)", GAME_NOT_WORKING | GAME_SUPPORTS_SAVE ) // sprites need fixing, sound and yscroll too.
-GAME( 1989, wildfang,  0,        shadoww,  wildfang, wildfang, ROT0,   "Tecmo", "Wild Fang / Tecmo Knight", GAME_SUPPORTS_SAVE )
-GAME( 1989, wildfangs, wildfang, shadoww,  tknight,  wildfang, ROT0,   "Tecmo", "Wild Fang", GAME_SUPPORTS_SAVE )
-GAME( 1989, tknight,   wildfang, shadoww,  tknight,  wildfang, ROT0,   "Tecmo", "Tecmo Knight", GAME_SUPPORTS_SAVE )
-GAME( 1991, stratof,   0,        raiga,    raiga,    raiga,    ROT0,   "Tecmo", "Raiga - Strato Fighter (US)", GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
-GAME( 1991, raiga,     stratof,  raiga,    raiga,    raiga,    ROT0,   "Tecmo", "Raiga - Strato Fighter (Japan)", GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
-GAME( 1992, drgnbowl,  0,        drgnbowl, drgnbowl, drgnbowl, ROT0,   "Nics",  "Dragon Bowl", GAME_SUPPORTS_SAVE )
+GAME( 1988, shadoww,  0,        shadoww, common,   shadoww,  ROT0, "Tecmo", "Shadow Warriors (World, set 1)", GAME_SUPPORTS_SAVE )
+GAME( 1988, shadowwa, shadoww,  shadoww, common,   shadoww,  ROT0, "Tecmo", "Shadow Warriors (World, set 2)", GAME_SUPPORTS_SAVE )
+GAME( 1988, gaiden,   shadoww,  shadoww, common,   shadoww,  ROT0, "Tecmo", "Ninja Gaiden (US)", GAME_SUPPORTS_SAVE )
+GAME( 1989, ryukendn, shadoww,  shadoww, common,   shadoww,  ROT0, "Tecmo", "Ninja Ryukenden (Japan, set 1)", GAME_SUPPORTS_SAVE )
+GAME( 1989, ryukendna,shadoww,  shadoww, common,   shadoww,  ROT0, "Tecmo", "Ninja Ryukenden (Japan, set 2)", GAME_SUPPORTS_SAVE )
+GAME( 1989, mastninj, shadoww,  mastninj,common,   mastninj, ROT0, "bootleg", "Master Ninja (bootleg of Shadow Warriors / Ninja Gaiden)", GAME_NOT_WORKING | GAME_SUPPORTS_SAVE ) // sprites need fixing, sound and yscroll too.
+GAME( 1989, wildfang, 0,        shadoww, wildfang, wildfang, ROT0, "Tecmo", "Wild Fang / Tecmo Knight", GAME_SUPPORTS_SAVE )
+GAME( 1989, wildfangs,wildfang, shadoww, tknight,  wildfang, ROT0, "Tecmo", "Wild Fang", GAME_SUPPORTS_SAVE )
+GAME( 1989, tknight,  wildfang, shadoww, tknight,  wildfang, ROT0, "Tecmo", "Tecmo Knight", GAME_SUPPORTS_SAVE )
+GAME( 1991, stratof,  0,        raiga,   raiga,    raiga,    ROT0, "Tecmo", "Raiga - Strato Fighter (US)", GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
+GAME( 1991, raiga,    stratof,  raiga,   raiga,    raiga,    ROT0, "Tecmo", "Raiga - Strato Fighter (Japan)", GAME_IMPERFECT_GRAPHICS | GAME_SUPPORTS_SAVE )
+GAME( 1992, drgnbowl, 0,        drgnbowl,drgnbowl, drgnbowl, ROT0, "Nics",  "Dragon Bowl", GAME_SUPPORTS_SAVE )

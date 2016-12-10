@@ -8,13 +8,15 @@
 #include <commdlg.h>
 #include <io.h>
 #undef delete
+#undef rand // work around vc compiler error
 #include <string>
+#define rand __error_use_mame_rand_instead__
 
 #ifndef W_OK
 #define W_OK 4
 #endif
 
-static running_machine * machine;
+static running_machine *machine;
 bool bReplayReadOnly = false;
 WCHAR szChoice[_MAX_PATH] = L"";
 OPENFILENAME ofn;
@@ -98,6 +100,7 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 {
 	UINT8 movie_header[INP_HEADER_SIZE];
 	static bool bReadOnlyStatus = true;
+	double framerate;
 	UINT32 total_frames;
 	UINT32 rerecord_count;
 
@@ -110,10 +113,11 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	SetDlgItemTextA(hDlg, IDC_LENGTH, "");
 	SetDlgItemTextA(hDlg, IDC_FRAMES, "");
 	SetDlgItemTextA(hDlg, IDC_UNDO, "");
-//	SetDlgItemTextA(hDlg, IDC_METADATA, "");
-//	SetDlgItemTextA(hDlg, IDC_REPLAYRESET, "");
+	SetDlgItemTextA(hDlg, IDC_EMULATOR, "");
+	SetDlgItemTextA(hDlg, IDC_ROMNAME, "");
+	SetDlgItemTextA(hDlg, IDC_FRAMERATE, "");
 	EnableWindow(GetDlgItem(hDlg, IDC_READONLY), FALSE);
-	SendDlgItemMessage(hDlg, IDC_READONLY, BM_SETCHECK, BST_UNCHECKED, 0);
+	SendDlgItemMessage(hDlg, IDC_READONLY, BM_SETCHECK, BST_CHECKED, 0);
 	EnableWindow(GetDlgItem(hDlg, IDOK), FALSE);
 	if(bClear) {
 		return;
@@ -152,6 +156,7 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 		return;
 	if (movie_header[0x08] != INP_HEADER_MAJVERSION)
 		return;
+	
 
 	if (_waccess(szChoice, W_OK)) {
 		SendDlgItemMessage(hDlg, IDC_READONLY, BM_SETCHECK, BST_CHECKED, 0);
@@ -176,6 +181,7 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	}
 */
 
+	memcpy(&framerate, movie_header + 0x30, sizeof(double));
 	fread(&total_frames, 1, sizeof(total_frames), fd);
 	fread(&rerecord_count, 1, sizeof(rerecord_count), fd);
 
@@ -209,30 +215,35 @@ static void DisplayReplayProperties(HWND hDlg, bool bClear)
 	// file exists and is the corrent format,
 	// so enable the "Ok" button
 	EnableWindow(GetDlgItem(hDlg, IDOK), TRUE);
-
-	// turn nFrames into a length string
-	int nFPS = 60; // TODO: where to get FPS for each driver?
-	int nSeconds = (total_frames * 100 + (nFPS>>1)) / nFPS;
-	int nMinutes = nSeconds / 60;
-	int nHours = nSeconds / 3600;
+	
+	double tempCount = (total_frames / framerate) + 0.005; // +0.005s for rounding
+	int num_seconds = (int)tempCount;
+	int fraction = (int)((tempCount - num_seconds) * 100);
+	int seconds = num_seconds % 60;
+	int minutes = (num_seconds / 60) % 60;
+	int hours = (num_seconds / 60 / 60) % 60;
 
 	// write strings to dialog
 	char szFramesString[32];
 	char szLengthString[32];
 	char szUndoCountString[32];
+	char szEmulatorVersionString[32];
+	char szRomNameString[32];
+	char szFramerateString[32];
 	sprintf(szFramesString, "%d", total_frames);
-	sprintf(szLengthString, "%02d:%02d:%02d", nHours, nMinutes % 60, nSeconds % 60);
+	sprintf(szLengthString, "%02d:%02d:%02d.%02d", hours, minutes, seconds, fraction);
 	sprintf(szUndoCountString, "%d", rerecord_count);
+	sprintf(szFramerateString, "%.7f", framerate);
+	// since the file is signed MAMETAS, we can assume it was made in MAME-RR
+	sprintf(szEmulatorVersionString, "MAME-RR %s", movie_header + 0x18);
+	strcpy(szRomNameString, (char *)movie_header + 0x0c);
 
-	SetDlgItemTextA(hDlg, IDC_LENGTH, szLengthString);
-	SetDlgItemTextA(hDlg, IDC_FRAMES, szFramesString);
-	SetDlgItemTextA(hDlg, IDC_UNDO, szUndoCountString);
-//	SetDlgItemTextW(hDlg, IDC_METADATA, local_metadata);
-//	if (bStartFromReset)
-//		SetDlgItemTextA(hDlg, IDC_REPLAYRESET, "Power-On");
-//	else
-//		SetDlgItemTextA(hDlg, IDC_REPLAYRESET, "Savestate");
-//	free(local_metadata);
+	SetDlgItemTextA(hDlg, IDC_LENGTH,    szLengthString);
+	SetDlgItemTextA(hDlg, IDC_FRAMES,    szFramesString);
+	SetDlgItemTextA(hDlg, IDC_UNDO,      szUndoCountString);
+	SetDlgItemTextA(hDlg, IDC_EMULATOR,  szEmulatorVersionString);
+	SetDlgItemTextA(hDlg, IDC_ROMNAME,   szRomNameString);
+	SetDlgItemTextA(hDlg, IDC_FRAMERATE, szFramerateString);
 }
 
 static BOOL CALLBACK ReplayDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM)
@@ -338,14 +349,14 @@ static BOOL CALLBACK ReplayDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM
 	return FALSE;
 }
 
-void start_playback_dialog(running_machine &machine_ptr)
+void start_playback_dialog(running_machine *machine_ptr)
 {
-	machine = &machine_ptr;
+	machine = machine_ptr;
 	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(win_window_list->hwnd,L"You can't replay a movie before loading a game.",L"Replay input",MB_OK | MB_ICONSTOP);
 		return;
 	}
-	if (get_record_file(*machine) || get_playback_file(*machine)) {
+	if (get_record_file(machine) || get_playback_file(machine)) {
 		MessageBox(win_window_list->hwnd,L"There's already a movie running.",L"Replay input",MB_OK | MB_ICONSTOP);
 		return;
 	}
@@ -448,14 +459,14 @@ static BOOL CALLBACK RecordDialogProc(HWND hDlg, UINT Msg, WPARAM wParam, LPARAM
 	return FALSE;
 }
 
-void start_record_dialog(running_machine &machine_ptr)
+void start_record_dialog(running_machine *machine_ptr)
 {
-	machine = &machine_ptr;
+	machine = machine_ptr;
 	if (empty_driver.compare(machine->basename()) == 0) {
 		MessageBox(win_window_list->hwnd,L"You can't record a movie before loading a game.",L"Record input",MB_OK | MB_ICONSTOP);
 		return;
 	}
-	if (get_record_file(*machine) || get_playback_file(*machine)) {
+	if (get_record_file(machine) || get_playback_file(machine)) {
 		MessageBox(win_window_list->hwnd,L"There's already a movie running.",L"Record input",MB_OK | MB_ICONSTOP);
 		return;
 	}

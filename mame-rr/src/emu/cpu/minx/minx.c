@@ -85,15 +85,15 @@ typedef struct {
 	UINT8	interrupt_pending;
 	device_irq_callback irq_callback;
 	legacy_cpu_device *device;
-	address_space *program;
+	const address_space *program;
 	int icount;
 } minx_state;
 
-#define RD(offset)		minx->program->read_byte( offset )
-#define WR(offset,data)	minx->program->write_byte( offset, data )
+#define RD(offset)		memory_read_byte_8be( minx->program, offset )
+#define WR(offset,data)	memory_write_byte_8be( minx->program, offset, data )
 #define GET_MINX_PC		( ( minx->PC & 0x8000 ) ? ( minx->V << 15 ) | (minx->PC & 0x7FFF ) : minx->PC )
 
-INLINE minx_state *get_safe_token(device_t *device)
+INLINE minx_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == MINX);
@@ -120,7 +120,7 @@ static CPU_INIT( minx )
 	minx->irq_callback = irqcallback;
 	minx->device = device;
 	minx->program = device->space(AS_PROGRAM);
-	if ( device->static_config() != NULL )
+	if ( device->baseconfig().static_config() != NULL )
 	{
 	}
 	else
@@ -169,14 +169,14 @@ INLINE UINT16 rdop16( minx_state *minx )
 
 static CPU_EXECUTE( minx )
 {
-//  UINT32  oldpc;
+	UINT32	oldpc;
 	UINT8	op;
 	minx_state *minx = get_safe_token(device);
 
 	do
 	{
 		debugger_instruction_hook(device, GET_MINX_PC);
-//      oldpc = GET_MINX_PC;
+		oldpc = GET_MINX_PC;
 
 		if ( minx->interrupt_pending )
 		{
@@ -321,15 +321,15 @@ CPU_GET_INFO( minx )
 	case CPUINFO_INT_MAX_INSTRUCTION_BYTES:						info->i = 5; break;
 	case CPUINFO_INT_MIN_CYCLES:								info->i = 1; break;
 	case CPUINFO_INT_MAX_CYCLES:								info->i = 4; break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:		info->i = 8; break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:		info->i = 24; break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:		info->i = 0; break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:		info->i = 0; break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:		info->i = 0; break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:		info->i = 0; break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_IO:			info->i = 0; break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:			info->i = 0; break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:			info->i = 0; break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:		info->i = 8; break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM:		info->i = 24; break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM:		info->i = 0; break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:		info->i = 0; break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:		info->i = 0; break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:		info->i = 0; break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:			info->i = 0; break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:			info->i = 0; break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:			info->i = 0; break;
 	case CPUINFO_INT_INPUT_STATE + 0:							info->i = 0; break;
 	case CPUINFO_INT_REGISTER + STATE_GENPC:							info->i = GET_MINX_PC; break;
 	case CPUINFO_INT_REGISTER + STATE_GENSP:

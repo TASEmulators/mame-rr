@@ -22,25 +22,26 @@
 #define DRAGRACE_ATTRACT_EN     NODE_09
 
 
-class dragrace_state : public driver_device
+class dragrace_state
 {
 public:
-	dragrace_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, dragrace_state(machine)); }
+
+	dragrace_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_playfield_ram;
-	UINT8 *  m_position_ram;
+	UINT8 *  playfield_ram;
+	UINT8 *  position_ram;
 
 	/* video-related */
-	tilemap_t  *m_bg_tilemap;
+	tilemap_t  *bg_tilemap;
 
 	/* misc */
-	unsigned  m_misc_flags;
-	int       m_gear[2];
+	unsigned  misc_flags;
+	int       gear[2];
 
 	/* devices */
-	device_t *m_discrete;
+	running_device *discrete;
 };
 
 
@@ -51,4 +52,4 @@ DISCRETE_SOUND_EXTERN( dragrace );
 /*----------- defined in video/dragrace.c -----------*/
 
 VIDEO_START( dragrace );
-SCREEN_UPDATE( dragrace );
+VIDEO_UPDATE( dragrace );

@@ -3,8 +3,10 @@
 "Combat School" (also known as "Boot Camp") - (Konami GX611)
 
 TODO:
-- Ugly text flickering in various places, namely the text when you finish level 1.
-  This is due of completely busted sprite limit hook-up. (check konicdev.c and MT #00185)
+- in combatsc (and more generally the 007121) the number of sprites can be
+  increased from 0x40 to 0x80. There is a hack in konamiic.c to handle that,
+  but it is wrong. If you don't pass the Iron Man stage, a few sprites are
+  left dangling on the screen.(*not a bug, 64 sprites are the maximum)
 - it seems that to get correct target colors in firing range III we have to
   use the WRONG lookup table (the one for tiles instead of the one for
   sprites).
@@ -22,7 +24,7 @@ TODO:
   Execution timing of the Z80 is important because it maintains music tempo
   by polling the 2203's second timer. Even when working alone with no
   context-switch the chip shouldn't be running at 1.5MHz otherwise it won't
-  keep the right pace. Similar Konami games from the same period(mainevt,
+  keep the right pace. Similar Konmai games from the same period(mainevt,
   battlnts, flkatck...etc.) all have a 3.579545MHz Z80 for sound.
 
   In spite of adjusting clock speed polling is deemed inaccurate when
@@ -124,7 +126,6 @@ Dip location and recommended settings verified with the US manual
 #include "cpu/z80/z80.h"
 #include "sound/2203intf.h"
 #include "sound/upd7759.h"
-#include "sound/msm5205.h"
 #include "video/konicdev.h"
 #include "includes/combatsc.h"
 
@@ -137,126 +138,112 @@ Dip location and recommended settings verified with the US manual
 
 static WRITE8_HANDLER( combatsc_vreg_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
-	if (data != state->m_vreg)
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
+	if (data != state->vreg)
 	{
-		tilemap_mark_all_tiles_dirty(state->m_textlayer);
-		if ((data & 0x0f) != (state->m_vreg & 0x0f))
-			tilemap_mark_all_tiles_dirty(state->m_bg_tilemap[0]);
-		if ((data >> 4) != (state->m_vreg >> 4))
-			tilemap_mark_all_tiles_dirty(state->m_bg_tilemap[1]);
-		state->m_vreg = data;
+		tilemap_mark_all_tiles_dirty(state->textlayer);
+		if ((data & 0x0f) != (state->vreg & 0x0f))
+			tilemap_mark_all_tiles_dirty(state->bg_tilemap[0]);
+		if ((data >> 4) != (state->vreg >> 4))
+			tilemap_mark_all_tiles_dirty(state->bg_tilemap[1]);
+		state->vreg = data;
 	}
 }
 
 static WRITE8_HANDLER( combatscb_sh_irqtrigger_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
 	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line_and_vector(state->audiocpu, 0, HOLD_LINE, 0xff);
 }
 
 static READ8_HANDLER( combatscb_io_r )
 {
 	static const char *const portnames[] = { "IN0", "IN1", "DSW1", "DSW2" };
 
-	return input_port_read(space->machine(), portnames[offset]);
+	return input_port_read(space->machine, portnames[offset]);
 }
 
 static WRITE8_HANDLER( combatscb_priority_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
-
-	if (data & 0x40)
-	{
-		state->m_video_circuit = 1;
-		state->m_videoram = state->m_page[1];
-		state->m_scrollram = state->m_scrollram1;
-	}
-	else
-	{
-		state->m_video_circuit = 0;
-		state->m_videoram = state->m_page[0];
-		state->m_scrollram = state->m_scrollram0;
-	}
-
-	state->m_priority = data & 0x20;
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
+	state->priority = data & 0x20;
 }
 
 static WRITE8_HANDLER( combatsc_bankselect_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
-
-	state->m_priority = data & 0x20;
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
 
 	if (data & 0x40)
 	{
-		state->m_video_circuit = 1;
-		state->m_videoram = state->m_page[1];
-		state->m_scrollram = state->m_scrollram1;
+		state->video_circuit = 1;
+		state->videoram = state->page[1];
+		state->scrollram = state->scrollram1;
 	}
 	else
 	{
-		state->m_video_circuit = 0;
-		state->m_videoram = state->m_page[0];
-		state->m_scrollram = state->m_scrollram0;
+		state->video_circuit = 0;
+		state->videoram = state->page[0];
+		state->scrollram = state->scrollram0;
 	}
 
+	state->priority = data & 0x20;
+
 	if (data & 0x10)
-		memory_set_bank(space->machine(), "bank1", (data & 0x0e) >> 1);
+		memory_set_bank(space->machine, "bank1", (data & 0x0e) >> 1);
 	else
-		memory_set_bank(space->machine(), "bank1", 8 + (data & 1));
+		memory_set_bank(space->machine, "bank1", 8 + (data & 1));
 }
 
 static WRITE8_HANDLER( combatscb_io_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
 
 	switch (offset)
 	{
 		case 0x400: combatscb_priority_w(space, 0, data); break;
 		case 0x800: combatscb_sh_irqtrigger_w(space, 0, data); break;
 		case 0xc00:	combatsc_vreg_w(space, 0, data); break;
-		default: state->m_io_ram[offset] = data; break;
+		default: state->io_ram[offset] = data; break;
 	}
 }
 
 static WRITE8_HANDLER( combatscb_bankselect_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
 
 	if (data & 0x40)
 	{
-		state->m_video_circuit = 1;
-		state->m_videoram = state->m_page[1];
+		state->video_circuit = 1;
+		state->videoram = state->page[1];
 	}
 	else
 	{
-		state->m_video_circuit = 0;
-		state->m_videoram = state->m_page[0];
+		state->video_circuit = 0;
+		state->videoram = state->page[0];
 	}
 
 	data = data & 0x1f;
 
-	if (data != state->m_bank_select)
+	if (data != state->bank_select)
 	{
-		state->m_bank_select = data;
+		state->bank_select = data;
 
 		if (data & 0x10)
-			memory_set_bank(space->machine(), "bank1", (data & 0x0e) >> 1);
+			memory_set_bank(space->machine, "bank1", (data & 0x0e) >> 1);
 		else
-			memory_set_bank(space->machine(), "bank1", 8 + (data & 1));
+			memory_set_bank(space->machine, "bank1", 8 + (data & 1));
 
 		if (data == 0x1f)
 		{
-			memory_set_bank(space->machine(), "bank1", 8 + (data & 1));
-			space->install_legacy_write_handler(0x4000, 0x7fff, FUNC(combatscb_io_w));
-			space->install_legacy_read_handler(0x4400, 0x4403, FUNC(combatscb_io_r));/* IO RAM & Video Registers */
+			memory_set_bank(space->machine, "bank1", 8 + (data & 1));
+			memory_install_write8_handler(space, 0x4000, 0x7fff, 0, 0, combatscb_io_w);
+			memory_install_read8_handler(space, 0x4400, 0x4403, 0, 0, combatscb_io_r);/* IO RAM & Video Registers */
 		}
 		else
 		{
-			space->install_read_bank(0x4000, 0x7fff, "bank1");	/* banked ROM */
-			space->unmap_write(0x4000, 0x7fff);	/* banked ROM */
+			memory_install_read_bank(space, 0x4000, 0x7fff, 0, 0, "bank1");	/* banked ROM */
+			memory_unmap_write(space, 0x4000, 0x7fff, 0, 0);	/* banked ROM */
 		}
 	}
 }
@@ -269,13 +256,13 @@ static WRITE8_HANDLER( combatsc_coin_counter_w )
 	/* b1: coin counter 2 */
 	/* b0: coin counter 1 */
 
-	coin_counter_w(space->machine(), 0, data & 0x01);
-	coin_counter_w(space->machine(), 1, data & 0x02);
+	coin_counter_w(space->machine, 0, data & 0x01);
+	coin_counter_w(space->machine, 1, data & 0x02);
 }
 
 static READ8_HANDLER( trackball_r )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
 
 	if (offset == 0)
 	{
@@ -286,40 +273,40 @@ static READ8_HANDLER( trackball_r )
 		{
 			UINT8 curr;
 
-			curr = input_port_read_safe(space->machine(), tracknames[i], 0xff);
+			curr = input_port_read_safe(space->machine, tracknames[i], 0xff);
 
-			dir[i] = curr - state->m_pos[i];
-			state->m_sign[i] = dir[i] & 0x80;
-			state->m_pos[i] = curr;
+			dir[i] = curr - state->pos[i];
+			state->sign[i] = dir[i] & 0x80;
+			state->pos[i] = curr;
 		}
 
 		/* fix sign for orthogonal movements */
 		if (dir[0] || dir[1])
 		{
-			if (!dir[0]) state->m_sign[0] = state->m_sign[1] ^ 0x80;
-			if (!dir[1]) state->m_sign[1] = state->m_sign[0];
+			if (!dir[0]) state->sign[0] = state->sign[1] ^ 0x80;
+			if (!dir[1]) state->sign[1] = state->sign[0];
 		}
 		if (dir[2] || dir[3])
 		{
-			if (!dir[2]) state->m_sign[2] = state->m_sign[3] ^ 0x80;
-			if (!dir[3]) state->m_sign[3] = state->m_sign[2];
+			if (!dir[2]) state->sign[2] = state->sign[3] ^ 0x80;
+			if (!dir[3]) state->sign[3] = state->sign[2];
 		}
 	}
 
-	return state->m_sign[offset] | (state->m_pos[offset] & 0x7f);
+	return state->sign[offset] | (state->pos[offset] & 0x7f);
 }
 
 
 /* the protection is a simple multiply */
 static WRITE8_HANDLER( protection_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
-	state->m_prot[offset] = data;
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
+	state->prot[offset] = data;
 }
 static READ8_HANDLER( protection_r )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
-	return ((state->m_prot[0] * state->m_prot[1]) >> (offset * 8)) & 0xff;
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
+	return ((state->prot[0] * state->prot[1]) >> (offset * 8)) & 0xff;
 }
 static WRITE8_HANDLER( protection_clock_w )
 {
@@ -331,8 +318,8 @@ static WRITE8_HANDLER( protection_clock_w )
 
 static WRITE8_HANDLER( combatsc_sh_irqtrigger_w )
 {
-	combatsc_state *state = space->machine().driver_data<combatsc_state>();
-	device_set_input_line_and_vector(state->m_audiocpu, 0, HOLD_LINE, 0xff);
+	combatsc_state *state = (combatsc_state *)space->machine->driver_data;
+	cpu_set_input_line_and_vector(state->audiocpu, 0, HOLD_LINE, 0xff);
 }
 
 static READ8_DEVICE_HANDLER( combatsc_busy_r )
@@ -357,20 +344,20 @@ static WRITE8_DEVICE_HANDLER( combatsc_portA_w )
 
 static READ8_DEVICE_HANDLER ( combatsc_ym2203_r )
 {
-	combatsc_state *state = device->machine().driver_data<combatsc_state>();
+	combatsc_state *state = (combatsc_state *)device->machine->driver_data;
 	int status = ym2203_r(device,offset);
 
-	if (cpu_get_pc(state->m_audiocpu) == 0x334)
+	if (cpu_get_pc(state->audiocpu) == 0x334)
 	{
-		if (state->m_boost)
+		if (state->boost)
 		{
-			state->m_boost = 0;
-			state->m_interleave_timer->adjust(attotime::zero, 0, state->m_audiocpu->cycles_to_attotime(80));
+			state->boost = 0;
+			timer_adjust_periodic(state->interleave_timer, attotime_zero, 0, state->audiocpu->cycles_to_attotime(80));
 		}
 		else if (status & 2)
 		{
-			state->m_boost = 1;
-			state->m_interleave_timer->adjust(attotime::zero);
+			state->boost = 1;
+			timer_adjust_oneshot(state->interleave_timer, attotime_zero, 0);
 		}
 	}
 
@@ -383,7 +370,7 @@ static READ8_DEVICE_HANDLER ( combatsc_ym2203_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( combatsc_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( combatsc_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0007) AM_WRITE(combatsc_pf_control_w)
 	AM_RANGE(0x0020, 0x005f) AM_READWRITE(combatsc_scrollram_r, combatsc_scrollram_w)
 //  AM_RANGE(0x0060, 0x00ff) AM_WRITEONLY                 /* RAM */
@@ -403,24 +390,37 @@ static ADDRESS_MAP_START( combatsc_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x0418, 0x0418) AM_WRITE(combatsc_sh_irqtrigger_w)
 	AM_RANGE(0x041c, 0x041c) AM_WRITE(watchdog_reset_w)			/* watchdog reset? */
 
-	AM_RANGE(0x0600, 0x06ff) AM_RAM AM_BASE_MEMBER(combatsc_state, m_paletteram)		/* palette */
+	AM_RANGE(0x0600, 0x06ff) AM_RAM AM_BASE_MEMBER(combatsc_state, paletteram)		/* palette */
 	AM_RANGE(0x0800, 0x1fff) AM_RAM								/* RAM */
 	AM_RANGE(0x2000, 0x3fff) AM_READWRITE(combatsc_video_r, combatsc_video_w)
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")						/* banked ROM area */
 	AM_RANGE(0x8000, 0xffff) AM_ROM								/* ROM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( combatscb_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( combatscb_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x04ff) AM_RAM
 	AM_RANGE(0x0500, 0x0500) AM_WRITE(combatscb_bankselect_w)
-	AM_RANGE(0x0600, 0x06ff) AM_RAM AM_BASE_MEMBER(combatsc_state, m_paletteram)		/* palette */
+	AM_RANGE(0x0600, 0x06ff) AM_RAM AM_BASE_MEMBER(combatsc_state, paletteram)		/* palette */
 	AM_RANGE(0x0800, 0x1fff) AM_RAM
 	AM_RANGE(0x2000, 0x3fff) AM_READWRITE(combatsc_video_r, combatsc_video_w)
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")						/* banked ROM/RAM area */
 	AM_RANGE(0x8000, 0xffff) AM_ROM								/* ROM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( combatsc_sound_map, AS_PROGRAM, 8 )
+#if 0
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x7fff) AM_ROM										/* ROM */
+	AM_RANGE(0x8000, 0x87ef) AM_RAM										/* RAM */
+	AM_RANGE(0x87f0, 0x87ff) AM_RAM										/* ??? */
+	AM_RANGE(0x9000, 0x9001) AM_DEVREADWRITE("ymsnd", ym2203_r, ym2203_w)	/* YM 2203 */
+	AM_RANGE(0x9008, 0x9009) AM_DEVREAD("ymsnd", ym2203_r)					/* ??? */
+	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)						/* soundlatch_r? */
+	AM_RANGE(0x8800, 0xfffb) AM_ROM										/* ROM? */
+	AM_RANGE(0xfffc, 0xffff) AM_RAM										/* ??? */
+ADDRESS_MAP_END
+#endif
+
+static ADDRESS_MAP_START( combatsc_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM												/* ROM */
 	AM_RANGE(0x8000, 0x87ff) AM_RAM												/* RAM */
 
@@ -433,25 +433,6 @@ static ADDRESS_MAP_START( combatsc_sound_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xe000, 0xe001) AM_DEVREADWRITE("ymsnd", combatsc_ym2203_r, ym2203_w)	/* YM 2203 intercepted */
 ADDRESS_MAP_END
 
-static WRITE8_DEVICE_HANDLER( combatscb_dac_w )
-{
-	if(data & 0xe0)
-		printf("%02x\n",data);
-
-	//msm5205_reset_w(device, (data >> 4) & 1);
-	msm5205_data_w(device, (data & 0x0f));
-	msm5205_vclk_w(device, 1);
-	msm5205_vclk_w(device, 0);
-}
-
-static ADDRESS_MAP_START( combatscb_sound_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x7fff) AM_ROM										/* ROM */
-	AM_RANGE(0x8000, 0x87ff) AM_RAM										/* RAM */
-	AM_RANGE(0x9000, 0x9001) AM_DEVREADWRITE("ymsnd", ym2203_r, ym2203_w)	/* YM 2203 */
-	AM_RANGE(0x9008, 0x9009) AM_DEVREAD("ymsnd", ym2203_r)					/* ??? */
-	AM_RANGE(0x9800, 0x9800) AM_DEVWRITE("msm5205",combatscb_dac_w)
-	AM_RANGE(0xa000, 0xa000) AM_READ(soundlatch_r)						/* soundlatch_r? */
-ADDRESS_MAP_END
 
 /*************************************
  *
@@ -684,166 +665,152 @@ static const ym2203_interface ym2203_config =
 	NULL
 };
 
-static const ym2203_interface ym2203_bootleg_config =
-{
-	{
-		AY8910_LEGACY_OUTPUT,
-		AY8910_DEFAULT_LOADS,
-		DEVCB_NULL,
-		DEVCB_NULL,
-		DEVCB_NULL,
-		DEVCB_NULL
-	},
-	NULL
-};
 
 static MACHINE_START( combatsc )
 {
-	combatsc_state *state = machine.driver_data<combatsc_state>();
-	UINT8 *MEM = machine.region("maincpu")->base() + 0x38000;
+	combatsc_state *state = (combatsc_state *)machine->driver_data;
+	UINT8 *MEM = memory_region(machine, "maincpu") + 0x38000;
 
-	state->m_io_ram  = MEM + 0x0000;
-	state->m_page[0] = MEM + 0x4000;
-	state->m_page[1] = MEM + 0x6000;
+	state->io_ram  = MEM + 0x0000;
+	state->page[0] = MEM + 0x4000;
+	state->page[1] = MEM + 0x6000;
 
-	state->m_interleave_timer = machine.scheduler().timer_alloc(FUNC_NULL);
+	state->interleave_timer = timer_alloc(machine, NULL, NULL);
 
-	state->m_audiocpu = machine.device<cpu_device>("audiocpu");
-	state->m_k007121_1 = machine.device("k007121_1");
-	state->m_k007121_2 = machine.device("k007121_2");
+	state->audiocpu = machine->device<cpu_device>("audiocpu");
+	state->k007121_1 = machine->device("k007121_1");
+	state->k007121_2 = machine->device("k007121_2");
 
-	memory_configure_bank(machine, "bank1", 0, 10, machine.region("maincpu")->base() + 0x10000, 0x4000);
+	memory_configure_bank(machine, "bank1", 0, 10, memory_region(machine, "maincpu") + 0x10000, 0x4000);
 
-	state->save_item(NAME(state->m_priority));
-	state->save_item(NAME(state->m_vreg));
-	state->save_item(NAME(state->m_bank_select));
-	state->save_item(NAME(state->m_video_circuit));
-	state->save_item(NAME(state->m_boost));
-	state->save_item(NAME(state->m_prot));
-	state->save_item(NAME(state->m_pos));
-	state->save_item(NAME(state->m_sign));
+	state_save_register_global(machine, state->priority);
+	state_save_register_global(machine, state->vreg);
+	state_save_register_global(machine, state->bank_select);
+	state_save_register_global(machine, state->video_circuit);
+	state_save_register_global(machine, state->boost);
+	state_save_register_global_array(machine, state->prot);
+	state_save_register_global_array(machine, state->pos);
+	state_save_register_global_array(machine, state->sign);
 }
 
 
 static MACHINE_RESET( combatsc )
 {
-	combatsc_state *state = machine.driver_data<combatsc_state>();
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
+	combatsc_state *state = (combatsc_state *)machine->driver_data;
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
 	int i;
 
-	memset(state->m_io_ram,  0x00, 0x4000);
-	memset(state->m_page[0], 0x00, 0x2000);
-	memset(state->m_page[1], 0x00, 0x2000);
+	memset(state->io_ram,  0x00, 0x4000);
+	memset(state->page[0], 0x00, 0x2000);
+	memset(state->page[1], 0x00, 0x2000);
 
-	state->m_vreg = -1;
-	state->m_boost = 1;
-	state->m_bank_select = -1;
-	state->m_prot[0] = 0;
-	state->m_prot[1] = 0;
+	state->vreg = -1;
+	state->boost = 1;
+	state->bank_select = -1;
+	state->prot[0] = 0;
+	state->prot[1] = 0;
 
 	for (i = 0; i < 4; i++)
 	{
-		state->m_pos[i] = 0;
-		state->m_sign[i] = 0;
+		state->pos[i] = 0;
+		state->sign[i] = 0;
 	}
 
 	combatsc_bankselect_w(space, 0, 0);
 }
 
 /* combat school (original) */
-static MACHINE_CONFIG_START( combatsc, combatsc_state )
+static MACHINE_DRIVER_START( combatsc )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(combatsc_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", HD6309, 3000000*4)	/* 3 MHz? */
-	MCFG_CPU_PROGRAM_MAP(combatsc_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", HD6309, 3000000*4)	/* 3 MHz? */
+	MDRV_CPU_PROGRAM_MAP(combatsc_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,3579545)	/* 3.579545 MHz */
-	MCFG_CPU_PROGRAM_MAP(combatsc_sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,3579545)	/* 3.579545 MHz */
+	MDRV_CPU_PROGRAM_MAP(combatsc_sound_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(1200))
+	MDRV_QUANTUM_TIME(HZ(1200))
 
-	MCFG_MACHINE_START(combatsc)
-	MCFG_MACHINE_RESET(combatsc)
+	MDRV_MACHINE_START(combatsc)
+	MDRV_MACHINE_RESET(combatsc)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(combatsc)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(combatsc)
-	MCFG_PALETTE_LENGTH(8*16*16)
+	MDRV_GFXDECODE(combatsc)
+	MDRV_PALETTE_LENGTH(8*16*16)
 
-	MCFG_PALETTE_INIT(combatsc)
-	MCFG_VIDEO_START(combatsc)
+	MDRV_PALETTE_INIT(combatsc)
+	MDRV_VIDEO_START(combatsc)
+	MDRV_VIDEO_UPDATE(combatsc)
 
-	MCFG_K007121_ADD("k007121_1")
-	MCFG_K007121_ADD("k007121_2")
+	MDRV_K007121_ADD("k007121_1")
+	MDRV_K007121_ADD("k007121_2")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 3000000)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
+	MDRV_SOUND_ADD("ymsnd", YM2203, 3000000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
 
-	MCFG_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.70)
-MACHINE_CONFIG_END
-
-
-static const msm5205_interface msm5205_config =
-{
-	0,				/* interrupt function */
-	MSM5205_SEX_4B	/* 8KHz playback ?    */
-};
+	MDRV_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.70)
+MACHINE_DRIVER_END
 
 /* combat school (bootleg on different hardware) */
-static MACHINE_CONFIG_START( combatscb, combatsc_state )
+static MACHINE_DRIVER_START( combatscb )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(combatsc_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", HD6309, 3000000*4)	/* 3 MHz? */
-	MCFG_CPU_PROGRAM_MAP(combatscb_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", HD6309, 3000000*4)	/* 3 MHz? */
+	MDRV_CPU_PROGRAM_MAP(combatscb_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,3579545)	/* 3.579545 MHz */
-	MCFG_CPU_PROGRAM_MAP(combatscb_sound_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,4800) // controls BGM tempo
+	MDRV_CPU_ADD("audiocpu", Z80,3579545)	/* 3.579545 MHz */
+	MDRV_CPU_PROGRAM_MAP(combatsc_sound_map) /* FAKE */
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(1200))
+	MDRV_QUANTUM_TIME(HZ(1200))
 
-	MCFG_MACHINE_START(combatsc)
-	MCFG_MACHINE_RESET(combatsc)
+	MDRV_MACHINE_START(combatsc)
+	MDRV_MACHINE_RESET(combatsc)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(combatscb)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(combatscb)
-	MCFG_PALETTE_LENGTH(8*16*16)
+	MDRV_GFXDECODE(combatscb)
+	MDRV_PALETTE_LENGTH(8*16*16)
 
-	MCFG_PALETTE_INIT(combatscb)
-	MCFG_VIDEO_START(combatscb)
+	MDRV_PALETTE_INIT(combatscb)
+	MDRV_VIDEO_START(combatscb)
+	MDRV_VIDEO_UPDATE(combatscb)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	/* We are using the original sound subsystem */
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 3000000)
-	MCFG_SOUND_CONFIG(ym2203_bootleg_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
+	MDRV_SOUND_ADD("ymsnd", YM2203, 3000000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.20)
 
-	MCFG_SOUND_ADD("msm5205", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("upd", UPD7759, UPD7759_STANDARD_CLOCK)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.70)
+MACHINE_DRIVER_END
 
 
 
@@ -980,6 +947,7 @@ ROM_START( combatscb )
 
 	ROM_REGION( 0x10000 , "audiocpu", 0 ) /* sound CPU */
 	ROM_LOAD( "combat.001",  0x00000, 0x10000, CRC(61456b3b) SHA1(320db628283dd1bec465e95020d1a1158e6d6ae4) )
+	ROM_LOAD( "611g03.rom",  0x00000, 0x08000, CRC(2a544db5) SHA1(94a97c3c54bf13ccc665aa5057ac6b1d700fae2d) ) /* FAKE - from Konami set! */
 
 	ROM_REGION( 0x80000, "gfx1", ROMREGION_INVERT )
 	ROM_LOAD( "combat.006",  0x00000, 0x10000, CRC(8dc29a1f) SHA1(564dd7c6acff34db93b8e300dda563f5f38ba159) ) /* tiles, bank 0 */
@@ -1004,6 +972,9 @@ ROM_START( combatscb )
 	ROM_REGION( 0x0200, "proms", 0 )
 	ROM_LOAD( "prom.d10",    0x0000, 0x0100, CRC(265f4c97) SHA1(76f1b75a593d3d77ef6173a1948f842d5b27d418) ) /* sprites lookup table */
 	ROM_LOAD( "prom.c11",    0x0100, 0x0100, CRC(a7a5c0b4) SHA1(48bfc3af40b869599a988ebb3ed758141bcfd4fc) ) /* priority? */
+
+	ROM_REGION( 0x20000, "upd", 0 )	/* uPD7759 data */
+	ROM_LOAD( "611g04.rom",  0x00000, 0x20000, CRC(2987e158) SHA1(87c5129161d3be29a339083349807e60b625c3f7) )	/* FAKE - from Konami set! */
 ROM_END
 
 
@@ -1016,7 +987,7 @@ ROM_END
 static DRIVER_INIT( combatsc )
 {
 	/* joystick instead of trackball */
-	machine.device("maincpu")->memory().space(AS_PROGRAM)->install_read_port(0x0404, 0x0404, "IN1");
+	memory_install_read_port(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x0404, 0x0404, 0, 0, "IN1");
 }
 
 
@@ -1030,4 +1001,4 @@ GAME( 1988, combatsc,  0,        combatsc,  combatsc,  combatsc,  ROT0, "Konami"
 GAME( 1987, combatsct, combatsc, combatsc,  combatsct, 0,         ROT0, "Konami",  "Combat School (trackball)", 0 )
 GAME( 1987, combatscj, combatsc, combatsc,  combatsct, 0,         ROT0, "Konami",  "Combat School (Japan trackball)", 0 )
 GAME( 1987, bootcamp,  combatsc, combatsc,  combatsct, 0,         ROT0, "Konami",  "Boot Camp", 0 )
-GAME( 1988, combatscb, combatsc, combatscb, combatscb, 0,         ROT0, "bootleg", "Combat School (bootleg)", GAME_IMPERFECT_COLORS | GAME_IMPERFECT_SOUND )
+GAME( 1988, combatscb, combatsc, combatscb, combatscb, 0,         ROT0, "bootleg", "Combat School (bootleg)", GAME_IMPERFECT_COLORS )

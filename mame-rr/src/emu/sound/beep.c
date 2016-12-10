@@ -12,6 +12,7 @@
 ****************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "sound/beep.h"
 
 
@@ -28,10 +29,10 @@ struct _beep_state
 };
 
 
-INLINE beep_state *get_safe_token(device_t *device)
+INLINE beep_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == BEEP);
+	assert(device->type() == SOUND_BEEP);
 	return (beep_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -92,7 +93,7 @@ static DEVICE_START( beep )
 {
 	beep_state *pBeep = get_safe_token(device);
 
-	pBeep->stream = device->machine().sound().stream_alloc(*device, 0, 1, BEEP_RATE, pBeep, beep_sound_update );
+	pBeep->stream = stream_create(device, 0, 1, BEEP_RATE, pBeep, beep_sound_update );
 	pBeep->enable = 0;
 	pBeep->frequency = 3250;
 	pBeep->incr = 0;
@@ -107,7 +108,7 @@ static DEVICE_START( beep )
  *
  *************************************/
 
-void beep_set_state(device_t *device, int on)
+void beep_set_state(running_device *device, int on)
 {
 	beep_state *info = get_safe_token(device);
 
@@ -115,7 +116,7 @@ void beep_set_state(device_t *device, int on)
 	if (info->enable == on)
 		return;
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	info->enable = on;
 	/* restart wave from beginning */
@@ -131,14 +132,14 @@ void beep_set_state(device_t *device, int on)
  *
  *************************************/
 
-void beep_set_frequency(device_t *device,int frequency)
+void beep_set_frequency(running_device *device,int frequency)
 {
 	beep_state *info = get_safe_token(device);
 
 	if (info->frequency == frequency)
 		return;
 
-	info->stream->update();
+	stream_update(info->stream);
 	info->frequency = frequency;
 	info->signal = 0x07fff;
 	info->incr = 0;
@@ -152,15 +153,15 @@ void beep_set_frequency(device_t *device,int frequency)
  *
  *************************************/
 
-void beep_set_volume(device_t *device, int volume)
+void beep_set_volume(running_device *device, int volume)
 {
 	beep_state *info = get_safe_token(device);
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	volume = 100 * volume / 7;
 
-	downcast<beep_device *>(device)->set_output_gain(0, volume);
+	sound_set_output_gain(device, 0, volume);
 }
 
 

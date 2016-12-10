@@ -2,16 +2,16 @@
 #include "video/ppu2c0x.h"
 #include "includes/playch10.h"
 
+static int pc10_bios;
 
+static tilemap_t *bg_tilemap;
 
 WRITE8_HANDLER( playch10_videoram_w )
 {
-	playch10_state *state = space->machine().driver_data<playch10_state>();
-	UINT8 *videoram = state->m_videoram;
-	if (state->m_pc10_sdcs)
+	if (pc10_sdcs)
 	{
-		videoram[offset] = data;
-		tilemap_mark_tile_dirty(state->m_bg_tilemap, offset / 2);
+		space->machine->generic.videoram.u8[offset] = data;
+		tilemap_mark_tile_dirty(bg_tilemap, offset / 2);
 	}
 }
 
@@ -57,11 +57,10 @@ PALETTE_INIT( playch10 )
 	ppu2c0x_init_palette_rgb(machine, 256 );
 }
 
-static void ppu_irq( device_t *device, int *ppu_regs )
+static void ppu_irq( running_device *device, int *ppu_regs )
 {
-	playch10_state *state = device->machine().driver_data<playch10_state>();
-	cputag_set_input_line(device->machine(), "cart", INPUT_LINE_NMI, PULSE_LINE );
-	state->m_pc10_int_detect = 1;
+	cputag_set_input_line(device->machine, "cart", INPUT_LINE_NMI, PULSE_LINE );
+	pc10_int_detect = 1;
 }
 
 /* our ppu interface                                           */
@@ -86,32 +85,28 @@ const ppu2c0x_interface playch10_ppu_interface_hboard =
 
 static TILE_GET_INFO( get_bg_tile_info )
 {
-	playch10_state *state = machine.driver_data<playch10_state>();
-	UINT8 *videoram = state->m_videoram;
 	int offs = tile_index * 2;
-	int code = videoram[offs] + ((videoram[offs + 1] & 0x07) << 8);
-	int color = (videoram[offs + 1] >> 3) & 0x1f;
+	int code = machine->generic.videoram.u8[offs] + ((machine->generic.videoram.u8[offs + 1] & 0x07) << 8);
+	int color = (machine->generic.videoram.u8[offs + 1] >> 3) & 0x1f;
 
 	SET_TILE_INFO(0, code, color, 0);
 }
 
 VIDEO_START( playch10 )
 {
-	playch10_state *state = machine.driver_data<playch10_state>();
-	const UINT8 *bios = machine.region("maincpu")->base();
-	state->m_pc10_bios = (bios[3] == 0x2a) ? 1 : 2;
+	const UINT8 *bios = memory_region(machine, "maincpu");
+	pc10_bios = (bios[3] == 0x2a) ? 1 : 2;
 
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows,
+	bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows,
 		 8, 8, 32, 32);
 }
 
 VIDEO_START( playch10_hboard )
 {
-	playch10_state *state = machine.driver_data<playch10_state>();
-	const UINT8 *bios = machine.region("maincpu")->base();
-	state->m_pc10_bios = (bios[3] == 0x2a) ? 1 : 2;
+	const UINT8 *bios = memory_region(machine, "maincpu");
+	pc10_bios = (bios[3] == 0x2a) ? 1 : 2;
 
-	state->m_bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows,
+	bg_tilemap = tilemap_create(machine, get_bg_tile_info, tilemap_scan_rows,
 		 8, 8, 32, 32);
 }
 
@@ -121,15 +116,14 @@ VIDEO_START( playch10_hboard )
 
 ***************************************************************************/
 
-SCREEN_UPDATE( playch10 )
+VIDEO_UPDATE( playch10 )
 {
-	playch10_state *state = screen->machine().driver_data<playch10_state>();
-	device_t *ppu = screen->machine().device("ppu");
+	running_device *ppu = screen->machine->device("ppu");
 
 	/* Dual monitor version */
-	if (state->m_pc10_bios == 1)
+	if (pc10_bios == 1)
 	{
-		device_t *top_screen = screen->machine().device("top");
+		running_device *top_screen = screen->machine->device("top");
 
 		/* On Playchoice 10 single monitor, this bit toggles    */
 		/* between PPU and BIOS display.                        */
@@ -139,7 +133,7 @@ SCREEN_UPDATE( playch10 )
 
 		if (screen == top_screen)
 		{
-			if ( !state->m_pc10_dispmask )
+			if ( !pc10_dispmask )
 				/* render the ppu */
 				ppu2c0x_render( ppu, bitmap, 0, 0, 0, 0 );
 			else
@@ -149,8 +143,8 @@ SCREEN_UPDATE( playch10 )
 		{
 			/* When the bios is accessing vram, the video circuitry can't access it */
 
-			if ( !state->m_pc10_sdcs )
-				tilemap_draw(bitmap, cliprect, state->m_bg_tilemap, 0, 0);
+			if ( !pc10_sdcs )
+				tilemap_draw(bitmap, cliprect, bg_tilemap, 0, 0);
 			else
 				bitmap_fill(bitmap, cliprect, 0);
 		}
@@ -161,22 +155,22 @@ SCREEN_UPDATE( playch10 )
 
 		top_monitor.max_y = ( top_monitor.max_y - top_monitor.min_y ) / 2;
 
-		if(state->m_pc10_dispmask_old != state->m_pc10_dispmask)
+		if(pc10_dispmask_old != pc10_dispmask)
 		{
-			state->m_pc10_dispmask_old = state->m_pc10_dispmask;
+			pc10_dispmask_old = pc10_dispmask;
 
-			if(state->m_pc10_dispmask)
-				state->m_pc10_game_mode ^= 1;
+			if(pc10_dispmask)
+				pc10_game_mode ^= 1;
 		}
 
-		if ( state->m_pc10_game_mode )
+		if ( pc10_game_mode )
 			/* render the ppu */
 			ppu2c0x_render( ppu, bitmap, 0, 0, 0, 0 );
 		else
 		{
 			/* When the bios is accessing vram, the video circuitry can't access it */
-			if ( !state->m_pc10_sdcs )
-				tilemap_draw(bitmap, &top_monitor, state->m_bg_tilemap, 0, 0);
+			if ( !pc10_sdcs )
+				tilemap_draw(bitmap, &top_monitor, bg_tilemap, 0, 0);
 		}
 	}
 	return 0;

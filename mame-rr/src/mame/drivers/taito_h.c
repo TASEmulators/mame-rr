@@ -156,10 +156,10 @@ some kind of zoom table?
 ***************************************************************************/
 
 /* Handler called by the YM2610 emulator when the internal timers cause an IRQ */
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	taitoh_state *state = device->machine().driver_data<taitoh_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	taitoh_state *state = (taitoh_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2610_interface ym2610_config =
@@ -183,63 +183,63 @@ static READ8_HANDLER( syvalion_input_bypass_r )
 {
 	/* Bypass TC0220IOC controller for analog input */
 
-	taitoh_state *state = space->machine().driver_data<taitoh_state>();
-	UINT8	port = tc0220ioc_port_r(state->m_tc0220ioc, 0);	/* read port number */
+	taitoh_state *state = (taitoh_state *)space->machine->driver_data;
+	UINT8	port = tc0220ioc_port_r(state->tc0220ioc, 0);	/* read port number */
 
 	switch( port )
 	{
 		case 0x08:				/* trackball y coords bottom 8 bits for 2nd player */
-			return input_port_read(space->machine(), P2TRACKY_PORT_TAG);
+			return input_port_read(space->machine, P2TRACKY_PORT_TAG);
 
 		case 0x09:				/* trackball y coords top 8 bits for 2nd player */
-			if (input_port_read(space->machine(), P2TRACKY_PORT_TAG) & 0x80)	/* y- direction (negative value) */
+			if (input_port_read(space->machine, P2TRACKY_PORT_TAG) & 0x80)	/* y- direction (negative value) */
 				return 0xff;
 			else												/* y+ direction (positive value) */
 				return 0x00;
 
 		case 0x0a:				/* trackball x coords bottom 8 bits for 2nd player */
-			return input_port_read(space->machine(), P2TRACKX_PORT_TAG);
+			return input_port_read(space->machine, P2TRACKX_PORT_TAG);
 
 		case 0x0b:				/* trackball x coords top 8 bits for 2nd player */
-			if (input_port_read(space->machine(), P2TRACKX_PORT_TAG) & 0x80)	/* x- direction (negative value) */
+			if (input_port_read(space->machine, P2TRACKX_PORT_TAG) & 0x80)	/* x- direction (negative value) */
 				return 0xff;
 			else												/* x+ direction (positive value) */
 				return 0x00;
 
 		case 0x0c:				/* trackball y coords bottom 8 bits for 1st player */
-			return input_port_read(space->machine(), P1TRACKY_PORT_TAG);
+			return input_port_read(space->machine, P1TRACKY_PORT_TAG);
 
 		case 0x0d:				/* trackball y coords top 8 bits for 1st player */
-			if (input_port_read(space->machine(), P1TRACKY_PORT_TAG) & 0x80)	/* y- direction (negative value) */
+			if (input_port_read(space->machine, P1TRACKY_PORT_TAG) & 0x80)	/* y- direction (negative value) */
 				return 0xff;
 			else												/* y+ direction (positive value) */
 				return 0x00;
 
 		case 0x0e:				/* trackball x coords bottom 8 bits for 1st player */
-			return input_port_read(space->machine(), P1TRACKX_PORT_TAG);
+			return input_port_read(space->machine, P1TRACKX_PORT_TAG);
 
 		case 0x0f:				/* trackball x coords top 8 bits for 1st player */
-			if (input_port_read(space->machine(), P1TRACKX_PORT_TAG) & 0x80)	/* x- direction (negative value) */
+			if (input_port_read(space->machine, P1TRACKX_PORT_TAG) & 0x80)	/* x- direction (negative value) */
 				return 0xff;
 			else												/* x+ direction (positive value) */
 				return 0x00;
 
 		default:
-			return tc0220ioc_portreg_r(state->m_tc0220ioc, offset);
+			return tc0220ioc_portreg_r(state->tc0220ioc, offset);
 	}
 }
 
-static void reset_sound_region(running_machine &machine)
+static void reset_sound_region(running_machine *machine)
 {
-	taitoh_state *state = machine.driver_data<taitoh_state>();
-	memory_set_bank(machine, "bank1", state->m_banknum);
+	taitoh_state *state = (taitoh_state *)machine->driver_data;
+	memory_set_bank(machine, "bank1", state->banknum);
 }
 
 static WRITE8_HANDLER( sound_bankswitch_w )
 {
-	taitoh_state *state = space->machine().driver_data<taitoh_state>();
-	state->m_banknum = data & 3;
-	reset_sound_region(space->machine());
+	taitoh_state *state = (taitoh_state *)space->machine->driver_data;
+	state->banknum = data & 3;
+	reset_sound_region(space->machine);
 }
 
 
@@ -249,9 +249,9 @@ static WRITE8_HANDLER( sound_bankswitch_w )
 
 ***************************************************************************/
 
-static ADDRESS_MAP_START( syvalion_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( syvalion_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
-	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM AM_BASE_MEMBER(taitoh_state, m_m68000_mainram)
+	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM AM_BASE_MEMBER(taitoh_state, m68000_mainram)
 	AM_RANGE(0x200000, 0x200001) AM_READ8(syvalion_input_bypass_r, 0x00ff) AM_DEVWRITE8("tc0220ioc", tc0220ioc_portreg_w, 0x00ff)
 	AM_RANGE(0x200002, 0x200003) AM_DEVREADWRITE8("tc0220ioc", tc0220ioc_port_r, tc0220ioc_port_w, 0x00ff)
 	AM_RANGE(0x300000, 0x300001) AM_READNOP AM_DEVWRITE8("tc0140syt", tc0140syt_port_w, 0x00ff)
@@ -260,9 +260,9 @@ static ADDRESS_MAP_START( syvalion_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x500800, 0x500fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( recordbr_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( recordbr_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x07ffff) AM_ROM
-	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM AM_BASE_MEMBER(taitoh_state, m_m68000_mainram)
+	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM AM_BASE_MEMBER(taitoh_state, m68000_mainram)
 	AM_RANGE(0x200000, 0x200001) AM_DEVREADWRITE8("tc0220ioc", tc0220ioc_portreg_r, tc0220ioc_portreg_w, 0x00ff)
 	AM_RANGE(0x200002, 0x200003) AM_DEVREADWRITE8("tc0220ioc", tc0220ioc_port_r, tc0220ioc_port_w, 0x00ff)
 	AM_RANGE(0x300000, 0x300001) AM_READNOP AM_DEVWRITE8("tc0140syt", tc0140syt_port_w, 0x00ff)
@@ -271,9 +271,9 @@ static ADDRESS_MAP_START( recordbr_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x500800, 0x500fff) AM_RAM_WRITE(paletteram16_xBBBBBGGGGGRRRRR_word_w) AM_BASE_GENERIC(paletteram)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( dleague_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( dleague_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x05ffff) AM_ROM
-	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM AM_BASE_MEMBER(taitoh_state, m_m68000_mainram)
+	AM_RANGE(0x100000, 0x10ffff) AM_MIRROR(0x010000) AM_RAM AM_BASE_MEMBER(taitoh_state, m68000_mainram)
 	AM_RANGE(0x200000, 0x20000f) AM_DEVREADWRITE8("tc0220ioc", tc0220ioc_r, tc0220ioc_w, 0x00ff)
 	AM_RANGE(0x300000, 0x300001) AM_READNOP AM_DEVWRITE8("tc0140syt", tc0140syt_port_w, 0x00ff)
 	AM_RANGE(0x300002, 0x300003) AM_DEVREADWRITE8("tc0140syt", tc0140syt_comm_r, tc0140syt_comm_w, 0x00ff)
@@ -283,7 +283,7 @@ static ADDRESS_MAP_START( dleague_map, AS_PROGRAM, 16 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
@@ -307,26 +307,26 @@ ADDRESS_MAP_END
 static INPUT_PORTS_START( syvalion )
 	/* 0x200000 (port 0) -> 0x102842.b (-$57be,A5) */
 	PORT_START("DSWA")
-	TAITO_MACHINE_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_MACHINE_COCKTAIL
+	TAITO_COINAGE_JAPAN_OLD
 
 	/* 0x200000 (port 1) -> 0x102843.b (-$57bd,A5) */
 	PORT_START("DSWB")
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW2:3,4")
+	TAITO_DIFFICULTY
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Bonus_Life ) )
 	PORT_DIPSETTING(    0x08, "1000k" )
 	PORT_DIPSETTING(    0x0c, "1500k" )
 	PORT_DIPSETTING(    0x04, "2000k" )
 	PORT_DIPSETTING(    0x00, DEF_STR( None ) )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:5,6")
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x00, "2" )
 	PORT_DIPSETTING(    0x30, "3" )
 	PORT_DIPSETTING(    0x20, "4" )
 	PORT_DIPSETTING(    0x10, "5" )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW2:7") /* code at 0x002af8 - see notes */
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )               /* code at 0x002af8 - see notes */
 	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )		/* Listed as "Unused" */
+	PORT_DIPUNUSED( 0x80, IP_ACTIVE_LOW )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW,  IPT_UNKNOWN )
@@ -367,18 +367,18 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( recordbr )
 	/* 0x200000 (port 0) -> 0x1022e6.b (-$5d1a,A5) */
 	PORT_START("DSWA")
-	TAITO_MACHINE_NO_COCKTAIL_LOC(SW1)
-	TAITO_COINAGE_WORLD_LOC(SW1)
+	TAITO_MACHINE_NO_COCKTAIL
+	TAITO_COINAGE_WORLD
 
 	PORT_START("DSWB")
 	/* 0x200000 (port 1) -> 0x1022e7.b (-$5d19,A5) */
-	TAITO_DIFFICULTY_LOC(SW2)
-	PORT_DIPUNUSED_DIPLOC( 0x04, 0x04, "SW2:3" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "SW2:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )
+	TAITO_DIFFICULTY
+	PORT_DIPUNUSED( 0x04, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x08, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x10, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x20, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x40, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x80, IP_ACTIVE_LOW )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW,  IPT_UNKNOWN )
@@ -416,31 +416,31 @@ static INPUT_PORTS_START( gogold )
 	PORT_INCLUDE(recordbr)
 
 	PORT_MODIFY("DSWA")
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_COINAGE_JAPAN_OLD
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( dleague )
 	/* 0x200000 -> 0x100526.b ($526,A5) */
 	PORT_START("DSWA")
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW1:1") /* see notes */
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Difficulty ) )            /* see notes */
 	PORT_DIPSETTING(    0x01, "Constant" )
 	PORT_DIPSETTING(    0x00, "Based on Inning" )
-	TAITO_DSWA_BITS_1_TO_3_LOC(SW1)
-	TAITO_COINAGE_JAPAN_OLD_LOC(SW1)
+	TAITO_DSWA_BITS_1_TO_3
+	TAITO_COINAGE_JAPAN_OLD
 
 	/* 0x200002 -> 0x100527.b ($527,A5) */
 	PORT_START("DSWB")
-	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "SW2:1" )		/* see notes */
-	PORT_DIPUNUSED_DIPLOC( 0x02, 0x02, "SW2:2" )
-	PORT_DIPNAME( 0x0c, 0x0c, "Extra Credit Needed" )	PORT_DIPLOCATION("SW2:3,4") /* see notes */
+	PORT_DIPUNUSED( 0x01, IP_ACTIVE_LOW )                        /* see notes */
+	PORT_DIPUNUSED( 0x02, IP_ACTIVE_LOW )
+	PORT_DIPNAME( 0x0c, 0x0c, "Extra Credit Needed" )            /* see notes */
 	PORT_DIPSETTING(    0x08, "After Inning 6" )
 	PORT_DIPSETTING(    0x00, "After Innings 5 and 7" )
 	PORT_DIPSETTING(    0x0c, "After Innings 3 and 6" )
 	PORT_DIPSETTING(    0x04, "After Innings 3, 5 and 7" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "SW2:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "SW2:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
-	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )
+	PORT_DIPUNUSED( 0x10, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x20, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x40, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED( 0x80, IP_ACTIVE_LOW )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW,  IPT_SERVICE1 )
@@ -511,25 +511,30 @@ static GFXDECODE_START( dleague )
 GFXDECODE_END
 
 
+static STATE_POSTLOAD( taitoh_postload )
+{
+	reset_sound_region(machine);
+}
+
 static MACHINE_RESET( taitoh )
 {
-	taitoh_state *state = machine.driver_data<taitoh_state>();
-	state->m_banknum = 0;
+	taitoh_state *state = (taitoh_state *)machine->driver_data;
+	state->banknum = 0;
 }
 
 static MACHINE_START( taitoh )
 {
-	taitoh_state *state = machine.driver_data<taitoh_state>();
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	taitoh_state *state = (taitoh_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0xc000], 0x4000);
 
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_tc0220ioc = machine.device("tc0220ioc");
-	state->m_tc0080vco = machine.device("tc0080vco");
+	state->audiocpu = machine->device("audiocpu");
+	state->tc0220ioc = machine->device("tc0220ioc");
+	state->tc0080vco = machine->device("tc0080vco");
 
-	state->save_item(NAME(state->m_banknum));
-	machine.save().register_postload(save_prepost_delegate(FUNC(reset_sound_region), &machine));
+	state_save_register_global(machine, state->banknum);
+	state_save_register_postload(machine, taitoh_postload, NULL);
 }
 
 
@@ -558,136 +563,148 @@ static const tc0140syt_interface taitoh_tc0140syt_intf =
 	"maincpu", "audiocpu"
 };
 
-static MACHINE_CONFIG_START( syvalion, taitoh_state )
+static MACHINE_DRIVER_START( syvalion )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitoh_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz */
-	MCFG_CPU_PROGRAM_MAP(syvalion_map)
-	MCFG_CPU_VBLANK_INT("screen", irq2_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz */
+	MDRV_CPU_PROGRAM_MAP(syvalion_map)
+	MDRV_CPU_VBLANK_INT("screen", irq2_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,8000000 / 2)		/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,8000000 / 2)		/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(taitoh)
-	MCFG_MACHINE_RESET(taitoh)
+	MDRV_MACHINE_START(taitoh)
+	MDRV_MACHINE_RESET(taitoh)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", taitoh_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", taitoh_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 64*16)
-	MCFG_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 3*16, 28*16-1)
-	MCFG_SCREEN_UPDATE(syvalion)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 64*16)
+	MDRV_SCREEN_VISIBLE_AREA(0*16, 32*16-1, 3*16, 28*16-1)
 
-	MCFG_GFXDECODE(syvalion)
-	MCFG_PALETTE_LENGTH(33*16)
+	MDRV_GFXDECODE(syvalion)
+	MDRV_PALETTE_LENGTH(33*16)
 
-	MCFG_TC0080VCO_ADD("tc0080vco", syvalion_tc0080vco_intf)
+	MDRV_VIDEO_UPDATE(syvalion)
+
+	MDRV_TC0080VCO_ADD("tc0080vco", syvalion_tc0080vco_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, 8000000)
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 1.0)
-	MCFG_SOUND_ROUTE(2, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2610, 8000000)
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 1.0)
+	MDRV_SOUND_ROUTE(2, "mono", 1.0)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", taitoh_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", taitoh_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( recordbr, taitoh_state )
+static MACHINE_DRIVER_START( recordbr )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitoh_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz */
-	MCFG_CPU_PROGRAM_MAP(recordbr_map)
-	MCFG_CPU_VBLANK_INT("screen", irq2_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz */
+	MDRV_CPU_PROGRAM_MAP(recordbr_map)
+	MDRV_CPU_VBLANK_INT("screen", irq2_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,8000000 / 2)		/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,8000000 / 2)		/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(taitoh)
-	MCFG_MACHINE_RESET(taitoh)
+	MDRV_MACHINE_START(taitoh)
+	MDRV_MACHINE_RESET(taitoh)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", taitoh_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", taitoh_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 64*16)
-	MCFG_SCREEN_VISIBLE_AREA(1*16, 21*16-1, 2*16, 17*16-1)
-	MCFG_SCREEN_UPDATE(recordbr)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 64*16)
+	MDRV_SCREEN_VISIBLE_AREA(1*16, 21*16-1, 2*16, 17*16-1)
 
-	MCFG_GFXDECODE(recordbr)
-	MCFG_PALETTE_LENGTH(32*16)
+	MDRV_GFXDECODE(recordbr)
+	MDRV_PALETTE_LENGTH(32*16)
 
-	MCFG_TC0080VCO_ADD("tc0080vco", recordbr_tc0080vco_intf)
+	MDRV_VIDEO_UPDATE(recordbr)
+
+	MDRV_TC0080VCO_ADD("tc0080vco", recordbr_tc0080vco_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, 8000000)
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 1.0)
-	MCFG_SOUND_ROUTE(2, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2610, 8000000)
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 1.0)
+	MDRV_SOUND_ROUTE(2, "mono", 1.0)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", taitoh_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", taitoh_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( dleague, taitoh_state )
+static MACHINE_DRIVER_START( dleague )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(taitoh_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz */
-	MCFG_CPU_PROGRAM_MAP(dleague_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,24000000 / 2)		/* 12 MHz */
+	MDRV_CPU_PROGRAM_MAP(dleague_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,8000000 / 2)		/* 4 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", Z80,8000000 / 2)		/* 4 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
-	MCFG_MACHINE_START(taitoh)
-	MCFG_MACHINE_RESET(taitoh)
+	MDRV_MACHINE_START(taitoh)
+	MDRV_MACHINE_RESET(taitoh)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_TC0220IOC_ADD("tc0220ioc", taitoh_io_intf)
+	MDRV_TC0220IOC_ADD("tc0220ioc", taitoh_io_intf)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*16, 64*16)
-	MCFG_SCREEN_VISIBLE_AREA(1*16, 21*16-1, 2*16, 17*16-1)
-	MCFG_SCREEN_UPDATE(dleague)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*16, 64*16)
+	MDRV_SCREEN_VISIBLE_AREA(1*16, 21*16-1, 2*16, 17*16-1)
 
-	MCFG_GFXDECODE(dleague)
-	MCFG_PALETTE_LENGTH(33*16)
+	MDRV_GFXDECODE(dleague)
+	MDRV_PALETTE_LENGTH(33*16)
 
-	MCFG_TC0080VCO_ADD("tc0080vco", recordbr_tc0080vco_intf)
+	MDRV_VIDEO_UPDATE(dleague)
+
+	MDRV_TC0080VCO_ADD("tc0080vco", recordbr_tc0080vco_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2610, 8000000)
-	MCFG_SOUND_CONFIG(ym2610_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.25)
-	MCFG_SOUND_ROUTE(1, "mono", 1.0)
-	MCFG_SOUND_ROUTE(2, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM2610, 8000000)
+	MDRV_SOUND_CONFIG(ym2610_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.25)
+	MDRV_SOUND_ROUTE(1, "mono", 1.0)
+	MDRV_SOUND_ROUTE(2, "mono", 1.0)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", taitoh_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", taitoh_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

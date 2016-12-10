@@ -1,53 +1,46 @@
-#include "sound/okim6295.h"
-#include "machine/eeprom.h"
 
-class playmark_state : public driver_device
+class playmark_state
 {
 public:
-	playmark_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, playmark_state(machine)); }
+
+	playmark_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *     m_bgvideoram;
-	UINT16 *     m_videoram1;
-	UINT16 *     m_videoram2;
-	UINT16 *     m_videoram3;
-	UINT16 *     m_rowscroll;
-	UINT16 *     m_spriteram;
-//      UINT16 *     m_paletteram;    // currently this uses generic palette handling
-	size_t       m_spriteram_size;
+	UINT16 *     bgvideoram;
+	UINT16 *     videoram1;
+	UINT16 *     videoram2;
+	UINT16 *     videoram3;
+	UINT16 *     rowscroll;
+	UINT16 *     spriteram;
+//      UINT16 *     paletteram;    // currently this uses generic palette handling
+	size_t       spriteram_size;
 
 	/* video-related */
-	tilemap_t   *m_tx_tilemap;
-	tilemap_t   *m_fg_tilemap;
-	tilemap_t   *m_bg_tilemap;
-	int         m_bgscrollx;
-	int         m_bgscrolly;
-	int         m_bg_enable;
-	int         m_bg_full_size;
-	int         m_fgscrollx;
-	int         m_fg_rowscroll_enable;
+	tilemap_t   *tx_tilemap, *fg_tilemap, *bg_tilemap;
+	int         bgscrollx, bgscrolly, bg_enable, bg_full_size;
+	int         fgscrollx, fg_rowscroll_enable;
 
-	int         m_xoffset;
-	int         m_yoffset;
-	int         m_txt_tile_offset;
-	int         m_pri_masks[3];
-	UINT16      m_scroll[7];
+	int         xoffset;
+	int         yoffset;
+	int         txt_tile_offset;
+	int         pri_masks[3];
+	UINT16      scroll[7];
 
 	/* powerbal-specific */
-	int         m_tilebank;
-	int         m_bg_yoffset;
+	int         tilebank;
+	int         bg_yoffset;
 
 	/* misc */
-	UINT16      m_snd_command;
-	UINT16      m_snd_flag;
-	UINT8       m_oki_control;
-	UINT8       m_oki_command;
-	int         m_old_oki_bank;
+	UINT16      snd_command;
+	UINT16      snd_flag;
+	UINT8       oki_control;
+	UINT8       oki_command;
+	int         old_oki_bank;
 
 	/* devices */
-	okim6295_device *m_oki;
-	eeprom_device *m_eeprom;
+	running_device *oki;
+	running_device *eeprom;
 };
 
 /*----------- defined in video/playmark.c -----------*/
@@ -65,14 +58,12 @@ WRITE16_HANDLER( excelsr_scroll_w );
 WRITE16_HANDLER( hrdtimes_scroll_w );
 
 VIDEO_START( bigtwin );
-VIDEO_START( bigtwinb );
 VIDEO_START( wbeachvl );
 VIDEO_START( excelsr );
 VIDEO_START( hotmind );
 VIDEO_START( hrdtimes );
 
-SCREEN_UPDATE( bigtwin );
-SCREEN_UPDATE( bigtwinb );
-SCREEN_UPDATE( wbeachvl );
-SCREEN_UPDATE( excelsr );
-SCREEN_UPDATE( hrdtimes );
+VIDEO_UPDATE( bigtwin );
+VIDEO_UPDATE( wbeachvl );
+VIDEO_UPDATE( excelsr );
+VIDEO_UPDATE( hrdtimes );

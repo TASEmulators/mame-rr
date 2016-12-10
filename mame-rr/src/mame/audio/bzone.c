@@ -18,6 +18,7 @@ D0  explosion enable        gates a noise generator
 */
 
 #include "emu.h"
+#include "streams.h"
 #include "includes/bzone.h"
 
 #include "sound/discrete.h"
@@ -226,43 +227,53 @@ static const discrete_mixer_desc bzone_final_mixer_desc =
 #define BZONE_CUSTOM_FILTER__C		DISCRETE_INPUT(7)
 #define BZONE_CUSTOM_FILTER__VP		DISCRETE_INPUT(8)
 
+struct bzone_custom_filter_context
+{
+	double	v_in1_gain;
+	double	v_p;
+	double	exponent;
+	double	gain[2];
+};
+
 #define CD4066_R_ON		270
 
-DISCRETE_CLASS_STEP_RESET(bzone_custom_filter, 1,
-	double	m_v_in1_gain;
-	double	m_v_p;
-	double	m_exponent;
-	double	m_gain[2];
-	double  m_out_v;
-);
-
-DISCRETE_STEP(bzone_custom_filter)
+static DISCRETE_STEP(bzone_custom_filter)
 {
+	struct bzone_custom_filter_context *context = (struct bzone_custom_filter_context *)node->context;
+
 	int		in0 = (BZONE_CUSTOM_FILTER__IN0 == 0) ? 0 : 1;
 	double	v;
 
 	if (BZONE_CUSTOM_FILTER__IN1 > 0)
 		v = 0;
 
-	v = BZONE_CUSTOM_FILTER__IN1 * m_v_in1_gain * m_gain[in0];
-	if (v > m_v_p) v = m_v_p;
+	v = BZONE_CUSTOM_FILTER__IN1 * context->v_in1_gain * context->gain[in0];
+	if (v > context->v_p) v = context->v_p;
 	if (v < 0) v = 0;
 
-	m_out_v += (v - m_out_v) * m_exponent;
-	set_output(0, m_out_v);
+	node->output[0] += (v - node->output[0]) * context->exponent;
 }
 
-DISCRETE_RESET(bzone_custom_filter)
+static DISCRETE_RESET(bzone_custom_filter)
 {
-	m_gain[0] = BZONE_CUSTOM_FILTER__R1 + BZONE_CUSTOM_FILTER__R2;
-	m_gain[0] = BZONE_CUSTOM_FILTER__R5 / m_gain[0] + 1;
-	m_gain[1] = RES_2_PARALLEL(CD4066_R_ON, BZONE_CUSTOM_FILTER__R1) + BZONE_CUSTOM_FILTER__R2;
-	m_gain[1] = BZONE_CUSTOM_FILTER__R5 / m_gain[1] + 1;
-	m_v_in1_gain = RES_VOLTAGE_DIVIDER(BZONE_CUSTOM_FILTER__R3, BZONE_CUSTOM_FILTER__R4);
-	m_v_p = BZONE_CUSTOM_FILTER__VP - OP_AMP_VP_RAIL_OFFSET;
-	m_exponent = RC_CHARGE_EXP(BZONE_CUSTOM_FILTER__R5 * BZONE_CUSTOM_FILTER__C);;
-	m_out_v = 0.0;
+	struct bzone_custom_filter_context   *context = (struct bzone_custom_filter_context *)node->context;
+
+	context->gain[0] = BZONE_CUSTOM_FILTER__R1 + BZONE_CUSTOM_FILTER__R2;
+	context->gain[0] = BZONE_CUSTOM_FILTER__R5 / context->gain[0] + 1;
+	context->gain[1] = RES_2_PARALLEL(CD4066_R_ON, BZONE_CUSTOM_FILTER__R1) + BZONE_CUSTOM_FILTER__R2;
+	context->gain[1] = BZONE_CUSTOM_FILTER__R5 / context->gain[1] + 1;
+	context->v_in1_gain = RES_VOLTAGE_DIVIDER(BZONE_CUSTOM_FILTER__R3, BZONE_CUSTOM_FILTER__R4);
+	context->v_p = BZONE_CUSTOM_FILTER__VP - OP_AMP_VP_RAIL_OFFSET;
+	context->exponent = RC_CHARGE_EXP(BZONE_CUSTOM_FILTER__R5 * BZONE_CUSTOM_FILTER__C);;
+	node->output[0] = 0;
 }
+
+static const discrete_custom_info bzone_custom_filter =
+{
+	DISCRETE_CUSTOM_MODULE( bzone_custom_filter, struct bzone_custom_filter_context),
+	NULL
+};
+
 
 /*************************************
  *
@@ -308,12 +319,12 @@ static DISCRETE_SOUND_START(bzone)
 	DISCRETE_RC_CIRCUIT_1(NODE_40,					/* IC J3, pin 9 */
 		BZ_INP_SHELL, NODE_31,						/* INP0, INP1 */
 		BZ_R14 + BZ_R15, BZ_C9)
-	DISCRETE_CUSTOM9(BZ_SHELL_SND, bzone_custom_filter,					/* IC K5, pin 1 */
+	DISCRETE_CUSTOM9(BZ_SHELL_SND,					/* IC K5, pin 1 */
 		BZ_INP_EXPLOLS, NODE_40,					/* IN0, IN1 */
 		BZ_R12, BZ_R13, BZ_R14, BZ_R15, BZ_R32,
 		BZ_C21,
 		22,											/* B+ of op-amp */
-		NULL)
+		&bzone_custom_filter)
 
 	/************************************************/
 	/* Explosion                                    */
@@ -322,12 +333,12 @@ static DISCRETE_SOUND_START(bzone)
 	DISCRETE_RC_CIRCUIT_1(NODE_50,					/* IC J3, pin 3 */
 		BZ_INP_EXPLO, NODE_34,						/* INP0, INP1 */
 		BZ_R17 + BZ_R16, BZ_C14)
-	DISCRETE_CUSTOM9(BZ_EXPLOSION_SND, bzone_custom_filter,				/* IC K5, pin 1 */
+	DISCRETE_CUSTOM9(BZ_EXPLOSION_SND,				/* IC K5, pin 1 */
 		BZ_INP_EXPLOLS, NODE_50,					/* IN0, IN1 */
 		BZ_R19, BZ_R18, BZ_R17, BZ_R16, BZ_R33,
 		BZ_C22,
 		22,											/* B+ of op-amp */
-		NULL)
+		&bzone_custom_filter)
 	/************************************************/
 	/* Engine                                       */
 	/************************************************/
@@ -392,20 +403,20 @@ WRITE8_DEVICE_HANDLER( bzone_sounds_w )
 	discrete_sound_w(device, BZ_INPUT, data);
 
 	output_set_value("startled", (data >> 6) & 1);
-	device->machine().sound().system_enable(data & 0x20);
+    sound_global_enable(device->machine, data & 0x20);
 }
 
 
-MACHINE_CONFIG_FRAGMENT( bzone_audio )
+MACHINE_DRIVER_START( bzone_audio )
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("pokey",  POKEY, BZONE_MASTER_CLOCK / 8)
-	MCFG_SOUND_CONFIG(bzone_pokey_interface)
-	MCFG_SOUND_ROUTE_EX(0, "discrete", 1.0, 0)
+	MDRV_SOUND_ADD("pokey",  POKEY, BZONE_MASTER_CLOCK / 8)
+	MDRV_SOUND_CONFIG(bzone_pokey_interface)
+	MDRV_SOUND_ROUTE_EX(0, "discrete", 1.0, 0)
 
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(bzone)
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(bzone)
 
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0 / BZ_FINAL_GAIN)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0 / BZ_FINAL_GAIN)
+MACHINE_DRIVER_END

@@ -55,12 +55,12 @@
 
 /* serial timing, mostly from the service manual, derived from the XTAL */
 #define SERIAL_CLOCK					XTAL_455kHz
-#define SERIAL_0_BIT_TIME				attotime::from_hz((double)SERIAL_CLOCK / 512)
-#define SERIAL_1_BIT_TIME				attotime::from_hz((double)SERIAL_CLOCK / 1024)
-#define SERIAL_MIDPOINT_TIME			attotime::from_hz((double)SERIAL_CLOCK / 600)
-#define SERIAL_MAX_BIT_TIME				attotime::from_hz((double)SERIAL_CLOCK / 4096)
-#define SERIAL_MAX_WORD_TIME			attotime::from_hz((double)SERIAL_CLOCK / 11520)
-#define SERIAL_REJECT_DUPLICATE_TIME	attotime::from_hz((double)SERIAL_CLOCK / 11520 / 4)
+#define SERIAL_0_BIT_TIME				ATTOTIME_IN_HZ((double)SERIAL_CLOCK / 512)
+#define SERIAL_1_BIT_TIME				ATTOTIME_IN_HZ((double)SERIAL_CLOCK / 1024)
+#define SERIAL_MIDPOINT_TIME			ATTOTIME_IN_HZ((double)SERIAL_CLOCK / 600)
+#define SERIAL_MAX_BIT_TIME				ATTOTIME_IN_HZ((double)SERIAL_CLOCK / 4096)
+#define SERIAL_MAX_WORD_TIME			ATTOTIME_IN_HZ((double)SERIAL_CLOCK / 11520)
+#define SERIAL_REJECT_DUPLICATE_TIME	ATTOTIME_IN_HZ((double)SERIAL_CLOCK / 11520 / 4)
 
 
 
@@ -88,7 +88,7 @@ struct _pioneer_pia
 typedef struct _simutrek_data simutrek_data;
 struct _simutrek_data
 {
-	device_t *cpu;					/* 8748 CPU device */
+	running_device *cpu;					/* 8748 CPU device */
 	UINT8				audio_squelch;			/* audio squelch value */
 	UINT8				data;					/* parallel data for simutrek */
 	UINT8				data_ready;				/* ready flag for simutrek data */
@@ -109,7 +109,7 @@ struct _ldplayer_data
 	attotime			firstbittime;			/* time of first bit in command */
 
 	/* low-level emulation data */
-	device_t *cpu;					/* 8049 CPU device */
+	running_device *cpu;					/* 8049 CPU device */
 	attotime			slowtrg;				/* time of the last SLOW TRG */
 	pioneer_pia			pia;					/* PIA state */
 	UINT8				vsync;					/* live VSYNC state */
@@ -275,7 +275,7 @@ INLINE void update_audio_squelch(laserdisc_state *ld)
     PR-8210 ROM AND MACHINE INTERFACES
 ***************************************************************************/
 
-static ADDRESS_MAP_START( pr8210_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( pr8210_portmap, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0xff) AM_READWRITE(pr8210_pia_r, pr8210_pia_w)
 	AM_RANGE(MCS48_PORT_BUS, MCS48_PORT_BUS) AM_READ(pr8210_bus_r)
 	AM_RANGE(MCS48_PORT_P1, MCS48_PORT_P1) AM_WRITE(pr8210_port1_w)
@@ -285,14 +285,14 @@ static ADDRESS_MAP_START( pr8210_portmap, AS_IO, 8 )
 ADDRESS_MAP_END
 
 
-static MACHINE_CONFIG_FRAGMENT( pr8210 )
-	MCFG_CPU_ADD("pr8210", I8049, XTAL_4_41MHz)
-	MCFG_CPU_IO_MAP(pr8210_portmap)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( pr8210 )
+	MDRV_CPU_ADD("pr8210", I8049, XTAL_4_41MHz)
+	MDRV_CPU_IO_MAP(pr8210_portmap)
+MACHINE_DRIVER_END
 
 
 ROM_START( pr8210 )
-	ROM_REGION( 0x800, "pr8210", 0 )
+	ROM_REGION( 0x800, "pr8210", ROMREGION_LOADBYNAME )
 	ROM_LOAD( "pr-8210_mcu_ud6005a.bin", 0x000, 0x800, CRC(120fa83b) SHA1(b514326ca1f52d6d89056868f9d17eabd4e3f31d) )
 ROM_END
 
@@ -307,9 +307,8 @@ const ldplayer_interface pr8210_interface =
 	LASERDISC_TYPE_PIONEER_PR8210,				/* type of the player */
 	sizeof(ldplayer_data),						/* size of the state */
 	"Pioneer PR-8210",							/* name of the player */
-	"pr8210",									/* shortname of the player */
 	ROM_NAME(pr8210),							/* pointer to ROM region information */
-	MACHINE_CONFIG_NAME(pr8210),				/* pointer to machine configuration */
+	MACHINE_DRIVER_NAME(pr8210),				/* pointer to machine configuration */
 	pr8210_init,								/* initialization callback */
 	pr8210_vsync,								/* vsync callback */
 	pr8210_update,								/* update callback */
@@ -341,7 +340,7 @@ const ldplayer_interface pr8210_interface =
 static void pr8210_init(laserdisc_state *ld)
 {
 	astring tempstring;
-	attotime curtime = ld->device->machine().time();
+	attotime curtime = timer_get_time(ld->device->machine);
 	ldplayer_data *player = ld->player;
 
 	/* reset our state */
@@ -381,10 +380,10 @@ static void pr8210_vsync(laserdisc_state *ld, const vbi_metadata *vbi, int field
 
 	/* signal VSYNC and set a timer to turn it off */
 	player->vsync = TRUE;
-	ld->device->machine().scheduler().timer_set(ld->screen->scan_period() * 4, FUNC(vsync_off), 0, ld);
+	timer_set(ld->device->machine, attotime_mul(ld->screen->scan_period(), 4), ld, 0, vsync_off);
 
 	/* also set a timer to fetch the VBI data when it is ready */
-	ld->device->machine().scheduler().timer_set(ld->screen->time_until_pos(19*2), FUNC(vbi_data_fetch), 0, ld);
+	timer_set(ld->device->machine, ld->screen->time_until_pos(19*2), ld, 0, vbi_data_fetch);
 }
 
 
@@ -452,18 +451,18 @@ static void pr8210_control_w(laserdisc_state *ld, UINT8 prev, UINT8 data)
 	/* handle rising edge */
 	if (prev != ASSERT_LINE && data == ASSERT_LINE)
 	{
-		attotime curtime = ld->device->machine().time();
+		attotime curtime = timer_get_time(ld->device->machine);
 		attotime delta, overalldelta;
 		int longpulse;
 
 		/* get the time difference from the last assert */
 		/* and update our internal command time */
-		delta = curtime - player->lastbittime;
+		delta = attotime_sub(curtime, player->lastbittime);
 		player->lastbittime = curtime;
 
 		/* if we timed out since the first bit, reset the accumulator */
-		overalldelta = curtime - player->firstbittime;
-		if (overalldelta > SERIAL_MAX_WORD_TIME || delta > SERIAL_MAX_BIT_TIME)
+		overalldelta = attotime_sub(curtime, player->firstbittime);
+		if (attotime_compare(overalldelta, SERIAL_MAX_WORD_TIME) > 0 || attotime_compare(delta, SERIAL_MAX_BIT_TIME) > 0)
 		{
 			player->firstbittime = curtime;
 			player->accumulator = 0x5555;
@@ -472,7 +471,7 @@ static void pr8210_control_w(laserdisc_state *ld, UINT8 prev, UINT8 data)
 		}
 
 		/* 0 bit delta is 1.05 msec, 1 bit delta is 2.11 msec */
-		longpulse = (delta < SERIAL_MIDPOINT_TIME) ? 0 : 1;
+		longpulse = (attotime_compare(delta, SERIAL_MIDPOINT_TIME) < 0) ? 0 : 1;
 		player->accumulator = (player->accumulator << 1) | longpulse;
 
 		/* log the deltas for debugging */
@@ -495,9 +494,9 @@ static void pr8210_control_w(laserdisc_state *ld, UINT8 prev, UINT8 data)
 			/* the MCU logic requires a 0 to execute many commands; however, nobody
                consistently sends a 0, whereas they do tend to send duplicate commands...
                if we assume that each duplicate causes a 0, we get the correct results */
-			rejectuntil = player->lastcommandtime + SERIAL_REJECT_DUPLICATE_TIME;
+			rejectuntil = attotime_add(player->lastcommandtime, SERIAL_REJECT_DUPLICATE_TIME);
 			player->lastcommandtime = curtime;
-			if (player->pia.porta == player->lastcommand && curtime < rejectuntil)
+			if (player->pia.porta == player->lastcommand && attotime_compare(curtime, rejectuntil) < 0)
 				player->pia.porta = 0x00;
 			else
 				player->lastcommand = player->pia.porta;
@@ -507,7 +506,7 @@ static void pr8210_control_w(laserdisc_state *ld, UINT8 prev, UINT8 data)
 				printf("--- Command = %02X\n", player->pia.porta >> 3);
 
 			/* reset the first bit time so that the accumulator clears on the next write */
-			player->firstbittime = curtime - SERIAL_MAX_WORD_TIME;
+			player->firstbittime = attotime_sub(curtime, SERIAL_MAX_WORD_TIME);
 		}
 	}
 }
@@ -588,7 +587,7 @@ static TIMER_CALLBACK( vbi_data_fetch )
 
 static READ8_HANDLER( pr8210_pia_r )
 {
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 	UINT8 result = 0xff;
 
@@ -625,7 +624,7 @@ static READ8_HANDLER( pr8210_pia_r )
 			break;
 
 		default:
-			mame_printf_debug("%03X:Unknown PR-8210 PIA read from offset %02X\n", cpu_get_pc(&space->device()), offset);
+			mame_printf_debug("%03X:Unknown PR-8210 PIA read from offset %02X\n", cpu_get_pc(space->cpu), offset);
 			break;
 	}
 	return result;
@@ -639,7 +638,7 @@ static READ8_HANDLER( pr8210_pia_r )
 
 static WRITE8_HANDLER( pr8210_pia_w )
 {
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 	UINT8 value;
 
@@ -700,7 +699,7 @@ static WRITE8_HANDLER( pr8210_pia_w )
 
 		/* no other writes known */
 		default:
-			mame_printf_debug("%03X:Unknown PR-8210 PIA write to offset %02X = %02X\n", cpu_get_pc(&space->device()), offset, data);
+			mame_printf_debug("%03X:Unknown PR-8210 PIA write to offset %02X = %02X\n", cpu_get_pc(space->cpu), offset, data);
 			break;
 	}
 }
@@ -723,7 +722,7 @@ static READ8_HANDLER( pr8210_bus_r )
        $02 = (in) FG via op-amp (spindle motor stop detector)
        $01 = (in) SLOW TIMER OUT
     */
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 	slider_position sliderpos = ldcore_get_slider_position(ld);
 	UINT8 focus_on = !(player->port1 & 0x08);
@@ -747,6 +746,7 @@ static READ8_HANDLER( pr8210_bus_r )
 		result |= 0x02;
 
 	/* bus bit 0: SLOW TIMER OUT */
+//  if (attotime_compare(attotime_sub(timer_get_time(ld->device->machine), player->slowtrg),
 
 	/* loop at beginning waits for $40=0, $02=1 */
 	return result;
@@ -770,7 +770,7 @@ static WRITE8_HANDLER( pr8210_port1_w )
        $02 = (out) SCAN A (/SCAN)
        $01 = (out) JUMP TRG (jump back trigger, clock on high->low)
     */
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 	UINT8 prev = player->port1;
 	int direction;
@@ -832,7 +832,7 @@ static WRITE8_HANDLER( pr8210_port2_w )
        $02 = (out) ???
        $01 = (out) LASER ON
     */
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 	UINT8 prev = player->port2;
 
@@ -841,11 +841,11 @@ static WRITE8_HANDLER( pr8210_port2_w )
 
 	/* on the falling edge of bit 5, start the slow timer */
 	if (!(data & 0x20) && (prev & 0x20))
-		player->slowtrg = space->machine().time();
+		player->slowtrg = timer_get_time(space->machine);
 
 	/* bit 6 when low triggers an IRQ on the MCU */
 	if (player->cpu != NULL)
-		device_set_input_line(player->cpu, MCS48_INPUT_IRQ, (data & 0x40) ? CLEAR_LINE : ASSERT_LINE);
+		cpu_set_input_line(player->cpu, MCS48_INPUT_IRQ, (data & 0x40) ? CLEAR_LINE : ASSERT_LINE);
 
 	/* standby LED is set accordingl to bit 4 */
 	output_set_value("pr8210_standby", (data & 0x10) != 0);
@@ -860,7 +860,7 @@ static WRITE8_HANDLER( pr8210_port2_w )
 static READ8_HANDLER( pr8210_t0_r )
 {
 	/* returns VSYNC state */
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	return !ld->player->vsync;
 }
 
@@ -989,26 +989,26 @@ static void overlay_draw_char(bitmap_t *bitmap, UINT8 ch, float xstart)
     SIMUTREK ROM AND MACHINE INTERFACES
 ***************************************************************************/
 
-static ADDRESS_MAP_START( simutrek_portmap, AS_IO, 8 )
+static ADDRESS_MAP_START( simutrek_portmap, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x00, 0xff) AM_READ(simutrek_data_r)
 	AM_RANGE(MCS48_PORT_P2, MCS48_PORT_P2) AM_READWRITE(simutrek_port2_r, simutrek_port2_w)
 	AM_RANGE(MCS48_PORT_T0, MCS48_PORT_T0) AM_READ(simutrek_t0_r)
 ADDRESS_MAP_END
 
 
-static MACHINE_CONFIG_FRAGMENT( simutrek )
-	MCFG_CPU_ADD("simutrek", I8748, XTAL_6MHz)
-	MCFG_CPU_IO_MAP(simutrek_portmap)
+static MACHINE_DRIVER_START( simutrek )
+	MDRV_CPU_ADD("simutrek", I8748, XTAL_6MHz)
+	MDRV_CPU_IO_MAP(simutrek_portmap)
 
-	MCFG_FRAGMENT_ADD(pr8210)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(pr8210)
+MACHINE_DRIVER_END
 
 
 ROM_START( simutrek )
-	ROM_REGION( 0x800, "pr8210", 0 )
+	ROM_REGION( 0x800, "pr8210", ROMREGION_LOADBYNAME )
 	ROM_LOAD( "pr-8210_mcu_ud6005a.bin", 0x000, 0x800, CRC(120fa83b) SHA1(b514326ca1f52d6d89056868f9d17eabd4e3f31d) )
 
-	ROM_REGION( 0x400, "simutrek", 0)
+	ROM_REGION( 0x400, "simutrek", ROMREGION_LOADBYNAME)
 	ROM_LOAD( "laser_player_interface_d8748_a308.bin", 0x0000, 0x0400, CRC(eed3e728) SHA1(1eb3467f1c41553375b2c21952cd593b167f5416) )
 ROM_END
 
@@ -1023,9 +1023,8 @@ const ldplayer_interface simutrek_interface =
 	LASERDISC_TYPE_SIMUTREK_SPECIAL,			/* type of the player */
 	sizeof(ldplayer_data),						/* size of the state */
 	"Simutrek Modified PR-8210",				/* name of the player */
-	"mpr8210",									/* shortname of the player */
 	ROM_NAME(simutrek),							/* pointer to ROM region information */
-	MACHINE_CONFIG_NAME(simutrek),				/* pointer to machine configuration */
+	MACHINE_DRIVER_NAME(simutrek),				/* pointer to machine configuration */
 	simutrek_init,								/* initialization callback */
 	simutrek_vsync,								/* vsync callback */
 	simutrek_update,							/* update callback */
@@ -1055,7 +1054,7 @@ const ldplayer_interface simutrek_interface =
     command to enable/disable audio squelch
 -------------------------------------------------*/
 
-void simutrek_set_audio_squelch(device_t *device, int state)
+void simutrek_set_audio_squelch(running_device *device, int state)
 {
 	laserdisc_state *ld = ldcore_get_safe_token(device);
 	ldplayer_data *player = ld->player;
@@ -1097,7 +1096,7 @@ static TIMER_CALLBACK( irq_off )
 {
 	laserdisc_state *ld = (laserdisc_state *)ptr;
 	ldplayer_data *player = ld->player;
-	device_set_input_line(player->simutrek.cpu, MCS48_INPUT_IRQ, CLEAR_LINE);
+	cpu_set_input_line(player->simutrek.cpu, MCS48_INPUT_IRQ, CLEAR_LINE);
 	if (LOG_SIMUTREK)
 		printf("%3d:**** Simutrek IRQ clear\n", ld->screen->vpos());
 }
@@ -1120,8 +1119,8 @@ static void simutrek_vsync(laserdisc_state *ld, const vbi_metadata *vbi, int fie
 	{
 		if (LOG_SIMUTREK)
 			printf("%3d:VSYNC IRQ\n", ld->screen->vpos());
-		device_set_input_line(player->simutrek.cpu, MCS48_INPUT_IRQ, ASSERT_LINE);
-		ld->device->machine().scheduler().timer_set(ld->screen->scan_period(), FUNC(irq_off), 0, ld);
+		cpu_set_input_line(player->simutrek.cpu, MCS48_INPUT_IRQ, ASSERT_LINE);
+		timer_set(ld->device->machine, ld->screen->scan_period(), ld, 0, irq_off);
 	}
 }
 
@@ -1166,7 +1165,7 @@ static UINT8 simutrek_status_r(laserdisc_state *ld)
 
 static void simutrek_data_w(laserdisc_state *ld, UINT8 prev, UINT8 data)
 {
-	ld->device->machine().scheduler().synchronize(FUNC(simutrek_latched_data_w), data, ld);
+	timer_call_after_resynch(ld->device->machine, ld, data, simutrek_latched_data_w);
 	if (LOG_SIMUTREK)
 		printf("%03d:**** Simutrek Command = %02X\n", ld->screen->vpos(), data);
 }
@@ -1195,7 +1194,7 @@ static TIMER_CALLBACK( simutrek_latched_data_w )
 
 static READ8_HANDLER( simutrek_port2_r )
 {
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 
 	/* bit $80 is the pr8210 video squelch */
@@ -1210,7 +1209,7 @@ static READ8_HANDLER( simutrek_port2_r )
 
 static WRITE8_HANDLER( simutrek_port2_w )
 {
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 	UINT8 prev = player->simutrek.port2;
 
@@ -1227,13 +1226,13 @@ static WRITE8_HANDLER( simutrek_port2_w )
 	{
 		int direction = (data & 0x08) ? 1 : -1;
 		if (LOG_SIMUTREK)
-			printf("%3d:JUMP TRG (Simutrek PC=%03X)\n", ld->screen->vpos(), cpu_get_pc(&space->device()));
+			printf("%3d:JUMP TRG (Simutrek PC=%03X)\n", ld->screen->vpos(), cpu_get_pc(space->cpu));
 		ldcore_advance_slider(ld, direction);
 	}
 
 	/* bit $04 controls who owns the JUMP TRG command */
 	if (LOG_SIMUTREK && ((data ^ prev) & 0x04))
-		printf("%3d:Simutrek ownership line = %d (Simutrek PC=%03X)\n", ld->screen->vpos(), (data >> 2) & 1, cpu_get_pc(&space->device()));
+		printf("%3d:Simutrek ownership line = %d (Simutrek PC=%03X)\n", ld->screen->vpos(), (data >> 2) & 1, cpu_get_pc(space->cpu));
 	player->simutrek.controlnext = (~data >> 2) & 1;
 
 	/* bits $03 control something (status?) */
@@ -1249,7 +1248,7 @@ static WRITE8_HANDLER( simutrek_port2_w )
 
 static READ8_HANDLER( simutrek_data_r )
 {
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	ldplayer_data *player = ld->player;
 
 	/* acknowledge the read and clear the data ready flag */
@@ -1266,6 +1265,6 @@ static READ8_HANDLER( simutrek_data_r )
 static READ8_HANDLER( simutrek_t0_r )
 {
 	/* return 1 if data is waiting from main CPU */
-	laserdisc_state *ld = ldcore_get_safe_token(space->device().owner());
+	laserdisc_state *ld = ldcore_get_safe_token(space->cpu->owner());
 	return ld->player->simutrek.data_ready;
 }

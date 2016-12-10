@@ -48,149 +48,119 @@ Note
 #include "cpu/z80/z80.h"
 #include "sound/2413intf.h"
 
+static int exp_bank = 0;
 
-class jackie_state : public driver_device
-{
-public:
-	jackie_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	int m_exp_bank;
-	UINT8 *m_fg_tile_ram;
-	UINT8 *m_fg_color_ram;
-	tilemap_t *m_fg_tilemap;
-	UINT8 *m_bg_scroll;
-	UINT8 *m_bg_scroll2;
-	tilemap_t *m_reel1_tilemap;
-	UINT8 *m_reel1_ram;
-	tilemap_t *m_reel2_tilemap;
-	UINT8 *m_reel2_ram;
-	tilemap_t *m_reel3_tilemap;
-	UINT8 *m_reel3_ram;
-	int m_irq_enable;
-	int m_nmi_enable;
-	int m_bg_enable;
-	int m_hopper;
-	UINT8 m_out[3];
-	UINT16 m_unk_reg[3][5];
-};
-
-
-
+static UINT8   *fg_tile_ram, *fg_color_ram;
+static tilemap_t *fg_tilemap;
 
 static TILE_GET_INFO( get_fg_tile_info )
 {
-	jackie_state *state = machine.driver_data<jackie_state>();
-	int code = state->m_fg_tile_ram[tile_index] | (state->m_fg_color_ram[tile_index] << 8);
+	int code = fg_tile_ram[tile_index] | (fg_color_ram[tile_index] << 8);
 	int tile = code & 0x1fff;
 	SET_TILE_INFO(0, code, tile != 0x1fff ? ((code >> 12) & 0xe) + 1 : 0, 0);
 }
 
 static WRITE8_HANDLER( fg_tile_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_fg_tile_ram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_fg_tilemap,offset);
+	fg_tile_ram[offset] = data;
+	tilemap_mark_tile_dirty(fg_tilemap,offset);
 }
 
 static WRITE8_HANDLER( fg_color_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_fg_color_ram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_fg_tilemap,offset);
+	fg_color_ram[offset] = data;
+	tilemap_mark_tile_dirty(fg_tilemap,offset);
 }
 
 
 
+static UINT8   *bg_scroll, *bg_scroll2;
 
 static WRITE8_HANDLER( bg_scroll_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_bg_scroll[offset] = data;
+	bg_scroll[offset] = data;
 }
 
+static tilemap_t *jackie_reel1_tilemap;
+static UINT8 *jackie_reel1_ram;
 
 static WRITE8_HANDLER( jackie_reel1_ram_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_reel1_ram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_reel1_tilemap,offset);
+	jackie_reel1_ram[offset] = data;
+	tilemap_mark_tile_dirty(jackie_reel1_tilemap,offset);
 }
 
 static TILE_GET_INFO( get_jackie_reel1_tile_info )
 {
-	jackie_state *state = machine.driver_data<jackie_state>();
-	int code = state->m_reel1_ram[tile_index];
+	int code = jackie_reel1_ram[tile_index];
 	SET_TILE_INFO(1, code, 0, 0);
 }
 
 
+static tilemap_t *jackie_reel2_tilemap;
+static UINT8 *jackie_reel2_ram;
 
 static WRITE8_HANDLER( jackie_reel2_ram_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_reel2_ram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_reel2_tilemap,offset);
+	jackie_reel2_ram[offset] = data;
+	tilemap_mark_tile_dirty(jackie_reel2_tilemap,offset);
 }
 
 static TILE_GET_INFO( get_jackie_reel2_tile_info )
 {
-	jackie_state *state = machine.driver_data<jackie_state>();
-	int code = state->m_reel2_ram[tile_index];
+	int code = jackie_reel2_ram[tile_index];
 	SET_TILE_INFO(1, code, 0, 0);
 }
 
+static tilemap_t *jackie_reel3_tilemap;
+static UINT8 *jackie_reel3_ram;
 
 static WRITE8_HANDLER( jackie_reel3_ram_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_reel3_ram[offset] = data;
-	tilemap_mark_tile_dirty(state->m_reel3_tilemap,offset);
+	jackie_reel3_ram[offset] = data;
+	tilemap_mark_tile_dirty(jackie_reel3_tilemap,offset);
 }
 
 static TILE_GET_INFO( get_jackie_reel3_tile_info )
 {
-	jackie_state *state = machine.driver_data<jackie_state>();
-	int code = state->m_reel3_ram[tile_index];
+	int code = jackie_reel3_ram[tile_index];
 	SET_TILE_INFO(1, code, 0, 0);
 }
 
 static VIDEO_START(jackie)
 {
-	jackie_state *state = machine.driver_data<jackie_state>();
-	state->m_reel1_tilemap = tilemap_create(machine,get_jackie_reel1_tile_info,tilemap_scan_rows,8,32, 64, 8);
-	state->m_reel2_tilemap = tilemap_create(machine,get_jackie_reel2_tile_info,tilemap_scan_rows,8,32, 64, 8);
-	state->m_reel3_tilemap = tilemap_create(machine,get_jackie_reel3_tile_info,tilemap_scan_rows,8,32, 64, 8);
+	jackie_reel1_tilemap = tilemap_create(machine,get_jackie_reel1_tile_info,tilemap_scan_rows,8,32, 64, 8);
+	jackie_reel2_tilemap = tilemap_create(machine,get_jackie_reel2_tile_info,tilemap_scan_rows,8,32, 64, 8);
+	jackie_reel3_tilemap = tilemap_create(machine,get_jackie_reel3_tile_info,tilemap_scan_rows,8,32, 64, 8);
 
-	tilemap_set_scroll_cols(state->m_reel1_tilemap, 64);
-	tilemap_set_scroll_cols(state->m_reel2_tilemap, 64);
-	tilemap_set_scroll_cols(state->m_reel3_tilemap, 64);
+	tilemap_set_scroll_cols(jackie_reel1_tilemap, 64);
+	tilemap_set_scroll_cols(jackie_reel2_tilemap, 64);
+	tilemap_set_scroll_cols(jackie_reel3_tilemap, 64);
 
-	state->m_fg_tilemap = tilemap_create(machine, get_fg_tile_info, tilemap_scan_rows,	8,  8,	64, 32);
-	tilemap_set_transparent_pen(state->m_fg_tilemap, 0);
+	fg_tilemap = tilemap_create(machine, get_fg_tile_info, tilemap_scan_rows,	8,  8,	64, 32);
+	tilemap_set_transparent_pen(fg_tilemap, 0);
 }
 
 
-static SCREEN_UPDATE(jackie)
+static VIDEO_UPDATE(jackie)
 {
-	jackie_state *state = screen->machine().driver_data<jackie_state>();
 	int i,j;
 	int startclipmin = 0;
 	const rectangle &visarea = screen->visible_area();
 
-	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
+	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 
 	for (i=0;i < 0x40;i++)
 	{
-		tilemap_set_scrolly(state->m_reel1_tilemap, i, state->m_bg_scroll[i+0x000]);
-		tilemap_set_scrolly(state->m_reel2_tilemap, i, state->m_bg_scroll[i+0x040]);
-		tilemap_set_scrolly(state->m_reel3_tilemap, i, state->m_bg_scroll[i+0x080]);
+		tilemap_set_scrolly(jackie_reel1_tilemap, i, bg_scroll[i+0x000]);
+		tilemap_set_scrolly(jackie_reel2_tilemap, i, bg_scroll[i+0x040]);
+		tilemap_set_scrolly(jackie_reel3_tilemap, i, bg_scroll[i+0x080]);
 	}
 
 	for (j=0; j < 0x100-1; j++)
 	{
 		rectangle clip;
-		int rowenable = state->m_bg_scroll2[j];
+		int rowenable = bg_scroll2[j];
 
 		/* draw top of screen */
 		clip.min_x = visarea.min_x;
@@ -200,15 +170,15 @@ static SCREEN_UPDATE(jackie)
 
 		if (rowenable==0)
 		{
-			tilemap_draw(bitmap,&clip,state->m_reel1_tilemap,0,0);
+			tilemap_draw(bitmap,&clip,jackie_reel1_tilemap,0,0);
 		}
 		else if (rowenable==1)
 		{
-			tilemap_draw(bitmap,&clip,state->m_reel2_tilemap,0,0);
+			tilemap_draw(bitmap,&clip,jackie_reel2_tilemap,0,0);
 		}
 		else if (rowenable==2)
 		{
-			tilemap_draw(bitmap,&clip,state->m_reel3_tilemap,0,0);
+			tilemap_draw(bitmap,&clip,jackie_reel3_tilemap,0,0);
 		}
 		else if (rowenable==3)
 		{
@@ -217,91 +187,88 @@ static SCREEN_UPDATE(jackie)
 		startclipmin+=1;
 	}
 
-	tilemap_draw(bitmap, cliprect, state->m_fg_tilemap, 0, 0);
+	tilemap_draw(bitmap, cliprect, fg_tilemap, 0, 0);
 
 	return 0;
 }
 
 
+static int irq_enable, nmi_enable, bg_enable, hopper;
 
 static MACHINE_RESET( jackie )
 {
-	jackie_state *state = machine.driver_data<jackie_state>();
-	state->m_irq_enable	=	1;
-	state->m_nmi_enable	=	0;
-	state->m_hopper		=	0;
-	state->m_bg_enable	=	1;
+	irq_enable	=	1;
+	nmi_enable	=	0;
+	hopper		=	0;
+	bg_enable	=	1;
 }
 
 static INTERRUPT_GEN( jackie_interrupt )
 {
-	jackie_state *state = device->machine().driver_data<jackie_state>();
 	if (cpu_getiloops(device) % 2) {
-		if (state->m_irq_enable)
-		device_set_input_line(device, 0, HOLD_LINE);
+		if (irq_enable)
+		cpu_set_input_line(device, 0, HOLD_LINE);
 	} else {
-		if (state->m_nmi_enable)
-		device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+		if (nmi_enable)
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 	}
 }
 
+static UINT8  out[3];
+static UINT16 unk_reg[3][5];
 
-static void show_out(jackie_state *state)
+static void show_out(void)
 {
 #ifdef MAME_DEBUG
-//  popmessage("%02x %02x %02x", state->m_out[0], state->m_out[1], state->m_out[2]);
+//  popmessage("%02x %02x %02x", out[0], out[1], out[2]);
 	popmessage("520: %04x %04x %04x %04x %04x\n560: %04x %04x %04x %04x %04x\n5A0: %04x %04x %04x %04x %04x",
-		state->m_unk_reg[0][0],state->m_unk_reg[0][1],state->m_unk_reg[0][2],state->m_unk_reg[0][3],state->m_unk_reg[0][4],
-		state->m_unk_reg[1][0],state->m_unk_reg[1][1],state->m_unk_reg[1][2],state->m_unk_reg[1][3],state->m_unk_reg[1][4],
-		state->m_unk_reg[2][0],state->m_unk_reg[2][1],state->m_unk_reg[2][2],state->m_unk_reg[2][3],state->m_unk_reg[2][4]
+		unk_reg[0][0],unk_reg[0][1],unk_reg[0][2],unk_reg[0][3],unk_reg[0][4],
+		unk_reg[1][0],unk_reg[1][1],unk_reg[1][2],unk_reg[1][3],unk_reg[1][4],
+		unk_reg[2][0],unk_reg[2][1],unk_reg[2][2],unk_reg[2][3],unk_reg[2][4]
 	);
 #endif
 }
 
-static void jackie_unk_reg_lo_w( address_space *space, int offset, UINT8 data, int reg )
+static void jackie_unk_reg_lo_w( int reg, int offset, UINT8 data )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_unk_reg[reg][offset] &= 0xff00;
-	state->m_unk_reg[reg][offset] |= data;
-	show_out(state);
+	unk_reg[reg][offset] &= 0xff00;
+	unk_reg[reg][offset] |= data;
+	show_out();
 }
 
-static WRITE8_HANDLER( jackie_unk_reg1_lo_w ) { jackie_unk_reg_lo_w( space, offset, data, 0 ); }
-static WRITE8_HANDLER( jackie_unk_reg2_lo_w ) { jackie_unk_reg_lo_w( space, offset, data, 1 ); }
-static WRITE8_HANDLER( jackie_unk_reg3_lo_w ) { jackie_unk_reg_lo_w( space, offset, data, 2 ); }
+static WRITE8_HANDLER( jackie_unk_reg1_lo_w ) { jackie_unk_reg_lo_w( 0, offset, data ); }
+static WRITE8_HANDLER( jackie_unk_reg2_lo_w ) { jackie_unk_reg_lo_w( 1, offset, data ); }
+static WRITE8_HANDLER( jackie_unk_reg3_lo_w ) { jackie_unk_reg_lo_w( 2, offset, data ); }
 
-static void jackie_unk_reg_hi_w( address_space *space, int offset, UINT8 data, int reg )
+static void jackie_unk_reg_hi_w( int reg, int offset, UINT8 data )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_unk_reg[reg][offset] &= 0xff;
-	state->m_unk_reg[reg][offset] |= data << 8;
-	show_out(state);
+	unk_reg[reg][offset] &= 0xff;
+	unk_reg[reg][offset] |= data << 8;
+	show_out();
 }
 
-static WRITE8_HANDLER( jackie_unk_reg1_hi_w ) { jackie_unk_reg_hi_w( space, offset, data, 0 ); }
-static WRITE8_HANDLER( jackie_unk_reg2_hi_w ) { jackie_unk_reg_hi_w( space, offset, data, 1 ); }
-static WRITE8_HANDLER( jackie_unk_reg3_hi_w ) { jackie_unk_reg_hi_w( space, offset, data, 2 ); }
+static WRITE8_HANDLER( jackie_unk_reg1_hi_w ) { jackie_unk_reg_hi_w( 0, offset, data ); }
+static WRITE8_HANDLER( jackie_unk_reg2_hi_w ) { jackie_unk_reg_hi_w( 1, offset, data ); }
+static WRITE8_HANDLER( jackie_unk_reg3_hi_w ) { jackie_unk_reg_hi_w( 2, offset, data ); }
 
 static WRITE8_HANDLER( jackie_nmi_and_coins_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	coin_counter_w(space->machine(), 0,		data & 0x01);	// coin_a
-	coin_counter_w(space->machine(), 1,		data & 0x04);	// coin_c
-	coin_counter_w(space->machine(), 2,		data & 0x08);	// key in
-	coin_counter_w(space->machine(), 3,		data & 0x10);	// coin state->m_out mech
+	coin_counter_w(space->machine, 0,		data & 0x01);	// coin_a
+	coin_counter_w(space->machine, 1,		data & 0x04);	// coin_c
+	coin_counter_w(space->machine, 2,		data & 0x08);	// key in
+	coin_counter_w(space->machine, 3,		data & 0x10);	// coin out mech
 
-	set_led_status(space->machine(), 6,		data & 0x20);	// led for coin state->m_out / state->m_hopper active
+	set_led_status(space->machine, 6,		data & 0x20);	// led for coin out / hopper active
 
-	state->m_exp_bank   = (data & 0x02) ? 1 : 0;		// expram bank number
-	state->m_nmi_enable = data & 0x80;     // nmi enable?
+	exp_bank   = (data & 0x02) ? 1 : 0;		// expram bank number
+	nmi_enable = data & 0x80;     // nmi enable?
 
-	state->m_out[0] = data;
-	show_out(state);
+	out[0] = data;
+	show_out();
 }
 
 static WRITE8_HANDLER( jackie_lamps_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
 /*
     - Lbits -
     7654 3210
@@ -320,51 +287,48 @@ static WRITE8_HANDLER( jackie_lamps_w )
 	output_set_lamp_value(5, (data >> 2) & 1);		/* Lamp 5 - HOLD 5 */
 	output_set_lamp_value(6, (data & 1));			/* Lamp 6 - START */
 
-	state->m_hopper			=	(~data)& 0x80;
+	hopper			=	(~data)& 0x80;
 
-	state->m_out[1] = data;
-	show_out(state);
+	out[1] = data;
+	show_out();
 }
 
 static READ8_HANDLER( igs_irqack_r )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	state->m_irq_enable = 1;
+	irq_enable = 1;
 	return 0;
 }
 
 static WRITE8_HANDLER( igs_irqack_w )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-//  cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
-	state->m_out[2] = data;
-	show_out(state);
+//  cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
+	out[2] = data;
+	show_out();
 }
 
 static READ8_HANDLER( expram_r )
 {
-	jackie_state *state = space->machine().driver_data<jackie_state>();
-	UINT8 *rom = space->machine().region("gfx3")->base();
+	UINT8 *rom = memory_region(space->machine, "gfx3");
 
-	offset += state->m_exp_bank * 0x8000;
-//  logerror("PC %06X: %04x = %02x\n",cpu_get_pc(&space->device()),offset,rom[offset]);
+	offset += exp_bank * 0x8000;
+//  logerror("PC %06X: %04x = %02x\n",cpu_get_pc(space->cpu),offset,rom[offset]);
 	return rom[offset];
 }
 
 
-static ADDRESS_MAP_START( jackie_prg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( jackie_prg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xefff) AM_ROM
 	AM_RANGE(0xf000, 0xffff) AM_RAM AM_REGION("maincpu", 0xf000)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( jackie_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( jackie_io_map, ADDRESS_SPACE_IO, 8 )
 	AM_RANGE(0x0520, 0x0524) AM_WRITE(jackie_unk_reg1_lo_w)
 	AM_RANGE(0x0d20, 0x0d24) AM_WRITE(jackie_unk_reg1_hi_w)
 	AM_RANGE(0x0560, 0x0564) AM_WRITE(jackie_unk_reg2_lo_w)
 	AM_RANGE(0x0d60, 0x0d64) AM_WRITE(jackie_unk_reg2_hi_w)
 	AM_RANGE(0x05a0, 0x05a4) AM_WRITE(jackie_unk_reg3_lo_w)
 	AM_RANGE(0x0da0, 0x0da4) AM_WRITE(jackie_unk_reg3_hi_w)
-	AM_RANGE(0x1000, 0x1107) AM_RAM AM_BASE_MEMBER(jackie_state, m_bg_scroll2 )
+	AM_RANGE(0x1000, 0x1107) AM_RAM AM_BASE( &bg_scroll2 )
 	AM_RANGE(0x2000, 0x27ff) AM_RAM_WRITE( paletteram_xBBBBBGGGGGRRRRR_split1_w ) AM_BASE_GENERIC( paletteram )
 	AM_RANGE(0x2800, 0x2fff) AM_RAM_WRITE( paletteram_xBBBBBGGGGGRRRRR_split2_w ) AM_BASE_GENERIC( paletteram2 )
 	AM_RANGE(0x4000, 0x4000) AM_READ_PORT("DSW1")			/* DSW1 */
@@ -380,20 +344,19 @@ static ADDRESS_MAP_START( jackie_io_map, AS_IO, 8 )
 	AM_RANGE(0x50a0, 0x50a0) AM_READ_PORT("BUTTONS2")
 	AM_RANGE(0x50b0, 0x50b1) AM_DEVWRITE("ymsnd", ym2413_w)
 	AM_RANGE(0x50c0, 0x50c0) AM_READ(igs_irqack_r) AM_WRITE(igs_irqack_w)
-	AM_RANGE(0x6000, 0x60ff) AM_RAM_WRITE( bg_scroll_w ) AM_BASE_MEMBER(jackie_state, m_bg_scroll )
-	AM_RANGE(0x6800, 0x69ff) AM_RAM_WRITE( jackie_reel1_ram_w )  AM_BASE_MEMBER(jackie_state, m_reel1_ram )
-	AM_RANGE(0x6a00, 0x6bff) AM_RAM_WRITE( jackie_reel2_ram_w )  AM_BASE_MEMBER(jackie_state, m_reel2_ram )
-	AM_RANGE(0x6c00, 0x6dff) AM_RAM_WRITE( jackie_reel3_ram_w )  AM_BASE_MEMBER(jackie_state, m_reel3_ram )
-	AM_RANGE(0x7000, 0x77ff) AM_RAM_WRITE( fg_tile_w )  AM_BASE_MEMBER(jackie_state, m_fg_tile_ram )
-	AM_RANGE(0x7800, 0x7fff) AM_RAM_WRITE( fg_color_w ) AM_BASE_MEMBER(jackie_state, m_fg_color_ram )
+	AM_RANGE(0x6000, 0x60ff) AM_RAM_WRITE( bg_scroll_w ) AM_BASE( &bg_scroll )
+	AM_RANGE(0x6800, 0x69ff) AM_RAM_WRITE( jackie_reel1_ram_w )  AM_BASE( &jackie_reel1_ram )
+	AM_RANGE(0x6a00, 0x6bff) AM_RAM_WRITE( jackie_reel2_ram_w )  AM_BASE( &jackie_reel2_ram )
+	AM_RANGE(0x6c00, 0x6dff) AM_RAM_WRITE( jackie_reel3_ram_w )  AM_BASE( &jackie_reel3_ram )
+	AM_RANGE(0x7000, 0x77ff) AM_RAM_WRITE( fg_tile_w )  AM_BASE( &fg_tile_ram )
+	AM_RANGE(0x7800, 0x7fff) AM_RAM_WRITE( fg_color_w ) AM_BASE( &fg_color_ram )
 	AM_RANGE(0x8000, 0xffff) AM_READ(expram_r)
 ADDRESS_MAP_END
 
 static CUSTOM_INPUT( hopper_r )
 {
-	jackie_state *state = field.machine().driver_data<jackie_state>();
-	if (state->m_hopper) return !(field.machine().primary_screen->frame_number()%10);
-	return field.machine().input().code_pressed(KEYCODE_H);
+	if (hopper) return !(field->port->machine->primary_screen->frame_number()%10);
+	return input_code_pressed(field->port->machine, KEYCODE_H);
 }
 
 static INPUT_PORTS_START( jackie )
@@ -539,7 +502,7 @@ static DRIVER_INIT( jackie )
 {
 
 	int A;
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 
 	for (A = 0;A < 0xf000;A++)
 	{
@@ -556,36 +519,36 @@ static DRIVER_INIT( jackie )
 }
 
 
-static MACHINE_CONFIG_START( jackie, jackie_state )
+static MACHINE_DRIVER_START( jackie )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_12MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(jackie_prg_map)
-	MCFG_CPU_IO_MAP(jackie_io_map)
-	MCFG_CPU_VBLANK_INT_HACK(jackie_interrupt,8)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_12MHz / 2)
+	MDRV_CPU_PROGRAM_MAP(jackie_prg_map)
+	MDRV_CPU_IO_MAP(jackie_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(jackie_interrupt,8)
 
-	MCFG_MACHINE_RESET(jackie)
+	MDRV_MACHINE_RESET(jackie)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0, 32*8-1)
-	MCFG_SCREEN_UPDATE(jackie)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 64*8-1, 0, 32*8-1)
 
-	MCFG_GFXDECODE(jackie)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(jackie)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(jackie)
+	MDRV_VIDEO_START(jackie)
+	MDRV_VIDEO_UPDATE(jackie)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("ymsnd", YM2413, 3579545)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("ymsnd", YM2413, 3579545)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
 ROM_START( jackie )

@@ -83,7 +83,7 @@ Custom ICs - 053260        - sound chip (QFP80)
 
 ***************************************************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_RAM
 	AM_RANGE(0x1f80, 0x1f80) AM_READ_PORT("COIN")
 	AM_RANGE(0x1f81, 0x1f81) AM_READ_PORT("TEST")
@@ -108,32 +108,32 @@ ADDRESS_MAP_END
 
 static WRITE8_HANDLER( z80_bankswitch_w )
 {
-	memory_set_bank(space->machine(), "bank2", data & 7);
+	memory_set_bank(space->machine, "bank2", data & 7);
 }
 
 #if 0
-static void sound_nmi_callback( running_machine &machine, int param )
+static void sound_nmi_callback( running_machine *machine, int param )
 {
-	simpsons_state *state = machine.driver_data<simpsons_state>();
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, (state->m_nmi_enabled) ? CLEAR_LINE : ASSERT_LINE );
-	state->m_nmi_enabled = 0;
+	simpsons_state *state = (simpsons_state *)machine->driver_data;
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, (state->nmi_enabled) ? CLEAR_LINE : ASSERT_LINE );
+	state->nmi_enabled = 0;
 }
 #endif
 
 static TIMER_CALLBACK( nmi_callback )
 {
-	simpsons_state *state = machine.driver_data<simpsons_state>();
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, ASSERT_LINE);
+	simpsons_state *state = (simpsons_state *)machine->driver_data;
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 static WRITE8_HANDLER( z80_arm_nmi_w )
 {
-	simpsons_state *state = space->machine().driver_data<simpsons_state>();
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, CLEAR_LINE);
-	space->machine().scheduler().timer_set(attotime::from_usec(25), FUNC(nmi_callback));	/* kludge until the K053260 is emulated correctly */
+	simpsons_state *state = (simpsons_state *)space->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, CLEAR_LINE);
+	timer_set(space->machine, ATTOTIME_IN_USEC(25), NULL, 0, nmi_callback);	/* kludge until the K053260 is emulated correctly */
 }
 
-static ADDRESS_MAP_START( z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank2")
 	AM_RANGE(0xf000, 0xf7ff) AM_RAM
@@ -174,14 +174,14 @@ static INPUT_PORTS_START( simpsons )
 
 	PORT_START("TEST")
 	PORT_SERVICE_NO_TOGGLE( 0x01, IP_ACTIVE_LOW )
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )	// eeprom ack
 	PORT_BIT( 0xce, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START( "EEPROMOUT" )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_cs_line)
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_clock_line)
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, write_bit)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_cs_line)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_clock_line)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_write_bit)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( simpsn2p )
@@ -209,14 +209,14 @@ static INPUT_PORTS_START( simpsn2p )
 
 	PORT_START("TEST")
 	PORT_SERVICE_NO_TOGGLE( 0x01, IP_ACTIVE_LOW )
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )	// eeprom ack
 	PORT_BIT( 0xce, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START( "EEPROMOUT" )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_cs_line)
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, set_clock_line)
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_device, write_bit)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_cs_line)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_set_clock_line)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE("eeprom", eeprom_write_bit)
 INPUT_PORTS_END
 
 
@@ -227,16 +227,16 @@ INPUT_PORTS_END
 
 ***************************************************************************/
 
-static void simpsons_objdma( running_machine &machine )
+static void simpsons_objdma( running_machine *machine )
 {
-	simpsons_state *state = machine.driver_data<simpsons_state>();
+	simpsons_state *state = (simpsons_state *)machine->driver_data;
 	int counter, num_inactive;
 	UINT16 *src, *dst;
 
-	k053247_get_ram(state->m_k053246, &dst);
-	counter = k053247_get_dy(state->m_k053246);
+	k053247_get_ram(state->k053246, &dst);
+	counter = k053247_get_dy(state->k053246);
 
-	src = state->m_spriteram;
+	src = state->spriteram;
 	num_inactive = counter = 256;
 
 	do {
@@ -255,25 +255,25 @@ static void simpsons_objdma( running_machine &machine )
 
 static TIMER_CALLBACK( dmaend_callback )
 {
-	simpsons_state *state = machine.driver_data<simpsons_state>();
-	if (state->m_firq_enabled)
-		device_set_input_line(state->m_maincpu, KONAMI_FIRQ_LINE, HOLD_LINE);
+	simpsons_state *state = (simpsons_state *)machine->driver_data;
+	if (state->firq_enabled)
+		cpu_set_input_line(state->maincpu, KONAMI_FIRQ_LINE, HOLD_LINE);
 }
 
 
 static INTERRUPT_GEN( simpsons_irq )
 {
-	simpsons_state *state = device->machine().driver_data<simpsons_state>();
+	simpsons_state *state = (simpsons_state *)device->machine->driver_data;
 
-	if (k053246_is_irq_enabled(state->m_k053246))
+	if (k053246_is_irq_enabled(state->k053246))
 	{
-		simpsons_objdma(device->machine());
+		simpsons_objdma(device->machine);
 		// 32+256us delay at 8MHz dotclock; artificially shortened since actual V-blank length is unknown
-		device->machine().scheduler().timer_set(attotime::from_usec(30), FUNC(dmaend_callback));
+		timer_set(device->machine, ATTOTIME_IN_USEC(30), NULL, 0, dmaend_callback);
 	}
 
-	if (k052109_is_irq_enabled(state->m_k052109))
-		device_set_input_line(device, KONAMI_IRQ_LINE, HOLD_LINE);
+	if (k052109_is_irq_enabled(state->k052109))
+		cpu_set_input_line(device, KONAMI_IRQ_LINE, HOLD_LINE);
 }
 
 static const k052109_interface simpsons_k052109_intf =
@@ -305,52 +305,56 @@ static const eeprom_interface eeprom_intf =
 	"0100110000000" /* unlock command */
 };
 
-static MACHINE_CONFIG_START( simpsons, simpsons_state )
+static MACHINE_DRIVER_START( simpsons )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(simpsons_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", KONAMI, XTAL_24MHz/2/4) /* pin 18 of konami cpu is 12Mhz, while pin 17 is 3mhz. Clock probably divided internally by 4  */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", simpsons_irq)	/* IRQ triggered by the 052109, FIRQ by the sprite hardware */
+	MDRV_CPU_ADD("maincpu", KONAMI, XTAL_24MHz/2/4) /* pin 18 of konami cpu is 12Mhz, while pin 17 is 3mhz. Clock probably divided internally by 4  */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", simpsons_irq)	/* IRQ triggered by the 052109, FIRQ by the sprite hardware */
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_3_579545MHz)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_3_579545MHz)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(z80_map)
 								/* NMIs are generated by the 053260 */
 
-	MCFG_MACHINE_START(simpsons)
-	MCFG_MACHINE_RESET(simpsons)
+	MDRV_MACHINE_START(simpsons)
+	MDRV_MACHINE_RESET(simpsons)
 
-	MCFG_EEPROM_ADD("eeprom", eeprom_intf)
+	MDRV_EEPROM_ADD("eeprom", eeprom_intf)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS | VIDEO_HAS_HIGHLIGHTS | VIDEO_UPDATE_AFTER_VBLANK)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_HAS_SHADOWS | VIDEO_HAS_HIGHLIGHTS | VIDEO_UPDATE_AFTER_VBLANK)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(59.1856)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
-	MCFG_SCREEN_UPDATE(simpsons)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(59.1856)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(14*8, (64-14)*8-1, 2*8, 30*8-1 )
 
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_K052109_ADD("k052109", simpsons_k052109_intf)
-	MCFG_K053246_ADD("k053246", simpsons_k053246_intf)
-	MCFG_K053251_ADD("k053251")
+	MDRV_VIDEO_UPDATE(simpsons)
+
+	MDRV_K052109_ADD("k052109", simpsons_k052109_intf)
+	MDRV_K053246_ADD("k053246", simpsons_k053246_intf)
+	MDRV_K053251_ADD("k053251")
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2151, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)	/* only left channel is connected */
-	MCFG_SOUND_ROUTE(0, "rspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "lspeaker", 0.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.0)
+	MDRV_SOUND_ADD("ymsnd", YM2151, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)	/* only left channel is connected */
+	MDRV_SOUND_ROUTE(0, "rspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "lspeaker", 0.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.0)
 
-	MCFG_SOUND_ADD("k053260", K053260, XTAL_3_579545MHz) /* verified on pcb */
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.75)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.75)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("k053260", K053260, XTAL_3_579545MHz) /* verified on pcb */
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.75)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.75)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

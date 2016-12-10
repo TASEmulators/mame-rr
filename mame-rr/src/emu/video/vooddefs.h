@@ -1,41 +1,10 @@
-/***************************************************************************
+/*************************************************************************
 
-    vooddefs.h
+    3dfx Voodoo Graphics SST-1/2 emulator
 
-    3dfx Voodoo Graphics SST-1/2 emulator.
+    emulator by Aaron Giles
 
-****************************************************************************
-
-    Copyright Aaron Giles
-    All rights reserved.
-
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are
-    met:
-
-        * Redistributions of source code must retain the above copyright
-          notice, this list of conditions and the following disclaimer.
-        * Redistributions in binary form must reproduce the above copyright
-          notice, this list of conditions and the following disclaimer in
-          the documentation and/or other materials provided with the
-          distribution.
-        * Neither the name 'MAME' nor the names of its contributors may be
-          used to endorse or promote products derived from this software
-          without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY AARON GILES ''AS IS'' AND ANY EXPRESS OR
-    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-    DISCLAIMED. IN NO EVENT SHALL AARON GILES BE LIABLE FOR ANY DIRECT,
-    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-    IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
-
-***************************************************************************/
+**************************************************************************/
 
 
 /*************************************
@@ -317,36 +286,6 @@ enum
 #define trexInit1		(0x320/4)	/*  W  F */
 #define nccTable		(0x324/4)	/*  W  F */
 
-
-
-// 2D registers
-#define banshee2D_clip0Min			(0x008/4)
-#define banshee2D_clip0Max			(0x00c/4)
-#define banshee2D_dstBaseAddr		(0x010/4)
-#define banshee2D_dstFormat			(0x014/4)
-#define banshee2D_srcColorkeyMin	(0x018/4)
-#define banshee2D_srcColorkeyMax	(0x01c/4)
-#define banshee2D_dstColorkeyMin	(0x020/4)
-#define banshee2D_dstColorkeyMax	(0x024/4)
-#define banshee2D_bresError0		(0x028/4)
-#define banshee2D_bresError1		(0x02c/4)
-#define banshee2D_rop				(0x030/4)
-#define banshee2D_srcBaseAddr		(0x034/4)
-#define banshee2D_commandExtra		(0x038/4)
-#define banshee2D_lineStipple		(0x03c/4)
-#define banshee2D_lineStyle			(0x040/4)
-#define banshee2D_pattern0Alias		(0x044/4)
-#define banshee2D_pattern1Alias		(0x048/4)
-#define banshee2D_clip1Min			(0x04c/4)
-#define banshee2D_clip1Max			(0x050/4)
-#define banshee2D_srcFormat			(0x054/4)
-#define banshee2D_srcSize			(0x058/4)
-#define banshee2D_srcXY				(0x05c/4)
-#define banshee2D_colorBack			(0x060/4)
-#define banshee2D_colorFore			(0x064/4)
-#define banshee2D_dstSize			(0x068/4)
-#define banshee2D_dstXY				(0x06c/4)
-#define banshee2D_command			(0x070/4)
 
 
 /*************************************
@@ -1730,9 +1669,9 @@ struct _banshee_info
 struct _voodoo_state
 {
 	UINT8				index;					/* index of board */
-	device_t *device;				/* pointer to our containing device */
+	running_device *device;				/* pointer to our containing device */
 	screen_device *screen;				/* the screen we are acting on */
-	device_t *cpu;					/* the CPU we interact with */
+	running_device *cpu;					/* the CPU we interact with */
 	UINT8				type;					/* type of system */
 	UINT8				chipmask;				/* mask for which chips are available */
 	UINT32				freq;					/* operating frequency */
@@ -2109,9 +2048,6 @@ INLINE UINT32 compute_raster_hash(const raster_info *info)
 	const UINT8 *dither4 = NULL;												\
 	const UINT8 *dither = NULL													\
 
-#define DECLARE_DITHER_POINTERS_NO_DITHER_VAR												\
-	const UINT8 *dither_lookup = NULL;											\
-
 #define COMPUTE_DITHER_POINTERS(FBZMODE, YY)									\
 do																				\
 {																				\
@@ -2127,24 +2063,6 @@ do																				\
 		else																	\
 		{																		\
 			dither = &dither_matrix_2x2[((YY) & 3) * 4];						\
-			dither_lookup = &dither2_lookup[(YY & 3) << 11];					\
-		}																		\
-	}																			\
-}																				\
-while (0)
-
-#define COMPUTE_DITHER_POINTERS_NO_DITHER_VAR(FBZMODE, YY)									\
-do																				\
-{																				\
-	/* compute the dithering pointers */										\
-	if (FBZMODE_ENABLE_DITHERING(FBZMODE))										\
-	{																			\
-		if (FBZMODE_DITHER_TYPE(FBZMODE) == 0)									\
-		{																		\
-			dither_lookup = &dither4_lookup[(YY & 3) << 11];					\
-		}																		\
-		else																	\
-		{																		\
 			dither_lookup = &dither2_lookup[(YY & 3) << 11];					\
 		}																		\
 	}																			\

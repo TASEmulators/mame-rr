@@ -1,25 +1,26 @@
-class cabal_state : public driver_device
+class cabal_state
 {
 public:
-	cabal_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, cabal_state(machine)); }
 
-	UINT16 *m_spriteram;
-	UINT16 *m_colorram;
-	UINT16 *m_videoram;
-	size_t m_spriteram_size;
-	tilemap_t *m_background_layer;
-	tilemap_t *m_text_layer;
-	int m_sound_command1;
-	int m_sound_command2;
-	int m_last[4];
+	cabal_state(running_machine &machine) { }
+
+	UINT16 *spriteram;
+	UINT16 *colorram;
+	UINT16 *videoram;
+	size_t spriteram_size;
+	tilemap_t *background_layer;
+	tilemap_t *text_layer;
+	int sound_command1;
+	int sound_command2;
+	int last[4];
 };
 
 
 /*----------- defined in video/cabal.c -----------*/
 
 extern VIDEO_START( cabal );
-extern SCREEN_UPDATE( cabal );
+extern VIDEO_UPDATE( cabal );
 WRITE16_HANDLER( cabal_flipscreen_w );
 WRITE16_HANDLER( cabal_background_videoram16_w );
 WRITE16_HANDLER( cabal_text_videoram16_w );

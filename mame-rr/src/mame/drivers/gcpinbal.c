@@ -44,18 +44,18 @@ Stephh's notes (based on the game M68000 code and some tests) :
 
 static TIMER_CALLBACK( gcpinbal_interrupt1 )
 {
-	gcpinbal_state *state = machine.driver_data<gcpinbal_state>();
-	device_set_input_line(state->m_maincpu, 1, HOLD_LINE);
+	gcpinbal_state *state = (gcpinbal_state *)machine->driver_data;
+	cpu_set_input_line(state->maincpu, 1, HOLD_LINE);
 }
 
 #ifdef UNUSED_FUNCTION
 static TIMER_CALLBACK( gcpinbal_interrupt3 )
 {
-	gcpinbal_state *state = machine.driver_data<gcpinbal_state>();
+	gcpinbal_state *state = (gcpinbal_state *)machine->driver_data;
 	// IRQ3 is from the M6585
 //  if (!ADPCM_playing(0))
 	{
-		device_set_input_line(state->m_maincpu, 3, HOLD_LINE);
+		cpu_set_input_line(state->maincpu, 3, HOLD_LINE);
 	}
 }
 #endif
@@ -64,9 +64,9 @@ static INTERRUPT_GEN( gcpinbal_interrupt )
 {
 	/* Unsure of actual sequence */
 
-	device->machine().scheduler().timer_set(downcast<cpu_device *>(device)->cycles_to_attotime(500), FUNC(gcpinbal_interrupt1));
-//  device->machine().scheduler().timer_set(downcast<cpu_device *>(device)->cycles_to_attotime(1000), FUNC(gcpinbal_interrupt3));
-	device_set_input_line(device, 4, HOLD_LINE);
+	timer_set(device->machine, downcast<cpu_device *>(device)->cycles_to_attotime(500), NULL, 0, gcpinbal_interrupt1);
+//  timer_set(device->machine, downcast<cpu_device *>(device)->cycles_to_attotime(1000), NULL, 0, gcpinbal_interrupt3);
+	cpu_set_input_line(device, 4, HOLD_LINE);
 }
 
 
@@ -76,37 +76,37 @@ static INTERRUPT_GEN( gcpinbal_interrupt )
 
 static READ16_HANDLER( ioc_r )
 {
-	gcpinbal_state *state = space->machine().driver_data<gcpinbal_state>();
+	gcpinbal_state *state = (gcpinbal_state *)space->machine->driver_data;
 
 	/* 20 (only once), 76, a0 are read in log */
 
 	switch (offset)
 	{
 		case 0x80/2:
-			return input_port_read(space->machine(), "DSW");
+			return input_port_read(space->machine, "DSW");
 
 		case 0x84/2:
-			return input_port_read(space->machine(), "IN0");
+			return input_port_read(space->machine, "IN0");
 
 		case 0x86/2:
-			return input_port_read(space->machine(), "IN1");
+			return input_port_read(space->machine, "IN1");
 
 		case 0x50:
 		case 0x51:
-			return state->m_oki->read(*space, 0) << 8;
+			return okim6295_r(state->oki, 0) << 8;
 
 	}
 
-//logerror("CPU #0 PC %06x: warning - read unmapped ioc offset %06x\n",cpu_get_pc(&space->device()),offset);
+//logerror("CPU #0 PC %06x: warning - read unmapped ioc offset %06x\n",cpu_get_pc(space->cpu),offset);
 
-	return state->m_ioc_ram[offset];
+	return state->ioc_ram[offset];
 }
 
 
 static WRITE16_HANDLER( ioc_w )
 {
-	gcpinbal_state *state = space->machine().driver_data<gcpinbal_state>();
-	COMBINE_DATA(&state->m_ioc_ram[offset]);
+	gcpinbal_state *state = (gcpinbal_state *)space->machine->driver_data;
+	COMBINE_DATA(&state->ioc_ram[offset]);
 
 //  switch (offset)
 //  {
@@ -114,8 +114,8 @@ static WRITE16_HANDLER( ioc_w )
 //          return;
 //
 //      case 0x88/2:    /* coin control (+ others) ??? */
-//          coin_lockout_w(space->machine(), 0, ~data & 0x01);
-//          coin_lockout_w(space->machine(), 1, ~data & 0x02);
+//          coin_lockout_w(space->machine, 0, ~data & 0x01);
+//          coin_lockout_w(space->machine, 1, ~data & 0x02);
 //popmessage(" address %04x value %04x", offset, data);
 //  }
 
@@ -135,61 +135,61 @@ static WRITE16_HANDLER( ioc_w )
 
 		// MSM6585 bank, coin LEDs, maybe others?
 		case 0x44:
-			state->m_msm_bank = data & 0x1000 ? 0x100000 : 0;
-			state->m_oki->set_bank_base(0x40000 * ((data & 0x800 )>> 11));
+			state->msm_bank = data & 0x1000 ? 0x100000 : 0;
+			state->oki->set_bank_base(0x40000 * ((data & 0x800 )>> 11));
 			break;
 
 		case 0x45:
-			//state->m_adpcm_idle = 1;
+			//state->adpcm_idle = 1;
 			break;
 
 		// OKIM6295
 		case 0x50:
 		case 0x51:
-			state->m_oki->write(*space, 0, data >> 8);
+			okim6295_w(state->oki, 0, data >> 8);
 			break;
 
 		// MSM6585 ADPCM - mini emulation
 		case 0x60:
-			state->m_msm_start &= 0xffff00;
-			state->m_msm_start |= (data >> 8);
+			state->msm_start &= 0xffff00;
+			state->msm_start |= (data >> 8);
 			break;
 		case 0x61:
-			state->m_msm_start &= 0xff00ff;
-			state->m_msm_start |= data;
+			state->msm_start &= 0xff00ff;
+			state->msm_start |= data;
 			break;
 		case 0x62:
-			state->m_msm_start &= 0x00ffff;
-			state->m_msm_start |= (data << 8);
+			state->msm_start &= 0x00ffff;
+			state->msm_start |= (data << 8);
 			break;
 		case 0x63:
-			state->m_msm_end &= 0xffff00;
-			state->m_msm_end |= (data >> 8);
+			state->msm_end &= 0xffff00;
+			state->msm_end |= (data >> 8);
 			break;
 		case 0x64:
-			state->m_msm_end &= 0xff00ff;
-			state->m_msm_end |= data;
+			state->msm_end &= 0xff00ff;
+			state->msm_end |= data;
 			break;
 		case 0x65:
-			state->m_msm_end &= 0x00ffff;
-			state->m_msm_end |= (data << 8);
+			state->msm_end &= 0x00ffff;
+			state->msm_end |= (data << 8);
 			break;
 		case 0x66:
-			if (state->m_msm_start < state->m_msm_end)
+			if (state->msm_start < state->msm_end)
 			{
 				/* data written here is adpcm param? */
-				//popmessage("%08x %08x", state->m_msm_start + state->m_msm_bank, state->m_msm_end);
-				state->m_adpcm_idle = 0;
-				msm5205_reset_w(state->m_msm, 0);
-				state->m_adpcm_start = state->m_msm_start + state->m_msm_bank;
-				state->m_adpcm_end = state->m_msm_end;
+				//popmessage("%08x %08x", state->msm_start + state->msm_bank, state->msm_end);
+				state->adpcm_idle = 0;
+				msm5205_reset_w(state->msm, 0);
+				state->adpcm_start = state->msm_start + state->msm_bank;
+				state->adpcm_end = state->msm_end;
 //              ADPCM_stop(0);
 //              ADPCM_play(0, start+bank, end-start);
 			}
 			break;
 
 		default:
-			logerror("CPU #0 PC %06x: warning - write ioc offset %06x with %04x\n", cpu_get_pc(&space->device()), offset, data);
+			logerror("CPU #0 PC %06x: warning - write ioc offset %06x with %04x\n", cpu_get_pc(space->cpu), offset, data);
 			break;
 	}
 
@@ -202,27 +202,27 @@ static WRITE16_HANDLER( ioc_w )
 
 
 /* Controlled through ioc? */
-static void gcp_adpcm_int( device_t *device )
+static void gcp_adpcm_int( running_device *device )
 {
-	gcpinbal_state *state = device->machine().driver_data<gcpinbal_state>();
+	gcpinbal_state *state = (gcpinbal_state *)device->machine->driver_data;
 
-	if (state->m_adpcm_idle)
+	if (state->adpcm_idle)
 		msm5205_reset_w(device, 1);
-	if (state->m_adpcm_start >= 0x200000 || state->m_adpcm_start > state->m_adpcm_end)
+	if (state->adpcm_start >= 0x200000 || state->adpcm_start > state->adpcm_end)
 	{
 		//msm5205_reset_w(device,1);
-		state->m_adpcm_start = state->m_msm_start + state->m_msm_bank;
-		state->m_adpcm_trigger = 0;
+		state->adpcm_start = state->msm_start + state->msm_bank;
+		state->adpcm_trigger = 0;
 	}
 	else
 	{
-		UINT8 *ROM = device->machine().region("msm")->base();
+		UINT8 *ROM = memory_region(device->machine, "msm");
 
-		state->m_adpcm_data = ((state->m_adpcm_trigger ? (ROM[state->m_adpcm_start] & 0x0f) : (ROM[state->m_adpcm_start] & 0xf0) >> 4));
-		msm5205_data_w(device, state->m_adpcm_data & 0xf);
-		state->m_adpcm_trigger ^= 1;
-		if (state->m_adpcm_trigger == 0)
-			state->m_adpcm_start++;
+		state->adpcm_data = ((state->adpcm_trigger ? (ROM[state->adpcm_start] & 0x0f) : (ROM[state->adpcm_start] & 0xf0) >> 4));
+		msm5205_data_w(device, state->adpcm_data & 0xf);
+		state->adpcm_trigger ^= 1;
+		if (state->adpcm_trigger == 0)
+			state->adpcm_start++;
 	}
 }
 
@@ -231,12 +231,12 @@ static void gcp_adpcm_int( device_t *device )
                      MEMORY STRUCTURES
 ***********************************************************/
 
-static ADDRESS_MAP_START( gcpinbal_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( gcpinbal_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x1fffff) AM_ROM
-	AM_RANGE(0xc00000, 0xc03fff) AM_READWRITE(gcpinbal_tilemaps_word_r, gcpinbal_tilemaps_word_w) AM_BASE_MEMBER(gcpinbal_state, m_tilemapram)
-	AM_RANGE(0xc80000, 0xc80fff) AM_RAM AM_BASE_SIZE_MEMBER(gcpinbal_state, m_spriteram, m_spriteram_size)	/* sprite ram */
+	AM_RANGE(0xc00000, 0xc03fff) AM_READWRITE(gcpinbal_tilemaps_word_r, gcpinbal_tilemaps_word_w) AM_BASE_MEMBER(gcpinbal_state, tilemapram)
+	AM_RANGE(0xc80000, 0xc80fff) AM_RAM AM_BASE_SIZE_MEMBER(gcpinbal_state, spriteram, spriteram_size)	/* sprite ram */
 	AM_RANGE(0xd00000, 0xd00fff) AM_RAM_WRITE(paletteram16_RRRRGGGGBBBBRGBx_word_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0xd80000, 0xd800ff) AM_READWRITE(ioc_r, ioc_w) AM_BASE_MEMBER(gcpinbal_state, m_ioc_ram)
+	AM_RANGE(0xd80000, 0xd800ff) AM_READWRITE(ioc_r, ioc_w) AM_BASE_MEMBER(gcpinbal_state, ioc_ram)
 	AM_RANGE(0xff0000, 0xffffff) AM_RAM	/* RAM */
 ADDRESS_MAP_END
 
@@ -394,79 +394,82 @@ static const msm5205_interface msm5205_config =
 
 static MACHINE_START( gcpinbal )
 {
-	gcpinbal_state *state = machine.driver_data<gcpinbal_state>();
+	gcpinbal_state *state = (gcpinbal_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_scrollx));
-	state->save_item(NAME(state->m_scrolly));
-	state->save_item(NAME(state->m_bg0_gfxset));
-	state->save_item(NAME(state->m_bg1_gfxset));
-	state->save_item(NAME(state->m_msm_start));
-	state->save_item(NAME(state->m_msm_end));
-	state->save_item(NAME(state->m_msm_bank));
-	state->save_item(NAME(state->m_adpcm_start));
-	state->save_item(NAME(state->m_adpcm_end));
-	state->save_item(NAME(state->m_adpcm_idle));
-	state->save_item(NAME(state->m_adpcm_trigger));
-	state->save_item(NAME(state->m_adpcm_data));
+	state_save_register_global_array(machine, state->scrollx);
+	state_save_register_global_array(machine, state->scrolly);
+	state_save_register_global(machine, state->bg0_gfxset);
+	state_save_register_global(machine, state->bg1_gfxset);
+	state_save_register_global(machine, state->msm_start);
+	state_save_register_global(machine, state->msm_end);
+	state_save_register_global(machine, state->msm_bank);
+	state_save_register_global(machine, state->adpcm_start);
+	state_save_register_global(machine, state->adpcm_end);
+	state_save_register_global(machine, state->adpcm_idle);
+	state_save_register_global(machine, state->adpcm_trigger);
+	state_save_register_global(machine, state->adpcm_data);
 }
 
 static MACHINE_RESET( gcpinbal )
 {
-	gcpinbal_state *state = machine.driver_data<gcpinbal_state>();
+	gcpinbal_state *state = (gcpinbal_state *)machine->driver_data;
 	int i;
 
 	for (i = 0; i < 3; i++)
 	{
-		state->m_scrollx[i] = 0;
-		state->m_scrolly[i] = 0;
+		state->scrollx[i] = 0;
+		state->scrolly[i] = 0;
 	}
 
-	state->m_adpcm_idle = 1;
-	state->m_adpcm_start = 0;
-	state->m_adpcm_end = 0;
-	state->m_adpcm_trigger = 0;
-	state->m_adpcm_data = 0;
-	state->m_bg0_gfxset = 0;
-	state->m_bg1_gfxset = 0;
-	state->m_msm_start = 0;
-	state->m_msm_end = 0;
-	state->m_msm_bank = 0;
+	state->adpcm_idle = 1;
+	state->adpcm_start = 0;
+	state->adpcm_end = 0;
+	state->adpcm_trigger = 0;
+	state->adpcm_data = 0;
+	state->bg0_gfxset = 0;
+	state->bg1_gfxset = 0;
+	state->msm_start = 0;
+	state->msm_end = 0;
+	state->msm_bank = 0;
 }
 
-static MACHINE_CONFIG_START( gcpinbal, gcpinbal_state )
+static MACHINE_DRIVER_START( gcpinbal )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(gcpinbal_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, 32000000/2)	/* 16 MHz ? */
-	MCFG_CPU_PROGRAM_MAP(gcpinbal_map)
-	MCFG_CPU_VBLANK_INT("screen", gcpinbal_interrupt)
+	MDRV_CPU_ADD("maincpu", M68000, 32000000/2)	/* 16 MHz ? */
+	MDRV_CPU_PROGRAM_MAP(gcpinbal_map)
+	MDRV_CPU_VBLANK_INT("screen", gcpinbal_interrupt)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0)	/* frames per second, vblank duration */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(40*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(gcpinbal)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0)	/* frames per second, vblank duration */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(40*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 2*8, 30*8-1)
 
-	MCFG_MACHINE_START(gcpinbal)
-	MCFG_MACHINE_RESET(gcpinbal)
+	MDRV_MACHINE_START(gcpinbal)
+	MDRV_MACHINE_RESET(gcpinbal)
 
-	MCFG_GFXDECODE(gcpinbal)
-	MCFG_PALETTE_LENGTH(4096)
+	MDRV_GFXDECODE(gcpinbal)
+	MDRV_PALETTE_LENGTH(4096)
 
-	MCFG_VIDEO_START(gcpinbal)
+	MDRV_VIDEO_START(gcpinbal)
+	MDRV_VIDEO_UPDATE(gcpinbal)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+	MDRV_OKIM6295_ADD("oki", 1056000, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
 
-	MCFG_SOUND_ADD("msm", MSM5205, 384000)
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, 384000)
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 

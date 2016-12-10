@@ -56,46 +56,33 @@
 #include "machine/eeprom.h"
 #include "machine/ticket.h"
 
-
-class midas_state : public driver_device
-{
-public:
-	midas_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT16 *m_gfxram;
-	UINT16 *m_gfxregs;
-	tilemap_t *m_tmap;
-};
-
+static UINT16 *midas_gfxram, *midas_gfxregs;
 
 static VIDEO_START( midas );
-static SCREEN_UPDATE( midas );
+static VIDEO_UPDATE( midas );
 
+static tilemap_t *tmap;
 
 static TILE_GET_INFO( get_tile_info )
 {
-	midas_state *state = machine.driver_data<midas_state>();
-	UINT16 code = state->m_gfxram[ tile_index + 0x7000 ];
+	UINT16 code = midas_gfxram[ tile_index + 0x7000 ];
 	SET_TILE_INFO(1, code & 0xfff, (code >> 12) & 0xf, TILE_FLIPXY( 0 ));
 }
 
 static VIDEO_START( midas )
 {
-	midas_state *state = machine.driver_data<midas_state>();
-	state->m_gfxram = auto_alloc_array(machine, UINT16, 0x20000/2);
+	midas_gfxram = auto_alloc_array(machine, UINT16, 0x20000/2);
 
-	state->m_tmap = tilemap_create(	machine, get_tile_info, tilemap_scan_cols,
+	tmap = tilemap_create(	machine, get_tile_info, tilemap_scan_cols,
 							8,8, 0x80,0x20	);
 
-	tilemap_set_transparent_pen(state->m_tmap, 0);
+	tilemap_set_transparent_pen(tmap, 0);
 }
 
-static void draw_sprites(running_machine &machine, bitmap_t *bitmap, const rectangle *cliprect)
+static void draw_sprites(running_machine *machine, bitmap_t *bitmap, const rectangle *cliprect)
 {
-	midas_state *state = machine.driver_data<midas_state>();
-	UINT16 *s		=	state->m_gfxram + 0x8000;
-	UINT16 *codes	=	state->m_gfxram;
+	UINT16 *s		=	midas_gfxram + 0x8000;
+	UINT16 *codes	=	midas_gfxram;
 
 	int sx_old = 0, sy_old = 0, ynum_old = 0, xzoom_old = 0;
 	int xdim, ydim, xscale, yscale;
@@ -165,7 +152,7 @@ static void draw_sprites(running_machine &machine, bitmap_t *bitmap, const recta
 			UINT16 code		=	codes[y*2];
 			UINT16 attr		=	codes[y*2+1];
 
-			drawgfxzoom_transpen(	bitmap,	cliprect, machine.gfx[0],
+			drawgfxzoom_transpen(	bitmap,	cliprect, machine->gfx[0],
 							code,
 							attr >> 8,
 							attr & 1, attr & 2,
@@ -175,25 +162,24 @@ static void draw_sprites(running_machine &machine, bitmap_t *bitmap, const recta
 	}
 }
 
-static SCREEN_UPDATE( midas )
+static VIDEO_UPDATE( midas )
 {
-	midas_state *state = screen->machine().driver_data<midas_state>();
 	int layers_ctrl = -1;
 
 #ifdef MAME_DEBUG
-	if ( screen->machine().input().code_pressed(KEYCODE_Z) )
+	if ( input_code_pressed(screen->machine, KEYCODE_Z) )
 	{
 		int msk = 0;
-		if (screen->machine().input().code_pressed(KEYCODE_Q))	msk |= 1 << 0;	// for state->m_tmap
-		if (screen->machine().input().code_pressed(KEYCODE_A))	msk |= 1 << 1;	// for sprites
+		if (input_code_pressed(screen->machine, KEYCODE_Q))	msk |= 1 << 0;	// for tmap
+		if (input_code_pressed(screen->machine, KEYCODE_A))	msk |= 1 << 1;	// for sprites
 		if (msk != 0) layers_ctrl &= msk;
 	}
 #endif
 
 	bitmap_fill(bitmap,cliprect,4095);
 
-	if (layers_ctrl & 2)	draw_sprites(screen->machine(), bitmap,cliprect);
-	if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, state->m_tmap, 0, 0);
+	if (layers_ctrl & 2)	draw_sprites(screen->machine, bitmap,cliprect);
+	if (layers_ctrl & 1)	tilemap_draw(bitmap,cliprect, tmap, 0, 0);
 
 	return 0;
 }
@@ -203,14 +189,13 @@ static WRITE16_DEVICE_HANDLER( midas_eeprom_w )
 	if (ACCESSING_BITS_0_7)
 	{
 		// latch the bit
-		eeprom_device *eeprom = downcast<eeprom_device *>(device);
-		eeprom->write_bit(data & 0x04);
+		eeprom_write_bit(device, data & 0x04);
 
 		// reset line asserted: reset.
-		eeprom->set_cs_line((data & 0x01) ? CLEAR_LINE : ASSERT_LINE );
+		eeprom_set_cs_line(device, (data & 0x01) ? CLEAR_LINE : ASSERT_LINE );
 
 		// clock line asserted: write latch or select next bit to read
-		eeprom->set_clock_line((data & 0x02) ? ASSERT_LINE : CLEAR_LINE );
+		eeprom_set_clock_line(device, (data & 0x02) ? ASSERT_LINE : CLEAR_LINE );
 	}
 }
 
@@ -221,18 +206,17 @@ static READ16_HANDLER( ret_ffff )
 
 static WRITE16_HANDLER( midas_gfxregs_w )
 {
-	midas_state *state = space->machine().driver_data<midas_state>();
-	COMBINE_DATA( state->m_gfxregs + offset );
+	COMBINE_DATA( midas_gfxregs + offset );
 
 	switch( offset )
 	{
 		case 1:
 		{
-			UINT16 addr = state->m_gfxregs[0];
-			state->m_gfxram[addr] = data;
-			state->m_gfxregs[0] += state->m_gfxregs[2];
+			UINT16 addr = midas_gfxregs[0];
+			midas_gfxram[addr] = data;
+			midas_gfxregs[0] += midas_gfxregs[2];
 
-			if ( addr >= 0x7000 && addr <= 0x7fff )	tilemap_mark_tile_dirty(state->m_tmap, addr - 0x7000);
+			if ( addr >= 0x7000 && addr <= 0x7fff )	tilemap_mark_tile_dirty(tmap, addr - 0x7000);
 
 			break;
 		}
@@ -247,14 +231,14 @@ static WRITE16_HANDLER( livequiz_coin_w )
 {
 	if (ACCESSING_BITS_0_7)
 	{
-		coin_counter_w(space->machine(), 0, data & 0x0001);
+		coin_counter_w(space->machine, 0, data & 0x0001);
 	}
 #ifdef MAME_DEBUG
 //  popmessage("coin %04X", data);
 #endif
 }
 
-static ADDRESS_MAP_START( livequiz_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( livequiz_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x1fffff) AM_ROM
 
 	AM_RANGE(0x900000, 0x900001) AM_READ_PORT("DSW_PLAYER1")
@@ -266,7 +250,7 @@ static ADDRESS_MAP_START( livequiz_map, AS_PROGRAM, 16 )
 
 	AM_RANGE(0x9a0000, 0x9a0001) AM_DEVWRITE( "eeprom", midas_eeprom_w )
 
-	AM_RANGE(0x9c0000, 0x9c0005) AM_WRITE( midas_gfxregs_w ) AM_BASE_MEMBER(midas_state, m_gfxregs )
+	AM_RANGE(0x9c0000, 0x9c0005) AM_WRITE( midas_gfxregs_w ) AM_BASE( &midas_gfxregs )
 
 	AM_RANGE(0xa00000, 0xa3ffff) AM_RAM_WRITE( paletteram16_xrgb_word_be_w ) AM_BASE_GENERIC( paletteram )
 	AM_RANGE(0xa40000, 0xa7ffff) AM_RAM
@@ -292,18 +276,18 @@ ADDRESS_MAP_END
 
 static READ16_HANDLER( hammer_sensor_r )
 {
-	if (input_port_read(space->machine(), "HAMMER") & 0x80)
+	if (input_port_read(space->machine, "HAMMER") & 0x80)
 		return 0xffff;
 
-	return (input_port_read(space->machine(), "SENSORY") << 8) | input_port_read(space->machine(), "SENSORX");
+	return (input_port_read(space->machine, "SENSORY") << 8) | input_port_read(space->machine, "SENSORX");
 }
 
 static WRITE16_HANDLER( hammer_coin_w )
 {
 	if (ACCESSING_BITS_0_7)
 	{
-		coin_counter_w(space->machine(), 0, data & 0x0001);
-		coin_counter_w(space->machine(), 1, data & 0x0002);
+		coin_counter_w(space->machine, 0, data & 0x0001);
+		coin_counter_w(space->machine, 1, data & 0x0002);
 	}
 #ifdef MAME_DEBUG
 //  popmessage("coin %04X", data);
@@ -314,9 +298,9 @@ static WRITE16_HANDLER( hammer_motor_w )
 {
 	if (ACCESSING_BITS_0_7)
 	{
-		ticket_dispenser_w(space->machine().device("prize1"), 0, (data & 0x0001) << 7);
-		ticket_dispenser_w(space->machine().device("prize2"), 0, (data & 0x0002) << 6);
-		ticket_dispenser_w(space->machine().device("ticket"), 0, (data & 0x0010) << 3);
+		ticket_dispenser_w(space->machine->device("prize1"), 0, (data & 0x0001) << 7);
+		ticket_dispenser_w(space->machine->device("prize2"), 0, (data & 0x0002) << 6);
+		ticket_dispenser_w(space->machine->device("ticket"), 0, (data & 0x0010) << 3);
 		// data & 0x0080 ?
 	}
 #ifdef MAME_DEBUG
@@ -331,7 +315,7 @@ static WRITE16_HANDLER( hammer_led_w )
 #endif
 }
 
-static ADDRESS_MAP_START( hammer_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( hammer_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x1fffff) AM_ROM
 
 	AM_RANGE(0x900000, 0x900001) AM_READ_PORT("DSW")
@@ -345,7 +329,7 @@ static ADDRESS_MAP_START( hammer_map, AS_PROGRAM, 16 )
 
 	AM_RANGE(0x9a0000, 0x9a0001) AM_DEVWRITE( "eeprom", midas_eeprom_w )
 
-	AM_RANGE(0x9c0000, 0x9c0005) AM_WRITE( midas_gfxregs_w ) AM_BASE_MEMBER(midas_state, m_gfxregs )
+	AM_RANGE(0x9c0000, 0x9c0005) AM_WRITE( midas_gfxregs_w ) AM_BASE( &midas_gfxregs )
 
 	AM_RANGE(0xa00000, 0xa3ffff) AM_RAM_WRITE( paletteram16_xrgb_word_be_w ) AM_BASE_GENERIC( paletteram )
 	AM_RANGE(0xa40000, 0xa7ffff) AM_RAM
@@ -444,7 +428,7 @@ static INPUT_PORTS_START( livequiz )
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW,  IPT_COIN1   )
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW,  IPT_UNKNOWN )
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW,  IPT_UNKNOWN )
-	PORT_BIT( 0x0008, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)	// EEPROM
+	PORT_BIT( 0x0008, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)	// EEPROM
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW,  IPT_UNKNOWN )
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW,  IPT_UNKNOWN )
 	PORT_SERVICE_NO_TOGGLE( 0x0040,   IP_ACTIVE_LOW )
@@ -577,7 +561,7 @@ static INPUT_PORTS_START( hammer )
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW,  IPT_COIN1     )
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW,  IPT_COIN2     )
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW,  IPT_SERVICE1  )
-	PORT_BIT( 0x0008, IP_ACTIVE_HIGH, IPT_SPECIAL   ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_device, read_bit)
+	PORT_BIT( 0x0008, IP_ACTIVE_HIGH, IPT_SPECIAL   ) PORT_READ_LINE_DEVICE("eeprom", eeprom_read_bit)
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW,  IPT_UNKNOWN   )
 	PORT_SERVICE_NO_TOGGLE( 0x0040,   IP_ACTIVE_LOW )
@@ -677,7 +661,7 @@ static INPUT_PORTS_START( hammer )
 INPUT_PORTS_END
 
 
-static void livequiz_irqhandler(device_t *device, int state)
+static void livequiz_irqhandler(running_device *device, int state)
 {
 	logerror("YMZ280 is generating an interrupt. State=%08x\n",state);
 }
@@ -687,71 +671,71 @@ static const ymz280b_interface ymz280b_config =
 	livequiz_irqhandler
 };
 
-static MACHINE_CONFIG_START( livequiz, midas_state )
+static MACHINE_DRIVER_START( livequiz )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_24MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(livequiz_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_24MHz / 2)
+	MDRV_CPU_PROGRAM_MAP(livequiz_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
+	MDRV_EEPROM_93C46_ADD("eeprom")
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(320, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-16-1)
-	MCFG_SCREEN_UPDATE(midas)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(320, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-16-1)
 
-	MCFG_GFXDECODE(midas)
-	MCFG_PALETTE_LENGTH(0x10000)
+	MDRV_GFXDECODE(midas)
+	MDRV_PALETTE_LENGTH(0x10000)
 
-	MCFG_VIDEO_START(midas)
+	MDRV_VIDEO_START(midas)
+	MDRV_VIDEO_UPDATE(midas)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-	MCFG_SOUND_ADD("ymz", YMZ280B, XTAL_16_9344MHz)
-	MCFG_SOUND_CONFIG(ymz280b_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SOUND_ADD("ymz", YMZ280B, XTAL_16_9344MHz)
+	MDRV_SOUND_CONFIG(ymz280b_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( hammer, midas_state )
+static MACHINE_DRIVER_START( hammer )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, XTAL_28MHz / 2)
-	MCFG_CPU_PROGRAM_MAP(hammer_map)
-	MCFG_CPU_VBLANK_INT("screen", irq1_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, XTAL_28MHz / 2)
+	MDRV_CPU_PROGRAM_MAP(hammer_map)
+	MDRV_CPU_VBLANK_INT("screen", irq1_line_hold)
 
-	MCFG_EEPROM_93C46_ADD("eeprom")
+	MDRV_EEPROM_93C46_ADD("eeprom")
 
-	MCFG_TICKET_DISPENSER_ADD("prize1", 1000*5, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
-	MCFG_TICKET_DISPENSER_ADD("prize2", 1000*5, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
-	MCFG_TICKET_DISPENSER_ADD("ticket",    200, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
+	MDRV_TICKET_DISPENSER_ADD("prize1", 1000*5, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
+	MDRV_TICKET_DISPENSER_ADD("prize2", 1000*5, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
+	MDRV_TICKET_DISPENSER_ADD("ticket",    200, TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_LOW )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(320, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-16-1)
-	MCFG_SCREEN_UPDATE(midas)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(320, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 320-1, 16, 256-16-1)
 
-	MCFG_GFXDECODE(midas)
-	MCFG_PALETTE_LENGTH(0x10000)
+	MDRV_GFXDECODE(midas)
+	MDRV_PALETTE_LENGTH(0x10000)
 
-	MCFG_VIDEO_START(midas)
+	MDRV_VIDEO_START(midas)
+	MDRV_VIDEO_UPDATE(midas)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
-	MCFG_SOUND_ADD("ymz", YMZ280B, XTAL_16_9344MHz)
-	MCFG_SOUND_CONFIG(ymz280b_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 0.80)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 0.80)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SOUND_ADD("ymz", YMZ280B, XTAL_16_9344MHz)
+	MDRV_SOUND_CONFIG(ymz280b_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 0.80)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 0.80)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************************
@@ -865,7 +849,7 @@ ROM_END
 
 static DRIVER_INIT( livequiz )
 {
-	UINT16 *rom = (UINT16 *) machine.region("maincpu")->base();
+	UINT16 *rom = (UINT16 *) memory_region(machine, "maincpu");
 
 	// PROTECTION CHECKS
 	rom[0x13345a/2]	=	0x4e75;

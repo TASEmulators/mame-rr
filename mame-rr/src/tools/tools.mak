@@ -83,6 +83,7 @@ romcmp$(EXE): $(ROMCMPOBJS) $(LIBUTIL) $(ZLIB) $(EXPAT) $(LIBOCORE)
 
 CHDMANOBJS = \
 	$(TOOLSOBJ)/chdman.o \
+	$(TOOLSOBJ)/chdcd.o \
 
 chdman$(EXE): $(VERSIONOBJ) $(CHDMANOBJS) $(LIBUTIL) $(ZLIB) $(EXPAT) $(LIBOCORE)
 	@echo Linking $@...
@@ -110,7 +111,7 @@ jedutil$(EXE): $(JEDUTILOBJS) $(LIBUTIL) $(LIBOCORE) $(ZLIB) $(EXPAT)
 UNIDASMOBJS = \
 	$(TOOLSOBJ)/unidasm.o \
 
-unidasm$(EXE): $(UNIDASMOBJS) $(LIBDASM) $(LIBEMU) $(LIBUTIL) $(LIBOCORE) $(ZLIB) $(EXPAT)
+unidasm$(EXE): $(UNIDASMOBJS) $(LIBDASM) $(LIBUTIL) $(LIBOCORE) $(ZLIB) $(EXPAT)
 	@echo Linking $@...
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 

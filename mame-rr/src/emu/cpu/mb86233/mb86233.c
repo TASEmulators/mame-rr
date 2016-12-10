@@ -51,8 +51,7 @@ struct _mb86233_state
 	UINT32			extport[0x30];
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	int icount;
 
 	/* FIFO */
@@ -66,7 +65,7 @@ struct _mb86233_state
 	UINT32			*Tables;
 };
 
-INLINE mb86233_state *get_safe_token(device_t *device)
+INLINE mb86233_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == MB86233);
@@ -96,9 +95,9 @@ INLINE mb86233_state *get_safe_token(device_t *device)
 #define ALU(cs,a)			mb86233_alu(cs,a)
 #define GETREPCNT()			cpustate->repcnt
 
-#define ROPCODE(a)			cpustate->direct->read_decrypted_dword(a<<2)
-#define RDMEM(a)			cpustate->program->read_dword((a<<2))
-#define WRMEM(a,v)			cpustate->program->write_dword((a<<2), v)
+#define ROPCODE(a)			memory_decrypted_read_dword(cpustate->program, a<<2)
+#define RDMEM(a)			memory_read_dword_32le(cpustate->program, (a<<2))
+#define WRMEM(a,v)			memory_write_dword_32le(cpustate->program, (a<<2), v)
 
 /***************************************************************************
     Initialization and Shutdown
@@ -107,27 +106,26 @@ INLINE mb86233_state *get_safe_token(device_t *device)
 static CPU_INIT( mb86233 )
 {
 	mb86233_state *cpustate = get_safe_token(device);
-	mb86233_cpu_core * _config = (mb86233_cpu_core *)device->static_config();
+	mb86233_cpu_core * _config = (mb86233_cpu_core *)device->baseconfig().static_config();
 	(void)irqcallback;
 
 	memset(cpustate, 0, sizeof( *cpustate ) );
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 
 	if ( _config )
 	{
 		cpustate->fifo_read_cb = _config->fifo_read_cb;
 		cpustate->fifo_write_cb = _config->fifo_write_cb;
-		cpustate->Tables = (UINT32*) device->machine().region(_config->tablergn)->base();
 	}
 
-	cpustate->RAM = auto_alloc_array(device->machine(), UINT32, 2 * 0x200);		/* 2x 2KB */
+	cpustate->RAM = auto_alloc_array(device->machine, UINT32, 2 * 0x200);		/* 2x 2KB */
 	memset( cpustate->RAM, 0, 2 * 0x200 * sizeof(UINT32) );
 	cpustate->ARAM = &cpustate->RAM[0];
 	cpustate->BRAM = &cpustate->RAM[0x200];
+	cpustate->Tables = (UINT32*) memory_region(device->machine, _config->tablergn);
 
-	state_save_register_global_pointer(device->machine(), cpustate->RAM,2 * 0x200 * sizeof(UINT32));
+	state_save_register_global_pointer(device->machine, cpustate->RAM,2 * 0x200 * sizeof(UINT32));
 }
 
 static CPU_RESET( mb86233 )
@@ -1619,15 +1617,15 @@ CPU_GET_INFO( mb86233 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 2;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -2;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 32;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -2;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 32;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_PREVIOUSPC:					/* not implemented */					break;
 

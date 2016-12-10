@@ -14,49 +14,45 @@ struct slapshot_tempsprite
 	int primask;
 };
 
-class slapshot_state : public driver_device
+class slapshot_state
 {
 public:
-	slapshot_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, slapshot_state(machine)); }
+
+	slapshot_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_color_ram;
-	UINT16 *    m_spriteram;
-	UINT16 *    m_spriteext;
-	UINT16 *    m_spriteram_buffered;
-	UINT16 *    m_spriteram_delayed;
-//  UINT16 *    m_paletteram;    // currently this uses generic palette handling
-	size_t      m_spriteext_size;
-	size_t      m_spriteram_size;
+	UINT16 *    color_ram;
+	UINT16 *    spriteram;
+	UINT16 *    spriteext;
+	UINT16 *    spriteram_buffered, *spriteram_delayed;
+//  UINT16 *    paletteram;    // currently this uses generic palette handling
+	size_t      spriteext_size;
+	size_t      spriteram_size;
 
 	/* video-related */
-	struct      slapshot_tempsprite *m_spritelist;
-	INT32       m_sprites_disabled;
-	INT32       m_sprites_active_area;
-	INT32       m_sprites_master_scrollx;
-	INT32       m_sprites_master_scrolly;
-	int         m_sprites_flipscreen;
-	int         m_prepare_sprites;
-	int         m_dislayer[5];
+	struct      slapshot_tempsprite *spritelist;
+	INT32       sprites_disabled, sprites_active_area, sprites_master_scrollx, sprites_master_scrolly;
+	int         sprites_flipscreen;
+	int         prepare_sprites;
 
-	UINT16      m_spritebank[8];
+	UINT16      spritebank[8];
 
 	/* misc */
-	INT32      m_banknum;
+	INT32      banknum;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_tc0140syt;
-	device_t *m_tc0480scp;
-	device_t *m_tc0360pri;
-	device_t *m_tc0640fio;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *tc0140syt;
+	running_device *tc0480scp;
+	running_device *tc0360pri;
+	running_device *tc0640fio;
 };
 
 
 /*----------- defined in video/slapshot.c -----------*/
 
 VIDEO_START( slapshot );
-SCREEN_UPDATE( slapshot );
-SCREEN_EOF( taito_no_buffer );
+VIDEO_UPDATE( slapshot );
+VIDEO_EOF( taito_no_buffer );

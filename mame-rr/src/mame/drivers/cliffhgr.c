@@ -79,12 +79,11 @@ Side 2 = 0x8F7DDD (or 0x880000 | ( 0x77 << 12 ) | 0x0DDD)
 #include "machine/laserdsc.h"
 #include "video/tms9928a.h"
 #include "sound/discrete.h"
-#include "machine/nvram.h"
 
 #define CLIFF_ENABLE_SND_1	NODE_01
 #define CLIFF_ENABLE_SND_2	NODE_02
 
-static device_t *laserdisc;
+static running_device *laserdisc;
 
 static int port_bank = 0;
 static int phillips_code = 0;
@@ -95,7 +94,7 @@ static emu_timer *irq_timer;
 
 static WRITE8_HANDLER( cliff_test_led_w )
 {
-	set_led_status(space->machine(), 0, offset ^ 1);
+	set_led_status(space->machine, 0, offset ^ 1);
 }
 
 static WRITE8_HANDLER( cliff_port_bank_w )
@@ -112,7 +111,7 @@ static READ8_HANDLER( cliff_port_r )
 	static const char *const banknames[] = { "BANK0", "BANK1", "BANK2", "BANK3", "BANK4", "BANK5", "BANK6" };
 
 	if (port_bank < 7)
-		return input_port_read(space->machine(),  banknames[port_bank]);
+		return input_port_read(space->machine,  banknames[port_bank]);
 
 	/* output is pulled up for non-mapped ports */
 	return 0xff;
@@ -133,13 +132,13 @@ static WRITE8_HANDLER( cliff_phillips_clear_w )
 
 static WRITE8_HANDLER( cliff_coin_counter_w )
 {
-	coin_counter_w(space->machine(), 0, (data & 0x40) ? 1 : 0 );
+	coin_counter_w(space->machine, 0, (data & 0x40) ? 1 : 0 );
 }
 
 static READ8_HANDLER( cliff_irq_ack_r )
 {
 	/* deassert IRQ on the CPU */
-	cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
+	cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
 
 	return 0x00;
 }
@@ -152,13 +151,13 @@ static WRITE8_DEVICE_HANDLER( cliff_sound_overlay_w )
 	/* configure pen 0 and 1 as transparent in the renderer and use it as the compositing color */
 	if (overlay)
 	{
-		palette_set_color(device->machine(), 0, palette_get_color(device->machine(), 0) & MAKE_ARGB(0,255,255,255));
-		palette_set_color(device->machine(), 1, palette_get_color(device->machine(), 1) & MAKE_ARGB(0,255,255,255));
+		palette_set_color(device->machine, 0, palette_get_color(device->machine, 0) & MAKE_ARGB(0,255,255,255));
+		palette_set_color(device->machine, 1, palette_get_color(device->machine, 1) & MAKE_ARGB(0,255,255,255));
 	}
 	else
 	{
-		palette_set_color(device->machine(), 0, palette_get_color(device->machine(), 0) | MAKE_ARGB(255,0,0,0));
-		palette_set_color(device->machine(), 1, palette_get_color(device->machine(), 1) | MAKE_ARGB(255,0,0,0));
+		palette_set_color(device->machine, 0, palette_get_color(device->machine, 0) | MAKE_ARGB(255,0,0,0));
+		palette_set_color(device->machine, 1, palette_get_color(device->machine, 1) | MAKE_ARGB(255,0,0,0));
 	}
 
 	/* audio */
@@ -173,6 +172,12 @@ static WRITE8_HANDLER( cliff_ldwire_w )
 
 
 /********************************************************/
+
+static INTERRUPT_GEN( cliff_vsync )
+{
+	/* clock the video chip every 60Hz */
+	TMS9928A_interrupt(device->machine);
+}
 
 static TIMER_CALLBACK( cliff_irq_callback )
 {
@@ -198,46 +203,46 @@ static TIMER_CALLBACK( cliff_irq_callback )
 		cputag_set_input_line(machine, "maincpu", 0, ASSERT_LINE);
 	}
 
-	irq_timer->adjust(machine.primary_screen->time_until_pos(param * 2), param);
+	timer_adjust_oneshot(irq_timer, machine->primary_screen->time_until_pos(param * 2), param);
 }
 
-static WRITE_LINE_DEVICE_HANDLER(vdp_interrupt)
+static void vdp_interrupt(running_machine *machine, int state)
 {
-	cputag_set_input_line(device->machine(), "maincpu", INPUT_LINE_NMI, state ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(machine, "maincpu", INPUT_LINE_NMI, state ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
 
 static MACHINE_START( cliffhgr )
 {
-	laserdisc = machine.device("laserdisc");
-	irq_timer = machine.scheduler().timer_alloc(FUNC(cliff_irq_callback));
+	laserdisc = machine->device("laserdisc");
+	irq_timer = timer_alloc(machine, cliff_irq_callback, NULL);
 }
 
 static MACHINE_RESET( cliffhgr )
 {
 	port_bank = 0;
 	phillips_code = 0;
-	irq_timer->adjust(machine.primary_screen->time_until_pos(17), 17);
+	timer_adjust_oneshot(irq_timer, machine->primary_screen->time_until_pos(17), 17);
 }
 
 /********************************************************/
 
-static ADDRESS_MAP_START( mainmem, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mainmem, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0xbfff) AM_ROM		/* ROM */
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_SHARE("nvram")	/* NVRAM */
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)	/* NVRAM */
 	AM_RANGE(0xe800, 0xefff) AM_RAM		/* RAM */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mainport, AS_IO, 8 )
+static ADDRESS_MAP_START( mainport, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
-	AM_RANGE(0x44, 0x44) AM_DEVWRITE_MODERN("tms9928a", tms9928a_device, vram_write)
-	AM_RANGE(0x45, 0x45) AM_DEVREAD_MODERN("tms9928a", tms9928a_device, vram_read)
+	AM_RANGE(0x44, 0x44) AM_WRITE(TMS9928A_vram_w)
+	AM_RANGE(0x45, 0x45) AM_READ(TMS9928A_vram_r)
 	AM_RANGE(0x46, 0x46) AM_DEVWRITE("discrete", cliff_sound_overlay_w)
 	AM_RANGE(0x50, 0x52) AM_READ(cliff_phillips_code_r)
 	AM_RANGE(0x53, 0x53) AM_READ(cliff_irq_ack_r)
-	AM_RANGE(0x54, 0x54) AM_DEVWRITE_MODERN("tms9928a", tms9928a_device, register_write)
-	AM_RANGE(0x55, 0x55) AM_DEVREAD_MODERN("tms9928a", tms9928a_device, register_read)
+	AM_RANGE(0x54, 0x54) AM_WRITE(TMS9928A_register_w)
+	AM_RANGE(0x55, 0x55) AM_READ(TMS9928A_register_r)
 	AM_RANGE(0x57, 0x57) AM_WRITE(cliff_phillips_clear_w)
 	AM_RANGE(0x60, 0x60) AM_WRITE(cliff_port_bank_w)
 	AM_RANGE(0x62, 0x62) AM_READ(cliff_port_r)
@@ -661,20 +666,13 @@ INPUT_PORTS_END
  *
  *************************************/
 
-static TMS9928A_INTERFACE(cliffhgr_tms9928a_interface)
+static const TMS9928a_interface tms9928a_interface =
 {
-	"screen",
+	TMS99x8A,		/* TMS9128NL on the board */
 	0x4000,
-	DEVCB_LINE(vdp_interrupt)
+	0,0,
+	vdp_interrupt
 };
-
-static SCREEN_UPDATE( cliffhgr )
-{
-	tms9928a_device *tms9928a = screen->machine().device<tms9928a_device>( "tms9928a" );
-
-	tms9928a->update( bitmap, cliprect );
-	return 0;
-}
 
 DISCRETE_SOUND_EXTERN( cliffhgr );
 
@@ -686,39 +684,40 @@ DISCRETE_SOUND_EXTERN( cliffhgr );
  *
  *************************************/
 
-static MACHINE_CONFIG_START( cliffhgr, driver_device )
+static MACHINE_DRIVER_START( cliffhgr )
 
-	MCFG_CPU_ADD("maincpu", Z80, 4000000)       /* 4MHz */
-	MCFG_CPU_PROGRAM_MAP(mainmem)
-	MCFG_CPU_IO_MAP(mainport)
+	MDRV_CPU_ADD("maincpu", Z80, 4000000)       /* 4MHz */
+	MDRV_CPU_PROGRAM_MAP(mainmem)
+	MDRV_CPU_IO_MAP(mainport)
+	MDRV_CPU_VBLANK_INT("screen", cliff_vsync)
 
-	MCFG_MACHINE_START(cliffhgr)
-	MCFG_MACHINE_RESET(cliffhgr)
+	MDRV_MACHINE_START(cliffhgr)
+	MDRV_MACHINE_RESET(cliffhgr)
 
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-	MCFG_LASERDISC_ADD("laserdisc", PIONEER_PR8210, "screen", "ldsound")
-	MCFG_LASERDISC_OVERLAY(cliffhgr, 12+32*8+12, 12+24*8+12, BITMAP_FORMAT_INDEXED16)
-	MCFG_LASERDISC_OVERLAY_CLIP(TMS9928A_HORZ_DISPLAY_START-12, 12+32*8+12-1, TMS9928A_VERT_DISPLAY_START_NTSC - 12, 12+24*8+12-1)
+	MDRV_LASERDISC_ADD("laserdisc", PIONEER_PR8210, "screen", "ldsound")
+	MDRV_LASERDISC_OVERLAY(tms9928a, 15+32*8+15, 27+24*8+24, BITMAP_FORMAT_INDEXED16)
+	MDRV_LASERDISC_OVERLAY_CLIP(15-12, 15+32*8+12-1, 27-9, 27+24*8+9-1)
 
 	/* start with the TMS9928a video configuration */
-	MCFG_TMS9928A_ADD( "tms9928a", TMS9128, cliffhgr_tms9928a_interface )	/* TMS9128NL on the board */
+	MDRV_IMPORT_FROM(tms9928a)
 
 	/* override video rendering and raw screen info */
-	MCFG_DEVICE_REMOVE("screen")
-	MCFG_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
+	MDRV_DEVICE_REMOVE("screen")
+	MDRV_LASERDISC_SCREEN_ADD_NTSC("screen", BITMAP_FORMAT_INDEXED16)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ldsound", LASERDISC_SOUND, 0)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.0)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.0)
+	MDRV_SOUND_ADD("ldsound", LASERDISC, 0)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.0)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.0)
 
-	MCFG_SOUND_ADD("discrete", DISCRETE, 0)
-	MCFG_SOUND_CONFIG_DISCRETE(cliffhgr)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("discrete", DISCRETE, 0)
+	MDRV_SOUND_CONFIG_DISCRETE(cliffhgr)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "lspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 
@@ -773,6 +772,7 @@ ROM_END
 
 static DRIVER_INIT( cliff )
 {
+	TMS9928A_configure(&tms9928a_interface);
 }
 
 

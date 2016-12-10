@@ -1,22 +1,23 @@
-class welltris_state : public driver_device
+class welltris_state
 {
 public:
-	welltris_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, welltris_state(machine)); }
 
-	int m_pending_command;
+	welltris_state(running_machine &machine) { }
 
-	UINT16 *m_spriteram;
-	UINT16 *m_pixelram;
-	UINT16 *m_charvideoram;
+	int pending_command;
 
-	tilemap_t *m_char_tilemap;
-	UINT8 m_gfxbank[8];
-	UINT16 m_charpalettebank;
-	UINT16 m_spritepalettebank;
-	UINT16 m_pixelpalettebank;
-	int m_scrollx;
-	int m_scrolly;
+	UINT16 *spriteram;
+	UINT16 *pixelram;
+	UINT16 *charvideoram;
+
+	tilemap_t *char_tilemap;
+	UINT8 gfxbank[8];
+	UINT16 charpalettebank;
+	UINT16 spritepalettebank;
+	UINT16 pixelpalettebank;
+	int scrollx;
+	int scrolly;
 };
 
 
@@ -30,4 +31,4 @@ WRITE16_HANDLER( welltris_charvideoram_w );
 WRITE16_HANDLER( welltris_scrollreg_w );
 
 VIDEO_START( welltris );
-SCREEN_UPDATE( welltris );
+VIDEO_UPDATE( welltris );

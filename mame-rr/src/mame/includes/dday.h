@@ -5,31 +5,29 @@
 *************************************************************************/
 
 
-class dday_state : public driver_device
+class dday_state
 {
 public:
-	dday_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, dday_state(machine)); }
+
+	dday_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *        m_bgvideoram;
-	UINT8 *        m_fgvideoram;
-	UINT8 *        m_textvideoram;
-	UINT8 *        m_colorram;
+	UINT8 *        bgvideoram;
+	UINT8 *        fgvideoram;
+	UINT8 *        textvideoram;
+	UINT8 *        colorram;
 
 	/* video-related */
-	tilemap_t        *m_fg_tilemap;
-	tilemap_t        *m_bg_tilemap;
-	tilemap_t        *m_text_tilemap;
-	tilemap_t        *m_sl_tilemap;
-	bitmap_t       *m_main_bitmap;
-	int            m_control;
-	int            m_sl_image;
-	int            m_sl_enable;
-	int            m_timer_value;
+	tilemap_t        *fg_tilemap, *bg_tilemap, *text_tilemap, *sl_tilemap;
+	bitmap_t       *main_bitmap;
+	int            control;
+	int            sl_image;
+	int            sl_enable;
+	int            timer_value;
 
 	/* devices */
-	device_t *m_ay1;
+	running_device *ay1;
 };
 
 
@@ -37,7 +35,7 @@ public:
 
 PALETTE_INIT( dday );
 VIDEO_START( dday );
-SCREEN_UPDATE( dday );
+VIDEO_UPDATE( dday );
 
 WRITE8_HANDLER( dday_bgvideoram_w );
 WRITE8_HANDLER( dday_fgvideoram_w );

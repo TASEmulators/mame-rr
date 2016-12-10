@@ -4,30 +4,27 @@
 
 *************************************************************************/
 
-class lastduel_state : public driver_device
+class lastduel_state
 {
 public:
-	lastduel_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, lastduel_state(machine)); }
+
+	lastduel_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *    m_vram;
-	UINT16 *    m_scroll1;
-	UINT16 *    m_scroll2;
-//  UINT16 *    m_spriteram;  // this currently uses generic buffered spriteram
-	UINT16 *    m_paletteram;
+	UINT16 *    vram;
+	UINT16 *    scroll1;
+	UINT16 *    scroll2;
+//  UINT16 *    spriteram;  // this currently uses generic buffered spriteram
+	UINT16 *    paletteram;
 
 	/* video-related */
-	tilemap_t     *m_bg_tilemap;
-	tilemap_t     *m_fg_tilemap;
-	tilemap_t     *m_tx_tilemap;
-	UINT16      m_scroll[8];
-	int         m_sprite_flipy_mask;
-	int         m_sprite_pri_mask;
-	int         m_tilemap_priority;
+	tilemap_t     *bg_tilemap, *fg_tilemap, *tx_tilemap;
+	UINT16      scroll[8];
+	int         sprite_flipy_mask, sprite_pri_mask, tilemap_priority;
 
 	/* devices */
-	device_t *m_audiocpu;
+	running_device *audiocpu;
 };
 
 /*----------- defined in video/lastduel.c -----------*/
@@ -43,6 +40,6 @@ WRITE16_HANDLER( lastduel_palette_word_w );
 
 VIDEO_START( lastduel );
 VIDEO_START( madgear );
-SCREEN_UPDATE( lastduel );
-SCREEN_UPDATE( madgear );
-SCREEN_EOF( lastduel );
+VIDEO_UPDATE( lastduel );
+VIDEO_UPDATE( madgear );
+VIDEO_EOF( lastduel );

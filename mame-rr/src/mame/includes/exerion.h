@@ -18,34 +18,34 @@
 #define EXERION_VBSTART           (240)
 
 
-class exerion_state : public driver_device
+class exerion_state
 {
 public:
-	exerion_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, exerion_state(machine)); }
+
+	exerion_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_main_ram;
-	UINT8 *  m_videoram;
-	UINT8 *  m_spriteram;
-	size_t   m_videoram_size;
-	size_t   m_spriteram_size;
+	UINT8 *  main_ram;
+	UINT8 *  videoram;
+	UINT8 *  spriteram;
+	size_t   videoram_size;
+	size_t   spriteram_size;
 
 	/* video-related */
-	UINT8    m_cocktail_flip;
-	UINT8    m_char_palette;
-	UINT8    m_sprite_palette;
-	UINT8    m_char_bank;
-	UINT16   *m_background_gfx[4];
-	UINT8    *m_background_mixer;
-	UINT8    m_background_latches[13];
+	UINT8    cocktail_flip;
+	UINT8    char_palette, sprite_palette;
+	UINT8    char_bank;
+	UINT16   *background_gfx[4];
+	UINT8    *background_mixer;
+	UINT8    background_latches[13];
 
 	/* protection? */
-	UINT8 m_porta;
-	UINT8 m_portb;
+	UINT8 porta;
+	UINT8 portb;
 
 	/* devices */
-	device_t *m_maincpu;
+	running_device *maincpu;
 };
 
 
@@ -54,7 +54,7 @@ public:
 
 PALETTE_INIT( exerion );
 VIDEO_START( exerion );
-SCREEN_UPDATE( exerion );
+VIDEO_UPDATE( exerion );
 
 WRITE8_HANDLER( exerion_videoreg_w );
 WRITE8_HANDLER( exerion_video_latch_w );

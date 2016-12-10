@@ -19,21 +19,21 @@
 
 static WRITE16_HANDLER( sound_command_w )
 {
-	tail2nos_state *state = space->machine().driver_data<tail2nos_state>();
+	tail2nos_state *state = (tail2nos_state *)space->machine->driver_data;
 
 	if (ACCESSING_BITS_0_7)
 	{
 		soundlatch_w(space, offset, data & 0xff);
-		device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+		cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
 	}
 }
 
 static WRITE8_DEVICE_HANDLER( sound_bankswitch_w )
 {
-	memory_set_bank(device->machine(), "bank3", data & 0x01);
+	memory_set_bank(device->machine, "bank3", data & 0x01);
 }
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
 	AM_RANGE(0x200000, 0x27ffff) AM_ROMBANK("bank1")	/* extra ROM */
 	AM_RANGE(0x2c0000, 0x2dffff) AM_ROMBANK("bank2")
@@ -41,22 +41,22 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x500000, 0x500fff) AM_DEVREADWRITE8("k051316", k051316_r, k051316_w, 0x00ff)
 	AM_RANGE(0x510000, 0x51001f) AM_DEVWRITE8("k051316", k051316_ctrl_w, 0x00ff)
 	AM_RANGE(0xff8000, 0xffbfff) AM_RAM								/* work RAM */
-	AM_RANGE(0xffc000, 0xffc2ff) AM_RAM AM_BASE_SIZE_MEMBER(tail2nos_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xffc000, 0xffc2ff) AM_RAM AM_BASE_SIZE_MEMBER(tail2nos_state, spriteram, spriteram_size)
 	AM_RANGE(0xffc300, 0xffcfff) AM_RAM
-	AM_RANGE(0xffd000, 0xffdfff) AM_RAM_WRITE(tail2nos_bgvideoram_w) AM_BASE_MEMBER(tail2nos_state, m_bgvideoram)
+	AM_RANGE(0xffd000, 0xffdfff) AM_RAM_WRITE(tail2nos_bgvideoram_w) AM_BASE_MEMBER(tail2nos_state, bgvideoram)
 	AM_RANGE(0xffe000, 0xffefff) AM_RAM_WRITE(paletteram16_xRRRRRGGGGGBBBBB_word_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xfff000, 0xfff001) AM_READ_PORT("INPUTS") AM_WRITE(tail2nos_gfxbank_w)
 	AM_RANGE(0xfff004, 0xfff005) AM_READ_PORT("DSW")
 	AM_RANGE(0xfff008, 0xfff009) AM_WRITE(sound_command_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
 	AM_RANGE(0x7800, 0x7fff) AM_RAM
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank3")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_port_map, AS_IO, 8 )
+static ADDRESS_MAP_START( sound_port_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x07, 0x07) AM_READ(soundlatch_r) AM_WRITENOP	/* the write is a clear pending command */
 	AM_RANGE(0x08, 0x0b) AM_DEVWRITE("ymsnd", ym2608_w)
@@ -178,10 +178,10 @@ GFXDECODE_END
 
 
 
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	tail2nos_state *state = device->machine().driver_data<tail2nos_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	tail2nos_state *state = (tail2nos_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2608_interface ym2608_config =
@@ -208,74 +208,77 @@ static const k051316_interface tail2nos_k051316_intf =
 
 static MACHINE_START( tail2nos )
 {
-	tail2nos_state *state = machine.driver_data<tail2nos_state>();
-	UINT8 *ROM = machine.region("audiocpu")->base();
+	tail2nos_state *state = (tail2nos_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "audiocpu");
 
 	memory_configure_bank(machine, "bank3", 0, 2, &ROM[0x10000], 0x8000);
 	memory_set_bank(machine, "bank3", 0);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_k051316 = machine.device("k051316");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->k051316 = machine->device("k051316");
 
-	state->save_item(NAME(state->m_charbank));
-	state->save_item(NAME(state->m_charpalette));
-	state->save_item(NAME(state->m_video_enable));
+	state_save_register_global(machine, state->charbank);
+	state_save_register_global(machine, state->charpalette);
+	state_save_register_global(machine, state->video_enable);
 }
 
 static MACHINE_RESET( tail2nos )
 {
-	tail2nos_state *state = machine.driver_data<tail2nos_state>();
+	tail2nos_state *state = (tail2nos_state *)machine->driver_data;
 
 	/* point to the extra ROMs */
-	memory_set_bankptr(machine, "bank1", machine.region("user1")->base());
-	memory_set_bankptr(machine, "bank2", machine.region("user2")->base());
+	memory_set_bankptr(machine, "bank1", memory_region(machine, "user1"));
+	memory_set_bankptr(machine, "bank2", memory_region(machine, "user2"));
 
-	state->m_charbank = 0;
-	state->m_charpalette = 0;
-	state->m_video_enable = 0;
+	state->charbank = 0;
+	state->charpalette = 0;
+	state->video_enable = 0;
 }
 
-static MACHINE_CONFIG_START( tail2nos, tail2nos_state )
+static MACHINE_DRIVER_START( tail2nos )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(tail2nos_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000,XTAL_20MHz/2)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq6_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000,XTAL_20MHz/2)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq6_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80,XTAL_20MHz/4)	/* verified on pcb */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(sound_port_map)
+	MDRV_CPU_ADD("audiocpu", Z80,XTAL_20MHz/4)	/* verified on pcb */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(sound_port_map)
 								/* IRQs are triggered by the YM2608 */
-	MCFG_MACHINE_START(tail2nos)
-	MCFG_MACHINE_RESET(tail2nos)
+	MDRV_MACHINE_START(tail2nos)
+	MDRV_MACHINE_RESET(tail2nos)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(tail2nos)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 40*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(tail2nos)
-	MCFG_PALETTE_LENGTH(2048)
+	MDRV_GFXDECODE(tail2nos)
+	MDRV_PALETTE_LENGTH(2048)
 
-	MCFG_VIDEO_START(tail2nos)
+	MDRV_VIDEO_START(tail2nos)
+	MDRV_VIDEO_UPDATE(tail2nos)
 
-	MCFG_K051316_ADD("k051316", tail2nos_k051316_intf)
+	MDRV_K051316_ADD("k051316", tail2nos_k051316_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
-	MCFG_SOUND_ADD("ymsnd", YM2608, XTAL_8MHz)	/* verified on pcb */
-	MCFG_SOUND_CONFIG(ym2608_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker",  0.25)
-	MCFG_SOUND_ROUTE(0, "rspeaker", 0.25)
-	MCFG_SOUND_ROUTE(1, "lspeaker",  1.0)
-	MCFG_SOUND_ROUTE(2, "rspeaker", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ymsnd", YM2608, XTAL_8MHz)	/* verified on pcb */
+	MDRV_SOUND_CONFIG(ym2608_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker",  0.25)
+	MDRV_SOUND_ROUTE(0, "rspeaker", 0.25)
+	MDRV_SOUND_ROUTE(1, "lspeaker",  1.0)
+	MDRV_SOUND_ROUTE(2, "rspeaker", 1.0)
+MACHINE_DRIVER_END
 
 
 

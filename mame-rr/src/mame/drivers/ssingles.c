@@ -150,16 +150,17 @@ Dumped by Chack'n
 #define NUM_PENS (4*8)
 #define VMEM_SIZE 0x100
 
-class ssingles_state : public driver_device
+class ssingles_state
 {
 public:
-	ssingles_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ssingles_state(machine)); }
 
-	UINT8 m_videoram[VMEM_SIZE];
-	UINT8 m_colorram[VMEM_SIZE];
-	UINT8 m_prot_data;
-	pen_t m_pens[NUM_PENS];
+	ssingles_state(running_machine &machine) { }
+
+	UINT8 *videoram;
+	UINT8 *colorram;
+	UINT8 prot_data;
+	pen_t pens[NUM_PENS];
 };
 
 //fake palette
@@ -177,18 +178,18 @@ static const UINT8 ssingles_colors[NUM_PENS*3]=
 
 static MC6845_UPDATE_ROW( update_row )
 {
-	ssingles_state *state = device->machine().driver_data<ssingles_state>();
+	ssingles_state *state = (ssingles_state *)device->machine->driver_data;
 	int cx,x;
 	UINT32 tile_address;
 	UINT16 cell,palette;
 	UINT8 b0,b1;
-	const UINT8 *gfx = device->machine().region("gfx1")->base();
+	const UINT8 *gfx = memory_region(device->machine, "gfx1");
 
 	for(cx=0;cx<x_count;++cx)
 	{
 		int address=((ma>>1)+(cx>>1))&0xff;
 
-		cell=state->m_videoram[address]+(state->m_colorram[address]<<8);
+		cell=state->videoram[address]+(state->colorram[address]<<8);
 
 		tile_address=((cell&0x3ff)<<4)+ra;
 		palette=(cell>>10)&0x1c;
@@ -206,7 +207,7 @@ static MC6845_UPDATE_ROW( update_row )
 
 		for(x=7;x>=0;--x)
 		{
-			*BITMAP_ADDR32(bitmap, y, (cx<<3)|(x)) = state->m_pens[palette+((b1&1)|((b0&1)<<1))];
+			*BITMAP_ADDR32(bitmap, y, (cx<<3)|(x)) = state->pens[palette+((b1&1)|((b0&1)<<1))];
 			b0>>=1;
 			b1>>=1;
 		}
@@ -229,35 +230,35 @@ static const mc6845_interface mc6845_intf =
 
 static WRITE8_HANDLER(ssingles_videoram_w)
 {
-	ssingles_state *state = space->machine().driver_data<ssingles_state>();
-	state->m_videoram[offset]=data;
+	ssingles_state *state = (ssingles_state *)space->machine->driver_data;
+	state->videoram[offset]=data;
 }
 
 static WRITE8_HANDLER(ssingles_colorram_w)
 {
-	ssingles_state *state = space->machine().driver_data<ssingles_state>();
-	state->m_colorram[offset]=data;
+	ssingles_state *state = (ssingles_state *)space->machine->driver_data;
+	state->colorram[offset]=data;
 }
 
 
 static VIDEO_START(ssingles)
 {
-	ssingles_state *state = machine.driver_data<ssingles_state>();
+	ssingles_state *state = (ssingles_state *)machine->driver_data;
 
 	{
 		int i;
 		for(i=0;i<NUM_PENS;++i)
 		{
-			state->m_pens[i]=MAKE_RGB(ssingles_colors[3*i], ssingles_colors[3*i+1], ssingles_colors[3*i+2]);
+			state->pens[i]=MAKE_RGB(ssingles_colors[3*i], ssingles_colors[3*i+1], ssingles_colors[3*i+2]);
 		}
 	}
 }
 
 
-static SCREEN_UPDATE( ssingles )
+static VIDEO_UPDATE( ssingles )
 {
-	mc6845_device *mc6845 = screen->machine().device<mc6845_device>("crtc");
-	mc6845->update(bitmap, cliprect);
+	running_device *mc6845 = screen->machine->device("crtc");
+	mc6845_update(mc6845, bitmap, cliprect);
 
 	return 0;
 }
@@ -265,30 +266,30 @@ static SCREEN_UPDATE( ssingles )
 
 static READ8_HANDLER(c000_r)
 {
-	ssingles_state *state = space->machine().driver_data<ssingles_state>();
+	ssingles_state *state = (ssingles_state *)space->machine->driver_data;
 
-	return state->m_prot_data;
+	return state->prot_data;
 }
 
 static READ8_HANDLER(c001_r)
 {
-	ssingles_state *state = space->machine().driver_data<ssingles_state>();
+	ssingles_state *state = (ssingles_state *)space->machine->driver_data;
 
-	state->m_prot_data=0xc4;
+	state->prot_data=0xc4;
 	return 0;
 }
 
 static WRITE8_HANDLER(c001_w)
 {
-	ssingles_state *state = space->machine().driver_data<ssingles_state>();
+	ssingles_state *state = (ssingles_state *)space->machine->driver_data;
 
-	state->m_prot_data^=data^0x11;
+	state->prot_data^=data^0x11;
 }
 
 static CUSTOM_INPUT(controls_r)
 {
 	int data = 7;
-	switch(input_port_read(field.machine(), "EXTRA"))		//multiplexed
+	switch(input_port_read(field->port->machine, "EXTRA"))		//multiplexed
 	{
 		case 0x01: data = 1; break;
 		case 0x02: data = 2; break;
@@ -302,7 +303,7 @@ static CUSTOM_INPUT(controls_r)
 	return data;
 }
 
-static ADDRESS_MAP_START( ssingles_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ssingles_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x00ff) AM_WRITE(ssingles_videoram_w)
 	AM_RANGE(0x0800, 0x08ff) AM_WRITE(ssingles_colorram_w)
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
@@ -312,7 +313,7 @@ static ADDRESS_MAP_START( ssingles_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf800, 0xffff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( atamanot_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( atamanot_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x00ff) AM_WRITE(ssingles_videoram_w)
 	AM_RANGE(0x0800, 0x08ff) AM_WRITE(ssingles_colorram_w)
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
@@ -324,7 +325,7 @@ static ADDRESS_MAP_START( atamanot_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xc001, 0xc001) AM_READWRITE( c001_r, c001_w )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( ssingles_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( ssingles_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_DEVWRITE("ay1", ay8910_address_w)
 	AM_RANGE(0x04, 0x04) AM_DEVWRITE("ay1", ay8910_data_w)
@@ -335,8 +336,8 @@ static ADDRESS_MAP_START( ssingles_io_map, AS_IO, 8 )
 	AM_RANGE(0x18, 0x18) AM_READ_PORT("DSW1")
 	AM_RANGE(0x1c, 0x1c) AM_READ_PORT("INPUTS")
 	AM_RANGE(0x1a, 0x1a) AM_WRITENOP //video/crt related
-	AM_RANGE(0xfe, 0xfe) AM_DEVWRITE_MODERN("crtc", mc6845_device, address_w)
-	AM_RANGE(0xff, 0xff) AM_DEVWRITE_MODERN("crtc", mc6845_device, register_w)
+	AM_RANGE(0xfe, 0xfe) AM_DEVWRITE("crtc", mc6845_address_w)
+	AM_RANGE(0xff, 0xff) AM_DEVWRITE("crtc", mc6845_register_w)
 
 ADDRESS_MAP_END
 
@@ -409,39 +410,42 @@ static INPUT_PORTS_START( ssingles )
 	PORT_DIPSETTING(	0x80, DEF_STR( Yes ) )
 INPUT_PORTS_END
 
-static MACHINE_CONFIG_START( ssingles, ssingles_state )
+static MACHINE_DRIVER_START( ssingles )
 
-	MCFG_CPU_ADD("maincpu", Z80,4000000)		 /* ? MHz */
-	MCFG_CPU_PROGRAM_MAP(ssingles_map)
-	MCFG_CPU_IO_MAP(ssingles_io_map)
-	MCFG_CPU_VBLANK_INT("screen", nmi_line_pulse)
+	MDRV_DRIVER_DATA( ssingles_state )
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_RAW_PARAMS(4000000, 256, 0, 256, 256, 0, 256)	/* temporary, CRTC will configure screen */
-	MCFG_SCREEN_UPDATE(ssingles)
+	MDRV_CPU_ADD("maincpu", Z80,4000000)		 /* ? MHz */
+	MDRV_CPU_PROGRAM_MAP(ssingles_map)
+	MDRV_CPU_IO_MAP(ssingles_io_map)
+	MDRV_CPU_VBLANK_INT("screen", nmi_line_pulse)
 
-	MCFG_PALETTE_LENGTH(4) //guess
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_RAW_PARAMS(4000000, 256, 0, 256, 256, 0, 256)	/* temporary, CRTC will configure screen */
 
-	MCFG_VIDEO_START(ssingles)
+	MDRV_PALETTE_LENGTH(4) //guess
 
-	MCFG_MC6845_ADD("crtc", MC6845, 1000000 /* ? MHz */, mc6845_intf)
+	MDRV_VIDEO_START(ssingles)
+	MDRV_VIDEO_UPDATE(ssingles)
+
+	MDRV_MC6845_ADD("crtc", MC6845, 1000000 /* ? MHz */, mc6845_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ay1", AY8910, 1500000) /* ? MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+	MDRV_SOUND_ADD("ay1", AY8910, 1500000) /* ? MHz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 1500000) /* ? MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
+	MDRV_SOUND_ADD("ay2", AY8910, 1500000) /* ? MHz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.5)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( atamanot, ssingles )
-	MCFG_CPU_MODIFY("maincpu")
-	MCFG_CPU_PROGRAM_MAP(atamanot_map)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( atamanot )
+	MDRV_IMPORT_FROM( ssingles )
+	MDRV_CPU_MODIFY("maincpu")
+	MDRV_CPU_PROGRAM_MAP(atamanot_map)
+MACHINE_DRIVER_END
 
 ROM_START( ssingles )
 	ROM_REGION( 0x10000, "maincpu", 0 ) /* Z80 main CPU  */
@@ -547,10 +551,12 @@ ROM_END
 
 static DRIVER_INIT(ssingles)
 {
-	ssingles_state *state = machine.driver_data<ssingles_state>();
+	ssingles_state *state = (ssingles_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_videoram));
-	state->save_item(NAME(state->m_colorram));
+	state->videoram=auto_alloc_array_clear(machine, UINT8, VMEM_SIZE);
+	state->colorram=auto_alloc_array_clear(machine, UINT8, VMEM_SIZE);
+	state_save_register_global_pointer(machine, state->videoram, VMEM_SIZE);
+	state_save_register_global_pointer(machine, state->colorram, VMEM_SIZE);
 }
 
 GAME( 1983, ssingles, 0, ssingles, ssingles, ssingles, ROT90, "Ent. Ent. Ltd", "Swinging Singles", GAME_SUPPORTS_SAVE | GAME_WRONG_COLORS | GAME_IMPERFECT_SOUND )

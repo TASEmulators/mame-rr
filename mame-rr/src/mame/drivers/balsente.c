@@ -230,7 +230,6 @@ DIP locations verified for:
 #include "cpu/m68000/m68000.h"
 #include "includes/balsente.h"
 #include "sound/cem3394.h"
-#include "machine/nvram.h"
 
 #include "stocker.lh"
 
@@ -242,9 +241,9 @@ DIP locations verified for:
  *
  *************************************/
 
-static ADDRESS_MAP_START( cpu1_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x07ff) AM_RAM AM_BASE_MEMBER(balsente_state, m_spriteram)
-	AM_RANGE(0x0800, 0x7fff) AM_RAM_WRITE(balsente_videoram_w) AM_BASE_MEMBER(balsente_state, m_videoram)
+static ADDRESS_MAP_START( cpu1_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x07ff) AM_RAM AM_BASE_GENERIC(spriteram)
+	AM_RANGE(0x0800, 0x7fff) AM_RAM_WRITE(balsente_videoram_w) AM_BASE_GENERIC(videoram) AM_SIZE_GENERIC(videoram)
 	AM_RANGE(0x8000, 0x8fff) AM_RAM_WRITE(balsente_paletteram_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0x9000, 0x9007) AM_WRITE(balsente_adc_select_w)
 	AM_RANGE(0x9400, 0x9401) AM_READ(balsente_adc_data_r)
@@ -259,7 +258,7 @@ static ADDRESS_MAP_START( cpu1_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x9903, 0x9903) AM_READ_PORT("IN1") AM_WRITENOP
 	AM_RANGE(0x9a00, 0x9a03) AM_READ(balsente_random_num_r)
 	AM_RANGE(0x9a04, 0x9a05) AM_READWRITE(balsente_m6850_r, balsente_m6850_w)
-	AM_RANGE(0x9b00, 0x9cff) AM_RAM AM_SHARE("nvram")	/* system+cart NOVRAM */
+	AM_RANGE(0x9b00, 0x9cff) AM_RAM AM_BASE_SIZE_GENERIC(nvram)	/* system+cart NOVRAM */
 	AM_RANGE(0xa000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xffff) AM_ROMBANK("bank2")
 ADDRESS_MAP_END
@@ -272,7 +271,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( cpu2_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( cpu2_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x5fff) AM_RAM
 	AM_RANGE(0x6000, 0x7fff) AM_WRITE(balsente_m6850_sound_w)
@@ -280,7 +279,7 @@ static ADDRESS_MAP_START( cpu2_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( cpu2_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( cpu2_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x03) AM_READWRITE(balsente_counter_8253_r, balsente_counter_8253_w)
 	AM_RANGE(0x08, 0x0f) AM_READ(balsente_counter_state_r)
@@ -299,10 +298,10 @@ ADDRESS_MAP_END
  *************************************/
 
 /* CPU 1 read addresses */
-static ADDRESS_MAP_START( shrike68k_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( shrike68k_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x003fff) AM_ROM
-	AM_RANGE(0x010000, 0x01001f) AM_RAM AM_BASE_MEMBER(balsente_state, m_shrike_io)
-	AM_RANGE(0x018000, 0x018fff) AM_RAM AM_BASE_MEMBER(balsente_state, m_shrike_shared)
+	AM_RANGE(0x010000, 0x01001f) AM_RAM AM_BASE_MEMBER(balsente_state, shrike_io)
+	AM_RANGE(0x018000, 0x018fff) AM_RAM AM_BASE_MEMBER(balsente_state, shrike_shared)
 ADDRESS_MAP_END
 
 
@@ -438,7 +437,7 @@ static INPUT_PORTS_START( gghost )
 
 	PORT_MODIFY("SWH")
 	BALSENTE_PLAYERS_PER_COIN
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "H1:7" )
+	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "H1:8" )
 
 	PORT_MODIFY("SWG")
 	PORT_DIPNAME( 0x07, 0x05, "Game Duration" )			PORT_DIPLOCATION("G1:1,2,3")
@@ -450,10 +449,10 @@ static INPUT_PORTS_START( gghost )
 	PORT_DIPSETTING(    0x03, "Timed, 1:30" )
 	PORT_DIPSETTING(    0x05, "Timed, 2:00" )
 	PORT_DIPSETTING(    0x07, "Timed, 2:30" )
-	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "G1:4" )
-	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "G1:5" )
-	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "G1:6" )
-	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "G1:7" )
+	PORT_DIPUNUSED_DIPLOC( 0x08, 0x08, "G1:5" )
+	PORT_DIPUNUSED_DIPLOC( 0x10, 0x10, "G1:4" )
+	PORT_DIPUNUSED_DIPLOC( 0x20, 0x20, "G1:3" )
+	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "G1:2" )
 
 	PORT_MODIFY("IN0")
 	PORT_BIT( 0x0f, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -504,10 +503,6 @@ static INPUT_PORTS_START( hattrick )
 	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "G1:7" )
 
 	PORT_MODIFY("IN0")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_PLAYER(1)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(1)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(1)
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
 
@@ -715,26 +710,20 @@ static INPUT_PORTS_START( gimeabrk )
 	PORT_DIPSETTING(    0x40, "Keep Top 5" )
 	PORT_DIPSETTING(    0x00, "Keep All" )
 
-	PORT_MODIFY("IN0")
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON1 )	PORT_COCKTAIL
-
 	PORT_MODIFY("IN1")
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON1 )
 	PORT_BIT( 0x30, IP_ACTIVE_LOW, IPT_UNUSED )
 
-	/* Player 1 Trackball, Cocktail acts as Player 2*/
+	/* Player 1 Trackball */
 	PORT_MODIFY("AN0")
     PORT_BIT( 0xff, 0, IPT_TRACKBALL_Y ) PORT_SENSITIVITY(100) PORT_KEYDELTA(20) PORT_RESET PORT_PLAYER(1)
+
 	PORT_MODIFY("AN1")
     PORT_BIT( 0xff, 0, IPT_TRACKBALL_X ) PORT_SENSITIVITY(100) PORT_KEYDELTA(20) PORT_RESET PORT_REVERSE PORT_PLAYER(1)
 
-	/* Player 2 Trackball, Cocktail acts as Player 1 */
-	PORT_MODIFY("AN2")
-    PORT_BIT( 0xff, 0, IPT_TRACKBALL_Y ) PORT_COCKTAIL PORT_SENSITIVITY(100) PORT_KEYDELTA(20) PORT_RESET PORT_PLAYER(2)
 	PORT_MODIFY("AN3")
-    PORT_BIT( 0xff, 0, IPT_TRACKBALL_X ) PORT_COCKTAIL PORT_SENSITIVITY(100) PORT_KEYDELTA(20) PORT_RESET PORT_REVERSE PORT_PLAYER(2)
+	UNUSED_ANALOG
 INPUT_PORTS_END
 
 
@@ -805,10 +794,6 @@ static INPUT_PORTS_START( toggle )
 	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "G1:7" )
 
 	PORT_MODIFY("IN0")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_PLAYER(1)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(1)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(1)
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
 
@@ -1008,10 +993,16 @@ static INPUT_PORTS_START( stompin )
 	PORT_DIPSETTING(    0x80, DEF_STR( None ) )
 
 	PORT_MODIFY("IN0")
-	PORT_BIT( 0x0f, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_PLAYER(1)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_PLAYER(1)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_PLAYER(1)
 
 	PORT_MODIFY("IN1")
-	PORT_BIT( 0x3c, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_PLAYER(1)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_PLAYER(1)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_PLAYER(1)
 
 	PORT_MODIFY("AN0")
 	PORT_BIT( 0x1f, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -1045,9 +1036,9 @@ static INPUT_PORTS_START( grudge )
 	PORT_DIPSETTING(    0x01, "1" )
 	PORT_DIPSETTING(    0x02, "2" )
 	PORT_DIPSETTING(    0x03, "3" )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Free_Play ) )	PORT_DIPLOCATION("H1:8")
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )		PORT_DIPLOCATION("H1:8")
+	PORT_DIPSETTING(    0x00, "0" )
+	PORT_DIPSETTING(    0x80, "1" )
 
 	PORT_MODIFY("SWG")
 	PORT_DIPUNUSED_DIPLOC( 0x01, 0x01, "G1:1" )
@@ -1060,7 +1051,10 @@ static INPUT_PORTS_START( grudge )
 	PORT_DIPSETTING(    0x00, "3" )
 
 	PORT_MODIFY("IN0")
-	PORT_BIT( 0x0f, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON3 )
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON4 )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN3 )
@@ -1070,7 +1064,6 @@ static INPUT_PORTS_START( grudge )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1)
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(3)
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_MODIFY("AN0")
     PORT_BIT( 0xff, 0, IPT_DIAL ) PORT_SENSITIVITY(50) PORT_KEYDELTA(20) PORT_PLAYER(1)
@@ -1108,19 +1101,19 @@ static INPUT_PORTS_START( rescraid )
 	PORT_DIPSETTING(    0x00, DEF_STR( Yes ) )
 
 	PORT_MODIFY("IN0")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_PLAYER(1)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_PLAYER(1)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_PLAYER(1)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_PLAYER(1)
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_PLAYER(1)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_PLAYER(1)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_PLAYER(1)
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_MODIFY("IN1")
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_PLAYER(1)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_PLAYER(1)
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_PLAYER(1)
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_PLAYER(1)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_PLAYER(1)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_PLAYER(1)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_PLAYER(1)
 
 	PORT_MODIFY("AN3")
 	UNUSED_ANALOG
@@ -1197,78 +1190,79 @@ static const cem3394_interface cem_interface =
  *
  *************************************/
 
-static MACHINE_CONFIG_START( balsente, balsente_state )
+static MACHINE_DRIVER_START( balsente )
+	MDRV_DRIVER_DATA(balsente_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, XTAL_20MHz/16) /* xtal verified but not speed */
-	MCFG_CPU_PROGRAM_MAP(cpu1_map)
-	MCFG_CPU_VBLANK_INT("screen", balsente_update_analog_inputs)
+	MDRV_CPU_ADD("maincpu", M6809, 5000000/4)
+	MDRV_CPU_PROGRAM_MAP(cpu1_map)
+	MDRV_CPU_VBLANK_INT("screen", balsente_update_analog_inputs)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_8MHz/2) /* xtal verified but not speed */
-	MCFG_CPU_PROGRAM_MAP(cpu2_map)
-	MCFG_CPU_IO_MAP(cpu2_io_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 4000000)
+	MDRV_CPU_PROGRAM_MAP(cpu2_map)
+	MDRV_CPU_IO_MAP(cpu2_io_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_START(balsente)
-	MCFG_MACHINE_RESET(balsente)
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_START(balsente)
+	MDRV_MACHINE_RESET(balsente)
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
-	MCFG_TIMER_ADD("scan_timer", balsente_interrupt_timer)
-	MCFG_TIMER_ADD("8253_0_timer", balsente_clock_counter_0_ff)
-	MCFG_TIMER_ADD("8253_1_timer", balsente_counter_callback)
-	MCFG_TIMER_ADD("8253_2_timer", balsente_counter_callback)
+	MDRV_TIMER_ADD("scan_timer", balsente_interrupt_timer)
+	MDRV_TIMER_ADD("8253_0_timer", balsente_clock_counter_0_ff)
+	MDRV_TIMER_ADD("8253_1_timer", balsente_counter_callback)
+	MDRV_TIMER_ADD("8253_2_timer", balsente_counter_callback)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(BALSENTE_PIXEL_CLOCK, BALSENTE_HTOTAL, BALSENTE_HBEND, BALSENTE_HBSTART, BALSENTE_VTOTAL, BALSENTE_VBEND, BALSENTE_VBSTART)
-	MCFG_SCREEN_UPDATE(balsente)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(BALSENTE_PIXEL_CLOCK, BALSENTE_HTOTAL, BALSENTE_HBEND, BALSENTE_HBSTART, BALSENTE_VTOTAL, BALSENTE_VBEND, BALSENTE_VBSTART)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_PALETTE_LENGTH(1024)
-
-	MCFG_VIDEO_START(balsente)
+	MDRV_VIDEO_START(balsente)
+	MDRV_VIDEO_UPDATE(balsente)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("cem1", CEM3394, 0)
-	MCFG_SOUND_CONFIG(cem_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+	MDRV_SOUND_ADD("cem1", CEM3394, 0)
+	MDRV_SOUND_CONFIG(cem_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
 
-	MCFG_SOUND_ADD("cem2", CEM3394, 0)
-	MCFG_SOUND_CONFIG(cem_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+	MDRV_SOUND_ADD("cem2", CEM3394, 0)
+	MDRV_SOUND_CONFIG(cem_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
 
-	MCFG_SOUND_ADD("cem3", CEM3394, 0)
-	MCFG_SOUND_CONFIG(cem_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+	MDRV_SOUND_ADD("cem3", CEM3394, 0)
+	MDRV_SOUND_CONFIG(cem_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
 
-	MCFG_SOUND_ADD("cem4", CEM3394, 0)
-	MCFG_SOUND_CONFIG(cem_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+	MDRV_SOUND_ADD("cem4", CEM3394, 0)
+	MDRV_SOUND_CONFIG(cem_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
 
-	MCFG_SOUND_ADD("cem5", CEM3394, 0)
-	MCFG_SOUND_CONFIG(cem_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+	MDRV_SOUND_ADD("cem5", CEM3394, 0)
+	MDRV_SOUND_CONFIG(cem_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
 
-	MCFG_SOUND_ADD("cem6", CEM3394, 0)
-	MCFG_SOUND_CONFIG(cem_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("cem6", CEM3394, 0)
+	MDRV_SOUND_CONFIG(cem_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.90)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_DERIVED( shrike, balsente )
+static MACHINE_DRIVER_START( shrike )
 
 	/* basic machine hardware */
+	MDRV_IMPORT_FROM(balsente)
 
-	MCFG_CPU_ADD("68k", M68000, 8000000)
-	MCFG_CPU_PROGRAM_MAP(shrike68k_map)
+	MDRV_CPU_ADD("68k", M68000, 8000000)
+	MDRV_CPU_PROGRAM_MAP(shrike68k_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
-MACHINE_CONFIG_END
+	MDRV_QUANTUM_TIME(HZ(6000))
+MACHINE_DRIVER_END
 
 
 
@@ -1282,15 +1276,13 @@ MACHINE_CONFIG_END
     ROM_REGION( 0x00001, "motherbrd_pals", 0) /* Motherboard PAL's */ \
     ROM_LOAD( "u01508001100b.u20f", 0x00000, 0x00001, NO_DUMP ) /* PAL16L8 */
 
-#define SOUNDBOARD_ROMS \
-	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */ \
-	ROM_LOAD( "8002-10 9-25-84.5", 0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 ROM_START( sentetst )
 	ROM_REGION( 0x40000, "maincpu", 0 )     /* 64k for code for the first CPU, plus 128k of banked ROMs */
 	ROM_LOAD( "sdiagef.bin",  0x2e000, 0x2000, CRC(2a39fc53) SHA1(04ea68bfad455cc928e57390eba5597c38bbab69) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",     0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "sdiaggr0.bin", 0x00000, 0x2000, CRC(5e0ff62a) SHA1(3f0ebebb2f58530af7fac57a4780dfb37ef1ee1d) )
@@ -1310,7 +1302,8 @@ ROM_START( cshift )
 	ROM_LOAD( "cs-cd.bin",  0x2c000, 0x2000, CRC(f555a0b2) SHA1(49668f8363fdcec4686ec80bf2e99003cd11e2c1) )
 	ROM_LOAD( "cs-ef.bin",  0x2e000, 0x2000, CRC(368b1ce3) SHA1(8003ef99adcb26feb42e1b0945b1185e438582b2) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",   0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "cs-gr0.bin", 0x00000, 0x2000, CRC(67f9d3b3) SHA1(4f3f80e4272b20611206636b6ccb627087efd0c3) )
@@ -1334,7 +1327,8 @@ ROM_START( gghost )
 	ROM_LOAD( "ggh-cd.bin",  0x2c000, 0x2000, CRC(d3d75f84) SHA1(f19f99ea05ad5b7e4b0485e80d7b6a329b8ef4d8) )
 	ROM_LOAD( "ggh-ef.bin",  0x2e000, 0x2000, CRC(a02b4243) SHA1(f242fc017c9ae1997409825c34e8f5c6e6a0615e) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "ggh-gr0.bin", 0x00000, 0x2000, CRC(03515526) SHA1(bceb7c8c3aa4c39b6cf1b976c5765c920399fe31) )
@@ -1356,7 +1350,8 @@ ROM_START( hattrick )
 	ROM_LOAD( "rom-cd.u3a",  0x2c000, 0x2000, CRC(fc44f36c) SHA1(227d0c93c579d743b615b1fa6da56128e8202e51) )
 	ROM_LOAD( "rom-ef.u2a",  0x2e000, 0x2000, CRC(d8f910fb) SHA1(b74a305dd848c7bf574e4b0aa32147b8d5c89e9e) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "rom-gr0.u9b", 0x00000, 0x2000, CRC(9f41baba) SHA1(fa817a8e4d2f7b86a2294132e3991f7b6d8cb11a) )
@@ -1377,7 +1372,8 @@ ROM_START( otwalls )
 	ROM_LOAD( "otw-cd.bin",  0x2c000, 0x2000, CRC(8e2d15ab) SHA1(8043fdf637de7752e8d42554ebad2e155a6f5939) )
 	ROM_LOAD( "otw-ef.bin",  0x2e000, 0x2000, CRC(57eab299) SHA1(475d800c03d6b2786bd23861d61dc113b837a585) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "otw-gr0.bin", 0x00000, 0x2000, CRC(210bad3c) SHA1(703769c6a569b17f2ad18441da7de0237be4721e) )
@@ -1402,7 +1398,8 @@ ROM_START( snakepit )
 	ROM_LOAD( "spit-cd.bin",  0x2c000, 0x2000, CRC(54095cbb) SHA1(a43b78b2876359a29ecb2f169c876a0026375ea2) )
 	ROM_LOAD( "spit-ef.bin",  0x2e000, 0x2000, CRC(5f836a66) SHA1(cc3c11003f9e49cac10c0296ab6d156e5677d0f8) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",     0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "spit-gr0.bin", 0x00000, 0x2000, CRC(f77fd85d) SHA1(f8e69d1d0030412d6129a8ebfee40b3f1f189d8d) )
@@ -1427,7 +1424,8 @@ ROM_START( snakjack )
 	ROM_LOAD( "rom-cd.u3a",  0x2c000, 0x2000, CRC(7b44ca4c) SHA1(8697055da489fcf0244dc94fe5393418a8003bf7) )
 	ROM_LOAD( "rom-ef.u1a",  0x2e000, 0x2000, CRC(f5309b38) SHA1(864f759dc6822b548742140b7ea2ea2aba43beba) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "rom-gr0.u9b", 0x00000, 0x2000, CRC(3e64b5d5) SHA1(ab681eabb4f8e5b946c288ffb8df0624c0473d82) )
@@ -1449,7 +1447,8 @@ ROM_START( stocker )
 	ROM_LOAD( "ab23.u7a", 0x14000, 0x4000, CRC(48e432c2) SHA1(af87009089a3e83fab5c935696edbbf2a15215f9) )
 	ROM_LOAD( "cd6ef.u1a",0x2c000, 0x4000, CRC(83e6e5c9) SHA1(f0e38a95cb2ea385a587f330c48fc787db0cc65e) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u6b", 0x00000, 0x4000, CRC(2e66ac35) SHA1(c65b4991a88f8359c85f904f66a7fe73330aface) )
@@ -1499,7 +1498,8 @@ ROM_START( triviag1 )
 	ROM_LOAD( "tpg1-cd.bin",  0x2c000, 0x2000, CRC(35c9b9c2) SHA1(aac57022098656dac99bf9ceeaa2bf9a3d139986) )
 	ROM_LOAD( "tpg1-ef.bin",  0x2e000, 0x2000, CRC(64878342) SHA1(dd93d64b3fe351a9d2bd4c473ecefde58f0b0041) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "tpg1-gr0.bin", 0x00000, 0x2000, CRC(20c9217a) SHA1(79ef058633149da8d2835405954ac31c661bf660) )
@@ -1523,7 +1523,8 @@ ROM_START( trivia12 )
 	ROM_LOAD( "cd.u3a",  0x2c000, 0x2000, CRC(12d870ba) SHA1(b86a8cbf8037df78437056f5ff57e7b8b5e4c94e) )
 	ROM_LOAD( "ef.u2a",  0x2e000, 0x2000, CRC(d902ee28) SHA1(18e3c96e1ac50f847d1b9f4f868f19e074d147ff) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr0.u9b", 0x00000, 0x2000, CRC(20c9217a) SHA1(79ef058633149da8d2835405954ac31c661bf660) )
@@ -1546,7 +1547,8 @@ ROM_START( triviag2 )
 	ROM_LOAD( "cd45.bin",  0x28000, 0x4000, CRC(fc9c752a) SHA1(239507fb5d75e86aca295978aab1dd4514d8d761) )
 	ROM_LOAD( "cd6ef.bin", 0x2c000, 0x4000, CRC(23b56fb8) SHA1(9ac726de69e4b374886a3542829745f7477d7556) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.bin",  0x00000, 0x4000, CRC(6829de8e) SHA1(4ec494883ba358f2ac7ce8d5a623a2f34b5bc843) )
@@ -1566,7 +1568,8 @@ ROM_START( triviasp )
 	ROM_LOAD( "allsport.3a", 0x28000, 0x4000, CRC(e45d09d6) SHA1(8bde18d25f8bd1056e42672d428473be23eab260) )
 	ROM_LOAD( "allsport.1a", 0x2c000, 0x4000, CRC(8bb3e831) SHA1(ecc8fb0f2143e3ea03bb52773cc0a81d4dcc742d) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",     0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.bin",    0x00000, 0x4000, CRC(6829de8e) SHA1(4ec494883ba358f2ac7ce8d5a623a2f34b5bc843) )
@@ -1586,7 +1589,8 @@ ROM_START( triviayp )
 	ROM_LOAD( "cd45.bin",  0x28000, 0x4000, CRC(ac45809e) SHA1(1151c4e55f21a7e2eb8e163ac782b4449af84cdc) )
 	ROM_LOAD( "cd6ef.bin", 0x2c000, 0x4000, CRC(a008059f) SHA1(45e4cfc259e801a189ec19fdc58135dbbbe130ea) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.bin", 0x00000, 0x4000, CRC(6829de8e) SHA1(4ec494883ba358f2ac7ce8d5a623a2f34b5bc843) )
@@ -1606,7 +1610,8 @@ ROM_START( triviabb )
 	ROM_LOAD( "cd45.bin",  0x28000, 0x4000, CRC(07fd88ff) SHA1(c3168ecf6562e09790c4f18cdd91c7a347223323) )
 	ROM_LOAD( "cd6ef.bin", 0x2c000, 0x4000, CRC(2d03f241) SHA1(986ca6ea20c306e83ae88acc2d6837c7ed5fe351) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.bin", 0x00000, 0x4000, CRC(6829de8e) SHA1(4ec494883ba358f2ac7ce8d5a623a2f34b5bc843) )
@@ -1630,7 +1635,8 @@ ROM_START( triviaes )
 	ROM_LOAD( "tp_a6.bin",  0x28000, 0x04000, CRC(421c1a29) SHA1(3e0de8734a39fb887aff40e89cb0936d4cacf9a5) )
 	ROM_LOAD( "tp_a3.bin",  0x2c000, 0x04000, CRC(c6254f46) SHA1(47f3d05d0c31983ed1576f91fa193fe58e80bb60) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "tpsonido.bin",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "tp_gr3.bin", 0x00000, 0x4000, CRC(6829de8e) SHA1(4ec494883ba358f2ac7ce8d5a623a2f34b5bc843) )
@@ -1646,9 +1652,10 @@ ROM_START( gimeabrk )
 	ROM_LOAD( "ab01.u8a",  0x10000, 0x4000, CRC(18cc53db) SHA1(3bb47c349b3ab7b81e3557e3b4877617fb549c9e) )
 	ROM_LOAD( "ab23.u7a",  0x14000, 0x4000, CRC(6bd4190a) SHA1(b6562b3575dc8265c01719cfbcb554b69bc1b37f) )
 	ROM_LOAD( "ab45.u6a",  0x18000, 0x4000, CRC(5dca4f33) SHA1(aa45d5a960491c85f332f22cffe61999fe3db826) )
-	ROM_LOAD( "cd6ef.u1a", 0x2c000, 0x4000, CRC(5e2b3510) SHA1(e3501b9bd73bc724aee0436700625bd2af94f72d) )
+	ROM_LOAD( "cd6ef.uia", 0x2c000, 0x4000, CRC(5e2b3510) SHA1(e3501b9bd73bc724aee0436700625bd2af94f72d) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u6b", 0x00000, 0x4000, CRC(e3cdc476) SHA1(2f17c3f84767850d45192dfb507dd2716ecadc20) )
@@ -1669,7 +1676,8 @@ ROM_START( minigolf )
 	ROM_LOAD( "ab67.u5a",  0x1c000, 0x4000, CRC(6a311c9a) SHA1(b0409e5f4bd3bf898b8701561aac6dbbc28417bd) )
 	ROM_LOAD( "1a-ver2",   0x20000, 0x10000, CRC(60b6cd58) SHA1(f79bf2d1f6c4e63f666073c5ecb22604c1ab57d8) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u6b", 0x00000, 0x4000, CRC(8e24d594) SHA1(d35329fb78f90ec478418917aa1ef06d0967e6f8) )
@@ -1692,7 +1700,8 @@ ROM_START( minigolf2 )
 	ROM_LOAD( "cd23.u3a",  0x24000, 0x4000, CRC(52279801) SHA1(d8de92c296d5c91db3bea7a0093260158961036e) )
 	ROM_LOAD( "cd6ef.u1a", 0x2c000, 0x4000, CRC(34c64f4c) SHA1(ce55f5f6ebddcacf20cb78fb738b5f569b531b61) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u6b", 0x00000, 0x4000, CRC(8e24d594) SHA1(d35329fb78f90ec478418917aa1ef06d0967e6f8) )
@@ -1717,7 +1726,8 @@ ROM_START( toggle )
 	ROM_LOAD( "tgle-cd.bin",  0x2c000, 0x2000, CRC(0a2bb949) SHA1(350dc782fc21640794c6ecb502554cb693adbb7d) )
 	ROM_LOAD( "tgle-ef.bin",  0x2e000, 0x2000, CRC(3ec10804) SHA1(ae719081e8114ccc23c6b24c7fe904a11fbdd992) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",    0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "tgle-gr0.bin", 0x00000, 0x2000, CRC(0e0e5d0e) SHA1(363858ce08767f8a9b8eaec56405377cdd74b178) )
@@ -1746,7 +1756,8 @@ ROM_START( nametune )
 	ROM_LOAD( "nttcd6ef.bin", 0x2c000, 0x4000, CRC(0459e6f8) SHA1(7dbdbfa8f2e9e3956af926f5f782b8d3c3334099) )
 	ROM_CONTINUE(             0x5c000, 0x4000 )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "nttgr0.bin",  0x00000, 0x8000, CRC(6b75bb4b) SHA1(e7131d112fb0b36985c5b6383700f55728a1c4fd) )
@@ -1756,30 +1767,31 @@ ROM_END
 
 ROM_START( nametune2 )
 	ROM_REGION( 0x70000, "maincpu", 0 )     /* 64k for code for the first CPU, plus 128k of banked ROMs */
-	ROM_LOAD( "ab 01.u8a",   0x10000, 0x4000, CRC(4044891d) SHA1(4e1e7cb9846939e03b035b95ba04f62a78719bb2) )
+	ROM_LOAD( "nmetneur_ab_01.u8a",   0x10000, 0x4000, CRC(4044891d) SHA1(4e1e7cb9846939e03b035b95ba04f62a78719bb2) )
 	ROM_CONTINUE(                     0x40000, 0x4000 )
-	ROM_LOAD( "ab 23.u7a",   0x14000, 0x4000, CRC(df3454bc) SHA1(82faf87ca8974629e546b6854718908721b64ad0) )
+	ROM_LOAD( "nmetneur_ab_23.u7a",   0x14000, 0x4000, CRC(df3454bc) SHA1(82faf87ca8974629e546b6854718908721b64ad0) )
 	ROM_CONTINUE(                     0x44000, 0x4000 )
-	ROM_LOAD( "ab 45.u6a",   0x18000, 0x4000, CRC(fb4050b0) SHA1(a4d185e02aa08e886b90454f681f49de3de76f86) )
+	ROM_LOAD( "nmetneur_ab_45.u6a",   0x18000, 0x4000, CRC(fb4050b0) SHA1(a4d185e02aa08e886b90454f681f49de3de76f86) )
 	ROM_CONTINUE(                     0x48000, 0x4000 )
-	ROM_LOAD( "ab 67.u5a",   0x1c000, 0x4000, CRC(276a28f4) SHA1(cceeb9c05ff72cfe86ab55555055cf8195d3ea16) )
+	ROM_LOAD( "nmetneur_ab_67.u5a",   0x1c000, 0x4000, CRC(276a28f4) SHA1(cceeb9c05ff72cfe86ab55555055cf8195d3ea16) )
 	ROM_CONTINUE(                     0x4c000, 0x4000 )
-	ROM_LOAD( "cd 01.u4a",   0x20000, 0x4000, CRC(88bed028) SHA1(69c83ba07f34dd1d45f432e2ed6a50e2d13c4acb) )
+	ROM_LOAD( "nmetneur_cd_01.u4a",   0x20000, 0x4000, CRC(88bed028) SHA1(69c83ba07f34dd1d45f432e2ed6a50e2d13c4acb) )
 	ROM_CONTINUE(                     0x50000, 0x4000 )
-	ROM_LOAD( "cd 23.u3a",   0x24000, 0x4000, CRC(38c63308) SHA1(1a26642cbe91ebc96444eb05fa1454c9175d370c) )
+	ROM_LOAD( "nmetneur_cd_23.u3a",   0x24000, 0x4000, CRC(38c63308) SHA1(1a26642cbe91ebc96444eb05fa1454c9175d370c) )
 	ROM_CONTINUE(                     0x54000, 0x4000 )
-	ROM_LOAD( "cd 45.u2a",   0x28000, 0x4000, CRC(d19a3671) SHA1(b68010ad235175c73258f64f9a64b37b2a06efdc) )
+	ROM_LOAD( "nmetneur_cd_45.u2a",   0x28000, 0x4000, CRC(d19a3671) SHA1(b68010ad235175c73258f64f9a64b37b2a06efdc) )
 	ROM_CONTINUE(                     0x58000, 0x4000 )
-	ROM_LOAD( "cd 6 ef.u1a", 0x2c000, 0x4000, CRC(e73c7cda) SHA1(c6f751923d0c7930db2e173f680674759f94c8bb) )
+	ROM_LOAD( "nmetneur_cd_6_ef.u1a", 0x2c000, 0x4000, CRC(e73c7cda) SHA1(c6f751923d0c7930db2e173f680674759f94c8bb) )
 	ROM_CONTINUE(                     0x5c000, 0x4000 )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
-	ROM_LOAD( "gr 0.u3c",    0x00000, 0x8000, CRC(a0121b80) SHA1(ba38e9b738baac85fa33ae3751d02cb223fa3e65) )
+	ROM_LOAD( "nmetneur_gr_0.u3c", 0x00000, 0x8000, CRC(a0121b80) SHA1(ba38e9b738baac85fa33ae3751d02cb223fa3e65) )
 
 	ROM_REGION( 0x00001, "cart_pals", 0) /* PAL's located on the cartridge */
-	ROM_LOAD( "pal16r8.u7c", 0x00000, 0x0001, NO_DUMP )  /* PAL16R8ANC */
+	ROM_LOAD( "pal16r8.u7c", 0x0000, 0x0001, NO_DUMP )  /* PAL16R8ANC */
 
 	MOTHERBOARD_PALS
 ROM_END
@@ -1802,7 +1814,8 @@ ROM_START( nstocker )
 	ROM_LOAD( "cd45.u2a",  0x28000, 0x4000, CRC(9bb292fe) SHA1(6fc7abcc110c2cf7399d11a478cfdadb3439b6ab) )
 	ROM_LOAD( "cd6ef.u1a", 0x2c000, 0x4000, CRC(e77c1aea) SHA1(9e2e595530cb15c634a6052c773ff5d998c0c828) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u4c", 0x00000, 0x4000, CRC(fd0c38be) SHA1(b9e12e76f44f2b2b3ca6a57c58f0cbb019b1971f) )
@@ -1833,7 +1846,8 @@ ROM_START( nstocker2 )
 	ROM_LOAD( "cd45.u2a",  0x28000, 0x4000, CRC(9bb292fe) SHA1(6fc7abcc110c2cf7399d11a478cfdadb3439b6ab) )
 	ROM_LOAD( "cd6ef.u1a", 0x2c000, 0x4000, CRC(c77d2302) SHA1(2b0956a7d6bdff5e4f77084149a9528fb07154dc) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u4c", 0x00000, 0x4000, CRC(fd0c38be) SHA1(b9e12e76f44f2b2b3ca6a57c58f0cbb019b1971f) )
@@ -1861,7 +1875,8 @@ ROM_START( sfootbal )
 	ROM_LOAD( "sfbab45.bin",  0x18000, 0x4000, CRC(91ad42c5) SHA1(0b6fc3ed3a633c825809668d49f209c130f3e978) )
 	ROM_LOAD( "sfbcd6ef.bin", 0x2c000, 0x4000, CRC(bf80bb1a) SHA1(2b70b36d946c36e3f354c7edfd3e34784ffce406) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "sfbgr01.bin", 0x00000, 0x4000, CRC(e3108d35) SHA1(05b7f1a1a18d7f72a3d3f6102cb8ab42421b7366) )
@@ -1882,7 +1897,8 @@ ROM_START( spiker )
 	ROM_LOAD( "ab23.u7a",  0x14000, 0x4000, CRC(3be87edf) SHA1(0d4f1ff501d5d865abc3906f6b232ec04586d3dc) )
 	ROM_LOAD( "cd6ef.u1a", 0x2c000, 0x4000, CRC(f2c73ece) SHA1(4fc108823102fd17c5b7d9be1a0c76667788ba1a) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
 	ROM_LOAD( "gr01.u4c", 0x00000, 0x4000, CRC(0caa6e3e) SHA1(ce6765d44e444d24129ec99f04a41a866a32eee2) )
@@ -1898,23 +1914,21 @@ ROM_END
 
 ROM_START( stompin )
 	ROM_REGION( 0x40000, "maincpu", 0 )     /* 64k for code for the first CPU, plus 128k of banked ROMs */
-	ROM_LOAD( "ab 01.u8a",   0x10000, 0x4000, CRC(46f428c6) SHA1(06c59d06ccc0bd7067e419f12781050ab4ac98c2) )
-	ROM_LOAD( "ab 23.u7a",   0x14000, 0x4000, CRC(0e13132f) SHA1(d572e5d170df99bb99db7d41ede881c24e5b8d1c) )
-	ROM_LOAD( "ab 45.u6a",   0x18000, 0x4000, CRC(6ed26069) SHA1(35f6b8cff54c35a1a0eeb9c23e446ade69d13375) )
-	ROM_LOAD( "ab 67.u5a",   0x1c000, 0x4000, CRC(7f63b516) SHA1(4ffd9dd579c8c4574f2f039b30761e901ee6dd5c) )
-	ROM_LOAD( "cd 23.u3a",   0x24000, 0x4000, CRC(52b29048) SHA1(e0873137201ad9b2e87a17dd68046e88dbeeb5e1) )
-	ROM_LOAD( "cd 6 ef.u1a", 0x2c000, 0x4000, CRC(b880961a) SHA1(11700af516517b7176a840fd5a8fd5ed0fb9bd6e) )
+	ROM_LOAD( "ab01.bin",  0x10000, 0x4000, CRC(46f428c6) SHA1(06c59d06ccc0bd7067e419f12781050ab4ac98c2) )
+	ROM_LOAD( "ab23.bin",  0x14000, 0x4000, CRC(0e13132f) SHA1(d572e5d170df99bb99db7d41ede881c24e5b8d1c) )
+	ROM_LOAD( "ab45.bin",  0x18000, 0x4000, CRC(6ed26069) SHA1(35f6b8cff54c35a1a0eeb9c23e446ade69d13375) )
+	ROM_LOAD( "ab67.bin",  0x1c000, 0x4000, CRC(7f63b516) SHA1(4ffd9dd579c8c4574f2f039b30761e901ee6dd5c) )
+	ROM_LOAD( "cd23.bin",  0x24000, 0x4000, CRC(52b29048) SHA1(e0873137201ad9b2e87a17dd68046e88dbeeb5e1) )
+	ROM_LOAD( "cd6ef.bin", 0x2c000, 0x4000, CRC(b880961a) SHA1(11700af516517b7176a840fd5a8fd5ed0fb9bd6e) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
-	ROM_LOAD( "gr 01.u4c",   0x00000, 0x4000, CRC(14ffdd1e) SHA1(4528548c07789f9dca2cabd2c64ea1ff8f36a99e) )
-	ROM_LOAD( "gr 23.u3c",   0x04000, 0x4000, CRC(761abb80) SHA1(a1278e93a4fa66cc4d347954dd45121120da568d) )
-	ROM_LOAD( "gr 45.u2c",   0x08000, 0x4000, CRC(0d2cf2e6) SHA1(beccb1342127e79a845c4b6b20f20052097ebb98) )
-	ROM_LOAD( "gr 67.u2c",   0x0c000, 0x4000, CRC(2bab2784) SHA1(a4020fd8f5ca2fdb37efd37cbccf86cae0468eb0) )
-
-	ROM_REGION( 0x00001, "cart_pals", 0) /* PAL's located on the cartridge */
-	ROM_LOAD( "pal16r8.u7c", 0x00000, 0x0001, NO_DUMP ) /* PAL16R8ACN */
+	ROM_LOAD( "gr01.u4c", 0x00000, 0x4000, CRC(14ffdd1e) SHA1(4528548c07789f9dca2cabd2c64ea1ff8f36a99e) )
+	ROM_LOAD( "gr23.u3c", 0x04000, 0x4000, CRC(761abb80) SHA1(a1278e93a4fa66cc4d347954dd45121120da568d) )
+	ROM_LOAD( "gr45.u2c", 0x08000, 0x4000, CRC(0d2cf2e6) SHA1(beccb1342127e79a845c4b6b20f20052097ebb98) )
+	ROM_LOAD( "gr67.u2c", 0x0c000, 0x4000, CRC(2bab2784) SHA1(a4020fd8f5ca2fdb37efd37cbccf86cae0468eb0) )
 
 	MOTHERBOARD_PALS
 ROM_END
@@ -1922,25 +1936,19 @@ ROM_END
 
 ROM_START( rescraid )
 	ROM_REGION( 0x40000, "maincpu", 0 )     /* 64k for code for the first CPU, plus 128k of banked ROMs */
-	ROM_LOAD( "ab 1.a10",  0x10000, 0x8000, CRC(33a76b47) SHA1(72cefb3ae7d0ecfc099f9d09a26533dd7ca7c4f2) )
-	ROM_LOAD( "ab 12.a12", 0x18000, 0x8000, CRC(7c7a9f12) SHA1(2dbe1158d124ecd24aeb6e46079a8e08fda61208) )
-	ROM_LOAD( "cd 8.a16",  0x20000, 0x8000, CRC(90917a43) SHA1(3abd68d0c147ed792ace41f701c04bc225efede4) )
-	ROM_LOAD( "cd 12.a18", 0x28000, 0x8000, CRC(0450e9d7) SHA1(b5d0a79d1bac3596d241f80ac4e3e13c98d28709) )
+	ROM_LOAD( "ab1.a10",   0x10000, 0x8000, CRC(33a76b47) SHA1(72cefb3ae7d0ecfc099f9d09a26533dd7ca7c4f2) )
+	ROM_LOAD( "ab12.a12",  0x18000, 0x8000, CRC(7c7a9f12) SHA1(2dbe1158d124ecd24aeb6e46079a8e08fda61208) )
+	ROM_LOAD( "cd8.a16",   0x20000, 0x8000, CRC(90917a43) SHA1(3abd68d0c147ed792ace41f701c04bc225efede4) )
+	ROM_LOAD( "cd12.a18",  0x28000, 0x8000, CRC(0450e9d7) SHA1(b5d0a79d1bac3596d241f80ac4e3e13c98d28709) )
 
-	SOUNDBOARD_ROMS
+	ROM_REGION( 0x10000, "audiocpu", 0 )		/* 64k for Z80 */
+	ROM_LOAD( "sentesnd",  0x00000, 0x2000, CRC(4dd0a525) SHA1(f0c447adc5b67917851a9df978df851247e75c43) )
 
 	ROM_REGION( 0x10000, "gfx1", 0 )		/* up to 64k of sprites */
-	ROM_LOAD( "gr 0.a5",   0x00000, 0x8000, CRC(e0dfc133) SHA1(0b120b4410098d8db26b5819043d4fe7c426b948) )
-	ROM_LOAD( "gr 4.a7",   0x08000, 0x8000, CRC(952ade30) SHA1(f065368f645616d6d84be469ba45a9afa8788eda) )
+	ROM_LOAD( "gr0.a5",    0x00000, 0x8000, CRC(e0dfc133) SHA1(0b120b4410098d8db26b5819043d4fe7c426b948) )
+	ROM_LOAD( "gr4.a7",    0x08000, 0x8000, CRC(952ade30) SHA1(f065368f645616d6d84be469ba45a9afa8788eda) )
 
-	ROM_REGION( 0x00001, "pals", 0) /* PAL's */
-	ROM_LOAD( "12 b.12b",  0x00000, 0x00001, NO_DUMP ) /* PAL16L8 */
-	ROM_LOAD( "11 b.11b",  0x00000, 0x00001, NO_DUMP ) /* PAL10L8 */
-	ROM_LOAD( "4 c.4c",    0x00000, 0x00001, NO_DUMP ) /* PAL16R6 */
-	ROM_LOAD( "10 d.10d",  0x00000, 0x00001, NO_DUMP ) /* PAL16R6 */
-	ROM_LOAD( "16 e.16e",  0x00000, 0x00001, NO_DUMP ) /* PAL16R6 */
-	ROM_LOAD( "15 e.15e",  0x00000, 0x00001, NO_DUMP ) /* PAL16R6 */
-	ROM_LOAD( "8 g.8g",    0x00000, 0x00001, NO_DUMP ) /* PAL16R6 */
+	MOTHERBOARD_PALS
 ROM_END
 
 
@@ -2031,7 +2039,7 @@ ROM_END
 #define EXPAND_NONE		0x3f
 #define SWAP_HALVES		0x80
 
-static void expand_roms(running_machine &machine, UINT8 cd_rom_mask)
+static void expand_roms(running_machine *machine, UINT8 cd_rom_mask)
 {
 	/* load AB bank data from 0x10000-0x20000 */
 	/* load CD bank data from 0x20000-0x2e000 */
@@ -2040,8 +2048,8 @@ static void expand_roms(running_machine &machine, UINT8 cd_rom_mask)
 
 	UINT8 *temp = auto_alloc_array(machine, UINT8, 0x20000);
 	{
-		UINT8 *rom = machine.region("maincpu")->base();
-		UINT32 len = machine.region("maincpu")->bytes();
+		UINT8 *rom = memory_region(machine, "maincpu");
+		UINT32 len = memory_region_length(machine, "maincpu");
 		UINT32 base;
 
 		for (base = 0x10000; base < len; base += 0x30000)
@@ -2097,11 +2105,11 @@ static void expand_roms(running_machine &machine, UINT8 cd_rom_mask)
 	}
 }
 
-INLINE void config_shooter_adc(running_machine &machine, UINT8 shooter, UINT8 adc_shift)
+INLINE void config_shooter_adc(running_machine *machine, UINT8 shooter, UINT8 adc_shift)
 {
-	balsente_state *state = machine.driver_data<balsente_state>();
-	state->m_shooter = shooter;
-	state->m_adc_shift = adc_shift;
+	balsente_state *state = (balsente_state *)machine->driver_data;
+	state->shooter = shooter;
+	state->adc_shift = adc_shift;
 }
 
 static DRIVER_INIT( sentetst ) { expand_roms(machine, EXPAND_ALL);  config_shooter_adc(machine, FALSE, 0 /* noanalog */); }
@@ -2115,7 +2123,7 @@ static DRIVER_INIT( stocker )  { expand_roms(machine, EXPAND_ALL);  config_shoot
 static DRIVER_INIT( triviag1 ) { expand_roms(machine, EXPAND_ALL);  config_shooter_adc(machine, FALSE, 0 /* noanalog */); }
 static DRIVER_INIT( triviag2 )
 {
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 	memcpy(&rom[0x20000], &rom[0x28000], 0x4000);
 	memcpy(&rom[0x24000], &rom[0x28000], 0x4000);
 	expand_roms(machine, EXPAND_NONE); config_shooter_adc(machine, FALSE, 0 /* noanalog */);
@@ -2127,48 +2135,48 @@ static DRIVER_INIT( minigolf2 ) { expand_roms(machine, 0x0c);        config_shoo
 static DRIVER_INIT( toggle )   { expand_roms(machine, EXPAND_ALL);  config_shooter_adc(machine, FALSE, 0 /* noanalog */); }
 static DRIVER_INIT( nametune )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_write_handler(0x9f00, 0x9f00, FUNC(balsente_rombank2_select_w));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_write8_handler(space, 0x9f00, 0x9f00, 0, 0, balsente_rombank2_select_w);
 	expand_roms(machine, EXPAND_NONE | SWAP_HALVES); config_shooter_adc(machine, FALSE, 0 /* noanalog */);
 }
 static DRIVER_INIT( nstocker )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_write_handler(0x9f00, 0x9f00, FUNC(balsente_rombank2_select_w));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_write8_handler(space, 0x9f00, 0x9f00, 0, 0, balsente_rombank2_select_w);
 	expand_roms(machine, EXPAND_NONE | SWAP_HALVES); config_shooter_adc(machine, TRUE, 1);
 }
 static DRIVER_INIT( sfootbal )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_write_handler(0x9f00, 0x9f00, FUNC(balsente_rombank2_select_w));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_write8_handler(space, 0x9f00, 0x9f00, 0, 0, balsente_rombank2_select_w);
 	expand_roms(machine, EXPAND_ALL  | SWAP_HALVES); config_shooter_adc(machine, FALSE, 0);
 }
 static DRIVER_INIT( spiker )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_readwrite_handler(0x9f80, 0x9f8f, FUNC(spiker_expand_r), FUNC(spiker_expand_w));
-	space->install_legacy_write_handler(0x9f00, 0x9f00, FUNC(balsente_rombank2_select_w));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_readwrite8_handler(space, 0x9f80, 0x9f8f, 0, 0, spiker_expand_r, spiker_expand_w);
+	memory_install_write8_handler(space, 0x9f00, 0x9f00, 0, 0, balsente_rombank2_select_w);
 	expand_roms(machine, EXPAND_ALL  | SWAP_HALVES); config_shooter_adc(machine, FALSE, 1);
 }
 static DRIVER_INIT( stompin )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_write_handler(0x9f00, 0x9f00, FUNC(balsente_rombank2_select_w));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_write8_handler(space, 0x9f00, 0x9f00, 0, 0, balsente_rombank2_select_w);
 	expand_roms(machine, 0x0c | SWAP_HALVES); config_shooter_adc(machine, FALSE, 32);
 }
 static DRIVER_INIT( rescraid ) { expand_roms(machine, EXPAND_NONE); config_shooter_adc(machine, FALSE, 0 /* noanalog */); }
 static DRIVER_INIT( grudge )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_read_handler(0x9400, 0x9400, FUNC(grudge_steering_r));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_read8_handler(space, 0x9400, 0x9400, 0, 0, grudge_steering_r);
 	expand_roms(machine, EXPAND_NONE); config_shooter_adc(machine, FALSE, 0);
 }
 static DRIVER_INIT( shrike )
 {
-	address_space *space = machine.device("maincpu")->memory().space(AS_PROGRAM);
-	space->install_legacy_readwrite_handler(0x9e00, 0x9fff, FUNC(shrike_shared_6809_r), FUNC(shrike_shared_6809_w));
-	space->install_legacy_write_handler(0x9e01, 0x9e01, FUNC(shrike_sprite_select_w) );
-	machine.device("68k")->memory().space(AS_PROGRAM)->install_legacy_readwrite_handler(0x10000, 0x1001f, FUNC(shrike_io_68k_r), FUNC(shrike_io_68k_w));
+	const address_space *space = cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM);
+	memory_install_readwrite8_handler(space, 0x9e00, 0x9fff, 0, 0, shrike_shared_6809_r, shrike_shared_6809_w);
+	memory_install_write8_handler(space, 0x9e01, 0x9e01, 0, 0, shrike_sprite_select_w );
+	memory_install_readwrite16_handler(cputag_get_address_space(machine, "68k", ADDRESS_SPACE_PROGRAM), 0x10000, 0x1001f, 0, 0, shrike_io_68k_r, shrike_io_68k_w);
 
 	expand_roms(machine, EXPAND_ALL);  config_shooter_adc(machine, FALSE, 32);
 }
@@ -2188,7 +2196,6 @@ GAME( 1984, gghost,   0,        balsente, gghost,   gghost,   ROT0, "Bally/Sente
 
 /* Board: 006-8003-01-0D Rev D */
 GAME( 1984, hattrick, 0,        balsente, hattrick, hattrick, ROT0, "Bally/Sente",  "Hat Trick", GAME_SUPPORTS_SAVE )
-GAME( 1984, trivia12, 0,        balsente, triviag1, triviag1, ROT0, "Bally/Sente",  "Trivial Pursuit (Genus I) (12-14-84)", GAME_SUPPORTS_SAVE )
 
 /* Board: Unknown (From a picture on eBay Snacks'n Jaxson does not match any documented types here.) */
 GAME( 1984, otwalls,  0,        balsente, otwalls,  otwalls,  ROT0, "Bally/Sente",  "Off the Wall (Sente)", GAME_SUPPORTS_SAVE )
@@ -2197,34 +2204,33 @@ GAME( 1984, snakjack, 0,        balsente, snakjack, snakjack, ROT0, "Bally/Sente
 
 /* Board: 006-8025-01-0B Rev B */
 GAMEL(1984, stocker,  0,        balsente, stocker,  stocker,  ROT0, "Bally/Sente",  "Stocker (3/19/85)", GAME_SUPPORTS_SAVE, layout_stocker ) // date from ROM chips
-GAME( 1985, gimeabrk, 0,        balsente, gimeabrk, gimeabrk, ROT0, "Bally/Sente",  "Gimme A Break (7/7/85)", GAME_SUPPORTS_SAVE )
+GAME( 1985, gimeabrk, 0,        balsente, gimeabrk, gimeabrk, ROT0, "Bally/Sente",  "Gimme A Break", GAME_SUPPORTS_SAVE )
 GAME( 1985, minigolf, 0,        balsente, minigolf, minigolf, ROT0, "Bally/Sente",  "Mini Golf (set 1)", GAME_SUPPORTS_SAVE )
 GAME( 1985, minigolf2,minigolf, balsente, minigolf2,minigolf2,ROT0, "Bally/Sente",  "Mini Golf (set 2)", GAME_SUPPORTS_SAVE )
-GAME( 1984, triviabb, 0,        balsente, triviag1, triviag2, ROT0, "Bally/Sente",  "Trivial Pursuit (Baby Boomer Edition)", GAME_SUPPORTS_SAVE )
 
-/* Board: Unknown  */
+/* Board: Unknown (Baby Boomer Edition uses 006-8025-01-0B Rev B board.  Do the rest use it too? */
 GAME( 1984, triviag1, 0,        balsente, triviag1, triviag1, ROT0, "Bally/Sente",  "Trivial Pursuit (Genus I) (set 1)", GAME_SUPPORTS_SAVE )
+GAME( 1984, trivia12, 0,        balsente, triviag1, triviag1, ROT0, "Bally/Sente",  "Trivial Pursuit (Genus I) (set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1984, triviag2, 0,        balsente, triviag1, triviag2, ROT0, "Bally/Sente",  "Trivial Pursuit (Genus II)", GAME_SUPPORTS_SAVE )
 GAME( 1984, triviasp, 0,        balsente, triviag1, triviag2, ROT0, "Bally/Sente",  "Trivial Pursuit (All Star Sports Edition)", GAME_SUPPORTS_SAVE )
 GAME( 1984, triviayp, 0,        balsente, triviag1, triviag2, ROT0, "Bally/Sente",  "Trivial Pursuit (Young Players Edition)", GAME_SUPPORTS_SAVE )
+GAME( 1984, triviabb, 0,        balsente, triviag1, triviag2, ROT0, "Bally/Sente",  "Trivial Pursuit (Baby Boomer Edition)", GAME_SUPPORTS_SAVE )
 GAME( 1987, triviaes, 0,        balsente, triviaes, triviaes, ROT0, "Bally/Sente",  "Trivial Pursuit (Spanish Edition)", GAME_SUPPORTS_SAVE )
 GAME( 1985, toggle,   0,        balsente, toggle,   toggle,   ROT0, "Bally/Sente",  "Toggle (prototype)", GAME_SUPPORTS_SAVE )
 GAME( 1986, nametune, 0,        balsente, nametune, nametune, ROT0, "Bally/Sente",  "Name That Tune", GAME_SUPPORTS_SAVE )
 
 /* Board: 006-8030-01-0A Rev A */
-GAME( 1986, nametune2,nametune, balsente, nametune, nametune, ROT0, "Bally/Sente",  "Name That Tune (3/23/86)", GAME_SUPPORTS_SAVE )
+GAME( 1986, nametune2,nametune, balsente, nametune, nametune, ROT0, "Bally/Sente",  "Name That Tune (3-23-86)", GAME_SUPPORTS_SAVE )
 
 /* Board: 006-8027-01-0B Rev B */
 GAME( 1986, nstocker, 0,        balsente, nstocker, nstocker, ROT0, "Bally/Sente",  "Night Stocker (set 1)", GAME_SUPPORTS_SAVE )
 GAME( 1986, nstocker2,nstocker, balsente, nstocker, nstocker, ROT0, "Bally/Sente",  "Night Stocker (set 2)", GAME_SUPPORTS_SAVE )
 GAME( 1986, sfootbal, 0,        balsente, sfootbal, sfootbal, ROT0, "Bally/Sente",  "Street Football", GAME_SUPPORTS_SAVE )
 GAME( 1986, spiker,   0,        balsente, spiker,   spiker,   ROT0, "Bally/Sente",  "Spiker", GAME_SUPPORTS_SAVE )
-GAME( 1986, stompin,  0,        balsente, stompin,  stompin,  ROT0, "Bally/Sente",  "Stompin' (4/4/86)", GAME_SUPPORTS_SAVE )
-
-/* Board: A084-91889-A000 (Not a cartridge, but dedicated board) */
-GAME( 1987, rescraid, 0,        balsente, rescraid, rescraid, ROT0, "Bally Midway", "Rescue Raider (5/11/87) (non-cartridge)", GAME_SUPPORTS_SAVE )
 
 /* Board: Unknown */
-GAME( 1986, shrike,   0,        shrike,   shrike,   shrike,   ROT0, "Bally/Sente",  "Shrike Avenger (prototype)", GAME_SUPPORTS_SAVE )
+GAME( 1986, stompin,  0,        balsente, stompin,  stompin,  ROT0, "Bally/Sente",  "Stompin'", GAME_SUPPORTS_SAVE )
+GAME( 1987, rescraid, 0,        balsente, rescraid, rescraid, ROT0, "Bally Midway", "Rescue Raider", GAME_SUPPORTS_SAVE )
 GAME( 1987, rescraida,rescraid, balsente, rescraid, rescraid, ROT0, "Bally Midway", "Rescue Raider (stand-alone)", GAME_SUPPORTS_SAVE )
 GAME( 198?, grudge,   0,        balsente, grudge,   grudge,   ROT0, "Bally Midway", "Grudge Match (prototype)", GAME_SUPPORTS_SAVE )
+GAME( 198?, shrike,   0,        shrike,   shrike,   shrike,   ROT0, "Bally/Sente",  "Shrike Avenger (prototype)", GAME_SUPPORTS_SAVE )

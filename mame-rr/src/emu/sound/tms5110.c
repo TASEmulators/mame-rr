@@ -61,6 +61,7 @@
 ***********************************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "tms5110.h"
 
 #define MAX_SAMPLE_CHUNK		512
@@ -113,8 +114,8 @@ struct _tms5110_state
 	UINT8  addr_bit;
 
 	/* external callback */
-	int (*M0_callback)(device_t *);
-	void (*set_load_address)(device_t *, int);
+	int (*M0_callback)(running_device *);
+	void (*set_load_address)(running_device *, int);
 
 	/* callbacks */
 	devcb_resolved_write_line m0_func;		/* the M0 line */
@@ -124,7 +125,7 @@ struct _tms5110_state
 	devcb_resolved_write_line romclk_func;	/* rom clock - Only used to drive the data lines */
 
 
-	device_t *device;
+	running_device *device;
 
 	/* these contain data describing the current and previous voice frames */
 	UINT16 old_energy;
@@ -183,7 +184,7 @@ struct _tmsprom_state
 	devcb_resolved_write_line pdc_func;		/* tms pdc func */
 	devcb_resolved_write8 ctl_func;			/* tms ctl func */
 
-	device_t *device;
+	running_device *device;
 	emu_timer *romclk_timer;
 
 	const tmsprom_interface *intf;
@@ -194,20 +195,20 @@ struct _tmsprom_state
 
 
 
-INLINE tms5110_state *get_safe_token(device_t *device)
+INLINE tms5110_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == TMS5110 ||
-		   device->type() == TMS5100 ||
-		   device->type() == TMS5110A ||
-		   device->type() == CD2801 ||
-		   device->type() == TMC0281 ||
-		   device->type() == CD2802 ||
-		   device->type() == M58817);
+	assert(device->type() == SOUND_TMS5110 ||
+		   device->type() == SOUND_TMS5100 ||
+		   device->type() == SOUND_TMS5110A ||
+		   device->type() == SOUND_CD2801 ||
+		   device->type() == SOUND_TMC0281 ||
+		   device->type() == SOUND_CD2802 ||
+		   device->type() == SOUND_M58817);
 	return (tms5110_state *)downcast<legacy_device_base *>(device)->token();
 }
 
-INLINE tmsprom_state *get_safe_token_prom(device_t *device)
+INLINE tmsprom_state *get_safe_token_prom(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TMSPROM);
@@ -247,16 +248,16 @@ void tms5110_set_variant(tms5110_state *tms, int variant)
 
 static void new_int_write(tms5110_state *tms, UINT8 rc, UINT8 m0, UINT8 m1, UINT8 addr)
 {
-	if (!tms->m0_func.isnull())
-		tms->m0_func(m0);
-	if (!tms->m1_func.isnull())
-		tms->m1_func(m1);
-	if (!tms->addr_func.isnull())
-		tms->addr_func(0, addr);
-	if (!tms->romclk_func.isnull())
+	if (tms->m0_func.write)
+		devcb_call_write_line(&tms->m0_func, m0);
+	if (tms->m1_func.write)
+		devcb_call_write_line(&tms->m1_func, m1);
+	if (tms->addr_func.write)
+		devcb_call_write8(&tms->addr_func, 0, addr);
+	if (tms->romclk_func.write)
 	{
 		//printf("rc %d\n", rc);
-		tms->romclk_func(rc);
+		devcb_call_write_line(&tms->romclk_func, rc);
 	}
 }
 
@@ -274,52 +275,52 @@ static UINT8 new_int_read(tms5110_state *tms)
 	new_int_write(tms, 0, 1, 0, 0);
 	new_int_write(tms, 1, 0, 0, 0);
 	new_int_write(tms, 0, 0, 0, 0);
-	if (!tms->data_func.isnull())
-		return tms->data_func();
+	if (tms->data_func.read)
+		return devcb_call_read_line(&tms->data_func);
 	return 0;
 }
 
 static void register_for_save_states(tms5110_state *tms)
 {
-	tms->device->save_item(NAME(tms->fifo));
-	tms->device->save_item(NAME(tms->fifo_head));
-	tms->device->save_item(NAME(tms->fifo_tail));
-	tms->device->save_item(NAME(tms->fifo_count));
+	state_save_register_device_item_array(tms->device, 0, tms->fifo);
+	state_save_register_device_item(tms->device, 0, tms->fifo_head);
+	state_save_register_device_item(tms->device, 0, tms->fifo_tail);
+	state_save_register_device_item(tms->device, 0, tms->fifo_count);
 
-	tms->device->save_item(NAME(tms->PDC));
-	tms->device->save_item(NAME(tms->CTL_pins));
-	tms->device->save_item(NAME(tms->speaking_now));
-	tms->device->save_item(NAME(tms->talk_status));
-	tms->device->save_item(NAME(tms->state));
+	state_save_register_device_item(tms->device, 0, tms->PDC);
+	state_save_register_device_item(tms->device, 0, tms->CTL_pins);
+	state_save_register_device_item(tms->device, 0, tms->speaking_now);
+	state_save_register_device_item(tms->device, 0, tms->talk_status);
+	state_save_register_device_item(tms->device, 0, tms->state);
 
-	tms->device->save_item(NAME(tms->old_energy));
-	tms->device->save_item(NAME(tms->old_pitch));
-	tms->device->save_item(NAME(tms->old_k));
+	state_save_register_device_item(tms->device, 0, tms->old_energy);
+	state_save_register_device_item(tms->device, 0, tms->old_pitch);
+	state_save_register_device_item_array(tms->device, 0, tms->old_k);
 
-	tms->device->save_item(NAME(tms->new_energy));
-	tms->device->save_item(NAME(tms->new_pitch));
-	tms->device->save_item(NAME(tms->new_k));
+	state_save_register_device_item(tms->device, 0, tms->new_energy);
+	state_save_register_device_item(tms->device, 0, tms->new_pitch);
+	state_save_register_device_item_array(tms->device, 0, tms->new_k);
 
-	tms->device->save_item(NAME(tms->current_energy));
-	tms->device->save_item(NAME(tms->current_pitch));
-	tms->device->save_item(NAME(tms->current_k));
+	state_save_register_device_item(tms->device, 0, tms->current_energy);
+	state_save_register_device_item(tms->device, 0, tms->current_pitch);
+	state_save_register_device_item_array(tms->device, 0, tms->current_k);
 
-	tms->device->save_item(NAME(tms->target_energy));
-	tms->device->save_item(NAME(tms->target_pitch));
-	tms->device->save_item(NAME(tms->target_k));
+	state_save_register_device_item(tms->device, 0, tms->target_energy);
+	state_save_register_device_item(tms->device, 0, tms->target_pitch);
+	state_save_register_device_item_array(tms->device, 0, tms->target_k);
 
-	tms->device->save_item(NAME(tms->interp_count));
-	tms->device->save_item(NAME(tms->sample_count));
-	tms->device->save_item(NAME(tms->pitch_count));
+	state_save_register_device_item(tms->device, 0, tms->interp_count);
+	state_save_register_device_item(tms->device, 0, tms->sample_count);
+	state_save_register_device_item(tms->device, 0, tms->pitch_count);
 
-	tms->device->save_item(NAME(tms->next_is_address));
-	tms->device->save_item(NAME(tms->address));
-	tms->device->save_item(NAME(tms->schedule_dummy_read));
-	tms->device->save_item(NAME(tms->addr_bit));
+	state_save_register_device_item(tms->device, 0, tms->next_is_address);
+	state_save_register_device_item(tms->device, 0, tms->address);
+	state_save_register_device_item(tms->device, 0, tms->schedule_dummy_read);
+	state_save_register_device_item(tms->device, 0, tms->addr_bit);
 
-	tms->device->save_item(NAME(tms->x));
+	state_save_register_device_item_array(tms->device, 0, tms->x);
 
-	tms->device->save_item(NAME(tms->RNG));
+	state_save_register_device_item(tms->device, 0, tms->RNG);
 }
 
 
@@ -978,7 +979,7 @@ static const unsigned int example_word_TEN[619]={
 #endif
 
 
-static int speech_rom_read_bit(device_t *device)
+static int speech_rom_read_bit(running_device *device)
 {
 	tms5110_state *tms = get_safe_token(device);
 
@@ -994,7 +995,7 @@ static int speech_rom_read_bit(device_t *device)
 	return r;
 }
 
-static void speech_rom_set_addr(device_t *device, int addr)
+static void speech_rom_set_addr(running_device *device, int addr)
 {
 	tms5110_state *tms = get_safe_token(device);
 
@@ -1015,23 +1016,23 @@ static DEVICE_START( tms5110 )
 
 	assert_always(tms != NULL, "Error creating TMS5110 chip");
 
-	assert_always(device->static_config() != NULL, "No config");
+	assert_always(device->baseconfig().static_config() != NULL, "No config");
 
-	tms->intf = device->static_config() ? (const tms5110_interface *)device->static_config() : &dummy;
+	tms->intf = device->baseconfig().static_config() ? (const tms5110_interface *)device->baseconfig().static_config() : &dummy;
 	tms->table = *device->region();
 
 	tms->device = device;
 	tms5110_set_variant(tms, TMS5110_IS_5110A);
 
 	/* resolve lines */
-	tms->m0_func.resolve(tms->intf->m0_func, *device);
-	tms->m1_func.resolve(tms->intf->m1_func, *device);
-	tms->romclk_func.resolve(tms->intf->romclk_func, *device);
-	tms->addr_func.resolve(tms->intf->addr_func, *device);
-	tms->data_func.resolve(tms->intf->data_func, *device);
+	devcb_resolve_write_line(&tms->m0_func, &tms->intf->m0_func, device);
+	devcb_resolve_write_line(&tms->m1_func, &tms->intf->m1_func, device);
+	devcb_resolve_write_line(&tms->romclk_func, &tms->intf->romclk_func, device);
+	devcb_resolve_write8(&tms->addr_func, &tms->intf->addr_func, device);
+	devcb_resolve_read_line(&tms->data_func, &tms->intf->data_func, device);
 
 	/* initialize a stream */
-	tms->stream = device->machine().sound().stream_alloc(*device, 0, 1, device->clock() / 80, tms, tms5110_update);
+	tms->stream = stream_create(device, 0, 1, device->clock() / 80, tms, tms5110_update);
 
 	if (tms->table == NULL)
 	{
@@ -1048,7 +1049,7 @@ static DEVICE_START( tms5110 )
 	}
 
 	tms->state = CTL_STATE_INPUT; /* most probably not defined */
-	tms->romclk_hack_timer = device->machine().scheduler().timer_alloc(FUNC(romclk_hack_timer_cb), (void *) device);
+	tms->romclk_hack_timer = timer_alloc(device->machine, romclk_hack_timer_cb, (void *) device);
 
 	register_for_save_states(tms);
 }
@@ -1152,7 +1153,7 @@ WRITE8_DEVICE_HANDLER( tms5110_ctl_w )
 	tms5110_state *tms = get_safe_token(device);
 
     /* bring up to date first */
-    tms->stream->update();
+    stream_update(tms->stream);
 	tms->CTL_pins = data & 0xf;
 }
 
@@ -1168,7 +1169,7 @@ WRITE_LINE_DEVICE_HANDLER( tms5110_pdc_w )
 	tms5110_state *tms = get_safe_token(device);
 
     /* bring up to date first */
-    tms->stream->update();
+    stream_update(tms->stream);
     tms5110_PDC_set(tms, state);
 }
 
@@ -1194,7 +1195,7 @@ READ8_DEVICE_HANDLER( tms5110_ctl_r )
 	tms5110_state *tms = get_safe_token(device);
 
     /* bring up to date first */
-    tms->stream->update();
+    stream_update(tms->stream);
     if (tms->state == CTL_STATE_OUTPUT)
     {
 		//if (DEBUG_5110) logerror("Status read (status=%2d)\n", tms->talk_status);
@@ -1212,7 +1213,7 @@ READ8_DEVICE_HANDLER( m58817_status_r )
 	tms5110_state *tms = get_safe_token(device);
 
     /* bring up to date first */
-    tms->stream->update();
+    stream_update(tms->stream);
     return (tms->talk_status << 0); /*CTL1 = still talking ? */
 }
 
@@ -1224,7 +1225,7 @@ READ8_DEVICE_HANDLER( m58817_status_r )
 
 static TIMER_CALLBACK( romclk_hack_timer_cb )
 {
-	tms5110_state *tms = get_safe_token((device_t *) ptr);
+	tms5110_state *tms = get_safe_token((running_device *) ptr);
 	tms->romclk_hack_state = !tms->romclk_hack_state;
 }
 
@@ -1233,13 +1234,13 @@ READ8_DEVICE_HANDLER( tms5110_romclk_hack_r )
 	tms5110_state *tms = get_safe_token(device);
 
     /* bring up to date first */
-    tms->stream->update();
+    stream_update(tms->stream);
 
     /* create and start timer if necessary */
     if (!tms->romclk_hack_timer_started)
     {
     	tms->romclk_hack_timer_started = TRUE;
-		tms->romclk_hack_timer->adjust(attotime::from_hz(device->clock() / 40), 0, attotime::from_hz(device->clock() / 40));
+		timer_adjust_periodic(tms->romclk_hack_timer, ATTOTIME_IN_HZ(device->clock() / 40), 0, ATTOTIME_IN_HZ(device->clock() / 40));
 	}
     return tms->romclk_hack_state;
 }
@@ -1252,12 +1253,12 @@ READ8_DEVICE_HANDLER( tms5110_romclk_hack_r )
 
 ******************************************************************************/
 
-int tms5110_ready_r(device_t *device)
+int tms5110_ready_r(running_device *device)
 {
 	tms5110_state *tms = get_safe_token(device);
 
     /* bring up to date first */
-    tms->stream->update();
+    stream_update(tms->stream);
     return (tms->fifo_count < FIFO_SIZE-1);
 }
 
@@ -1299,10 +1300,10 @@ static STREAM_UPDATE( tms5110_update )
 
 ******************************************************************************/
 
-void tms5110_set_frequency(device_t *device, int frequency)
+void tms5110_set_frequency(running_device *device, int frequency)
 {
 	tms5110_state *tms = get_safe_token(device);
-	tms->stream->set_sample_rate(frequency / 80);
+	stream_set_sample_rate(tms->stream, frequency / 80);
 }
 
 
@@ -1352,12 +1353,12 @@ void tms5110_set_frequency(device_t *device, int frequency)
 
 static void register_for_save_states_prom(tmsprom_state *tms)
 {
-	tms->device->save_item(NAME(tms->address));
-	tms->device->save_item(NAME(tms->base_address));
-	tms->device->save_item(NAME(tms->bit));
-	tms->device->save_item(NAME(tms->enable));
-	tms->device->save_item(NAME(tms->prom_cnt));
-	tms->device->save_item(NAME(tms->m0));
+	state_save_register_device_item(tms->device, 0, tms->address);
+	state_save_register_device_item(tms->device, 0, tms->base_address);
+	state_save_register_device_item(tms->device, 0, tms->bit);
+	state_save_register_device_item(tms->device, 0, tms->enable);
+	state_save_register_device_item(tms->device, 0, tms->prom_cnt);
+	state_save_register_device_item(tms->device, 0, tms->m0);
 }
 
 
@@ -1372,7 +1373,7 @@ static void update_prom_cnt(tmsprom_state *tms)
 
 static TIMER_CALLBACK( tmsprom_step )
 {
-	device_t *device = (device_t *)ptr;
+	running_device *device = (running_device *)ptr;
 	tmsprom_state *tms = get_safe_token_prom(device);
 
 	/* only 16 bytes needed ... The original dump is bad. This
@@ -1394,10 +1395,10 @@ static TIMER_CALLBACK( tmsprom_step )
 	if (ctrl & (1 << tms->intf->reset_bit))
 		tms->address = 0;
 
-	tms->ctl_func(0, BITSWAP8(ctrl,0,0,0,0,tms->intf->ctl8_bit,
+	devcb_call_write8(&tms->ctl_func, 0, BITSWAP8(ctrl,0,0,0,0,tms->intf->ctl8_bit,
 			tms->intf->ctl4_bit,tms->intf->ctl2_bit,tms->intf->ctl1_bit));
 
-	tms->pdc_func((ctrl >> tms->intf->pdc_bit) & 0x01);
+	devcb_call_write_line(&tms->pdc_func, (ctrl >> tms->intf->pdc_bit) & 0x01);
 }
 
 static DEVICE_START( tmsprom )
@@ -1406,23 +1407,23 @@ static DEVICE_START( tmsprom )
 
 	assert_always(tms != NULL, "Error creating TMSPROM chip");
 
-	tms->intf = (const tmsprom_interface *) device->static_config();
+	tms->intf = (const tmsprom_interface *) device->baseconfig().static_config();
 	assert_always(tms->intf != NULL, "Error creating TMSPROM chip: No configuration");
 
 	/* resolve lines */
-	tms->pdc_func.resolve(tms->intf->pdc_func, *device);
-	tms->ctl_func.resolve(tms->intf->ctl_func, *device);
+	devcb_resolve_write_line(&tms->pdc_func, &tms->intf->pdc_func, device);
+	devcb_resolve_write8(&tms->ctl_func, &tms->intf->ctl_func, device);
 
 	tms->rom = *device->region();
 	assert_always(tms->rom != NULL, "Error creating TMSPROM chip: No rom region found");
-	tms->prom = device->machine().region(tms->intf->prom_region)->base();
+	tms->prom = memory_region(device->machine, tms->intf->prom_region);
 	assert_always(tms->rom != NULL, "Error creating TMSPROM chip: No prom region found");
 
 	tms->device = device;
 	tms->clock = device->clock();
 
-	tms->romclk_timer = device->machine().scheduler().timer_alloc(FUNC(tmsprom_step), device);
-	tms->romclk_timer->adjust(attotime::zero, 0, attotime::from_hz(tms->clock));
+	tms->romclk_timer = timer_alloc(device->machine, tmsprom_step, device);
+	timer_adjust_periodic(tms->romclk_timer, attotime_zero, 0, ATTOTIME_IN_HZ(tms->clock));
 
 	tms->bit = 0;
 	tms->base_address = 0;

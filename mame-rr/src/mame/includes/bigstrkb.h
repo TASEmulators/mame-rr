@@ -1,20 +1,21 @@
-class bigstrkb_state : public driver_device
+class bigstrkb_state
 {
 public:
-	bigstrkb_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, bigstrkb_state(machine)); }
 
-	tilemap_t *m_tilemap;
-	tilemap_t *m_tilemap2;
-	tilemap_t *m_tilemap3;
+	bigstrkb_state(running_machine &machine) { }
 
-	UINT16 *m_videoram;
-	UINT16 *m_videoram2;
-	UINT16 *m_videoram3;
+	tilemap_t *tilemap;
+	tilemap_t *tilemap2;
+	tilemap_t *tilemap3;
 
-	UINT16 *m_vidreg1;
-	UINT16 *m_vidreg2;
-	UINT16 *m_spriteram;
+	UINT16 *videoram;
+	UINT16 *videoram2;
+	UINT16 *videoram3;
+
+	UINT16 *vidreg1;
+	UINT16 *vidreg2;
+	UINT16 *spriteram;
 };
 
 
@@ -24,4 +25,4 @@ WRITE16_HANDLER( bsb_videoram_w );
 WRITE16_HANDLER( bsb_videoram2_w );
 WRITE16_HANDLER( bsb_videoram3_w );
 VIDEO_START(bigstrkb);
-SCREEN_UPDATE(bigstrkb);
+VIDEO_UPDATE(bigstrkb);

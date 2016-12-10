@@ -2333,27 +2333,24 @@ static void FUNC_PREFIX(setup_and_draw_textured_quad)(const render_primitive *pr
     using a software rasterizer
 -------------------------------------------------*/
 
-static void FUNC_PREFIX(draw_primitives)(const render_primitive_list &primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch)
+static void FUNC_PREFIX(draw_primitives)(const render_primitive *primlist, void *dstdata, UINT32 width, UINT32 height, UINT32 pitch)
 {
 	const render_primitive *prim;
 
 	/* loop over the list and render each element */
-	for (prim = primlist.first(); prim != NULL; prim = prim->next())
+	for (prim = primlist; prim != NULL; prim = prim->next)
 		switch (prim->type)
 		{
-			case render_primitive::LINE:
+			case RENDER_PRIMITIVE_LINE:
 				FUNC_PREFIX(draw_line)(prim, dstdata, width, height, pitch);
 				break;
 
-			case render_primitive::QUAD:
+			case RENDER_PRIMITIVE_QUAD:
 				if (!prim->texture.base)
 					FUNC_PREFIX(draw_rect)(prim, dstdata, width, height, pitch);
 				else
 					FUNC_PREFIX(setup_and_draw_textured_quad)(prim, dstdata, width, height, pitch);
 				break;
-
-			default:
-				throw emu_fatalerror("Unexpected render_primitive type");
 		}
 }
 

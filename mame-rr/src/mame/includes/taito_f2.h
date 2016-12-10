@@ -10,76 +10,73 @@ struct f2_tempsprite
 	int primask;
 };
 
-class taitof2_state : public driver_device
+class taitof2_state
 {
 public:
-	taitof2_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_oki(*this, "oki") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, taitof2_state(machine)); }
+
+	taitof2_state(running_machine &machine)
+		: oki(machine.device<okim6295_device>("oki")) { }
 
 	/* memory pointers */
-	UINT16 *        m_sprite_extension;
-	UINT16 *        m_spriteram;
-	UINT16 *        m_spriteram_buffered;
-	UINT16 *        m_spriteram_delayed;
-	UINT16 *        m_cchip2_ram;	// for megablst only
-//  UINT16 *        m_paletteram;    // currently this uses generic palette handling
-	size_t          m_spriteram_size;
-	size_t          m_spriteext_size;
+	UINT16 *        sprite_extension;
+	UINT16 *        spriteram;
+	UINT16 *        spriteram_buffered;
+	UINT16 *        spriteram_delayed;
+	UINT16 *        cchip2_ram;	// for megablst only
+//  UINT16 *        paletteram;    // currently this uses generic palette handling
+	size_t          spriteram_size;
+	size_t          spriteext_size;
 
 
 	/* video-related */
-	struct f2_tempsprite *m_spritelist;
-	int             m_sprite_type;
+	struct f2_tempsprite *spritelist;
+	int             sprite_type;
 
-	UINT16          m_spritebank[8];
-//  UINT16          m_spritebank_eof[8];
-	UINT16          m_spritebank_buffered[8];
+	UINT16          spritebank[8];
+//  UINT16          spritebank_eof[8];
+	UINT16          spritebank_buffered[8];
 
-	INT32           m_sprites_disabled;
-	INT32			m_sprites_active_area;
-	INT32			m_sprites_master_scrollx;
-	INT32			m_sprites_master_scrolly;
+	INT32           sprites_disabled, sprites_active_area, sprites_master_scrollx, sprites_master_scrolly;
 	/* remember flip status over frames because driftout can fail to set it */
-	INT32           m_sprites_flipscreen;
+	INT32           sprites_flipscreen;
 
 	/* On the left hand screen edge (assuming horiz screen, no
        screenflip: in screenflip it is the right hand edge etc.)
        there may be 0-3 unwanted pixels in both tilemaps *and*
        sprites. To erase this we use f2_hide_pixels (0 to +3). */
 
-	INT32           m_hide_pixels;
-	INT32           m_flip_hide_pixels;	/* Different in some games */
+	INT32           hide_pixels;
+	INT32           flip_hide_pixels;	/* Different in some games */
 
-	INT32           m_pivot_xdisp;	/* Needed in games with a pivot layer */
-	INT32           m_pivot_ydisp;
+	INT32           pivot_xdisp;	/* Needed in games with a pivot layer */
+	INT32           pivot_ydisp;
 
-	INT32           m_game;
+	INT32           game;
 
-	UINT8           m_tilepri[6]; // todo - move into taitoic.c
-	UINT8           m_spritepri[6]; // todo - move into taitoic.c
-	UINT8           m_spriteblendmode; // todo - move into taitoic.c
+	UINT8           tilepri[6]; // todo - move into taitoic.c
+	UINT8           spritepri[6]; // todo - move into taitoic.c
+	UINT8           spriteblendmode; // todo - move into taitoic.c
 
-	int             m_prepare_sprites;
+	int             prepare_sprites;
 
 	/* misc */
-	INT32           m_mjnquest_input;
-	int             m_last[2];
-	int             m_nibble;
-	INT32           m_driveout_sound_latch;
-	INT32           m_oki_bank;
+	INT32           mjnquest_input;
+	int             last[2], nibble;
+	INT32           driveout_sound_latch;
+	INT32           oki_bank;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	optional_device<okim6295_device> m_oki;
-	device_t *m_tc0100scn;
-	device_t *m_tc0100scn_1;
-	device_t *m_tc0100scn_2;
-	device_t *m_tc0360pri;
-	device_t *m_tc0280grd;
-	device_t *m_tc0430grw;
-	device_t *m_tc0480scp;
+	running_device *maincpu;
+	running_device *audiocpu;
+	okim6295_device *oki;
+	running_device *tc0100scn;
+	running_device *tc0100scn_1;
+	running_device *tc0100scn_2;
+	running_device *tc0360pri;
+	running_device *tc0280grd;
+	running_device *tc0430grw;
+	running_device *tc0480scp;
 };
 
 /*----------- defined in video/taito_f2.c -----------*/
@@ -108,20 +105,20 @@ VIDEO_START( taitof2_yesnoj );
 VIDEO_START( taitof2_deadconx );
 VIDEO_START( taitof2_deadconxj );
 VIDEO_START( taitof2_dinorex );
-SCREEN_EOF( taitof2_no_buffer );
-SCREEN_EOF( taitof2_full_buffer_delayed );
-SCREEN_EOF( taitof2_partial_buffer_delayed );
-SCREEN_EOF( taitof2_partial_buffer_delayed_thundfox );
-SCREEN_EOF( taitof2_partial_buffer_delayed_qzchikyu );
+VIDEO_EOF( taitof2_no_buffer );
+VIDEO_EOF( taitof2_full_buffer_delayed );
+VIDEO_EOF( taitof2_partial_buffer_delayed );
+VIDEO_EOF( taitof2_partial_buffer_delayed_thundfox );
+VIDEO_EOF( taitof2_partial_buffer_delayed_qzchikyu );
 
-SCREEN_UPDATE( taitof2 );
-SCREEN_UPDATE( taitof2_pri );
-SCREEN_UPDATE( taitof2_pri_roz );
-SCREEN_UPDATE( taitof2_ssi );
-SCREEN_UPDATE( taitof2_thundfox );
-SCREEN_UPDATE( taitof2_deadconx );
-SCREEN_UPDATE( taitof2_metalb );
-SCREEN_UPDATE( taitof2_yesnoj );
+VIDEO_UPDATE( taitof2 );
+VIDEO_UPDATE( taitof2_pri );
+VIDEO_UPDATE( taitof2_pri_roz );
+VIDEO_UPDATE( taitof2_ssi );
+VIDEO_UPDATE( taitof2_thundfox );
+VIDEO_UPDATE( taitof2_deadconx );
+VIDEO_UPDATE( taitof2_metalb );
+VIDEO_UPDATE( taitof2_yesnoj );
 
 WRITE16_HANDLER( taitof2_spritebank_w );
 WRITE16_HANDLER( koshien_spritebank_w );

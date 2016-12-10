@@ -30,9 +30,6 @@ int sdl_num_processors = 0;
 
 #include "eminline.h"
 
-#if defined(SDLMAME_MACOSX)
-#include "osxutils.h"
-#endif
 
 //============================================================
 //  DEBUGGING
@@ -186,7 +183,7 @@ osd_work_queue *osd_work_queue_alloc(int flags)
 	queue->threads = MIN(queue->threads, WORK_MAX_THREADS);
 
 	// allocate memory for thread array (+1 to count the calling thread)
-	queue->thread = (work_thread_info *)osd_malloc_array((queue->threads + 1) * sizeof(queue->thread[0]));
+	queue->thread = (work_thread_info *)osd_malloc((queue->threads + 1) * sizeof(queue->thread[0]));
 	if (queue->thread == NULL)
 		goto error;
 	memset(queue->thread, 0, (queue->threads + 1) * sizeof(queue->thread[0]));
@@ -630,10 +627,6 @@ static void *worker_thread_entry(void *param)
 	work_thread_info *thread = (work_thread_info *)param;
 	osd_work_queue *queue = thread->queue;
 
-	#if defined(SDLMAME_MACOSX)
-	void *arp = NewAutoreleasePool();
-	#endif
-
 	// loop until we exit
 	for ( ;; )
 	{
@@ -685,11 +678,6 @@ static void *worker_thread_entry(void *param)
 		atomic_exchange32(&thread->active, FALSE);
 		atomic_decrement32(&queue->livethreads);
 	}
-
-	#if defined(SDLMAME_MACOSX)
-	ReleaseAutoreleasePool(arp);
-	#endif
-
 	return NULL;
 }
 

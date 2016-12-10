@@ -24,20 +24,20 @@ Todo :
 
 static WRITE8_DEVICE_HANDLER(pa_w)
 {
-	homerun_state *state = device->machine().driver_data<homerun_state>();
-	state->m_xpa = data;
+	homerun_state *state = (homerun_state *)device->machine->driver_data;
+	state->xpa = data;
 }
 
 static WRITE8_DEVICE_HANDLER(pb_w)
 {
-	homerun_state *state = device->machine().driver_data<homerun_state>();
-	state->m_xpb = data;
+	homerun_state *state = (homerun_state *)device->machine->driver_data;
+	state->xpb = data;
 }
 
 static WRITE8_DEVICE_HANDLER(pc_w)
 {
-	homerun_state *state = device->machine().driver_data<homerun_state>();
-	state->m_xpc = data;
+	homerun_state *state = (homerun_state *)device->machine->driver_data;
+	state->xpc = data;
 }
 
 
@@ -53,23 +53,23 @@ static const ppi8255_interface ppi8255_intf =
 };
 
 
-static ADDRESS_MAP_START( homerun_memmap, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( homerun_memmap, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x4000, 0x7fff) AM_ROMBANK("bank1")
-	AM_RANGE(0x8000, 0x9fff) AM_RAM_WRITE(homerun_videoram_w) AM_BASE_MEMBER(homerun_state, m_videoram)
-	AM_RANGE(0xa000, 0xa0ff) AM_RAM AM_BASE_SIZE_MEMBER(homerun_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0x8000, 0x9fff) AM_RAM_WRITE(homerun_videoram_w) AM_BASE_MEMBER(homerun_state, videoram)
+	AM_RANGE(0xa000, 0xa0ff) AM_RAM AM_BASE_SIZE_MEMBER(homerun_state, spriteram, spriteram_size)
 	AM_RANGE(0xb000, 0xb0ff) AM_WRITE(homerun_color_w)
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
 ADDRESS_MAP_END
 
 static CUSTOM_INPUT( homerun_40_r )
 {
-	UINT8 ret = (field.machine().primary_screen->vpos() > 116) ? 1 : 0;
+	UINT8 ret = (field->port->machine->primary_screen->vpos() > 116) ? 1 : 0;
 
 	return ret;
 }
 
-static ADDRESS_MAP_START( homerun_iomap, AS_IO, 8 )
+static ADDRESS_MAP_START( homerun_iomap, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x10, 0x10) AM_WRITENOP /* ?? */
 	AM_RANGE(0x20, 0x20) AM_WRITENOP /* ?? */
@@ -192,66 +192,69 @@ GFXDECODE_END
 
 static MACHINE_START( homerun )
 {
-	homerun_state *state = machine.driver_data<homerun_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	homerun_state *state = (homerun_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 1, &ROM[0x00000], 0x4000);
 	memory_configure_bank(machine, "bank1", 1, 7, &ROM[0x10000], 0x4000);
 
-	state->save_item(NAME(state->m_gfx_ctrl));
-	state->save_item(NAME(state->m_gc_up));
-	state->save_item(NAME(state->m_gc_down));
-	state->save_item(NAME(state->m_xpa));
-	state->save_item(NAME(state->m_xpb));
-	state->save_item(NAME(state->m_xpc));
+	state_save_register_global(machine, state->gfx_ctrl);
+	state_save_register_global(machine, state->gc_up);
+	state_save_register_global(machine, state->gc_down);
+	state_save_register_global(machine, state->xpa);
+	state_save_register_global(machine, state->xpb);
+	state_save_register_global(machine, state->xpc);
 }
 
 static MACHINE_RESET( homerun )
 {
-	homerun_state *state = machine.driver_data<homerun_state>();
+	homerun_state *state = (homerun_state *)machine->driver_data;
 
-	state->m_gfx_ctrl = 0;
-	state->m_gc_up = 0;
-	state->m_gc_down = 0;
-	state->m_xpa = 0;
-	state->m_xpb = 0;
-	state->m_xpc = 0;
+	state->gfx_ctrl = 0;
+	state->gc_up = 0;
+	state->gc_down = 0;
+	state->xpa = 0;
+	state->xpb = 0;
+	state->xpc = 0;
 }
 
-static MACHINE_CONFIG_START( homerun, homerun_state )
+static MACHINE_DRIVER_START( homerun )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(homerun_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 5000000)
-	MCFG_CPU_PROGRAM_MAP(homerun_memmap)
-	MCFG_CPU_IO_MAP(homerun_iomap)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 5000000)
+	MDRV_CPU_PROGRAM_MAP(homerun_memmap)
+	MDRV_CPU_IO_MAP(homerun_iomap)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_START(homerun)
-	MCFG_MACHINE_RESET(homerun)
+	MDRV_MACHINE_START(homerun)
+	MDRV_MACHINE_RESET(homerun)
 
-	MCFG_PPI8255_ADD( "ppi8255", ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255", ppi8255_intf )
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-25)
-	MCFG_SCREEN_UPDATE(homerun)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 256-1, 0, 256-25)
 
-	MCFG_GFXDECODE(homerun)
-	MCFG_PALETTE_LENGTH(16*4)
+	MDRV_GFXDECODE(homerun)
+	MDRV_PALETTE_LENGTH(16*4)
 
-	MCFG_VIDEO_START(homerun)
+	MDRV_VIDEO_START(homerun)
+	MDRV_VIDEO_UPDATE(homerun)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 6000000/2)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_SOUND_ADD("ymsnd", YM2203, 6000000/2)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 
 /*

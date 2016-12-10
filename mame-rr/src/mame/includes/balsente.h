@@ -26,27 +26,30 @@
 #define POLY17_ADD	0x18000
 
 
-class balsente_state : public driver_device
+class balsente_state
 {
 public:
-	balsente_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
-		  m_scanline_timer(*this, "scan_timer"),
-		  m_counter_0_timer(*this, "8253_0_timer"),
-		  m_cem1(*this, "cem1"),
-		  m_cem2(*this, "cem2"),
-		  m_cem3(*this, "cem3"),
-		  m_cem4(*this, "cem4"),
-		  m_cem5(*this, "cem5"),
-		  m_cem6(*this, "cem6") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, balsente_state(machine)); }
+
+	balsente_state(running_machine &machine)
+		: scanline_timer(machine.device<timer_device>("scan_timer")),
+		  counter_0_timer(machine.device<timer_device>("8253_0_timer"))
+	{
+		astring temp;
+		for (int i = 0; i < ARRAY_LENGTH(cem_device); i++)
+		{
+			cem_device[i] = machine.device<cem3394_sound_device>(temp.format("cem%d", i+1));
+			assert(cem_device[i] != NULL);
+		}
+	}
 
 	/* global data */
-	UINT8 m_shooter;
-	UINT8 m_shooter_x;
-	UINT8 m_shooter_y;
-	UINT8 m_adc_shift;
-	UINT16 *m_shrike_shared;
-	UINT16 *m_shrike_io;
+	UINT8 shooter;
+	UINT8 shooter_x;
+	UINT8 shooter_y;
+	UINT8 adc_shift;
+	UINT16 *shrike_shared;
+	UINT16 *shrike_io;
 
 	/* 8253 counter state */
 	struct
@@ -60,69 +63,61 @@ public:
 		UINT8 mode;
 		UINT8 readbyte;
 		UINT8 writebyte;
-	} m_counter[3];
+	} counter[3];
 
-	required_device<timer_device> m_scanline_timer;
+	timer_device *scanline_timer;
 
 	/* manually clocked counter 0 states */
-	UINT8 m_counter_control;
-	UINT8 m_counter_0_ff;
-	required_device<timer_device> m_counter_0_timer;
-	UINT8 m_counter_0_timer_active;
+	UINT8 counter_control;
+	UINT8 counter_0_ff;
+	timer_device *counter_0_timer;
+	UINT8 counter_0_timer_active;
 
 	/* random number generator states */
-	UINT8 m_poly17[POLY17_SIZE + 1];
-	UINT8 m_rand17[POLY17_SIZE + 1];
+	UINT8 poly17[POLY17_SIZE + 1];
+	UINT8 rand17[POLY17_SIZE + 1];
 
 	/* ADC I/O states */
-	INT8 m_analog_input_data[4];
-	UINT8 m_adc_value;
+	INT8 analog_input_data[4];
+	UINT8 adc_value;
 
 	/* CEM3394 DAC control states */
-	UINT16 m_dac_value;
-	UINT8 m_dac_register;
-	UINT8 m_chip_select;
+	UINT16 dac_value;
+	UINT8 dac_register;
+	UINT8 chip_select;
 
 	/* main CPU 6850 states */
-	UINT8 m_m6850_status;
-	UINT8 m_m6850_control;
-	UINT8 m_m6850_input;
-	UINT8 m_m6850_output;
-	UINT8 m_m6850_data_ready;
+	UINT8 m6850_status;
+	UINT8 m6850_control;
+	UINT8 m6850_input;
+	UINT8 m6850_output;
+	UINT8 m6850_data_ready;
 
 	/* sound CPU 6850 states */
-	UINT8 m_m6850_sound_status;
-	UINT8 m_m6850_sound_control;
-	UINT8 m_m6850_sound_input;
-	UINT8 m_m6850_sound_output;
+	UINT8 m6850_sound_status;
+	UINT8 m6850_sound_control;
+	UINT8 m6850_sound_input;
+	UINT8 m6850_sound_output;
 
 	/* noise generator states */
-	UINT32 m_noise_position[6];
-	required_device<cem3394_device> m_cem1;
-	required_device<cem3394_device> m_cem2;
-	required_device<cem3394_device> m_cem3;
-	required_device<cem3394_device> m_cem4;
-	required_device<cem3394_device> m_cem5;
-	required_device<cem3394_device> m_cem6;
-	cem3394_device *m_cem_device[6];
+	UINT32 noise_position[6];
+	cem3394_sound_device *cem_device[6];
 
 	/* game-specific states */
-	UINT8 m_nstocker_bits;
-	UINT8 m_spiker_expand_color;
-	UINT8 m_spiker_expand_bgcolor;
-	UINT8 m_spiker_expand_bits;
-	UINT8 m_grudge_steering_result;
-	UINT8 m_grudge_last_steering[3];
+	UINT8 nstocker_bits;
+	UINT8 spiker_expand_color;
+	UINT8 spiker_expand_bgcolor;
+	UINT8 spiker_expand_bits;
+	UINT8 grudge_steering_result;
+	UINT8 grudge_last_steering[3];
 
 	/* video data */
-	UINT8 *m_videoram;
-	UINT8 m_expanded_videoram[256*256];
-	UINT8 *m_sprite_data;
-	UINT32 m_sprite_mask;
-	UINT8 *m_sprite_bank[2];
+	UINT8 videoram[256 * 256];
+	UINT8 *sprite_data;
+	UINT32 sprite_mask;
+	UINT8 *sprite_bank[2];
 
-	UINT8 m_palettebank_vis;
-	UINT8 *m_spriteram;
+	UINT8 palettebank_vis;
 };
 
 
@@ -133,7 +128,7 @@ TIMER_DEVICE_CALLBACK( balsente_interrupt_timer );
 MACHINE_START( balsente );
 MACHINE_RESET( balsente );
 
-void balsente_noise_gen(device_t *device, int count, short *buffer);
+void balsente_noise_gen(running_device *device, int count, short *buffer);
 
 WRITE8_HANDLER( balsente_random_reset_w );
 READ8_HANDLER( balsente_random_num_r );
@@ -182,7 +177,7 @@ WRITE16_HANDLER( shrike_io_68k_w );
 /*----------- defined in video/balsente.c -----------*/
 
 VIDEO_START( balsente );
-SCREEN_UPDATE( balsente );
+VIDEO_UPDATE( balsente );
 
 WRITE8_HANDLER( balsente_videoram_w );
 WRITE8_HANDLER( balsente_paletteram_w );

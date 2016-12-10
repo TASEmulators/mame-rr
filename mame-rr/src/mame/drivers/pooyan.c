@@ -10,9 +10,7 @@
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
-#include "audio/timeplt.h"
-#include "includes/pooyan.h"
-#include "includes/konamipt.h"
+#include "includes/timeplt.h"
 
 
 #define MASTER_CLOCK		XTAL_18_432MHz
@@ -26,20 +24,20 @@
 
 static INTERRUPT_GEN( pooyan_interrupt )
 {
-	pooyan_state *state = device->machine().driver_data<pooyan_state>();
+	timeplt_state *state = (timeplt_state *)device->machine->driver_data;
 
-	if (state->m_irq_enable)
-		device_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
+	if (state->irq_enable)
+		cpu_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 
 static WRITE8_HANDLER( irq_enable_w )
 {
-	pooyan_state *state = space->machine().driver_data<pooyan_state>();
+	timeplt_state *state = (timeplt_state *)space->machine->driver_data;
 
-	state->m_irq_enable = data & 1;
-	if (!state->m_irq_enable)
-		device_set_input_line(state->m_maincpu, INPUT_LINE_NMI, CLEAR_LINE);
+	state->irq_enable = data & 1;
+	if (!state->irq_enable)
+		cpu_set_input_line(state->maincpu, INPUT_LINE_NMI, CLEAR_LINE);
 }
 
 
@@ -49,13 +47,13 @@ static WRITE8_HANDLER( irq_enable_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
-	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(pooyan_colorram_w) AM_BASE_MEMBER(pooyan_state, m_colorram)
-	AM_RANGE(0x8400, 0x87ff) AM_RAM_WRITE(pooyan_videoram_w) AM_BASE_MEMBER(pooyan_state, m_videoram)
+	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(pooyan_colorram_w) AM_BASE_MEMBER(timeplt_state, colorram)
+	AM_RANGE(0x8400, 0x87ff) AM_RAM_WRITE(pooyan_videoram_w) AM_BASE_MEMBER(timeplt_state, videoram)
 	AM_RANGE(0x8800, 0x8fff) AM_RAM
-	AM_RANGE(0x9000, 0x90ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(pooyan_state, m_spriteram)
-	AM_RANGE(0x9400, 0x94ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(pooyan_state, m_spriteram2)
+	AM_RANGE(0x9000, 0x90ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram)
+	AM_RANGE(0x9400, 0x94ff) AM_MIRROR(0x0b00) AM_RAM AM_BASE_MEMBER(timeplt_state, spriteram2)
 	AM_RANGE(0xa000, 0xa000) AM_MIRROR(0x5e7f) AM_READ_PORT("DSW1")
 	AM_RANGE(0xa080, 0xa080) AM_MIRROR(0x5e1f) AM_READ_PORT("IN0")
 	AM_RANGE(0xa0a0, 0xa0a0) AM_MIRROR(0x5e1f) AM_READ_PORT("IN1")
@@ -101,7 +99,40 @@ static INPUT_PORTS_START( pooyan )
 	PORT_BIT( 0xe0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("DSW0")
-	KONAMI_COINAGE(DEF_STR( Free_Play ), "Invalid" )
+	PORT_DIPNAME( 0x0f, 0x0f, DEF_STR( Coin_A ) )
+	PORT_DIPSETTING(    0x02, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x05, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( 3C_2C ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( 4C_3C ) )
+	PORT_DIPSETTING(    0x0f, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x03, DEF_STR( 3C_4C ) )
+	PORT_DIPSETTING(    0x07, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0x0e, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x06, DEF_STR( 2C_5C ) )
+	PORT_DIPSETTING(    0x0d, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0x0b, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0x0a, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x09, DEF_STR( 1C_7C ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Free_Play ) )
+	PORT_DIPNAME( 0xf0, 0xf0, DEF_STR( Coin_B ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x50, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( 3C_2C ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( 4C_3C ) )
+	PORT_DIPSETTING(    0xf0, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x30, DEF_STR( 3C_4C ) )
+	PORT_DIPSETTING(    0x70, DEF_STR( 2C_3C ) )
+	PORT_DIPSETTING(    0xe0, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x60, DEF_STR( 2C_5C ) )
+	PORT_DIPSETTING(    0xd0, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0xc0, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0xb0, DEF_STR( 1C_5C ) )
+	PORT_DIPSETTING(    0xa0, DEF_STR( 1C_6C ) )
+	PORT_DIPSETTING(    0x90, DEF_STR( 1C_7C ) )
+	PORT_DIPSETTING(    0x00, "Invalid" )
 	/* Invalid = both coin slots disabled */
 
 	PORT_START("DSW1")
@@ -176,48 +207,51 @@ GFXDECODE_END
 
 static MACHINE_START( pooyan )
 {
-	pooyan_state *state = machine.driver_data<pooyan_state>();
+	timeplt_state *state = (timeplt_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device<cpu_device>("maincpu");
+	state->maincpu = machine->device<cpu_device>("maincpu");
 
-	state->save_item(NAME(state->m_irq_enable));
+	state_save_register_global(machine, state->irq_enable);
 }
 
 
 static MACHINE_RESET( pooyan )
 {
-	pooyan_state *state = machine.driver_data<pooyan_state>();
-	state->m_irq_enable = 0;
+	timeplt_state *state = (timeplt_state *)machine->driver_data;
+	state->irq_enable = 0;
 }
 
 
-static MACHINE_CONFIG_START( pooyan, pooyan_state )
+static MACHINE_DRIVER_START( pooyan )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(timeplt_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MASTER_CLOCK/3/2)
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", pooyan_interrupt)
+	MDRV_CPU_ADD("maincpu", Z80, MASTER_CLOCK/3/2)
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", pooyan_interrupt)
 
-	MCFG_MACHINE_START(pooyan)
-	MCFG_MACHINE_RESET(pooyan)
+	MDRV_MACHINE_START(pooyan)
+	MDRV_MACHINE_RESET(pooyan)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(pooyan)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(pooyan)
-	MCFG_PALETTE_LENGTH(16*16+16*16)
+	MDRV_GFXDECODE(pooyan)
+	MDRV_PALETTE_LENGTH(16*16+16*16)
 
-	MCFG_PALETTE_INIT(pooyan)
-	MCFG_VIDEO_START(pooyan)
+	MDRV_PALETTE_INIT(pooyan)
+	MDRV_VIDEO_START(pooyan)
+	MDRV_VIDEO_UPDATE(pooyan)
 
 	/* sound hardware */
-	MCFG_FRAGMENT_ADD(timeplt_sound)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(timeplt_sound)
+MACHINE_DRIVER_END
 
 
 /*************************************
@@ -309,7 +343,6 @@ ROM_END
  *
  *************************************/
 
-//    YEAR, NAME,    PARENT, MACHINE,INPUT,  INIT,MONITOR,COMPANY,FULLNAME,FLAGS
-GAME( 1982, pooyan,  0,      pooyan, pooyan, 0,   ROT90,  "Konami", "Pooyan", GAME_SUPPORTS_SAVE )
-GAME( 1982, pooyans, pooyan, pooyan, pooyan, 0,   ROT90,  "Konami (Stern Electronics license)", "Pooyan (Stern Electronics)", GAME_SUPPORTS_SAVE )
-GAME( 1982, pootan,  pooyan, pooyan, pooyan, 0,   ROT90,  "bootleg", "Pootan", GAME_SUPPORTS_SAVE )
+GAME( 1982, pooyan,  0,      pooyan, pooyan, 0, ROT90, "Konami", "Pooyan", GAME_SUPPORTS_SAVE )
+GAME( 1982, pooyans, pooyan, pooyan, pooyan, 0, ROT90, "Konami (Stern Electronics license)", "Pooyan (Stern Electronics)", GAME_SUPPORTS_SAVE )
+GAME( 1982, pootan,  pooyan, pooyan, pooyan, 0, ROT90, "bootleg", "Pootan", GAME_SUPPORTS_SAVE )

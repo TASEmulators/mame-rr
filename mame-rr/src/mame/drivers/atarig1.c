@@ -32,30 +32,30 @@
  *
  *************************************/
 
-static void update_interrupts(running_machine &machine)
+static void update_interrupts(running_machine *machine)
 {
-	atarig1_state *state = machine.driver_data<atarig1_state>();
-	cputag_set_input_line(machine, "maincpu", 1, state->m_video_int_state ? ASSERT_LINE : CLEAR_LINE);
-	cputag_set_input_line(machine, "maincpu", 2, state->m_sound_int_state ? ASSERT_LINE : CLEAR_LINE);
+	atarig1_state *state = (atarig1_state *)machine->driver_data;
+	cputag_set_input_line(machine, "maincpu", 1, state->atarigen.video_int_state ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(machine, "maincpu", 2, state->atarigen.sound_int_state ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
 static MACHINE_START( atarig1 )
 {
-	atarig1_state *state = machine.driver_data<atarig1_state>();
+	atarig1_state *state = (atarig1_state *)machine->driver_data;
 	atarigen_init(machine);
-	state->save_item(NAME(state->m_which_input));
+	state_save_register_global(machine, state->which_input);
 }
 
 
 static MACHINE_RESET( atarig1 )
 {
-	atarig1_state *state = machine.driver_data<atarig1_state>();
+	atarig1_state *state = (atarig1_state *)machine->driver_data;
 
-	atarigen_eeprom_reset(state);
-	atarigen_slapstic_reset(state);
-	atarigen_interrupt_reset(state, update_interrupts);
-	atarigen_scanline_timer_reset(*machine.primary_screen, atarig1_scanline_update, 8);
+	atarigen_eeprom_reset(&state->atarigen);
+	atarigen_slapstic_reset(&state->atarigen);
+	atarigen_interrupt_reset(&state->atarigen, update_interrupts);
+	atarigen_scanline_timer_reset(*machine->primary_screen, atarig1_scanline_update, 8);
 	atarijsa_reset();
 }
 
@@ -70,18 +70,15 @@ static MACHINE_RESET( atarig1 )
 static WRITE16_HANDLER( mo_control_w )
 {
 	if (ACCESSING_BITS_0_7)
-	{
-		atarig1_state *state = space->machine().driver_data<atarig1_state>();
-		atarirle_control_w(state->m_rle, data & 7);
-	}
+		atarirle_control_w(space->machine, 0, data & 7);
 }
 
 
 static WRITE16_HANDLER( mo_command_w )
 {
-	atarig1_state *state = space->machine().driver_data<atarig1_state>();
-	COMBINE_DATA(state->m_mo_command);
-	atarirle_command_w(state->m_rle, (data == 0 && state->m_is_pitfight) ? ATARIRLE_COMMAND_CHECKSUM : ATARIRLE_COMMAND_DRAW);
+	atarig1_state *state = (atarig1_state *)space->machine->driver_data;
+	COMBINE_DATA(state->mo_command);
+	atarirle_command_w(0, (data == 0 && state->is_pitfight) ? ATARIRLE_COMMAND_CHECKSUM : ATARIRLE_COMMAND_DRAW);
 }
 
 
@@ -94,9 +91,9 @@ static WRITE16_HANDLER( mo_command_w )
 
 static READ16_HANDLER( special_port0_r )
 {
-	atarig1_state *state = space->machine().driver_data<atarig1_state>();
-	int temp = input_port_read(space->machine(), "IN0");
-	if (state->m_cpu_to_sound_ready) temp ^= 0x1000;
+	atarig1_state *state = (atarig1_state *)space->machine->driver_data;
+	int temp = input_port_read(space->machine, "IN0");
+	if (state->atarigen.cpu_to_sound_ready) temp ^= 0x1000;
 	temp ^= 0x2000;		/* A2DOK always high for now */
 	return temp;
 }
@@ -104,23 +101,23 @@ static READ16_HANDLER( special_port0_r )
 
 static WRITE16_HANDLER( a2d_select_w )
 {
-	atarig1_state *state = space->machine().driver_data<atarig1_state>();
-	state->m_which_input = offset;
+	atarig1_state *state = (atarig1_state *)space->machine->driver_data;
+	state->which_input = offset;
 }
 
 
 static READ16_HANDLER( a2d_data_r )
 {
 	static const char *const adcnames[] = { "ADC0", "ADC1", "ADC2" };
-	atarig1_state *state = space->machine().driver_data<atarig1_state>();
+	atarig1_state *state = (atarig1_state *)space->machine->driver_data;
 
 	/* Pit Fighter has no A2D, just another input port */
-	if (state->m_is_pitfight)
-		return input_port_read(space->machine(), "ADC0");
+	if (state->is_pitfight)
+		return input_port_read(space->machine, "ADC0");
 
 	/* otherwise, assume it's hydra */
-	if (state->m_which_input < 3)
-		return input_port_read(space->machine(), adcnames[state->m_which_input]) << 8;
+	if (state->which_input < 3)
+		return input_port_read(space->machine, adcnames[state->which_input]) << 8;
 
 	return 0;
 }
@@ -136,70 +133,70 @@ static READ16_HANDLER( a2d_data_r )
 INLINE void update_bank(atarig1_state *state, int bank)
 {
 	/* if the bank has changed, copy the memory; Pit Fighter needs this */
-	if (bank != state->m_bslapstic_bank)
+	if (bank != state->bslapstic_bank)
 	{
 		/* bank 0 comes from the copy we made earlier */
 		if (bank == 0)
-			memcpy(state->m_bslapstic_base, state->m_bslapstic_bank0, 0x2000);
+			memcpy(state->bslapstic_base, state->bslapstic_bank0, 0x2000);
 		else
-			memcpy(state->m_bslapstic_base, &state->m_bslapstic_base[bank * 0x1000], 0x2000);
+			memcpy(state->bslapstic_base, &state->bslapstic_base[bank * 0x1000], 0x2000);
 
 		/* remember the current bank */
-		state->m_bslapstic_bank = bank;
+		state->bslapstic_bank = bank;
 	}
 }
 
 
-static void pitfightb_state_postload(running_machine &machine)
+static STATE_POSTLOAD( pitfightb_state_postload )
 {
-	atarig1_state *state = machine.driver_data<atarig1_state>();
-	int bank = state->m_bslapstic_bank;
-	state->m_bslapstic_bank = -1;
+	atarig1_state *state = (atarig1_state *)machine->driver_data;
+	int bank = state->bslapstic_bank;
+	state->bslapstic_bank = -1;
 	update_bank(state, bank);
 }
 
 
 static READ16_HANDLER( pitfightb_cheap_slapstic_r )
 {
-	atarig1_state *state = space->machine().driver_data<atarig1_state>();
-	int result = state->m_bslapstic_base[offset & 0xfff];
+	atarig1_state *state = (atarig1_state *)space->machine->driver_data;
+	int result = state->bslapstic_base[offset & 0xfff];
 
 	/* the cheap replacement slapstic just triggers on the simple banking */
 	/* addresses; a software patch ensure that this is good enough */
 
 	/* offset 0 primes the chip */
 	if (offset == 0)
-		state->m_bslapstic_primed = TRUE;
+		state->bslapstic_primed = TRUE;
 
 	/* one of 4 bankswitchers produces the result */
-	else if (state->m_bslapstic_primed)
+	else if (state->bslapstic_primed)
 	{
 		if (offset == 0x42)
-			update_bank(state, 0), state->m_bslapstic_primed = FALSE;
+			update_bank(state, 0), state->bslapstic_primed = FALSE;
 		else if (offset == 0x52)
-			update_bank(state, 1), state->m_bslapstic_primed = FALSE;
+			update_bank(state, 1), state->bslapstic_primed = FALSE;
 		else if (offset == 0x62)
-			update_bank(state, 2), state->m_bslapstic_primed = FALSE;
+			update_bank(state, 2), state->bslapstic_primed = FALSE;
 		else if (offset == 0x72)
-			update_bank(state, 3), state->m_bslapstic_primed = FALSE;
+			update_bank(state, 3), state->bslapstic_primed = FALSE;
 	}
 	return result;
 }
 
 
-static void pitfightb_cheap_slapstic_init(running_machine &machine)
+static void pitfightb_cheap_slapstic_init(running_machine *machine)
 {
-	atarig1_state *state = machine.driver_data<atarig1_state>();
+	atarig1_state *state = (atarig1_state *)machine->driver_data;
 
 	/* install a read handler */
-	state->m_bslapstic_base = machine.device("maincpu")->memory().space(AS_PROGRAM)->install_legacy_read_handler(0x038000, 0x03ffff, FUNC(pitfightb_cheap_slapstic_r));
+	state->bslapstic_base = memory_install_read16_handler(cputag_get_address_space(machine, "maincpu", ADDRESS_SPACE_PROGRAM), 0x038000, 0x03ffff, 0, 0, pitfightb_cheap_slapstic_r);
 
 	/* allocate memory for a copy of bank 0 */
-	state->m_bslapstic_bank0 = auto_alloc_array(machine, UINT8, 0x2000);
-	memcpy(state->m_bslapstic_bank0, state->m_bslapstic_base, 0x2000);
+	state->bslapstic_bank0 = auto_alloc_array(machine, UINT8, 0x2000);
+	memcpy(state->bslapstic_bank0, state->bslapstic_base, 0x2000);
 
 	/* not primed by default */
-	state->m_bslapstic_primed = FALSE;
+	state->bslapstic_primed = FALSE;
 }
 
 
@@ -210,7 +207,7 @@ static void pitfightb_cheap_slapstic_init(running_machine &machine)
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x037fff) AM_ROM
 	AM_RANGE(0x038000, 0x03ffff) AM_ROM	/* pitfight slapstic goes here */
 	AM_RANGE(0x040000, 0x077fff) AM_ROM
@@ -224,13 +221,13 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xfc0000, 0xfc0001) AM_READ(special_port0_r)
 	AM_RANGE(0xfc8000, 0xfc8007) AM_READWRITE(a2d_data_r, a2d_select_w)
 	AM_RANGE(0xfd0000, 0xfd0001) AM_READ(atarigen_sound_upper_r)
-	AM_RANGE(0xfd8000, 0xfdffff) AM_READWRITE(atarigen_eeprom_r, atarigen_eeprom_w) AM_SHARE("eeprom")
+	AM_RANGE(0xfd8000, 0xfdffff) AM_READWRITE(atarigen_eeprom_r, atarigen_eeprom_w) AM_BASE_SIZE_MEMBER(atarig1_state, atarigen.eeprom, atarigen.eeprom_size)
 /*  AM_RANGE(0xfe0000, 0xfe7fff) AM_READ(from_r)*/
 	AM_RANGE(0xfe8000, 0xfe89ff) AM_RAM_WRITE(atarigen_666_paletteram_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0xff0000, 0xff0fff) AM_DEVREADWRITE("rle", atarirle_spriteram_r, atarirle_spriteram_w)
-	AM_RANGE(0xff2000, 0xff2001) AM_WRITE(mo_command_w) AM_BASE_MEMBER(atarig1_state, m_mo_command)
-	AM_RANGE(0xff4000, 0xff5fff) AM_WRITE(atarigen_playfield_w) AM_BASE_MEMBER(atarig1_state, m_playfield)
-	AM_RANGE(0xff6000, 0xff6fff) AM_WRITE(atarigen_alpha_w) AM_BASE_MEMBER(atarig1_state, m_alpha)
+	AM_RANGE(0xff0000, 0xff0fff) AM_WRITE(atarirle_0_spriteram_w) AM_BASE(&atarirle_0_spriteram)
+	AM_RANGE(0xff2000, 0xff2001) AM_WRITE(mo_command_w) AM_BASE_MEMBER(atarig1_state, mo_command)
+	AM_RANGE(0xff4000, 0xff5fff) AM_WRITE(atarigen_playfield_w) AM_BASE_MEMBER(atarig1_state, atarigen.playfield)
+	AM_RANGE(0xff6000, 0xff6fff) AM_WRITE(atarigen_alpha_w) AM_BASE_MEMBER(atarig1_state, atarigen.alpha)
 	AM_RANGE(0xff0000, 0xffffff) AM_RAM
 ADDRESS_MAP_END
 
@@ -244,11 +241,11 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( hydra )
 	PORT_START("IN0")		/* fc0000 */
-	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("Left Trigger")
-	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("Right Trigger")
-	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON6 ) PORT_NAME("Left Thumb")
-	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Right Thumb")
-	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("Boost")
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON5 )
+	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 )
+	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON6 )
+	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_BUTTON3 )
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON4 )
 	PORT_BIT( 0x0fe0, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x2000, IP_ACTIVE_HIGH, IPT_UNUSED )
@@ -278,9 +275,9 @@ static INPUT_PORTS_START( pitfight )
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(1)
 	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(1)
-	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("P1 Punch")
-	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) PORT_NAME("P1 Kick")
-	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) PORT_NAME("P1 Jump/Start")
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1)
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1)
+	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1)
 	PORT_BIT( 0x0f80, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x2000, IP_ACTIVE_HIGH, IPT_UNUSED )
@@ -292,17 +289,17 @@ static INPUT_PORTS_START( pitfight )
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(3)
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(3)
 	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(3)
-	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(3) PORT_NAME("P3 Punch")
-	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(3) PORT_NAME("P3 Kick")
-	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(3) PORT_NAME("P3 Jump/Start")
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(3)
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(3)
+	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(3)
 	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x0100, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_PLAYER(2)
 	PORT_BIT( 0x0200, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(2)
 	PORT_BIT( 0x0400, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(2)
 	PORT_BIT( 0x0800, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(2)
-	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) PORT_NAME("P2 Punch")
-	PORT_BIT( 0x2000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) PORT_NAME("P2 Kick")
-	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) PORT_NAME("P2 Jump/Start")
+	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
+	PORT_BIT( 0x2000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2)
+	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2)
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("ADC1")      /* not used */
@@ -323,9 +320,9 @@ static INPUT_PORTS_START( pitfightj )
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(1)
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(1)
 	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(1)
-	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("Punch")
-	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) PORT_NAME("Kick")
-	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) PORT_NAME("Jump/P1 Start")
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1)
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1)
+	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1)
 	PORT_BIT( 0x0f80, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x2000, IP_ACTIVE_HIGH, IPT_UNUSED )
@@ -338,9 +335,9 @@ static INPUT_PORTS_START( pitfightj )
 	PORT_BIT( 0x0200, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_PLAYER(2)
 	PORT_BIT( 0x0400, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_PLAYER(2)
 	PORT_BIT( 0x0800, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_PLAYER(2)
-	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) PORT_NAME("Punch")
-	PORT_BIT( 0x2000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) PORT_NAME("Kick")
-	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) PORT_NAME("Jump/P2 Start")
+	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
+	PORT_BIT( 0x2000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2)
+	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2)
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("ADC1")      /* not used */
@@ -404,90 +401,42 @@ GFXDECODE_END
 
 
 
-static const atarirle_desc modesc_hydra =
-{
-	"gfx3",		/* region where the GFX data lives */
-	256,		/* number of entries in sprite RAM */
-	0,			/* left clip coordinate */
-	255,		/* right clip coordinate */
-
-	0x200,		/* base palette entry */
-	0x100,		/* maximum number of colors */
-
-	{{ 0x7fff,0,0,0,0,0,0,0 }},	/* mask for the code index */
-	{{ 0,0x00f0,0,0,0,0,0,0 }},	/* mask for the color */
-	{{ 0,0,0xffc0,0,0,0,0,0 }},	/* mask for the X position */
-	{{ 0,0,0,0xffc0,0,0,0,0 }},	/* mask for the Y position */
-	{{ 0,0,0,0,0xffff,0,0,0 }},	/* mask for the scale factor */
-	{{ 0x8000,0,0,0,0,0,0,0 }},	/* mask for the horizontal flip */
-	{{ 0,0,0,0,0,0x00ff,0,0 }},	/* mask for the order */
-	{{ 0 }},					/* mask for the priority */
-	{{ 0 }}						/* mask for the VRAM target */
-};
-
-static const atarirle_desc modesc_pitfight =
-{
-	"gfx3",		/* region where the GFX data lives */
-	256,		/* number of entries in sprite RAM */
-	40,			/* left clip coordinate */
-	295,		/* right clip coordinate */
-
-	0x200,		/* base palette entry */
-	0x100,		/* maximum number of colors */
-
-	{{ 0x7fff,0,0,0,0,0,0,0 }},	/* mask for the code index */
-	{{ 0,0x00f0,0,0,0,0,0,0 }},	/* mask for the color */
-	{{ 0,0,0xffc0,0,0,0,0,0 }},	/* mask for the X position */
-	{{ 0,0,0,0xffc0,0,0,0,0 }},	/* mask for the Y position */
-	{{ 0,0,0,0,0xffff,0,0,0 }},	/* mask for the scale factor */
-	{{ 0x8000,0,0,0,0,0,0,0 }},	/* mask for the horizontal flip */
-	{{ 0,0,0,0,0,0,0x00ff,0 }},	/* mask for the order */
-	{{ 0 }},					/* mask for the priority */
-	{{ 0 }}						/* mask for the VRAM target */
-};
-
 /*************************************
  *
  *  Machine driver
  *
  *************************************/
 
-static MACHINE_CONFIG_START( atarig1, atarig1_state )
+static MACHINE_DRIVER_START( atarig1 )
+	MDRV_DRIVER_DATA(atarig1_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, ATARI_CLOCK_14MHz)
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", atarigen_video_int_gen)
+	MDRV_CPU_ADD("maincpu", M68000, ATARI_CLOCK_14MHz)
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", atarigen_video_int_gen)
 
-	MCFG_MACHINE_START(atarig1)
-	MCFG_MACHINE_RESET(atarig1)
-	MCFG_NVRAM_ADD_1FILL("eeprom")
+	MDRV_MACHINE_START(atarig1)
+	MDRV_MACHINE_RESET(atarig1)
+	MDRV_NVRAM_HANDLER(atarigen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
-	MCFG_GFXDECODE(atarig1)
-	MCFG_PALETTE_LENGTH(1280)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	MDRV_GFXDECODE(atarig1)
+	MDRV_PALETTE_LENGTH(1280)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
 	/* note: these parameters are from published specs, not derived */
-	MCFG_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
-	MCFG_SCREEN_UPDATE(atarig1)
-	MCFG_SCREEN_EOF(atarig1)
+	MDRV_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
 
-	MCFG_VIDEO_START(atarig1)
+	MDRV_VIDEO_START(atarig1)
+	MDRV_VIDEO_EOF(atarirle)
+	MDRV_VIDEO_UPDATE(atarig1)
 
 	/* sound hardware */
-	MCFG_FRAGMENT_ADD(jsa_ii_mono)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(jsa_ii_mono)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( hydra, atarig1 )
-	MCFG_ATARIRLE_ADD( "rle", modesc_hydra )
-MACHINE_CONFIG_END
-
-static MACHINE_CONFIG_DERIVED( pitfight, atarig1 )
-	MCFG_ATARIRLE_ADD( "rle", modesc_pitfight )
-MACHINE_CONFIG_END
 
 
 /*************************************
@@ -647,27 +596,27 @@ ROM_START( hydrap2 )
 	ROM_LOAD( "136079-1027.bin",  0x000000, 0x20000, CRC(f9135b9b) SHA1(48c0ad0d3e592d191d1385e30530bdb69a095452) ) /* alphanumerics */
 
 	ROM_REGION16_BE( 0x100000, "gfx3", 0 )
-	ROM_LOAD16_BYTE( "136079-1001.bin", 0x00001, 0x10000, BAD_DUMP CRC(3f757a53) SHA1(be2b7f8b907ef9ea24b24b7210ead70cdbad3506) ) // not dumped from this pcb, rom taken from another set instead
-	ROM_LOAD16_BYTE( "136079-1002.bin", 0x00000, 0x10000, BAD_DUMP CRC(a1169469) SHA1(b5ab65ca9d98ef1e79518eaa519fba0cee92c86e) ) // "
-	ROM_LOAD16_BYTE( "136079-1003.bin", 0x20001, 0x10000, BAD_DUMP CRC(aa21ec33) SHA1(dec65b670c64b3630f6ccbbcc3212f6771908de9) ) // "
-	ROM_LOAD16_BYTE( "136079-1004.bin", 0x20000, 0x10000, BAD_DUMP CRC(c0a2be66) SHA1(b1e454d8b8c80a3f3d087a6eccd555c1ee1e5be6) ) // "
-	ROM_LOAD16_BYTE( "136079-1005.bin", 0x40001, 0x10000, BAD_DUMP CRC(80c285b3) SHA1(bfcb342d2ea5d91562bfca7fac27744682c1d9af) ) // "
-	ROM_LOAD16_BYTE( "136079-1006.bin", 0x40000, 0x10000, BAD_DUMP CRC(ad831c59) SHA1(bd6b52fe4ecfacb5a8c7edb9a67f7d2ed51122e2) ) // "
-	ROM_LOAD16_BYTE( "136079-1007.bin", 0x60001, 0x10000, BAD_DUMP CRC(e0688cc0) SHA1(984266a4f0a4b38be06a20f346851c4d8643512c) ) // "
-	ROM_LOAD16_BYTE( "136079-1008.bin", 0x60000, 0x10000, BAD_DUMP CRC(e6827f6b) SHA1(fd8ca175a065e199a383597f12fbf241f101b608) ) // "
-	ROM_LOAD16_BYTE( "136079-1009.bin", 0x80001, 0x10000, BAD_DUMP CRC(33624d07) SHA1(7847c51c75ad2f0432ebeb7a224ae833a03b5d87) ) // "
-	ROM_LOAD16_BYTE( "136079-1010.bin", 0x80000, 0x10000, BAD_DUMP CRC(9de4c689) SHA1(2ceb3db68ab368105c324a7763ff90448ecd3c49) ) // "
-	ROM_LOAD16_BYTE( "136079-1011.bin", 0xa0001, 0x10000, BAD_DUMP CRC(d55c6e49) SHA1(dd49b4082d645770a3e5bf7f4b043f2ecc84bf89) ) // "
-	ROM_LOAD16_BYTE( "136079-1012.bin", 0xa0000, 0x10000, BAD_DUMP CRC(43af45d0) SHA1(8fc14d534a2f0b3e6df0090c3dd5284b0028aa04) ) // "
-	ROM_LOAD16_BYTE( "136079-1013.bin", 0xc0001, 0x10000, BAD_DUMP CRC(2647a82b) SHA1(b261919842a8277bff15bf6e0f16ca046b580f77) ) // "
-	ROM_LOAD16_BYTE( "136079-1014.bin", 0xc0000, 0x10000, BAD_DUMP CRC(8897d5e9) SHA1(3a5cdc7bf633118453f0028b16f5c22b78cd5904) ) // "
-	ROM_LOAD16_BYTE( "136079-1015.bin", 0xe0001, 0x10000, BAD_DUMP CRC(cf7f69fd) SHA1(93866f66ae7f4071abc66bd310bd15847e2a950a) ) // "
-	ROM_LOAD16_BYTE( "136079-1016.bin", 0xe0000, 0x10000, BAD_DUMP CRC(61aaf14f) SHA1(946caff64902ebdda991372b54c29bd0a0fa13c3) ) // "
+	ROM_LOAD16_BYTE( "136079-1001.bin", 0x00001, 0x10000, NO_DUMP CRC(3f757a53) SHA1(be2b7f8b907ef9ea24b24b7210ead70cdbad3506) )
+	ROM_LOAD16_BYTE( "136079-1002.bin", 0x00000, 0x10000, NO_DUMP CRC(a1169469) SHA1(b5ab65ca9d98ef1e79518eaa519fba0cee92c86e) )
+	ROM_LOAD16_BYTE( "136079-1003.bin", 0x20001, 0x10000, NO_DUMP CRC(aa21ec33) SHA1(dec65b670c64b3630f6ccbbcc3212f6771908de9) )
+	ROM_LOAD16_BYTE( "136079-1004.bin", 0x20000, 0x10000, NO_DUMP CRC(c0a2be66) SHA1(b1e454d8b8c80a3f3d087a6eccd555c1ee1e5be6) )
+	ROM_LOAD16_BYTE( "136079-1005.bin", 0x40001, 0x10000, NO_DUMP CRC(80c285b3) SHA1(bfcb342d2ea5d91562bfca7fac27744682c1d9af) )
+	ROM_LOAD16_BYTE( "136079-1006.bin", 0x40000, 0x10000, NO_DUMP CRC(ad831c59) SHA1(bd6b52fe4ecfacb5a8c7edb9a67f7d2ed51122e2) )
+	ROM_LOAD16_BYTE( "136079-1007.bin", 0x60001, 0x10000, NO_DUMP CRC(e0688cc0) SHA1(984266a4f0a4b38be06a20f346851c4d8643512c) )
+	ROM_LOAD16_BYTE( "136079-1008.bin", 0x60000, 0x10000, NO_DUMP CRC(e6827f6b) SHA1(fd8ca175a065e199a383597f12fbf241f101b608) )
+	ROM_LOAD16_BYTE( "136079-1009.bin", 0x80001, 0x10000, NO_DUMP CRC(33624d07) SHA1(7847c51c75ad2f0432ebeb7a224ae833a03b5d87) )
+	ROM_LOAD16_BYTE( "136079-1010.bin", 0x80000, 0x10000, NO_DUMP CRC(9de4c689) SHA1(2ceb3db68ab368105c324a7763ff90448ecd3c49) )
+	ROM_LOAD16_BYTE( "136079-1011.bin", 0xa0001, 0x10000, NO_DUMP CRC(d55c6e49) SHA1(dd49b4082d645770a3e5bf7f4b043f2ecc84bf89) )
+	ROM_LOAD16_BYTE( "136079-1012.bin", 0xa0000, 0x10000, NO_DUMP CRC(43af45d0) SHA1(8fc14d534a2f0b3e6df0090c3dd5284b0028aa04) )
+	ROM_LOAD16_BYTE( "136079-1013.bin", 0xc0001, 0x10000, NO_DUMP CRC(2647a82b) SHA1(b261919842a8277bff15bf6e0f16ca046b580f77) )
+	ROM_LOAD16_BYTE( "136079-1014.bin", 0xc0000, 0x10000, NO_DUMP CRC(8897d5e9) SHA1(3a5cdc7bf633118453f0028b16f5c22b78cd5904) )
+	ROM_LOAD16_BYTE( "136079-1015.bin", 0xe0001, 0x10000, NO_DUMP CRC(cf7f69fd) SHA1(93866f66ae7f4071abc66bd310bd15847e2a950a) )
+	ROM_LOAD16_BYTE( "136079-1016.bin", 0xe0000, 0x10000, NO_DUMP CRC(61aaf14f) SHA1(946caff64902ebdda991372b54c29bd0a0fa13c3) )
 
 	ROM_REGION( 0x40000, "adpcm", 0 )
-	ROM_LOAD( "136079-1037.bin",  0x00000, 0x10000, BAD_DUMP CRC(b974d3d0) SHA1(67ecb17386f4be00c03661de14deff77b8ca85d0)  ) // not dumped from this pcb, rom taken from another set instead
-	ROM_LOAD( "136079-1038.bin",  0x10000, 0x10000, BAD_DUMP CRC(a2eda15b) SHA1(358888ffdeb3d0e98f59e239de6d7e1f7e15aca2)  ) // "
-	ROM_LOAD( "136079-1039.bin",  0x20000, 0x10000, BAD_DUMP CRC(eb9eaeb7) SHA1(cd8e076b07588879f1a0e6c0fb9de9889480bebb)  ) // "
+	ROM_LOAD( "136079-1037.bin",  0x00000, 0x10000, NO_DUMP CRC(b974d3d0) SHA1(67ecb17386f4be00c03661de14deff77b8ca85d0)  )
+	ROM_LOAD( "136079-1038.bin",  0x10000, 0x10000, NO_DUMP CRC(a2eda15b) SHA1(358888ffdeb3d0e98f59e239de6d7e1f7e15aca2)  )
+	ROM_LOAD( "136079-1039.bin",  0x20000, 0x10000, NO_DUMP CRC(eb9eaeb7) SHA1(cd8e076b07588879f1a0e6c0fb9de9889480bebb)  )
 
 	ROM_REGION( 0x0600, "proms", 0 )	/* microcode for growth renderer */
 	ROM_LOAD( "136079-1040.bin",  0x0000, 0x0200, CRC(43d6f3d4) SHA1(a072099df1db8db3589130c67a86a362e03d70ff) )
@@ -1218,23 +1167,23 @@ ROM_END
  *
  *************************************/
 
-static void init_g1_common(running_machine &machine, offs_t slapstic_base, int slapstic, int is_pitfight)
+static void init_g1_common(running_machine *machine, offs_t slapstic_base, int slapstic, int is_pitfight)
 {
-	atarig1_state *state = machine.driver_data<atarig1_state>();
+	atarig1_state *state = (atarig1_state *)machine->driver_data;
 
-	state->m_eeprom_default = NULL;
+	state->atarigen.eeprom_default = NULL;
 	if (slapstic == -1)
 	{
 		pitfightb_cheap_slapstic_init(machine);
-		state->save_item(NAME(state->m_bslapstic_bank));
-		state->save_item(NAME(state->m_bslapstic_primed));
-		machine.save().register_postload(save_prepost_delegate(FUNC(pitfightb_state_postload), &machine));
+		state_save_register_global(machine, state->bslapstic_bank);
+		state_save_register_global(machine, state->bslapstic_primed);
+		state_save_register_postload(machine, pitfightb_state_postload, NULL);
 	}
 	else if (slapstic != 0)
-		atarigen_slapstic_init(machine.device("maincpu"), slapstic_base, 0, slapstic);
+		atarigen_slapstic_init(machine->device("maincpu"), slapstic_base, 0, slapstic);
 	atarijsa_init(machine, "IN0", 0x4000);
 
-	state->m_is_pitfight = is_pitfight;
+	state->is_pitfight = is_pitfight;
 }
 
 static DRIVER_INIT( hydra )    { init_g1_common(machine, 0x078000, 116, 0); }
@@ -1253,15 +1202,15 @@ static DRIVER_INIT( pitfightb ) { init_g1_common(machine, 0x038000,  -1, 1); }
  *
  *************************************/
 
-GAME( 1990, hydra,    0,        hydra, hydra,    hydra,    ROT0, "Atari Games", "Hydra", GAME_SUPPORTS_SAVE )
-GAME( 1990, hydrap,   hydra,    hydra, hydra,    hydrap,   ROT0, "Atari Games", "Hydra (prototype 5/14/90)", GAME_SUPPORTS_SAVE )
-GAME( 1990, hydrap2,  hydra,    hydra, hydra,    hydrap,   ROT0, "Atari Games", "Hydra (prototype 5/25/90)", GAME_SUPPORTS_SAVE )
+GAME( 1990, hydra,    0,        atarig1, hydra,    hydra,    ROT0, "Atari Games", "Hydra", GAME_SUPPORTS_SAVE )
+GAME( 1990, hydrap,   hydra,    atarig1, hydra,    hydrap,   ROT0, "Atari Games", "Hydra (prototype 5/14/90)", GAME_SUPPORTS_SAVE )
+GAME( 1990, hydrap2,  hydra,    atarig1, hydra,    hydrap,   ROT0, "Atari Games", "Hydra (prototype 5/25/90)", GAME_SUPPORTS_SAVE )
 
-GAME( 1990, pitfight,  0,        pitfight, pitfight, pitfight9, ROT0, "Atari Games", "Pit Fighter (rev 9)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfight7, pitfight, pitfight, pitfight, pitfight7, ROT0, "Atari Games", "Pit Fighter (rev 7)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfight6, pitfight, pitfight, pitfight, pitfightj, ROT0, "Atari Games", "Pit Fighter (rev 6)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfight5, pitfight, pitfight, pitfight, pitfight7, ROT0, "Atari Games", "Pit Fighter (rev 5)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfight4, pitfight, pitfight, pitfight, pitfight,  ROT0, "Atari Games", "Pit Fighter (rev 4)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfight3, pitfight, pitfight, pitfight, pitfight,  ROT0, "Atari Games", "Pit Fighter (rev 3)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfightj, pitfight, pitfight, pitfightj,pitfightj, ROT0, "Atari Games", "Pit Fighter (Japan, 2 players)", GAME_SUPPORTS_SAVE )
-GAME( 1990, pitfightb, pitfight, pitfight, pitfight, pitfightb, ROT0, "bootleg",     "Pit Fighter (bootleg)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfight,  0,        atarig1, pitfight, pitfight9, ROT0, "Atari Games", "Pit Fighter (rev 9)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfight7, pitfight, atarig1, pitfight, pitfight7, ROT0, "Atari Games", "Pit Fighter (rev 7)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfight6, pitfight, atarig1, pitfight, pitfightj, ROT0, "Atari Games", "Pit Fighter (rev 6)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfight5, pitfight, atarig1, pitfight, pitfight7, ROT0, "Atari Games", "Pit Fighter (rev 5)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfight4, pitfight, atarig1, pitfight, pitfight,  ROT0, "Atari Games", "Pit Fighter (rev 4)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfight3, pitfight, atarig1, pitfight, pitfight,  ROT0, "Atari Games", "Pit Fighter (rev 3)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfightj, pitfight, atarig1, pitfightj,pitfightj, ROT0, "Atari Games", "Pit Fighter (Japan, 2 players)", GAME_SUPPORTS_SAVE )
+GAME( 1990, pitfightb, pitfight, atarig1, pitfight, pitfightb, ROT0, "bootleg",     "Pit Fighter (bootleg)", GAME_SUPPORTS_SAVE )

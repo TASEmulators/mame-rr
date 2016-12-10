@@ -83,9 +83,7 @@ There's a separate sound board also, but it wasn't available so is not documente
 #include "cpu/tms34010/tms34010.h"
 #include "cpu/adsp2100/adsp2100.h"
 #include "audio/dcs.h"
-#include "machine/nvram.h"
-#include "includes/midtunit.h"
-#include "includes/midxunit.h"
+#include "includes/midwunit.h"
 
 
 #define PIXEL_CLOCK		(8000000)
@@ -98,7 +96,7 @@ There's a separate sound board also, but it wasn't available so is not documente
  *
  *************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x00000000, 0x003fffff) AM_READWRITE(midtunit_vram_data_r, midtunit_vram_data_w)
 	AM_RANGE(0x00800000, 0x00bfffff) AM_READWRITE(midtunit_vram_color_r, midtunit_vram_color_w)
 	AM_RANGE(0x20000000, 0x20ffffff) AM_RAM
@@ -106,14 +104,14 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
 	AM_RANGE(0x60400000, 0x6040001f) AM_READWRITE(midxunit_status_r, midxunit_security_clock_w)
 	AM_RANGE(0x60c00000, 0x60c0007f) AM_READ(midxunit_io_r)
 	AM_RANGE(0x60c00080, 0x60c000df) AM_WRITE(midxunit_io_w)
-	AM_RANGE(0x60c000e0, 0x60c000ff) AM_READWRITE(midxunit_security_r, midxunit_security_w)
+	AM_RANGE(0x60c000e0, 0x60c000ff) AM_READWRITE(midwunit_security_r, midxunit_security_w)
 	AM_RANGE(0x80800000, 0x8080001f) AM_READWRITE(midxunit_analog_r, midxunit_analog_select_w)
 	AM_RANGE(0x80c00000, 0x80c000ff) AM_READWRITE(midxunit_uart_r, midxunit_uart_w)
-	AM_RANGE(0xa0440000, 0xa047ffff) AM_READWRITE(midxunit_cmos_r, midxunit_cmos_w) AM_SHARE("nvram")
+	AM_RANGE(0xa0440000, 0xa047ffff) AM_READWRITE(midwunit_cmos_r, midxunit_cmos_w) AM_BASE_SIZE_GENERIC(nvram)
 	AM_RANGE(0xa0800000, 0xa08fffff) AM_READWRITE(midxunit_paletteram_r, midxunit_paletteram_w) AM_BASE_GENERIC(paletteram)
 	AM_RANGE(0xc0000000, 0xc00003ff) AM_READWRITE(tms34020_io_register_r, tms34020_io_register_w)
 	AM_RANGE(0xc0c00000, 0xc0c000ff) AM_MIRROR(0x00400000) AM_READWRITE(midtunit_dma_r, midtunit_dma_w)
-	AM_RANGE(0xf8000000, 0xfeffffff) AM_READ(midwunit_gfxrom_r) AM_BASE_MEMBER(midxunit_state, m_decode_memory)
+	AM_RANGE(0xf8000000, 0xfeffffff) AM_READ(midwunit_gfxrom_r) AM_BASE((UINT16 **)&midwunit_decode_memory)
 	AM_RANGE(0xff000000, 0xffffffff) AM_ROM AM_REGION("user1", 0)
 ADDRESS_MAP_END
 
@@ -257,28 +255,29 @@ static const tms34010_config tms_config =
  *
  *************************************/
 
-static MACHINE_CONFIG_START( midxunit, midxunit_state )
+static MACHINE_DRIVER_START( midxunit )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", TMS34020, 40000000)
-	MCFG_CPU_CONFIG(tms_config)
-	MCFG_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_ADD("maincpu", TMS34020, 40000000)
+	MDRV_CPU_CONFIG(tms_config)
+	MDRV_CPU_PROGRAM_MAP(main_map)
 
-	MCFG_MACHINE_RESET(midxunit)
-	MCFG_NVRAM_ADD_0FILL("nvram")
+	MDRV_MACHINE_RESET(midxunit)
+	MDRV_NVRAM_HANDLER(generic_0fill)
 
 	/* video hardware */
-	MCFG_PALETTE_LENGTH(32768)
+	MDRV_PALETTE_LENGTH(32768)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 505, 0, 399, 289, 0, 253)
-	MCFG_SCREEN_UPDATE(tms340x0)
-	MCFG_VIDEO_START(midxunit)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(PIXEL_CLOCK, 505, 0, 399, 289, 0, 253)
+
+	MDRV_VIDEO_START(midxunit)
+	MDRV_VIDEO_UPDATE(tms340x0)
 
 	/* sound hardware */
-	MCFG_FRAGMENT_ADD(dcs_audio_2k_uart)
-MACHINE_CONFIG_END
+	MDRV_IMPORT_FROM(dcs_audio_2k_uart)
+MACHINE_DRIVER_END
 
 
 

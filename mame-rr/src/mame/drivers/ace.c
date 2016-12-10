@@ -43,75 +43,76 @@ A1                   2101            2101
 #define MASTER_CLOCK XTAL_18MHz
 
 
-class ace_state : public driver_device
+class ace_state
 {
 public:
-	ace_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ace_state(machine)); }
+
+	ace_state(running_machine &machine) { }
 
 	/* video-related */
-	UINT8 *  m_ram2;
-	UINT8 *  m_scoreram;
-	UINT8 *  m_characterram;
+	UINT8 *  ram2;
+	UINT8 *  scoreram;
+	UINT8 *  characterram;
 
 	/* input-related */
-	int m_objpos[8];
+	int objpos[8];
 };
 
 
 static WRITE8_HANDLER( ace_objpos_w )
 {
-	ace_state *state = space->machine().driver_data<ace_state>();
-	state->m_objpos[offset] = data;
+	ace_state *state = (ace_state *)space->machine->driver_data;
+	state->objpos[offset] = data;
 }
 
 #if 0
 static READ8_HANDLER( ace_objpos_r )
 {
-	ace_state *state = space->machine().driver_data<ace_state>();
-	return state->m_objpos[offset];
+	ace_state *state = (ace_state *)space->machine->driver_data;
+	return state->objpos[offset];
 }
 #endif
 
 static VIDEO_START( ace )
 {
-	ace_state *state = machine.driver_data<ace_state>();
-	gfx_element_set_source(machine.gfx[1], state->m_characterram);
-	gfx_element_set_source(machine.gfx[2], state->m_characterram);
-	gfx_element_set_source(machine.gfx[3], state->m_characterram);
-	gfx_element_set_source(machine.gfx[4], state->m_scoreram);
+	ace_state *state = (ace_state *)machine->driver_data;
+	gfx_element_set_source(machine->gfx[1], state->characterram);
+	gfx_element_set_source(machine->gfx[2], state->characterram);
+	gfx_element_set_source(machine->gfx[3], state->characterram);
+	gfx_element_set_source(machine->gfx[4], state->scoreram);
 }
 
-static SCREEN_UPDATE( ace )
+static VIDEO_UPDATE( ace )
 {
-	ace_state *state = screen->machine().driver_data<ace_state>();
+	ace_state *state = (ace_state *)screen->machine->driver_data;
 	int offs;
 
 	/* first of all, fill the screen with the background color */
 	bitmap_fill(bitmap, cliprect, 0);
 
-	drawgfx_opaque(bitmap, cliprect, screen->machine().gfx[1],
+	drawgfx_opaque(bitmap, cliprect, screen->machine->gfx[1],
 			0,
 			0,
 			0, 0,
-			state->m_objpos[0], state->m_objpos[1]);
+			state->objpos[0], state->objpos[1]);
 
-	drawgfx_opaque(bitmap, cliprect, screen->machine().gfx[2],
+	drawgfx_opaque(bitmap, cliprect, screen->machine->gfx[2],
 			0,
 			0,
 			0, 0,
-			state->m_objpos[2], state->m_objpos[3]);
+			state->objpos[2], state->objpos[3]);
 
-	drawgfx_opaque(bitmap, cliprect, screen->machine().gfx[3],
+	drawgfx_opaque(bitmap, cliprect, screen->machine->gfx[3],
 			0,
 			0,
 			0, 0,
-			state->m_objpos[4], state->m_objpos[5]);
+			state->objpos[4], state->objpos[5]);
 
 	for (offs = 0; offs < 8; offs++)
 	{
 		drawgfx_opaque(bitmap,/* ?? */
-				cliprect, screen->machine().gfx[4],
+				cliprect, screen->machine->gfx[4],
 				offs,
 				0,
 				0, 0,
@@ -123,38 +124,38 @@ static SCREEN_UPDATE( ace )
 
 static PALETTE_INIT( ace )
 {
-	palette_set_color(machine, 0, MAKE_RGB(0x00,0x00,0x00)); /* black */
+	palette_set_color(machine, 0, MAKE_RGB(0x10,0x20,0xd0)); /* light bluish */
 	palette_set_color(machine, 1, MAKE_RGB(0xff,0xff,0xff)); /* white */
 }
 
 
 static WRITE8_HANDLER( ace_characterram_w )
 {
-	ace_state *state = space->machine().driver_data<ace_state>();
-	if (state->m_characterram[offset] != data)
+	ace_state *state = (ace_state *)space->machine->driver_data;
+	if (state->characterram[offset] != data)
 	{
 		if (data & ~0x07)
 		{
 			logerror("write to %04x data = %02x\n", 0x8000 + offset, data);
 			popmessage("write to %04x data = %02x\n", 0x8000 + offset, data);
 		}
-		state->m_characterram[offset] = data;
-		gfx_element_mark_dirty(space->machine().gfx[1], 0);
-		gfx_element_mark_dirty(space->machine().gfx[2], 0);
-		gfx_element_mark_dirty(space->machine().gfx[3], 0);
+		state->characterram[offset] = data;
+		gfx_element_mark_dirty(space->machine->gfx[1], 0);
+		gfx_element_mark_dirty(space->machine->gfx[2], 0);
+		gfx_element_mark_dirty(space->machine->gfx[3], 0);
 	}
 }
 
 static WRITE8_HANDLER( ace_scoreram_w )
 {
-	ace_state *state = space->machine().driver_data<ace_state>();
-	state->m_scoreram[offset] = data;
-	gfx_element_mark_dirty(space->machine().gfx[4], offset / 32);
+	ace_state *state = (ace_state *)space->machine->driver_data;
+	state->scoreram[offset] = data;
+	gfx_element_mark_dirty(space->machine->gfx[4], offset / 32);
 }
 
 static READ8_HANDLER( unk_r )
 {
-	return space->machine().rand() & 0xff;
+	return mame_rand(space->machine) & 0xff;
 }
 
 
@@ -162,13 +163,13 @@ static READ8_HANDLER( unk_r )
 /* 3x3106 - SRAM 256x1 */
 /* 1x3622 - ROM 512x4  - doesn't seem to be used ????????????*/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 
 	AM_RANGE(0x0000, 0x09ff) AM_ROM
 
-	AM_RANGE(0x2000, 0x20ff) AM_RAM_WRITE(ace_scoreram_w) AM_BASE_MEMBER(ace_state, m_scoreram)	/* 2x2101 */
-	AM_RANGE(0x8300, 0x83ff) AM_RAM AM_BASE_MEMBER(ace_state, m_ram2)	/* 2x2101 */
-	AM_RANGE(0x8000, 0x80ff) AM_RAM_WRITE(ace_characterram_w) AM_BASE_MEMBER(ace_state, m_characterram)	/* 3x3101 (3bits: 0, 1, 2) */
+	AM_RANGE(0x2000, 0x20ff) AM_RAM_WRITE(ace_scoreram_w) AM_BASE_MEMBER(ace_state, scoreram)	/* 2x2101 */
+	AM_RANGE(0x8300, 0x83ff) AM_RAM AM_BASE_MEMBER(ace_state, ram2)	/* 2x2101 */
+	AM_RANGE(0x8000, 0x80ff) AM_RAM_WRITE(ace_characterram_w) AM_BASE_MEMBER(ace_state, characterram)	/* 3x3101 (3bits: 0, 1, 2) */
 
 	AM_RANGE(0xc000, 0xc005) AM_WRITE(ace_objpos_w)
 
@@ -212,31 +213,31 @@ ADDRESS_MAP_END
 
 static INPUT_PORTS_START( ace )
 	PORT_START("c008")	/* player thrust */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_2WAY PORT_PLAYER(1) PORT_NAME("P1 Thrust")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_PLAYER(1) PORT_NAME("P1 Thrust")
 
 	PORT_START("c009")	/* player slowdown */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_2WAY PORT_PLAYER(1) PORT_NAME("P1 Slowdown")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_8WAY PORT_PLAYER(1) PORT_NAME("P1 Slowdown")
 
 	PORT_START("c00a")	/* player left */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_2WAY PORT_PLAYER(1)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_PLAYER(1)
 
 	PORT_START("c00b")	/* player right */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_2WAY PORT_PLAYER(1)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_PLAYER(1)
 
 	PORT_START("c00c")	/* player fire */
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("P1 Fire")
 
 	PORT_START("c00d")	/* enemy thrust */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_2WAY PORT_PLAYER(2) PORT_NAME("P2 Thrust")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_PLAYER(2) PORT_NAME("P2 Thrust")
 
 	PORT_START("c00e")	/* enemy slowdown */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_2WAY PORT_PLAYER(2) PORT_NAME("P2 Slowdown")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_8WAY PORT_PLAYER(2) PORT_NAME("P2 Slowdown")
 
 	PORT_START("c00f")	/* enemy left  */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_2WAY PORT_PLAYER(2)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_PLAYER(2)
 
 	PORT_START("c010")	/* enemy right */
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_2WAY PORT_PLAYER(2)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_PLAYER(2)
 
 	PORT_START("c011")	/* enemy fire */
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_PLAYER(2) PORT_NAME("P2 Fire")
@@ -317,58 +318,51 @@ static GFXDECODE_START( ace )
 	GFXDECODE_ENTRY( NULL          , 0x8000, scorelayout, 0, 2 )    /* the game dynamically modifies this */
 GFXDECODE_END
 
-static void ace_postload(running_machine &machine)
-{
-	gfx_element_mark_dirty(machine.gfx[1], 0);
-	gfx_element_mark_dirty(machine.gfx[2], 0);
-	gfx_element_mark_dirty(machine.gfx[3], 0);
-	gfx_element_mark_dirty(machine.gfx[4], 0);
-}
-
 static MACHINE_START( ace )
 {
-	ace_state *state = machine.driver_data<ace_state>();
-	state->save_item(NAME(state->m_objpos));
-	machine.save().register_postload(save_prepost_delegate(FUNC(ace_postload), &machine));
+	ace_state *state = (ace_state *)machine->driver_data;
+	state_save_register_global_array(machine, state->objpos);
 }
 
 static MACHINE_RESET( ace )
 {
-	ace_state *state = machine.driver_data<ace_state>();
+	ace_state *state = (ace_state *)machine->driver_data;
 	int i;
 
 	for (i = 0; i < 8; i++)
-		state->m_objpos[i] = 0;
+		state->objpos[i] = 0;
 }
 
-static MACHINE_CONFIG_START( ace, ace_state )
+static MACHINE_DRIVER_START( ace )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(ace_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", I8080, MASTER_CLOCK/9)	/* 2 MHz ? */
-	MCFG_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_ADD("maincpu", I8080, MASTER_CLOCK/9)	/* 2 MHz ? */
+	MDRV_CPU_PROGRAM_MAP(main_map)
 
-	MCFG_MACHINE_START(ace)
-	MCFG_MACHINE_RESET(ace)
+	MDRV_MACHINE_START(ace)
+	MDRV_MACHINE_RESET(ace)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(4*8, 32*8-1, 2*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(ace)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(4*8, 32*8-1, 2*8, 32*8-1)
+	MDRV_GFXDECODE(ace)
+	MDRV_PALETTE_LENGTH(2)
 
-	MCFG_GFXDECODE(ace)
-	MCFG_PALETTE_LENGTH(2)
-
-	MCFG_PALETTE_INIT(ace)
-	MCFG_VIDEO_START(ace)
+	MDRV_PALETTE_INIT(ace)
+	MDRV_VIDEO_START(ace)
+	MDRV_VIDEO_UPDATE(ace)
 
 	/* sound hardware */
 	/* ???? */
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 /***************************************************************************
 
@@ -390,4 +384,4 @@ ROM_START( ace )
 
 ROM_END
 
-GAME( 1976, ace, 0, ace, ace, 0, ROT0, "Allied Leisure", "Ace", GAME_SUPPORTS_SAVE | GAME_NO_SOUND )
+GAME( 1976, ace, 0, ace, ace, 0, ROT0, "Allied Leisure", "Ace", GAME_SUPPORTS_SAVE | GAME_NO_SOUND | GAME_IMPERFECT_COLORS )

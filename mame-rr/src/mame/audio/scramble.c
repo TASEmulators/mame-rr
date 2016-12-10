@@ -17,7 +17,7 @@
 #include "sound/flt_rc.h"
 #include "sound/tms5110.h"
 #include "sound/ay8910.h"
-#include "includes/scramble.h"
+#include "includes/galaxold.h"
 
 #define AD2083_TMS5110_CLOCK		XTAL_640kHz
 
@@ -45,7 +45,7 @@ static const int scramble_timer[10] =
 
 READ8_DEVICE_HANDLER( scramble_portB_r )
 {
-	return scramble_timer[(device->machine().device<cpu_device>("audiocpu")->total_cycles()/512) % 10];
+	return scramble_timer[(device->machine->device<cpu_device>("audiocpu")->total_cycles()/512) % 10];
 }
 
 
@@ -74,38 +74,38 @@ static const int frogger_timer[10] =
 
 READ8_DEVICE_HANDLER( frogger_portB_r )
 {
-	return frogger_timer[(device->machine().device<cpu_device>("audiocpu")->total_cycles()/512) % 10];
+	return frogger_timer[(device->machine->device<cpu_device>("audiocpu")->total_cycles()/512) % 10];
 }
 
 WRITE8_DEVICE_HANDLER( scramble_sh_irqtrigger_w )
 {
-	ttl7474_device *target = device->machine().device<ttl7474_device>("konami_7474");
+	running_device *target = device->machine->device("konami_7474");
 
 	/* the complement of bit 3 is connected to the flip-flop's clock */
-	target->clock_w((~data & 0x08) >> 3);
+	ttl7474_clock_w(target, (~data & 0x08) >> 3);
 
 	/* bit 4 is sound disable */
-	device->machine().sound().system_mute((data & 0x10) >> 4);
+	sound_global_enable(device->machine, (~data & 0x10) >> 4);
 }
 
 WRITE8_DEVICE_HANDLER( mrkougar_sh_irqtrigger_w )
 {
-	ttl7474_device *target = device->machine().device<ttl7474_device>("konami_7474");
+	running_device *target = device->machine->device("konami_7474");
 
 	/* the complement of bit 3 is connected to the flip-flop's clock */
-	target->clock_w((~data & 0x08) >> 3);
+	ttl7474_clock_w(target, (~data & 0x08) >> 3);
 }
 
 static IRQ_CALLBACK(scramble_sh_irq_callback)
 {
-	ttl7474_device *target = device->machine().device<ttl7474_device>("konami_7474");
+	running_device *target = device->machine->device("konami_7474");
 
 	/* interrupt acknowledge clears the flip-flop --
        we need to pulse the CLR line because MAME's core never clears this
        line, only asserts it */
-	target->clear_w(0);
+	ttl7474_clear_w(target, 0);
 
-	target->clear_w(1);
+	ttl7474_clear_w(target, 1);
 
 	return 0xff;
 }
@@ -114,21 +114,21 @@ WRITE_LINE_DEVICE_HANDLER( scramble_sh_7474_q_callback )
 {
 	/* the Q bar is connected to the Z80's INT line.  But since INT is complemented, */
 	/* we need to complement Q bar */
-	cputag_set_input_line(device->machine(), "audiocpu", 0, !state ? ASSERT_LINE : CLEAR_LINE);
+	cputag_set_input_line(device->machine, "audiocpu", 0, !state ? ASSERT_LINE : CLEAR_LINE);
 }
 
 WRITE8_HANDLER( hotshock_sh_irqtrigger_w )
 {
-	cputag_set_input_line(space->machine(), "audiocpu", 0, ASSERT_LINE);
+	cputag_set_input_line(space->machine, "audiocpu", 0, ASSERT_LINE);
 }
 
 READ8_DEVICE_HANDLER( hotshock_soundlatch_r )
 {
-	cputag_set_input_line(device->machine(), "audiocpu", 0, CLEAR_LINE);
-	return soundlatch_r(device->machine().device("audiocpu")->memory().space(AS_PROGRAM),0);
+	cputag_set_input_line(device->machine, "audiocpu", 0, CLEAR_LINE);
+	return soundlatch_r(cputag_get_address_space(device->machine, "audiocpu", ADDRESS_SPACE_PROGRAM),0);
 }
 
-static void filter_w(device_t *device, int data)
+static void filter_w(running_device *device, int data)
 {
 	int C;
 
@@ -144,27 +144,27 @@ static void filter_w(device_t *device, int data)
 
 WRITE8_HANDLER( scramble_filter_w )
 {
-	filter_w(space->machine().device("filter.1.0"), (offset >>  0) & 3);
-	filter_w(space->machine().device("filter.1.1"), (offset >>  2) & 3);
-	filter_w(space->machine().device("filter.1.2"), (offset >>  4) & 3);
-	filter_w(space->machine().device("filter.0.0"), (offset >>  6) & 3);
-	filter_w(space->machine().device("filter.0.1"), (offset >>  8) & 3);
-	filter_w(space->machine().device("filter.0.2"), (offset >> 10) & 3);
+	filter_w(space->machine->device("filter.1.0"), (offset >>  0) & 3);
+	filter_w(space->machine->device("filter.1.1"), (offset >>  2) & 3);
+	filter_w(space->machine->device("filter.1.2"), (offset >>  4) & 3);
+	filter_w(space->machine->device("filter.0.0"), (offset >>  6) & 3);
+	filter_w(space->machine->device("filter.0.1"), (offset >>  8) & 3);
+	filter_w(space->machine->device("filter.0.2"), (offset >> 10) & 3);
 }
 
 WRITE8_HANDLER( frogger_filter_w )
 {
-	filter_w(space->machine().device("filter.0.0"), (offset >>  6) & 3);
-	filter_w(space->machine().device("filter.0.1"), (offset >>  8) & 3);
-	filter_w(space->machine().device("filter.0.2"), (offset >> 10) & 3);
+	filter_w(space->machine->device("filter.0.0"), (offset >>  6) & 3);
+	filter_w(space->machine->device("filter.0.1"), (offset >>  8) & 3);
+	filter_w(space->machine->device("filter.0.2"), (offset >> 10) & 3);
 }
 
-void scramble_sh_init(running_machine &machine)
+void scramble_sh_init(running_machine *machine)
 {
-	device_set_irq_callback(machine.device("audiocpu"), scramble_sh_irq_callback);
+	cpu_set_irq_callback(machine->device("audiocpu"), scramble_sh_irq_callback);
 
 	/* PR is always 0, D is always 1 */
-	machine.device<ttl7474_device>("konami_7474")->d_w(1);
+	ttl7474_d_w(machine->device("konami_7474"), 1);
 }
 
 
@@ -289,12 +289,12 @@ static const ay8910_interface ad2083_ay8910_interface_2 =
 	DEVCB_NULL
 };
 
-static ADDRESS_MAP_START( ad2083_sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ad2083_sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x2fff) AM_ROM
 	AM_RANGE(0x8000, 0x83ff) AM_RAM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( ad2083_sound_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( ad2083_sound_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x01, 0x01) AM_DEVWRITE("tmsprom", ad2083_tms5110_ctrl_w)
 	AM_RANGE(0x10, 0x10) AM_DEVWRITE("ay1", ay8910_address_w)
@@ -338,27 +338,27 @@ static const tms5110_interface ad2083_tms5110_interface =
 
 
 
-MACHINE_CONFIG_FRAGMENT( ad2083_audio )
+MACHINE_DRIVER_START( ad2083_audio )
 
-	MCFG_CPU_ADD("audiocpu", Z80, 14318000/8)	/* 1.78975 MHz */
-	MCFG_CPU_PROGRAM_MAP(ad2083_sound_map)
-	MCFG_CPU_IO_MAP(ad2083_sound_io_map)
+	MDRV_CPU_ADD("audiocpu", Z80, 14318000/8)	/* 1.78975 MHz */
+	MDRV_CPU_PROGRAM_MAP(ad2083_sound_map)
+	MDRV_CPU_IO_MAP(ad2083_sound_io_map)
 
-	MCFG_DEVICE_ADD("tmsprom", TMSPROM, AD2083_TMS5110_CLOCK / 2)  /* rom clock */
-	MCFG_DEVICE_CONFIG(prom_intf)
+	MDRV_DEVICE_ADD("tmsprom", TMSPROM, AD2083_TMS5110_CLOCK / 2)  /* rom clock */
+	MDRV_DEVICE_CONFIG(prom_intf)
 
-	MCFG_SOUND_START(ad2083)
+	MDRV_SOUND_START(ad2083)
 
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("ay1", AY8910, 14318000/8)
-	MCFG_SOUND_CONFIG(ad2083_ay8910_interface_1)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("ay1", AY8910, 14318000/8)
+	MDRV_SOUND_CONFIG(ad2083_ay8910_interface_1)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("ay2", AY8910, 14318000/8)
-	MCFG_SOUND_CONFIG(ad2083_ay8910_interface_2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
+	MDRV_SOUND_ADD("ay2", AY8910, 14318000/8)
+	MDRV_SOUND_CONFIG(ad2083_ay8910_interface_2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
 
-	MCFG_SOUND_ADD("tms", TMS5110A, AD2083_TMS5110_CLOCK)
-	MCFG_SOUND_CONFIG(ad2083_tms5110_interface)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("tms", TMS5110A, AD2083_TMS5110_CLOCK)
+	MDRV_SOUND_CONFIG(ad2083_tms5110_interface)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END

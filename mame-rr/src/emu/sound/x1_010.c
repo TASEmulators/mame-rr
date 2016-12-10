@@ -49,6 +49,7 @@ Registers:
 ***************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "x1_010.h"
 
 
@@ -97,10 +98,10 @@ struct _x1_010_state
 /* mixer tables and internal buffers */
 //static short  *mixer_buffer = NULL;
 
-INLINE x1_010_state *get_safe_token(device_t *device)
+INLINE x1_010_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == X1_010);
+	assert(device->type() == SOUND_X1_010);
 	return (x1_010_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -200,7 +201,7 @@ static STREAM_UPDATE( seta_update )
 static DEVICE_START( x1_010 )
 {
 	int i;
-	const x1_010_interface *intf = (const x1_010_interface *)device->static_config();
+	const x1_010_interface *intf = (const x1_010_interface *)device->baseconfig().static_config();
 	x1_010_state *info = get_safe_token(device);
 
 	info->region		= *device->region();
@@ -216,11 +217,11 @@ static DEVICE_START( x1_010 )
 	LOG_SOUND(("masterclock = %d rate = %d\n", device->clock(), info->rate ));
 
 	/* get stream channels */
-	info->stream = device->machine().sound().stream_alloc(*device,0,2,info->rate,info,seta_update);
+	info->stream = stream_create(device,0,2,info->rate,info,seta_update);
 }
 
 
-void seta_sound_enable_w(device_t *device, int data)
+void seta_sound_enable_w(running_device *device, int data)
 {
 	x1_010_state *info = get_safe_token(device);
 	info->sound_enable = data;
@@ -255,7 +256,7 @@ WRITE8_DEVICE_HANDLER( seta_sound_w )
 		info->smp_offset[channel] = 0;
 		info->env_offset[channel] = 0;
 	}
-	LOG_REGISTER_WRITE(("%s: offset %6X : data %2X\n", device->machine().describe_context(), offset, data ));
+	LOG_REGISTER_WRITE(("%s: offset %6X : data %2X\n", cpuexec_describe_context(device->machine), offset, data ));
 	info->reg[offset] = data;
 }
 
@@ -271,7 +272,7 @@ READ16_DEVICE_HANDLER( seta_sound_word_r )
 
 	ret = info->HI_WORD_BUF[offset]<<8;
 	ret += (seta_sound_r( device, offset )&0xff);
-	LOG_REGISTER_READ(( "%s: Read X1-010 Offset:%04X Data:%04X\n", device->machine().describe_context(), offset, ret ));
+	LOG_REGISTER_READ(( "%s: Read X1-010 Offset:%04X Data:%04X\n", cpuexec_describe_context(device->machine), offset, ret ));
 	return ret;
 }
 
@@ -280,7 +281,7 @@ WRITE16_DEVICE_HANDLER( seta_sound_word_w )
 	x1_010_state *info = get_safe_token(device);
 	info->HI_WORD_BUF[offset] = (data>>8)&0xff;
 	seta_sound_w( device, offset, data&0xff );
-	LOG_REGISTER_WRITE(( "%s: Write X1-010 Offset:%04X Data:%04X\n", device->machine().describe_context(), offset, data ));
+	LOG_REGISTER_WRITE(( "%s: Write X1-010 Offset:%04X Data:%04X\n", cpuexec_describe_context(device->machine), offset, data ));
 }
 
 

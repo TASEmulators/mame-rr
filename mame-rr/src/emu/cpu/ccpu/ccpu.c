@@ -44,14 +44,13 @@ struct _ccpu_state
 	int					icount;
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
-	address_space *data;
-	address_space *io;
+	const address_space *program;
+	const address_space *data;
+	const address_space *io;
 };
 
 
-INLINE ccpu_state *get_safe_token(device_t *device)
+INLINE ccpu_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == CCPU);
@@ -63,13 +62,13 @@ INLINE ccpu_state *get_safe_token(device_t *device)
     MACROS
 ***************************************************************************/
 
-#define READOP(C,a)			((C)->direct->read_decrypted_byte(a))
+#define READOP(C,a)			(memory_decrypted_read_byte((C)->program, a))
 
-#define RDMEM(C,a)			((C)->data->read_word((a) * 2) & 0xfff)
-#define WRMEM(C,a,v)		((C)->data->write_word((a) * 2, (v)))
+#define RDMEM(C,a)			(memory_read_word_16be((C)->data, (a) * 2) & 0xfff)
+#define WRMEM(C,a,v)		(memory_write_word_16be((C)->data, (a) * 2, (v)))
 
-#define READPORT(C,a)		((C)->io->read_byte(a))
-#define WRITEPORT(C,a,v)	((C)->io->write_byte((a), (v)))
+#define READPORT(C,a)		(memory_read_byte_8be((C)->io, a))
+#define WRITEPORT(C,a,v)	(memory_write_byte_8be((C)->io, (a), (v)))
 
 #define SET_A0(C)			do { (C)->a0flag = (C)->A; } while (0)
 #define SET_CMP_VAL(C,x)	do { (C)->cmpacc = *(C)->acc; (C)->cmpval = (x) & 0xfff; } while (0)
@@ -103,7 +102,7 @@ do { \
     INITIALIZATION AND SHUTDOWN
 ***************************************************************************/
 
-static UINT8 read_jmi(device_t *device)
+static UINT8 read_jmi(running_device *device)
 {
 	/* this routine is called when there is no external input */
 	/* and the JMI jumper is present */
@@ -112,7 +111,7 @@ static UINT8 read_jmi(device_t *device)
 }
 
 
-void ccpu_wdt_timer_trigger(device_t *device)
+void ccpu_wdt_timer_trigger(running_device *device)
 {
 	ccpu_state *cpustate = get_safe_token(device);
 	cpustate->waiting = FALSE;
@@ -124,7 +123,7 @@ void ccpu_wdt_timer_trigger(device_t *device)
 
 static CPU_INIT( ccpu )
 {
-	const ccpu_config *configdata = (const ccpu_config *)device->static_config();
+	const ccpu_config *configdata = (const ccpu_config *)device->baseconfig().static_config();
 	ccpu_state *cpustate = get_safe_token(device);
 
 	/* copy input params */
@@ -132,29 +131,28 @@ static CPU_INIT( ccpu )
 	cpustate->vector_callback = configdata->vector_callback;
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->data = device->space(AS_DATA);
 	cpustate->io = device->space(AS_IO);
 
-	device->save_item(NAME(cpustate->PC));
-	device->save_item(NAME(cpustate->A));
-	device->save_item(NAME(cpustate->B));
-	device->save_item(NAME(cpustate->I));
-	device->save_item(NAME(cpustate->J));
-	device->save_item(NAME(cpustate->P));
-	device->save_item(NAME(cpustate->X));
-	device->save_item(NAME(cpustate->Y));
-	device->save_item(NAME(cpustate->T));
-	device->save_item(NAME(cpustate->a0flag));
-	device->save_item(NAME(cpustate->ncflag));
-	device->save_item(NAME(cpustate->cmpacc));
-	device->save_item(NAME(cpustate->cmpval));
-	device->save_item(NAME(cpustate->miflag));
-	device->save_item(NAME(cpustate->nextmiflag));
-	device->save_item(NAME(cpustate->nextnextmiflag));
-	device->save_item(NAME(cpustate->drflag));
-	device->save_item(NAME(cpustate->waiting));
-	device->save_item(NAME(cpustate->watchdog));
+	state_save_register_device_item(device, 0, cpustate->PC);
+	state_save_register_device_item(device, 0, cpustate->A);
+	state_save_register_device_item(device, 0, cpustate->B);
+	state_save_register_device_item(device, 0, cpustate->I);
+	state_save_register_device_item(device, 0, cpustate->J);
+	state_save_register_device_item(device, 0, cpustate->P);
+	state_save_register_device_item(device, 0, cpustate->X);
+	state_save_register_device_item(device, 0, cpustate->Y);
+	state_save_register_device_item(device, 0, cpustate->T);
+	state_save_register_device_item(device, 0, cpustate->a0flag);
+	state_save_register_device_item(device, 0, cpustate->ncflag);
+	state_save_register_device_item(device, 0, cpustate->cmpacc);
+	state_save_register_device_item(device, 0, cpustate->cmpval);
+	state_save_register_device_item(device, 0, cpustate->miflag);
+	state_save_register_device_item(device, 0, cpustate->nextmiflag);
+	state_save_register_device_item(device, 0, cpustate->nextnextmiflag);
+	state_save_register_device_item(device, 0, cpustate->drflag);
+	state_save_register_device_item(device, 0, cpustate->waiting);
+	state_save_register_device_item(device, 0, cpustate->watchdog);
 }
 
 
@@ -746,15 +744,15 @@ CPU_GET_INFO( ccpu )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;									break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;									break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 15;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;							break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 16;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = -1;							break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 5;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 15;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 16;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = -1;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 5;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;							break;
 
 		case CPUINFO_INT_PREVIOUSPC:					/* not implemented */							break;
 

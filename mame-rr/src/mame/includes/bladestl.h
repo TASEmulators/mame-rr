@@ -4,26 +4,27 @@
 
 *************************************************************************/
 
-class bladestl_state : public driver_device
+class bladestl_state
 {
 public:
-	bladestl_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, bladestl_state(machine)); }
+
+	bladestl_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *    m_paletteram;
+	UINT8 *    paletteram;
 
 	/* video-related */
-	int        m_spritebank;
-	int        m_layer_colorbase[2];
+	int        spritebank;
+	int        layer_colorbase[2];
 
 	/* misc */
-	int        m_last_track[4];
+	int        last_track[4];
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_k007342;
-	device_t *m_k007420;
+	running_device *audiocpu;
+	running_device *k007342;
+	running_device *k007420;
 };
 
 
@@ -32,7 +33,7 @@ public:
 
 PALETTE_INIT( bladestl );
 
-SCREEN_UPDATE( bladestl );
+VIDEO_UPDATE( bladestl );
 
-void bladestl_tile_callback(running_machine &machine, int layer, int bank, int *code, int *color, int *flags);
-void bladestl_sprite_callback(running_machine &machine, int *code, int *color);
+void bladestl_tile_callback(running_machine *machine, int layer, int bank, int *code, int *color, int *flags);
+void bladestl_sprite_callback(running_machine *machine, int *code, int *color);

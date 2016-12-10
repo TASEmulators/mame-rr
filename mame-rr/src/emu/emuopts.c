@@ -4,36 +4,8 @@
 
     Options file and command line management.
 
-****************************************************************************
-
-    Copyright Aaron Giles
-    All rights reserved.
-
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are
-    met:
-
-        * Redistributions of source code must retain the above copyright
-          notice, this list of conditions and the following disclaimer.
-        * Redistributions in binary form must reproduce the above copyright
-          notice, this list of conditions and the following disclaimer in
-          the documentation and/or other materials provided with the
-          distribution.
-        * Neither the name 'MAME' nor the names of its contributors may be
-          used to endorse or promote products derived from this software
-          without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY AARON GILES ''AS IS'' AND ANY EXPRESS OR
-    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-    DISCLAIMED. IN NO EVENT SHALL AARON GILES BE LIABLE FOR ANY DIRECT,
-    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-    IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
+    Copyright Nicola Salmoria and the MAME Team.
+    Visit http://mamedev.org for licensing and usage restrictions.
 
 ***************************************************************************/
 
@@ -44,475 +16,309 @@
 
 
 
-//**************************************************************************
-//  CORE EMULATOR OPTIONS
-//**************************************************************************
+/***************************************************************************
+    BUILT-IN (CORE) OPTIONS
+***************************************************************************/
 
-const options_entry emu_options::s_option_entries[] =
+const options_entry mame_core_options[] =
 {
-	// unadorned options - only a single one supported at the moment
-	{ OPTION_SYSTEMNAME,                                 NULL,        OPTION_STRING,     NULL },
-	{ OPTION_SOFTWARENAME,                               NULL,        OPTION_STRING,     NULL },
+	/* unadorned options - only a single one supported at the moment */
+	{ "<UNADORNED0>",                NULL,        0,                 NULL },
 
-	// config options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE CONFIGURATION OPTIONS" },
-	{ OPTION_READCONFIG ";rc",                           "1",         OPTION_BOOLEAN,    "enable loading of configuration files" },
-	{ OPTION_WRITECONFIG ";wc",                          "0",         OPTION_BOOLEAN,    "writes configuration to (driver).ini on exit" },
+	/* config options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE CONFIGURATION OPTIONS" },
+	{ "readconfig;rc",               "1",         OPTION_BOOLEAN,    "enable loading of configuration files" },
+#ifdef MESS
+	{ "writeconfig;wc",				 "1",		  OPTION_BOOLEAN,	 "writes configuration to (driver).ini on exit" },
+#else
+	{ "writeconfig;wc",				 "0",		  OPTION_BOOLEAN,	 "writes configuration to (driver).ini on exit" },
+#endif /* MESS */
 
-	// seach path options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE SEARCH PATH OPTIONS" },
-	{ OPTION_MEDIAPATH ";rp;biospath;bp",                "roms",      OPTION_STRING,     "path to ROMsets and hard disk images" },
-	{ OPTION_HASHPATH ";hash_directory;hash",            "hash",      OPTION_STRING,     "path to hash files" },
-	{ OPTION_SAMPLEPATH ";sp",                           "samples",   OPTION_STRING,     "path to samplesets" },
-	{ OPTION_ARTPATH,                                    "artwork",   OPTION_STRING,     "path to artwork files" },
-	{ OPTION_CTRLRPATH,                                  "ctrlr",     OPTION_STRING,     "path to controller definitions" },
-	{ OPTION_INIPATH,                                    ".;ini",     OPTION_STRING,     "path to ini files" },
-	{ OPTION_FONTPATH,                                   ".",         OPTION_STRING,     "path to font files" },
-	{ OPTION_CHEATPATH,                                  "cheat",     OPTION_STRING,     "path to cheat files" },
-	{ OPTION_CROSSHAIRPATH,                              "crosshair", OPTION_STRING,     "path to crosshair files" },
+	/* seach path options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE SEARCH PATH OPTIONS" },
+	{ "rompath;rp;biospath;bp",      "roms",      0,                 "path to ROMsets and hard disk images" },
+#ifdef MESS
+	{ "hashpath;hash_directory;hash","hash",      0,                 "path to hash files" },
+#endif /* MESS */
+	{ "samplepath;sp",               "samples",   0,                 "path to samplesets" },
+	{ "artpath;artwork_directory",   "artwork",   0,                 "path to artwork files" },
+	{ "ctrlrpath;ctrlr_directory",   "ctrlr",     0,                 "path to controller definitions" },
+	{ "inipath",                     ".;ini",     0,                 "path to ini files" },
+	{ "fontpath",                    ".",         0,                 "path to font files" },
+	{ "cheatpath",                   "cheat",     0,                 "path to cheat files" },
+	{ "crosshairpath",               "crosshair", 0,                 "path to crosshair files" },
 
-	// output directory options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE OUTPUT DIRECTORY OPTIONS" },
-	{ OPTION_CFG_DIRECTORY,                              "cfg",       OPTION_STRING,     "directory to save configurations" },
-	{ OPTION_NVRAM_DIRECTORY,                            "nvram",     OPTION_STRING,     "directory to save nvram contents" },
-	{ OPTION_MEMCARD_DIRECTORY,                          "memcard",   OPTION_STRING,     "directory to save memory card contents" },
-	{ OPTION_INPUT_DIRECTORY,                            "inp",       OPTION_STRING,     "directory to save input device logs" },
-	{ OPTION_STATE_DIRECTORY,                            "sta",       OPTION_STRING,     "directory to save states" },
-	{ OPTION_SNAPSHOT_DIRECTORY,                         "snap",      OPTION_STRING,     "directory to save screenshots" },
-	{ OPTION_DIFF_DIRECTORY,                             "diff",      OPTION_STRING,     "directory to save hard drive image difference files" },
-	{ OPTION_COMMENT_DIRECTORY,                          "comments",  OPTION_STRING,     "directory to save debugger comments" },
+	/* output directory options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE OUTPUT DIRECTORY OPTIONS" },
+	{ "cfg_directory",               "cfg",       0,                 "directory to save configurations" },
+	{ "nvram_directory",             "nvram",     0,                 "directory to save nvram contents" },
+	{ "memcard_directory",           "memcard",   0,                 "directory to save memory card contents" },
+	{ "input_directory",             "inp",       0,                 "directory to save input device logs" },
+	{ "state_directory",             "sta",       0,                 "directory to save states" },
+	{ "snapshot_directory",          "snap",      0,                 "directory to save screenshots" },
+	{ "diff_directory",              "diff",      0,                 "directory to save hard drive image difference files" },
+	{ "comment_directory",           "comments",  0,                 "directory to save debugger comments" },
 
-	// state/playback options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE STATE/PLAYBACK OPTIONS" },
-	{ OPTION_STATE,                                      NULL,        OPTION_STRING,     "saved state to load" },
-	{ OPTION_AUTOSAVE,                                   "0",         OPTION_BOOLEAN,    "enable automatic restore at startup, and automatic save at exit time" },
-	{ OPTION_PLAYBACK ";pb",                             NULL,        OPTION_STRING,     "playback an input file" },
-	{ OPTION_RECORD ";rec",                              NULL,        OPTION_STRING,     "record an input file" },
-	{ OPTION_MNGWRITE,                                   NULL,        OPTION_STRING,     "optional filename to write a MNG movie of the current session" },
-	{ OPTION_AVIWRITE,                                   NULL,        OPTION_STRING,     "optional filename to write an AVI movie of the current session" },
-	{ OPTION_WAVWRITE,                                   NULL,        OPTION_STRING,     "optional filename to write a WAV file of the current session" },
-	{ OPTION_SNAPNAME,                                   "%g/%i",     OPTION_STRING,     "override of the default snapshot/movie naming; %g == gamename, %i == index" },
-	{ OPTION_SNAPSIZE,                                   "auto",      OPTION_STRING,     "specify snapshot/movie resolution (<width>x<height>) or 'auto' to use minimal size " },
-	{ OPTION_SNAPVIEW,                                   "internal",  OPTION_STRING,     "specify snapshot/movie view or 'internal' to use internal pixel-aspect views" },
-	{ OPTION_BURNIN,                                     "0",         OPTION_BOOLEAN,    "create burn-in snapshots for each screen" },
+	/* state/playback options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE STATE/PLAYBACK OPTIONS" },
+	{ "state",                       NULL,        0,                 "saved state to load" },
+	{ "autosave",                    "0",         OPTION_BOOLEAN,    "enable automatic restore at startup, and automatic save at exit time" },
+	{ "playback;pb",                 NULL,        0,                 "playback an input file" },
+	{ "record;rec",                  NULL,        0,                 "record an input file" },
+	{ "mngwrite",                    NULL,        0,                 "optional filename to write a MNG movie of the current session" },
+	{ "aviwrite",                    NULL,        0,                 "optional filename to write an AVI movie of the current session" },
+	{ "wavwrite",                    NULL,        0,                 "optional filename to write a WAV file of the current session" },
+	{ "snapname",                    "%g/%i",     0,                 "override of the default snapshot/movie naming; %g == gamename, %i == index" },
+	{ "snapsize",                    "auto",      0,                 "specify snapshot/movie resolution (<width>x<height>) or 'auto' to use minimal size " },
+	{ "snapview",                    "internal",  0,                 "specify snapshot/movie view or 'internal' to use internal pixel-aspect views" },
+	{ "burnin",                      "0",         OPTION_BOOLEAN,    "create burn-in snapshots for each screen" },
 
-	// performance options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE PERFORMANCE OPTIONS" },
-	{ OPTION_AUTOFRAMESKIP ";afs",                       "0",         OPTION_BOOLEAN,    "enable automatic frameskip selection" },
-	{ OPTION_FRAMESKIP ";fs(0-10)",                      "0",         OPTION_INTEGER,    "set frameskip to fixed value, 0-10 (autoframeskip must be disabled)" },
-	{ OPTION_SECONDS_TO_RUN ";str",                      "0",         OPTION_INTEGER,    "number of emulated seconds to run before automatically exiting" },
-	{ OPTION_THROTTLE,                                   "1",         OPTION_BOOLEAN,    "enable throttling to keep game running in sync with real time" },
-	{ OPTION_SLEEP,                                      "1",         OPTION_BOOLEAN,    "enable sleeping, which gives time back to other applications when idle" },
-	{ OPTION_SPEED "(0.01-100)",                         "1.0",       OPTION_FLOAT,      "controls the speed of gameplay, relative to realtime; smaller numbers are slower" },
-	{ OPTION_REFRESHSPEED ";rs",                         "0",         OPTION_BOOLEAN,    "automatically adjusts the speed of gameplay to keep the refresh rate lower than the screen" },
+	/* performance options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE PERFORMANCE OPTIONS" },
+	{ "autoframeskip;afs",           "0",         OPTION_BOOLEAN,    "enable automatic frameskip selection" },
+	{ "frameskip;fs(0-10)",          "0",         0,                 "set frameskip to fixed value, 0-10 (autoframeskip must be disabled)" },
+	{ "seconds_to_run;str",          "0",         0,                 "number of emulated seconds to run before automatically exiting" },
+	{ "throttle",                    "1",         OPTION_BOOLEAN,    "enable throttling to keep game running in sync with real time" },
+	{ "sleep",                       "1",         OPTION_BOOLEAN,    "enable sleeping, which gives time back to other applications when idle" },
+	{ "speed(0.01-100)",             "1.0",       0,                 "controls the speed of gameplay, relative to realtime; smaller numbers are slower" },
+	{ "refreshspeed;rs",             "0",         OPTION_BOOLEAN,    "automatically adjusts the speed of gameplay to keep the refresh rate lower than the screen" },
 
-	// rotation options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE ROTATION OPTIONS" },
-	{ OPTION_ROTATE,                                     "1",         OPTION_BOOLEAN,    "rotate the game screen according to the game's orientation needs it" },
-	{ OPTION_ROR,                                        "0",         OPTION_BOOLEAN,    "rotate screen clockwise 90 degrees" },
-	{ OPTION_ROL,                                        "0",         OPTION_BOOLEAN,    "rotate screen counterclockwise 90 degrees" },
-	{ OPTION_AUTOROR,                                    "0",         OPTION_BOOLEAN,    "automatically rotate screen clockwise 90 degrees if vertical" },
-	{ OPTION_AUTOROL,                                    "0",         OPTION_BOOLEAN,    "automatically rotate screen counterclockwise 90 degrees if vertical" },
-	{ OPTION_FLIPX,                                      "0",         OPTION_BOOLEAN,    "flip screen left-right" },
-	{ OPTION_FLIPY,                                      "0",         OPTION_BOOLEAN,    "flip screen upside-down" },
+	/* rotation options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE ROTATION OPTIONS" },
+	{ "rotate",                      "1",         OPTION_BOOLEAN,    "rotate the game screen according to the game's orientation needs it" },
+	{ "ror",                         "0",         OPTION_BOOLEAN,    "rotate screen clockwise 90 degrees" },
+	{ "rol",                         "0",         OPTION_BOOLEAN,    "rotate screen counterclockwise 90 degrees" },
+	{ "autoror",                     "0",         OPTION_BOOLEAN,    "automatically rotate screen clockwise 90 degrees if vertical" },
+	{ "autorol",                     "0",         OPTION_BOOLEAN,    "automatically rotate screen counterclockwise 90 degrees if vertical" },
+	{ "flipx",                       "0",         OPTION_BOOLEAN,    "flip screen left-right" },
+	{ "flipy",                       "0",         OPTION_BOOLEAN,    "flip screen upside-down" },
 
-	// artwork options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE ARTWORK OPTIONS" },
-	{ OPTION_ARTWORK_CROP ";artcrop",                    "0",         OPTION_BOOLEAN,    "crop artwork to game screen size" },
-	{ OPTION_USE_BACKDROPS ";backdrop",                  "1",         OPTION_BOOLEAN,    "enable backdrops if artwork is enabled and available" },
-	{ OPTION_USE_OVERLAYS ";overlay",                    "1",         OPTION_BOOLEAN,    "enable overlays if artwork is enabled and available" },
-	{ OPTION_USE_BEZELS ";bezel",                        "1",         OPTION_BOOLEAN,    "enable bezels if artwork is enabled and available" },
-	{ OPTION_USE_CPANELS ";cpanel",                      "1",         OPTION_BOOLEAN,    "enable cpanels if artwork is enabled and available" },
-	{ OPTION_USE_MARQUEES ";marquee",                    "1",         OPTION_BOOLEAN,    "enable marquees if artwork is enabled and available" },
+	/* artwork options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE ARTWORK OPTIONS" },
+	{ "artwork_crop;artcrop",        "0",         OPTION_BOOLEAN,    "crop artwork to game screen size" },
+	{ "use_backdrops;backdrop",      "1",         OPTION_BOOLEAN,    "enable backdrops if artwork is enabled and available" },
+	{ "use_overlays;overlay",        "1",         OPTION_BOOLEAN,    "enable overlays if artwork is enabled and available" },
+	{ "use_bezels;bezel",            "1",         OPTION_BOOLEAN,    "enable bezels if artwork is enabled and available" },
 
-	// screen options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE SCREEN OPTIONS" },
-	{ OPTION_BRIGHTNESS "(0.1-2.0)",                     "1.0",       OPTION_FLOAT,      "default game screen brightness correction" },
-	{ OPTION_CONTRAST "(0.1-2.0)",                       "1.0",       OPTION_FLOAT,      "default game screen contrast correction" },
-	{ OPTION_GAMMA "(0.1-3.0)",                          "1.0",       OPTION_FLOAT,      "default game screen gamma correction" },
-	{ OPTION_PAUSE_BRIGHTNESS "(0.0-1.0)",               "0.9",       OPTION_FLOAT,      "amount to scale the screen brightness when paused" },
-	{ OPTION_EFFECT,                                     "none",      OPTION_STRING,     "name of a PNG file to use for visual effects, or 'none'" },
+	/* screen options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE SCREEN OPTIONS" },
+	{ "brightness(0.1-2.0)",         "1.0",       0,                 "default game screen brightness correction" },
+	{ "contrast(0.1-2.0)",           "1.0",       0,                 "default game screen contrast correction" },
+	{ "gamma(0.1-3.0)",              "1.0",       0,                 "default game screen gamma correction" },
+	{ "pause_brightness(0.0-1.0)",   "0.9",       0,                 "amount to scale the screen brightness when paused" },
 
-	// vector options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE VECTOR OPTIONS" },
-	{ OPTION_ANTIALIAS ";aa",                            "1",         OPTION_BOOLEAN,    "use antialiasing when drawing vectors" },
-	{ OPTION_BEAM,                                       "1.0",       OPTION_FLOAT,      "set vector beam width" },
-	{ OPTION_FLICKER,                                    "0",         OPTION_FLOAT,      "set vector flicker effect" },
+	/* vector options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE VECTOR OPTIONS" },
+	{ "antialias;aa",                "1",         OPTION_BOOLEAN,    "use antialiasing when drawing vectors" },
+	{ "beam",                        "1.0",       0,                 "set vector beam width" },
+	{ "flicker",                     "0",         0,                 "set vector flicker effect" },
 
-	// sound options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE SOUND OPTIONS" },
-	{ OPTION_SOUND,                                      "1",         OPTION_BOOLEAN,    "enable sound output" },
-	{ OPTION_SAMPLERATE ";sr(1000-1000000)",             "48000",     OPTION_INTEGER,    "set sound output sample rate" },
-	{ OPTION_SAMPLES,                                    "1",         OPTION_BOOLEAN,    "enable the use of external samples if available" },
-	{ OPTION_VOLUME ";vol",                              "0",         OPTION_INTEGER,    "sound volume in decibels (-32 min, 0 max)" },
+	/* sound options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE SOUND OPTIONS" },
+	{ "sound",                       "1",         OPTION_BOOLEAN,    "enable sound output" },
+	{ "samplerate;sr(1000-1000000)", "48000",     0,                 "set sound output sample rate" },
+	{ "samples",                     "1",         OPTION_BOOLEAN,    "enable the use of external samples if available" },
+	{ "volume;vol",                  "0",         0,                 "sound volume in decibels (-32 min, 0 max)" },
 
-	// input options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE INPUT OPTIONS" },
-	{ OPTION_COIN_LOCKOUT ";coinlock",                   "1",         OPTION_BOOLEAN,    "enable coin lockouts to actually lock out coins" },
-	{ OPTION_CTRLR,                                      NULL,        OPTION_STRING,     "preconfigure for specified controller" },
-	{ OPTION_MOUSE,                                      "0",         OPTION_BOOLEAN,    "enable mouse input" },
-	{ OPTION_JOYSTICK ";joy",                            "1",         OPTION_BOOLEAN,    "enable joystick input" },
-	{ OPTION_LIGHTGUN ";gun",                            "0",         OPTION_BOOLEAN,    "enable lightgun input" },
-	{ OPTION_MULTIKEYBOARD ";multikey",                  "0",         OPTION_BOOLEAN,    "enable separate input from each keyboard device (if present)" },
-	{ OPTION_MULTIMOUSE,                                 "0",         OPTION_BOOLEAN,    "enable separate input from each mouse device (if present)" },
-	{ OPTION_STEADYKEY ";steady",                        "0",         OPTION_BOOLEAN,    "enable steadykey support" },
-	{ OPTION_OFFSCREEN_RELOAD ";reload",                 "0",         OPTION_BOOLEAN,    "convert lightgun button 2 into offscreen reload" },
-	{ OPTION_JOYSTICK_MAP ";joymap",                     "auto",      OPTION_STRING,     "explicit joystick map, or auto to auto-select" },
-	{ OPTION_JOYSTICK_DEADZONE ";joy_deadzone;jdz",      "0.3",       OPTION_FLOAT,      "center deadzone range for joystick where change is ignored (0.0 center, 1.0 end)" },
-	{ OPTION_JOYSTICK_SATURATION ";joy_saturation;jsat", "0.85",      OPTION_FLOAT,      "end of axis saturation range for joystick where change is ignored (0.0 center, 1.0 end)" },
-	{ OPTION_NATURAL_KEYBOARD ";nat",                    "0",         OPTION_BOOLEAN,    "specifies whether to use a natural keyboard or not" },
-	{ OPTION_JOYSTICK_CONTRADICTORY,                     "0",         OPTION_BOOLEAN,    "enable contradictory direction digital joystick input at the same time" },
-	{ OPTION_COIN_IMPULSE,                               "0",         OPTION_INTEGER,    "set coin impulse time (n<0 disable impulse, n==0 obey driver, 0<n set time n)" },
+	/* input options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE INPUT OPTIONS" },
+	{ "coin_lockout;coinlock",       "1",         OPTION_BOOLEAN,    "enable coin lockouts to actually lock out coins" },
+	{ "ctrlr",                       NULL,        0,                 "preconfigure for specified controller" },
+	{ "mouse",                       "0",         OPTION_BOOLEAN,    "enable mouse input" },
+	{ "joystick;joy",                "1",         OPTION_BOOLEAN,    "enable joystick input" },
+	{ "lightgun;gun",                "0",         OPTION_BOOLEAN,    "enable lightgun input" },
+	{ "multikeyboard;multikey",      "0",         OPTION_BOOLEAN,    "enable separate input from each keyboard device (if present)" },
+	{ "multimouse",                  "0",         OPTION_BOOLEAN,    "enable separate input from each mouse device (if present)" },
+	{ "steadykey;steady",            "0",         OPTION_BOOLEAN,    "enable steadykey support" },
+	{ "offscreen_reload;reload",     "0",         OPTION_BOOLEAN,    "convert lightgun button 2 into offscreen reload" },
+	{ "joystick_map;joymap",         "auto",      0,                 "explicit joystick map, or auto to auto-select" },
+	{ "joystick_deadzone;joy_deadzone;jdz",      "0.3",  0,          "center deadzone range for joystick where change is ignored (0.0 center, 1.0 end)" },
+	{ "joystick_saturation;joy_saturation;jsat", "0.85", 0,          "end of axis saturation range for joystick where change is ignored (0.0 center, 1.0 end)" },
+	{ "natural;nat",				 "0",		  OPTION_BOOLEAN,	 "specifies whether to use a natural keyboard or not" },
+	{ "uimodekey;umk",      		 "auto",	  0,    			 "specifies the key used to toggle between full and partial UI mode" },
 
-	// input autoenable options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE INPUT AUTOMATIC ENABLE OPTIONS" },
-	{ OPTION_PADDLE_DEVICE ";paddle",                    "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a paddle control is present" },
-	{ OPTION_ADSTICK_DEVICE ";adstick",                  "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if an analog joystick control is present" },
-	{ OPTION_PEDAL_DEVICE ";pedal",                      "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a pedal control is present" },
-	{ OPTION_DIAL_DEVICE ";dial",                        "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a dial control is present" },
-	{ OPTION_TRACKBALL_DEVICE ";trackball",              "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a trackball control is present" },
-	{ OPTION_LIGHTGUN_DEVICE,                            "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a lightgun control is present" },
-	{ OPTION_POSITIONAL_DEVICE,                          "keyboard",  OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a positional control is present" },
-	{ OPTION_MOUSE_DEVICE,                               "mouse",     OPTION_STRING,     "enable (none|keyboard|mouse|lightgun|joystick) if a mouse control is present" },
 
-	// debugging options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE DEBUGGING OPTIONS" },
-	{ OPTION_LOG,                                        "0",         OPTION_BOOLEAN,    "generate an error.log file" },
-	{ OPTION_VERBOSE ";v",                               "0",         OPTION_BOOLEAN,    "display additional diagnostic information" },
-	{ OPTION_UPDATEINPAUSE,                              "1",         OPTION_BOOLEAN,    "keep calling video updates while in pause" },
-	{ OPTION_DEBUG ";d",                                 "0",         OPTION_BOOLEAN,    "enable/disable debugger" },
-	{ OPTION_DEBUGSCRIPT,                                NULL,        OPTION_STRING,     "script for debugger" },
-	{ OPTION_DEBUG_INTERNAL ";di",                       "0",         OPTION_BOOLEAN,    "use the internal debugger for debugging" },
+	/* input autoenable options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE INPUT AUTOMATIC ENABLE OPTIONS" },
+	{ "paddle_device;paddle",        "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a paddle control is present" },
+	{ "adstick_device;adstick",      "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if an analog joystick control is present" },
+	{ "pedal_device;pedal",          "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a pedal control is present" },
+	{ "dial_device;dial",            "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a dial control is present" },
+	{ "trackball_device;trackball",  "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a trackball control is present" },
+	{ "lightgun_device",             "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a lightgun control is present" },
+	{ "positional_device",           "keyboard",  0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a positional control is present" },
+	{ "mouse_device",                "mouse",     0,                 "enable (none|keyboard|mouse|lightgun|joystick) if a mouse control is present" },
 
-	// misc options
-	{ NULL,                                              NULL,        OPTION_HEADER,     "CORE MISC OPTIONS" },
-	{ OPTION_BIOS,                                       NULL,        OPTION_STRING,     "select the system BIOS to use" },
-	{ OPTION_CHEAT ";c",                                 "0",         OPTION_BOOLEAN,    "enable cheat subsystem" },
-	{ OPTION_SKIP_GAMEINFO,                              "1",         OPTION_BOOLEAN,    "skip displaying the information screen at startup" },
-	{ OPTION_LUA,                                        NULL,        OPTION_STRING,     "run a lua script file" },
-	{ OPTION_UI_FONT,                                    "default",   OPTION_STRING,     "specify a font to use" },
-	{ OPTION_RAMSIZE ";ram",                             NULL,        OPTION_STRING,     "size of RAM (if supported by driver)" },
-	{ OPTION_CONFIRM_QUIT,                               "0",         OPTION_BOOLEAN,    "display confirm quit screen on exit" },
+	/* debugging options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE DEBUGGING OPTIONS" },
+	{ "log",                         "0",         OPTION_BOOLEAN,    "generate an error.log file" },
+	{ "verbose;v",                   "0",         OPTION_BOOLEAN,    "display additional diagnostic information" },
+	{ "update_in_pause",             "0",         OPTION_BOOLEAN,    "keep calling video updates while in pause" },
+	{ "debug;d",                     "0",         OPTION_BOOLEAN,    "enable/disable debugger" },
+	{ "debugscript",                 NULL,        0,                 "script for debugger" },
+	{ "debug_internal;di",           "0",         OPTION_BOOLEAN,    "use the internal debugger for debugging" },
+
+	/* misc options */
+	{ NULL,                          NULL,        OPTION_HEADER,     "CORE MISC OPTIONS" },
+	{ "bios",                        NULL,        0,                 "select the system BIOS to use" },
+	{ "cheat;c",                     "0",         OPTION_BOOLEAN,    "enable cheat subsystem" },
+	{ "skip_gameinfo",               "1",         OPTION_BOOLEAN,    "skip displaying the information screen at startup" },
+	{ "lua",                         NULL,        0,                 "run a lua script file" },
+
+	/* image device options */
+	{ OPTION_ADDED_DEVICE_OPTIONS,	 "0",		  OPTION_BOOLEAN | OPTION_INTERNAL,	"image device-specific options have been added" },
 	{ NULL }
 };
 
 
 
-//**************************************************************************
-//  EMU OPTIONS
-//**************************************************************************
+/***************************************************************************
+    CORE IMPLEMENTATION
+***************************************************************************/
 
-//-------------------------------------------------
-//  emu_options - constructor
-//-------------------------------------------------
+/*-------------------------------------------------
+    memory_error - report a memory error
+-------------------------------------------------*/
 
-emu_options::emu_options()
+static void memory_error(const char *message)
 {
-	add_entries(s_option_entries);
+	fatalerror("%s", message);
 }
 
 
-//-------------------------------------------------
-//  add_slot_options - add all of the slot
-//  options for the configured system
-//-------------------------------------------------
 
-bool emu_options::add_slot_options(bool isfirst)
+/*-------------------------------------------------
+    mame_puts_info
+    mame_puts_warning
+    mame_puts_error
+-------------------------------------------------*/
+
+static void mame_puts_info(const char *s)
 {
-	// look up the system configured by name; if no match, do nothing
-	const game_driver *cursystem = system();
-	if (cursystem == NULL)
-		return false;
+	mame_printf_info("%s", s);
+}
 
-	// iterate through all slot devices
-	options_entry entry[2] = { { 0 }, { 0 } };
-	bool first = true;
-	const device_slot_interface *slot = NULL;
-	// create the configuration
-	machine_config config(*cursystem, *this);
-	bool added = false;
-	for (bool gotone = config.devicelist().first(slot); gotone; gotone = slot->next(slot))
+static void mame_puts_warning(const char *s)
+{
+	mame_printf_warning("%s", s);
+}
+
+static void mame_puts_error(const char *s)
+{
+	mame_printf_error("%s", s);
+}
+
+/*-------------------------------------------------
+    image_get_device_option - accesses a device
+    option
+-------------------------------------------------*/
+
+const char *image_get_device_option(device_image_interface *image)
+{
+	const char *result = NULL;
+
+	if (options_get_bool(image->device().machine->options(), OPTION_ADDED_DEVICE_OPTIONS))
 	{
-		// first device? add the header as to be pretty
-		if (first && isfirst)
-		{
-			entry[0].name = NULL;
-			entry[0].description = "SLOT DEVICES";
-			entry[0].flags = OPTION_HEADER | OPTION_FLAG_DEVICE;
-			entry[0].defvalue = NULL;
-			add_entries(entry);
-		}
-		first = false;
-
-		// retrieve info about the device instance
-		astring option_name;
-		option_name.printf("%s;%s", slot->device().tag(), slot->device().tag());
-
-		if (!exists(slot->device().tag())) {
-
-			// add the option
-			entry[0].name = slot->device().tag();
-			entry[0].description = NULL;
-			entry[0].flags = OPTION_STRING | OPTION_FLAG_DEVICE;
-			entry[0].defvalue = (slot->get_slot_interfaces() != NULL) ? slot->get_default_card(config.devicelist(),*this) : NULL;
-			add_entries(entry, true);
-
-			added = true;
-		}
+		/* access the option */
+		result = options_get_string(image->device().machine->options(),  image->image_config().instance_name());
 	}
-	return added;
+	return result;
 }
 
-//-------------------------------------------------
-//  add_device_options - add all of the device
-//  options for the configured system
-//-------------------------------------------------
+/*-------------------------------------------------
+    image_add_device_options - add all of the device
+    options for a specified device
+-------------------------------------------------*/
 
-void emu_options::add_device_options(bool isfirst)
+void image_add_device_options(core_options *opts, const game_driver *driver)
 {
-	// look up the system configured by name; if no match, do nothing
-	const game_driver *cursystem = system();
-	if (cursystem == NULL)
-		return;
+	int index = 0;
+	machine_config *config;
+	const device_config_image_interface *image = NULL;
 
-	// iterate through all slot devices
-	options_entry entry[2] = { { 0 }, { 0 } };
-	bool first = true;
-	// iterate through all image devices
-	const device_image_interface *image = NULL;
-	machine_config config(*cursystem, *this);
-	for (bool gotone = config.devicelist().first(image); gotone; gotone = image->next(image))
+	/* create the configuration */
+	config = global_alloc(machine_config(driver->machine_config));
+
+	/* enumerate our callback for every device */
+	/* loop on each device instance */
+	for (bool gotone = config->m_devicelist.first(image); gotone; gotone = image->next(image))
 	{
-		// first device? add the header as to be pretty
-		if (first && isfirst)
+		options_entry entry[2];
+		astring dev_full_name;
+
+		/* first device? add the header as to be pretty */
+		if (index == 0)
 		{
-			entry[0].name = NULL;
+			memset(entry, 0, sizeof(entry));
 			entry[0].description = "IMAGE DEVICES";
-			entry[0].flags = OPTION_HEADER | OPTION_FLAG_DEVICE;
-			entry[0].defvalue = NULL;
-			add_entries(entry);
+			entry[0].flags = OPTION_HEADER;
+			options_add_entries(opts, entry);
 		}
-		first = false;
 
-		// retrieve info about the device instance
-		astring option_name;
-		option_name.printf("%s;%s", image->instance_name(), image->brief_instance_name());
+		/* retrieve info about the device instance */
+		dev_full_name.printf("%s;%s", image->instance_name(), image->brief_instance_name());
 
-		// add the option
-		if (!exists(image->instance_name())) {
-			entry[0].name = option_name;
-			entry[0].description = NULL;
-			entry[0].flags = OPTION_STRING | OPTION_FLAG_DEVICE;
-			entry[0].defvalue = NULL;
-			add_entries(entry, true);
+		/* add the option */
+		memset(entry, 0, sizeof(entry));
+		entry[0].name = dev_full_name;
+		options_add_entries(opts, entry);
+
+		index++;
+	}
+
+	/* record that we've added device options */
+	options_set_bool(opts, OPTION_ADDED_DEVICE_OPTIONS, TRUE, OPTION_PRIORITY_CMDLINE);
+
+	/* free the configuration */
+	global_free(config);
+}
+
+/*-------------------------------------------------
+    image_driver_name_callback - called when we
+    parse the driver name, so we can add options
+    specific to that driver
+-------------------------------------------------*/
+
+static void image_driver_name_callback(core_options *opts, const char *arg)
+{
+	const game_driver *driver;
+
+	/* only add these options if we have not yet added them */
+	if (!options_get_bool(opts, OPTION_ADDED_DEVICE_OPTIONS))
+	{
+		driver = driver_get_name(arg);
+		if (driver != NULL)
+		{
+			image_add_device_options(opts, driver);
 		}
 	}
 }
 
 
-//-------------------------------------------------
-//  remove_device_options - remove device options
-//-------------------------------------------------
+/*-------------------------------------------------
+    mame_options_init - create core MAME options
+-------------------------------------------------*/
 
-void emu_options::remove_device_options()
+core_options *mame_options_init(const options_entry *entries)
 {
-	// iterate through options and remove interesting ones
-	entry *nextentry;
-	for (entry *curentry = first(); curentry != NULL; curentry = nextentry)
-	{
-		// pre-fetch the next entry in case we delete this one
-		nextentry = curentry->next();
+	/* create MAME core options */
+	core_options *opts = options_create(memory_error);
 
-		// if this is a device option, nuke it
-		if ((curentry->flags() & OPTION_FLAG_DEVICE) != 0)
-			remove_entry(*curentry);
-	}
-}
+	/* set up output callbacks */
+	options_set_output_callback(opts, OPTMSG_INFO, mame_puts_info);
+	options_set_output_callback(opts, OPTMSG_WARNING, mame_puts_warning);
+	options_set_output_callback(opts, OPTMSG_ERROR, mame_puts_error);
 
+	options_add_entries(opts, mame_core_options);
+	if (entries != NULL)
+		options_add_entries(opts, entries);
 
-//-------------------------------------------------
-//  parse_slot_devices - parse the command line
-//  and update slot and image devices
-//-------------------------------------------------
+	/* we need to dynamically add options when the device name is parsed */
+	options_set_option_callback(opts, OPTION_GAMENAME, image_driver_name_callback);
 
-bool emu_options::parse_slot_devices(int argc, char *argv[], astring &error_string, const char *name, const char *value)
-{
-	remove_device_options();
-	bool isfirst = true;
-	bool result = core_options::parse_command_line(argc, argv, OPTION_PRIORITY_CMDLINE, error_string);
-	while (add_slot_options(isfirst)) {
-		result = core_options::parse_command_line(argc, argv, OPTION_PRIORITY_CMDLINE, error_string);
-		isfirst = false;
-	}
-	add_device_options(true);
-	if (name && exists(name)) {
-		set_value(name, value, OPTION_PRIORITY_CMDLINE, error_string);
-	}
-	result = core_options::parse_command_line(argc, argv, OPTION_PRIORITY_CMDLINE, error_string);
-	return result;
-}
+#ifdef MESS
+	mess_options_init(opts);
+#endif /* MESS */
 
-//-------------------------------------------------
-//  parse_command_line - parse the command line
-//  and update the devices
-//-------------------------------------------------
-
-bool emu_options::parse_command_line(int argc, char *argv[], astring &error_string)
-{
-	// remember the original system name
-	astring old_system_name(system_name());
-
-	// parse as normal
-	bool result = core_options::parse_command_line(argc, argv, OPTION_PRIORITY_CMDLINE, error_string);
-
-	// if the system name changed, fix up the device options
-	if (old_system_name != system_name())
-	{
-		// remove any existing device options
-		result = parse_slot_devices(argc, argv, error_string, NULL, NULL);
-	}
-	return result;
-}
-
-
-//-------------------------------------------------
-//  parse_standard_inis - parse the standard set
-//  of INI files
-//-------------------------------------------------
-
-void emu_options::parse_standard_inis(astring &error_string)
-{
-	// start with an empty string
-	error_string.reset();
-
-	// parse the INI file defined by the platform (e.g., "mame.ini")
-	// we do this twice so that the first file can change the INI path
-	parse_one_ini(CONFIGNAME, OPTION_PRIORITY_MAME_INI);
-	parse_one_ini(CONFIGNAME, OPTION_PRIORITY_MAME_INI, &error_string);
-
-	// debug mode: parse "debug.ini" as well
-	if (debug())
-		parse_one_ini("debug", OPTION_PRIORITY_DEBUG_INI, &error_string);
-
-	// if we have a valid system driver, parse system-specific INI files
-	const game_driver *cursystem = system();
-	if (cursystem == NULL)
-		return;
-
-	// parse "vertical.ini" or "horizont.ini"
-	if (cursystem->flags & ORIENTATION_SWAP_XY)
-		parse_one_ini("vertical", OPTION_PRIORITY_ORIENTATION_INI, &error_string);
-	else
-		parse_one_ini("horizont", OPTION_PRIORITY_ORIENTATION_INI, &error_string);
-
-	// parse "vector.ini" for vector games
-	{
-		machine_config config(*cursystem, *this);
-		for (const screen_device *device = config.first_screen(); device != NULL; device = device->next_screen())
-			if (device->screen_type() == SCREEN_TYPE_VECTOR)
-			{
-				parse_one_ini("vector", OPTION_PRIORITY_VECTOR_INI, &error_string);
-				break;
-			}
-	}
-
-	// next parse "source/<sourcefile>.ini"; if that doesn't exist, try <sourcefile>.ini
-	astring sourcename;
-	core_filename_extract_base(&sourcename, cursystem->source_file, TRUE)->ins(0, "source" PATH_SEPARATOR);
-	if (!parse_one_ini(sourcename, OPTION_PRIORITY_SOURCE_INI, &error_string))
-	{
-		core_filename_extract_base(&sourcename, cursystem->source_file, TRUE);
-		parse_one_ini(sourcename, OPTION_PRIORITY_SOURCE_INI, &error_string);
-	}
-
-	// then parse the grandparent, parent, and system-specific INIs
-	int parent = driver_list::clone(*cursystem);
-	int gparent = (parent != -1) ? driver_list::clone(parent) : -1;
-	if (gparent != -1)
-		parse_one_ini(driver_list::driver(gparent).name, OPTION_PRIORITY_GPARENT_INI, &error_string);
-	if (parent != -1)
-		parse_one_ini(driver_list::driver(parent).name, OPTION_PRIORITY_PARENT_INI, &error_string);
-	parse_one_ini(cursystem->name, OPTION_PRIORITY_DRIVER_INI, &error_string);
-}
-
-
-//-------------------------------------------------
-//  system - return a pointer to the specified
-//  system driver, or NULL if no match
-//-------------------------------------------------
-
-const game_driver *emu_options::system() const
-{
-	astring tempstr;
-	int index = driver_list::find(*core_filename_extract_base(&tempstr, system_name(), TRUE));
-	return (index != -1) ? &driver_list::driver(index) : NULL;
-}
-
-
-//-------------------------------------------------
-//  set_system_name - set a new system name
-//-------------------------------------------------
-
-void emu_options::set_system_name(const char *name)
-{
-	// remember the original system name
-	astring old_system_name(system_name());
-
-	// if the system name changed, fix up the device options
-	if (old_system_name != name)
-	{
-		// first set the new name
-		astring error;
-		set_value(OPTION_SYSTEMNAME, name, OPTION_PRIORITY_CMDLINE, error);
-		assert(!error);
-		// remove any existing device options
-		remove_device_options();
-
-		bool isfirst = true;
-		while (add_slot_options(isfirst)) {
-			isfirst = false;
-		}
-		// then add the options
-		add_device_options(true);
-	}
-}
-
-
-//-------------------------------------------------
-//  device_option - return the value of the
-//  device-specific option
-//-------------------------------------------------
-
-const char *emu_options::device_option(device_image_interface &image)
-{
-	return value(image.instance_name());
-}
-
-
-//-------------------------------------------------
-//  parse_one_ini - parse a single INI file
-//-------------------------------------------------
-
-bool emu_options::parse_one_ini(const char *basename, int priority, astring *error_string)
-{
-	// don't parse if it has been disabled
-	if (!read_config())
-		return false;
-
-	// open the file; if we fail, that's ok
-	emu_file file(ini_path(), OPEN_FLAG_READ);
-	file_error filerr = file.open(basename, ".ini");
-	if (filerr != FILERR_NONE)
-		return false;
-
-	// parse the file
-	mame_printf_verbose("Parsing %s.ini\n", basename);
-	astring error;
-	bool result = parse_ini_file(file, priority, OPTION_PRIORITY_DRIVER_INI, error);
-
-	// append errors if requested
-	if (error && error_string != NULL)
-		error_string->catprintf("While parsing %s:\n%s\n", file.fullpath(), error.cstr());
-
-	return result;
+	return opts;
 }

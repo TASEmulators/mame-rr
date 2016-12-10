@@ -120,9 +120,7 @@ static const UINT8 spc7110_mode2_context_table[32][2] =
 
 typedef struct
 {
-	running_machine &machine() const { assert(m_machine != NULL); return *m_machine; }
-
-	running_machine *m_machine;
+	running_machine *machine;
 
 	UINT32 decomp_mode;
 	UINT32 decomp_offset;
@@ -144,9 +142,9 @@ typedef struct
 	UINT32 rom_size;
 } SPC7110Decomp;
 
-static SPC7110Decomp* SPC7110Decomp_ctor(running_machine &machine, UINT32 size);
+static SPC7110Decomp* SPC7110Decomp_ctor(running_machine *machine, UINT32 size);
 static void SPC7110Decomp_reset(SPC7110Decomp *thisptr);
-static void SPC7110Decomp_init(SPC7110Decomp *thisptr, running_machine &machine, UINT32 mode, UINT32 offset, UINT32 index);
+static void SPC7110Decomp_init(SPC7110Decomp *thisptr, running_machine *machine, UINT32 mode, UINT32 offset, UINT32 index);
 static UINT8 SPC7110Decomp_read(SPC7110Decomp *thisptr);
 static void SPC7110Decomp_write(SPC7110Decomp *thisptr, UINT8 data);
 static UINT8 SPC7110Decomp_dataread(SPC7110Decomp *thisptr);
@@ -160,7 +158,7 @@ static UINT8 SPC7110Decomp_toggle_invert(SPC7110Decomp *thisptr, UINT32 n);
 static UINT32 SPC7110Decomp_morton_2x8(SPC7110Decomp *thisptr, UINT32 data);
 static UINT32 SPC7110Decomp_morton_4x8(SPC7110Decomp *thisptr, UINT32 data);
 
-static SPC7110Decomp* SPC7110Decomp_ctor(running_machine &machine, UINT32 size)
+static SPC7110Decomp* SPC7110Decomp_ctor(running_machine *machine, UINT32 size)
 {
 	UINT32 i;
 	SPC7110Decomp* newclass = (SPC7110Decomp*)auto_alloc_array(machine, UINT8, sizeof(SPC7110Decomp));
@@ -203,11 +201,11 @@ static void SPC7110Decomp_reset(SPC7110Decomp *thisptr)
 	thisptr->decomp_buffer_length   = 0;
 }
 
-static void SPC7110Decomp_init(SPC7110Decomp *thisptr, running_machine &machine, UINT32 mode, UINT32 offset, UINT32 index)
+static void SPC7110Decomp_init(SPC7110Decomp *thisptr, running_machine *machine, UINT32 mode, UINT32 offset, UINT32 index)
 {
 	UINT32 i;
 
-	thisptr->m_machine = &machine;
+	thisptr->machine = machine;
 
 	thisptr->decomp_mode = mode;
 	thisptr->decomp_offset = offset;
@@ -276,7 +274,7 @@ static void SPC7110Decomp_write(SPC7110Decomp *thisptr, UINT8 data)
 
 static UINT8 SPC7110Decomp_dataread(SPC7110Decomp *thisptr)
 {
-	UINT8 *ROM = thisptr->machine().region("cart")->base();
+	UINT8 *ROM = memory_region(thisptr->machine, "cart");
 	UINT32 size = thisptr->rom_size - 0x100000;
 	while(thisptr->decomp_offset >= size)
 	{
@@ -768,9 +766,9 @@ static UINT32 SPC7110Decomp_morton_4x8(SPC7110Decomp *thisptr, UINT32 data)
        + thisptr->morton32[2][(data >> 16) & 255] + thisptr->morton32[3][(data >> 24) & 255];
 }
 
-static void spc7110_mmio_write(running_machine &machine, UINT32 addr, UINT8 data);
-static UINT8 spc7110_mmio_read(address_space *space, UINT32 addr);
-static void spc7110_update_time(running_machine &machine, UINT8 offset);
+static void spc7110_mmio_write(running_machine *machine, UINT32 addr, UINT8 data);
+static UINT8 spc7110_mmio_read(const address_space *space, UINT32 addr);
+static void spc7110_update_time(running_machine *machine, UINT8 offset);
 
 enum RTC_State
 {
@@ -875,9 +873,9 @@ typedef struct
 
 static _snes_spc7110_t snes_spc7110;
 
-static void spc7110_init(running_machine& machine)
+static void spc7110_init(running_machine* machine)
 {
-	snes_state *state = machine.driver_data<snes_state>();
+	snes_state *state = (snes_state *)machine->driver_data;
 
 	snes_spc7110.r4801 = 0x00;
 	snes_spc7110.r4802 = 0x00;
@@ -932,12 +930,12 @@ static void spc7110_init(running_machine& machine)
 	snes_spc7110.r4841 = 0x00;
 	snes_spc7110.r4842 = 0x00;
 
-	snes_spc7110.size = state->m_cart_size;
+	snes_spc7110.size = state->cart_size;
 
 	snes_spc7110.decomp = SPC7110Decomp_ctor(machine, snes_spc7110.size);
 }
 
-static void spc7110rtc_init(running_machine& machine)
+static void spc7110rtc_init(running_machine* machine)
 {
 	spc7110_init(machine);
 
@@ -992,10 +990,10 @@ static void spc7110_set_data_adjust(UINT32 addr)
 // we should probably keep track internally of the time rather than updating
 // to the system time at each call with a "offset" tracking as we do now...
 // (and indeed current code fails to pass Tengai Makyou Zero tests)
-static void spc7110_update_time(running_machine &machine, UINT8 offset)
+static void spc7110_update_time(running_machine *machine, UINT8 offset)
 {
 	system_time curtime, *systime = &curtime;
-	machine.current_datetime(curtime);
+	machine->current_datetime(curtime);
 	int update = 1;
 
 	snes_spc7110.rtc_offset += offset;
@@ -1068,10 +1066,10 @@ static void spc7110_update_time(running_machine &machine, UINT8 offset)
 	}
 }
 
-static UINT8 spc7110_mmio_read(address_space *space, UINT32 addr)
+static UINT8 spc7110_mmio_read(const address_space *space, UINT32 addr)
 {
-	running_machine &machine = space->machine();
-	UINT8 *ROM = machine.region("cart")->base();
+	running_machine *machine = space->machine;
+	UINT8 *ROM = memory_region(machine, "cart");
 
 	addr &= 0xffff;
 
@@ -1255,9 +1253,9 @@ static UINT8 spc7110_mmio_read(address_space *space, UINT32 addr)
 	return snes_open_bus_r(space, 0);
 }
 
-static void spc7110_mmio_write(running_machine &machine, UINT32 addr, UINT8 data)
+static void spc7110_mmio_write(running_machine *machine, UINT32 addr, UINT8 data)
 {
-	UINT8 *ROM = machine.region("cart")->base();
+	UINT8 *ROM = memory_region(machine, "cart");
 
 	addr &= 0xffff;
 
@@ -1274,12 +1272,12 @@ static void spc7110_mmio_write(running_machine &machine, UINT32 addr, UINT8 data
 	case 0x4805: snes_spc7110.r4805 = data; break;
 	case 0x4806:
 		{
-			UINT32 table, index, address, mode, offset;
+			UINT32 table, index, length, address, mode, offset;
 			snes_spc7110.r4806 = data;
 
 			table   = (snes_spc7110.r4801 + (snes_spc7110.r4802 << 8) + (snes_spc7110.r4803 << 16));
 			index   = (snes_spc7110.r4804 << 2);
-			//length  = (snes_spc7110.r4809 + (snes_spc7110.r480a << 8));
+			length  = (snes_spc7110.r4809 + (snes_spc7110.r480a << 8));
 			address = spc7110_datarom_addr(table + index);
 			mode    = (ROM[address + 0]);
 			offset  = (ROM[address + 1] << 16)
@@ -1641,9 +1639,9 @@ static void spc7110_mmio_write(running_machine &machine, UINT32 addr, UINT8 data
 	}
 }
 
-static UINT8 spc7110_bank7_read(address_space *space, UINT32 offset)
+static UINT8 spc7110_bank7_read(const address_space *space, UINT32 offset)
 {
-	UINT8 *ROM = space->machine().region("cart")->base();
+	UINT8 *ROM = memory_region(space->machine, "cart");
 	UINT32 addr = offset & 0x0fffff;
 
 	switch (offset & 0xf00000)

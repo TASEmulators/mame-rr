@@ -6,9 +6,6 @@ Ikki (c) 1985 Sun Electronics
 
     20/Jun/2001 -
 
-TODO:
-- understand proper CPU communications and irq firing;
-
 *****************************************************************************/
 
 #include "emu.h"
@@ -28,15 +25,15 @@ static READ8_HANDLER( ikki_e000_r )
 {
 /* bit1: interrupt type?, bit0: CPU2 busack? */
 
-	if (cpu_getiloops(&space->device()) == 0)
+	if (cpu_getiloops(space->cpu) == 0)
 		return 0;
 	return 2;
 }
 
 static WRITE8_HANDLER( ikki_coin_counters )
 {
-	coin_counter_w(space->machine(), 0, data & 0x01);
-	coin_counter_w(space->machine(), 1, data & 0x02);
+	coin_counter_w(space->machine, 0, data & 0x01);
+	coin_counter_w(space->machine, 1, data & 0x02);
 }
 
 /*************************************
@@ -45,11 +42,11 @@ static WRITE8_HANDLER( ikki_coin_counters )
  *
  *************************************/
 
-static ADDRESS_MAP_START( ikki_cpu1, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ikki_cpu1, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x9fff) AM_ROM
 	AM_RANGE(0xc000, 0xc7ff) AM_RAM
 	AM_RANGE(0xc800, 0xcfff) AM_RAM AM_SHARE("share1")
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM AM_BASE_SIZE_MEMBER(ikki_state, m_videoram, m_videoram_size)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM AM_BASE_SIZE_MEMBER(ikki_state, videoram, videoram_size)
 	AM_RANGE(0xe000, 0xe000) AM_READ(ikki_e000_r)
 	AM_RANGE(0xe001, 0xe001) AM_READ_PORT("DSW1")
 	AM_RANGE(0xe002, 0xe002) AM_READ_PORT("DSW2")
@@ -58,12 +55,12 @@ static ADDRESS_MAP_START( ikki_cpu1, AS_PROGRAM, 8 )
 	AM_RANGE(0xe005, 0xe005) AM_READ_PORT("P2")
 	AM_RANGE(0xe008, 0xe008) AM_WRITE(ikki_scrn_ctrl_w)
 	AM_RANGE(0xe009, 0xe009) AM_WRITE(ikki_coin_counters)
-	AM_RANGE(0xe00a, 0xe00b) AM_WRITEONLY AM_BASE_MEMBER(ikki_state, m_scroll)
+	AM_RANGE(0xe00a, 0xe00b) AM_WRITEONLY AM_BASE_MEMBER(ikki_state, scroll)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( ikki_cpu2, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( ikki_cpu2, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
-	AM_RANGE(0xc000, 0xc7ff) AM_RAM AM_BASE_SIZE_MEMBER(ikki_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xc000, 0xc7ff) AM_RAM AM_BASE_SIZE_MEMBER(ikki_state, spriteram, spriteram_size)
 	AM_RANGE(0xc800, 0xcfff) AM_RAM AM_SHARE("share1")
 	AM_RANGE(0xd801, 0xd801) AM_DEVWRITE("sn1", sn76496_w)
 	AM_RANGE(0xd802, 0xd802) AM_DEVWRITE("sn2", sn76496_w)
@@ -211,59 +208,62 @@ GFXDECODE_END
 
 static MACHINE_START( ikki )
 {
-	ikki_state *state = machine.driver_data<ikki_state>();
+	ikki_state *state = (ikki_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_flipscreen));
-	state->save_item(NAME(state->m_punch_through_pen));
+	state_save_register_global(machine, state->flipscreen);
+	state_save_register_global(machine, state->punch_through_pen);
 }
 
 static MACHINE_RESET( ikki )
 {
-	ikki_state *state = machine.driver_data<ikki_state>();
+	ikki_state *state = (ikki_state *)machine->driver_data;
 
-	state->m_flipscreen = 0;
+	state->flipscreen = 0;
 }
 
-static MACHINE_CONFIG_START( ikki, ikki_state )
+static MACHINE_DRIVER_START( ikki )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(ikki_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,8000000/2) /* 4.000MHz */
-	MCFG_CPU_PROGRAM_MAP(ikki_cpu1)
-	MCFG_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_ADD("maincpu", Z80,8000000/2) /* 4.000MHz */
+	MDRV_CPU_PROGRAM_MAP(ikki_cpu1)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
 
-	MCFG_CPU_ADD("sub", Z80,8000000/2) /* 4.000MHz */
-	MCFG_CPU_PROGRAM_MAP(ikki_cpu2)
-	MCFG_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
+	MDRV_CPU_ADD("sub", Z80,8000000/2) /* 4.000MHz */
+	MDRV_CPU_PROGRAM_MAP(ikki_cpu2)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(600))
+	MDRV_QUANTUM_TIME(HZ(600))
 
-	MCFG_MACHINE_START(ikki)
-	MCFG_MACHINE_RESET(ikki)
+	MDRV_MACHINE_START(ikki)
+	MDRV_MACHINE_RESET(ikki)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(ikki)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(1*8, 31*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(ikki)
-	MCFG_PALETTE_LENGTH(1024)
+	MDRV_GFXDECODE(ikki)
+	MDRV_PALETTE_LENGTH(1024)
 
-	MCFG_PALETTE_INIT(ikki)
-	MCFG_VIDEO_START(ikki)
+	MDRV_PALETTE_INIT(ikki)
+	MDRV_VIDEO_START(ikki)
+	MDRV_VIDEO_UPDATE(ikki)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("sn1", SN76496, 8000000/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+	MDRV_SOUND_ADD("sn1", SN76496, 8000000/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
 
-	MCFG_SOUND_ADD("sn2", SN76496, 8000000/2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("sn2", SN76496, 8000000/2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.75)
+MACHINE_DRIVER_END
 
 
 /*************************************

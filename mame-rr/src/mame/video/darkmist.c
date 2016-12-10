@@ -1,7 +1,11 @@
 #include "emu.h"
-#include "includes/darkmist.h"
+
+/*defined in drivers/darkmist.c */
+extern int darkmist_hw;
 
 
+UINT8 *darkmist_scroll;
+UINT8 *darkmist_spritebank;
 
 /* vis. flags */
 
@@ -10,13 +14,14 @@
 #define DISPLAY_BG		4
 #define DISPLAY_TXT		16
 
+static tilemap_t *bgtilemap, *fgtilemap, *txtilemap;
 
 static TILE_GET_INFO( get_bgtile_info )
 {
 	int code,attr,pal;
 
-	code=machine.region("user1")->base()[tile_index]; /* TTTTTTTT */
-	attr=machine.region("user2")->base()[tile_index]; /* -PPP--TT - FIXED BITS (0xxx00xx) */
+	code=memory_region(machine, "user1")[tile_index]; /* TTTTTTTT */
+	attr=memory_region(machine, "user2")[tile_index]; /* -PPP--TT - FIXED BITS (0xxx00xx) */
 	code+=(attr&3)<<8;
 	pal=(attr>>4);
 
@@ -31,8 +36,8 @@ static TILE_GET_INFO( get_fgtile_info )
 {
 	int code,attr,pal;
 
-	code=machine.region("user3")->base()[tile_index]; /* TTTTTTTT */
-	attr=machine.region("user4")->base()[tile_index]; /* -PPP--TT - FIXED BITS (0xxx00xx) */
+	code=memory_region(machine, "user3")[tile_index]; /* TTTTTTTT */
+	attr=memory_region(machine, "user4")[tile_index]; /* -PPP--TT - FIXED BITS (0xxx00xx) */
 	pal=attr>>4;
 
 	code+=(attr&3)<<8;
@@ -50,12 +55,10 @@ static TILE_GET_INFO( get_fgtile_info )
 
 static TILE_GET_INFO( get_txttile_info )
 {
-	darkmist_state *state = machine.driver_data<darkmist_state>();
-	UINT8 *videoram = state->m_videoram;
 	int code,attr,pal;
 
-	code=videoram[tile_index];
-	attr=videoram[tile_index+0x400];
+	code=machine->generic.videoram.u8[tile_index];
+	attr=machine->generic.videoram.u8[tile_index+0x400];
 	pal=(attr>>1);
 
 	code+=(attr&1)<<8;
@@ -74,7 +77,7 @@ PALETTE_INIT(darkmist)
 	int i;
 
 	/* allocate the colortable */
-	machine.colortable = colortable_alloc(machine, 0x101);
+	machine->colortable = colortable_alloc(machine, 0x101);
 
 	for (i = 0; i < 0x400; i++)
 	{
@@ -95,61 +98,59 @@ PALETTE_INIT(darkmist)
 			}
 		}
 
-		colortable_entry_set_value(machine.colortable, i, ctabentry);
+		colortable_entry_set_value(machine->colortable, i, ctabentry);
 	}
 }
 
 
-static void set_pens(running_machine &machine)
+static void set_pens(running_machine *machine)
 {
 	int i;
 
 	for (i = 0; i < 0x100; i++)
 	{
-		int r = pal4bit(machine.generic.paletteram.u8[i | 0x200] >> 0);
-		int g = pal4bit(machine.generic.paletteram.u8[i | 0x000] >> 4);
-		int b = pal4bit(machine.generic.paletteram.u8[i | 0x000] >> 0);
+		int r = pal4bit(machine->generic.paletteram.u8[i | 0x200] >> 0);
+		int g = pal4bit(machine->generic.paletteram.u8[i | 0x000] >> 4);
+		int b = pal4bit(machine->generic.paletteram.u8[i | 0x000] >> 0);
 
-		colortable_palette_set_color(machine.colortable, i, MAKE_RGB(r, g, b));
+		colortable_palette_set_color(machine->colortable, i, MAKE_RGB(r, g, b));
 	}
 
-	colortable_palette_set_color(machine.colortable, 0x100, RGB_BLACK);
+	colortable_palette_set_color(machine->colortable, 0x100, RGB_BLACK);
 }
 
 
 VIDEO_START(darkmist)
 {
-	darkmist_state *state = machine.driver_data<darkmist_state>();
-	state->m_bgtilemap = tilemap_create( machine, get_bgtile_info,tilemap_scan_rows,16,16,512,64 );
-	state->m_fgtilemap = tilemap_create( machine, get_fgtile_info,tilemap_scan_rows,16,16,64,256 );
-	state->m_txtilemap = tilemap_create( machine, get_txttile_info,tilemap_scan_rows,8,8,32,32 );
-	tilemap_set_transparent_pen(state->m_fgtilemap, 0);
-	tilemap_set_transparent_pen(state->m_txtilemap, 0);
+	bgtilemap = tilemap_create( machine, get_bgtile_info,tilemap_scan_rows,16,16,512,64 );
+	fgtilemap = tilemap_create( machine, get_fgtile_info,tilemap_scan_rows,16,16,64,256 );
+	txtilemap = tilemap_create( machine, get_txttile_info,tilemap_scan_rows,8,8,32,32 );
+	tilemap_set_transparent_pen(fgtilemap, 0);
+	tilemap_set_transparent_pen(txtilemap, 0);
 }
 
-SCREEN_UPDATE( darkmist)
+VIDEO_UPDATE( darkmist)
 {
-	darkmist_state *state = screen->machine().driver_data<darkmist_state>();
-	UINT8 *spriteram = state->m_spriteram;
+	UINT8 *spriteram = screen->machine->generic.spriteram.u8;
 
-#define DM_GETSCROLL(n) (((state->m_scroll[(n)]<<1)&0xff) + ((state->m_scroll[(n)]&0x80)?1:0) +( ((state->m_scroll[(n)-1]<<4) | (state->m_scroll[(n)-1]<<12) )&0xff00))
+#define DM_GETSCROLL(n) (((darkmist_scroll[(n)]<<1)&0xff) + ((darkmist_scroll[(n)]&0x80)?1:0) +( ((darkmist_scroll[(n)-1]<<4) | (darkmist_scroll[(n)-1]<<12) )&0xff00))
 
-	set_pens(screen->machine());
+	set_pens(screen->machine);
 
-	tilemap_set_scrollx(state->m_bgtilemap, 0, DM_GETSCROLL(0x2));
-	tilemap_set_scrolly(state->m_bgtilemap, 0, DM_GETSCROLL(0x6));
-	tilemap_set_scrollx(state->m_fgtilemap, 0, DM_GETSCROLL(0xa));
-	tilemap_set_scrolly(state->m_fgtilemap, 0, DM_GETSCROLL(0xe));
+	tilemap_set_scrollx(bgtilemap, 0, DM_GETSCROLL(0x2));
+	tilemap_set_scrolly(bgtilemap, 0, DM_GETSCROLL(0x6));
+	tilemap_set_scrollx(fgtilemap, 0, DM_GETSCROLL(0xa));
+	tilemap_set_scrolly(fgtilemap, 0, DM_GETSCROLL(0xe));
 
-	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
+	bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 
-	if(state->m_hw & DISPLAY_BG)
-		tilemap_draw(bitmap,cliprect,state->m_bgtilemap, 0,0);
+	if(darkmist_hw & DISPLAY_BG)
+		tilemap_draw(bitmap,cliprect,bgtilemap, 0,0);
 
-	if(state->m_hw & DISPLAY_FG)
-		tilemap_draw(bitmap,cliprect,state->m_fgtilemap, 0,0);
+	if(darkmist_hw & DISPLAY_FG)
+		tilemap_draw(bitmap,cliprect,fgtilemap, 0,0);
 
-	if(state->m_hw & DISPLAY_SPR)
+	if(darkmist_hw & DISPLAY_SPR)
 	{
 /*
     Sprites
@@ -163,7 +164,7 @@ SCREEN_UPDATE( darkmist)
 
 */
 		int i,fx,fy,tile,palette;
-		for(i=0;i<state->m_spriteram_size;i+=32)
+		for(i=0;i<screen->machine->generic.spriteram_size;i+=32)
 		{
 			fy=spriteram[i+1]&0x40;
 			fx=spriteram[i+1]&0x80;
@@ -171,18 +172,18 @@ SCREEN_UPDATE( darkmist)
 			tile=spriteram[i+0];
 
 			if(spriteram[i+1]&0x20)
-				tile += (*state->m_spritebank << 8);
+				tile += (*darkmist_spritebank << 8);
 
 			palette=((spriteram[i+1])>>1)&0xf;
 
 			if(spriteram[i+1]&0x1)
-				palette=screen->machine().rand()&15;
+				palette=mame_rand(screen->machine)&15;
 
 			palette+=32;
 
 			drawgfx_transpen(
 				bitmap,cliprect,
-				screen->machine().gfx[2],
+				screen->machine->gfx[2],
 				tile,
 				palette,
 				fx,fy,
@@ -190,10 +191,10 @@ SCREEN_UPDATE( darkmist)
 		}
 	}
 
-	if(state->m_hw & DISPLAY_TXT)
+	if(darkmist_hw & DISPLAY_TXT)
 	{
-		tilemap_mark_all_tiles_dirty(state->m_txtilemap);
-		tilemap_draw(bitmap,cliprect,state->m_txtilemap, 0,0);
+		tilemap_mark_all_tiles_dirty(txtilemap);
+		tilemap_draw(bitmap,cliprect,txtilemap, 0,0);
 	}
 
 

@@ -20,10 +20,10 @@
  *
  *************************************/
 
-static MACHINE_START( ___empty )
+static MACHINE_START( empty )
 {
 	/* force the UI to show the game select screen */
-	ui_menu_force_game_select(machine, &machine.render().ui_container());
+	ui_menu_force_game_select(machine, render_container_get_ui());
 }
 
 
@@ -34,17 +34,17 @@ static MACHINE_START( ___empty )
  *
  *************************************/
 
-static MACHINE_CONFIG_START( ___empty, driver_device )
+static MACHINE_DRIVER_START( empty )
 
-	MCFG_MACHINE_START(___empty)
+	MDRV_MACHINE_START(empty)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(640,480)
-	MCFG_SCREEN_VISIBLE_AREA(0,639, 0,479)
-	MCFG_SCREEN_REFRESH_RATE(30)
-MACHINE_CONFIG_END
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(640,480)
+	MDRV_SCREEN_VISIBLE_AREA(0,639, 0,479)
+	MDRV_SCREEN_REFRESH_RATE(30)
+MACHINE_DRIVER_END
 
 
 
@@ -54,8 +54,8 @@ MACHINE_CONFIG_END
  *
  *************************************/
 
-ROM_START( ___empty )
-	ROM_REGION( 0x10, "user1", ROMREGION_ERASEFF )
+ROM_START( empty )
+	ROM_REGION( 0x10, "user1", 0 )
 ROM_END
 
 
@@ -66,4 +66,4 @@ ROM_END
  *
  *************************************/
 
-GAME( 2007, ___empty, 0, ___empty, 0, 0, ROT0, "MAME", "No Driver Loaded", GAME_NO_SOUND )
+GAME( 2007, empty, 0, empty, 0, 0, ROT0, "MAME", "No Driver Loaded", 0 )

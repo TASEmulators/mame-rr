@@ -9,11 +9,52 @@
 
 #include "emu.h"
 #include "pool.h"
+#include "expat.h"
 #include "emuopts.h"
-#include "hash.h"
 #include "softlist.h"
 
 #include <ctype.h>
+
+enum softlist_parse_position
+{
+	POS_ROOT,
+	POS_MAIN,
+	POS_SOFT,
+	POS_PART,
+	POS_DATA
+};
+
+
+typedef struct _parse_state
+{
+	XML_Parser	parser;
+	int			done;
+
+	void (*error_proc)(const char *message);
+	void *param;
+
+	enum softlist_parse_position pos;
+	char **text_dest;
+} parse_state;
+
+
+struct _software_list
+{
+	mame_file	*file;
+	object_pool	*pool;
+	parse_state	state;
+	const char *description;
+	struct software_info	*software_info_list;
+	struct software_info	*current_software_info;
+	software_info	*softinfo;
+	const char *look_for;
+	int part_entries;
+	int current_part_entry;
+	int rom_entries;
+	int current_rom_entry;
+	void (*error_proc)(const char *message);
+};
+
 
 typedef tagmap_t<software_info *> softlist_map;
 
@@ -109,7 +150,7 @@ INLINE void unknown_attribute_value(parse_state *state,
 /*-------------------------------------------------
     software_name_split
     helper; splits a software_list:software:part
-    string into separate software_list, software,
+    string into seperate software_list, software,
     and part strings.
 
     str1:str2:str3  => swlist_name - str1, swname - str2, swpart - str3
@@ -120,10 +161,7 @@ INLINE void unknown_attribute_value(parse_state *state,
     from the global pool. So they should be global_free'ed
     when they are not used anymore.
 -------------------------------------------------*/
-
-#define global_strdup(s)				strcpy(global_alloc_array(char, strlen(s) + 1), s)
-
-static void software_name_split(const char *swlist_swname, char **swlist_name, char **swname, char **swpart )
+static void software_name_split(running_machine* machine, const char *swlist_swname, char **swlist_name, char **swname, char **swpart )
 {
 	const char *split_1st_loc = strchr( swlist_swname, ':' );
 	const char *split_2nd_loc = ( split_1st_loc ) ? strchr( split_1st_loc + 1, ':' ) : NULL;
@@ -137,31 +175,31 @@ static void software_name_split(const char *swlist_swname, char **swlist_name, c
 		if ( split_2nd_loc )
 		{
 			int size = split_1st_loc - swlist_swname;
-			*swlist_name = global_alloc_array_clear(char,size+1);
+			*swlist_name = auto_alloc_array_clear(machine,char,size+1);
 			memcpy( *swlist_name, swlist_swname, size );
 
 			size = split_2nd_loc - ( split_1st_loc + 1 );
-			*swname = global_alloc_array_clear(char,size+1);
+			*swname = auto_alloc_array_clear(machine,char,size+1);
 			memcpy( *swname, split_1st_loc + 1, size );
 
 			size = strlen( swlist_swname ) - ( split_2nd_loc + 1 - swlist_swname );
-			*swpart = global_alloc_array_clear(char,size+1);
+			*swpart = auto_alloc_array_clear(machine,char,size+1);
 			memcpy( *swpart, split_2nd_loc + 1, size );
 		}
 		else
 		{
 			int size = split_1st_loc - swlist_swname;
-			*swname = global_alloc_array_clear(char,size+1);
+			*swname = auto_alloc_array_clear(machine,char,size+1);
 			memcpy( *swname, swlist_swname, size );
 
 			size = strlen( swlist_swname ) - ( split_1st_loc + 1 - swlist_swname );
-			*swpart = global_alloc_array_clear(char,size+1);
+			*swpart = auto_alloc_array_clear(machine,char,size+1);
 			memcpy( *swpart, split_1st_loc + 1, size );
 		}
 	}
 	else
 	{
-		*swname = global_strdup(swlist_swname);
+		*swname = auto_strdup(machine,swlist_swname);
 	}
 }
 
@@ -233,46 +271,6 @@ static void add_feature(software_list *swlist, char *feature_name, char *feature
 		else
 		{
 			part->featurelist = new_entry;
-		}
-	}
-	else
-	{
-		/* Unable to allocate memory */
-	}
-}
-
-/*-------------------------------------------------
- add_info (same as add_feature, but its target
- is softinfo->shared_info)
- -------------------------------------------------*/
-
-static void add_info(software_list *swlist, char *feature_name, char *feature_value)
-{
-	software_info *info = swlist->softinfo;
-	feature_list *new_entry;
-
-	/* First allocate the new entry */
-	new_entry = (feature_list *)pool_malloc_lib(swlist->pool, sizeof(feature_list) );
-
-	if ( new_entry )
-	{
-		new_entry->next = NULL;
-		new_entry->name = feature_name;
-		new_entry->value = feature_value ? feature_value : feature_name;
-
-		/* Add new feature to end of feature list */
-		if ( info->shared_info )
-		{
-			feature_list *list = info->shared_info;
-			while ( list->next != NULL )
-			{
-				list = list->next;
-			}
-			list->next = new_entry;
-		}
-		else
-		{
-			info->shared_info = new_entry;
 		}
 	}
 	else
@@ -405,16 +403,6 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 					elem->partdata = (software_part *)pool_malloc_lib(swlist->pool, swlist->part_entries * sizeof(software_part) );
 					if ( !elem->partdata )
 						return;
-					elem->shared_info = (feature_list *)pool_malloc_lib(swlist->pool, sizeof(feature_list) );
-					if ( !elem->shared_info )
-						return;
-					else
-					{
-						elem->shared_info->next = (feature_list *)pool_malloc_lib(swlist->pool, sizeof(feature_list) );
-						elem->shared_info->next = NULL;
-						elem->shared_info->name = NULL;
-						elem->shared_info->value = NULL;
-					}
 
 					/* Handle the supported flag */
 					elem->supported = SOFTWARE_SUPPORTED_YES;
@@ -458,49 +446,6 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 				text_dest = (char **) &swlist->softinfo->year;
 			else if (!strcmp(tagname, "publisher"))
 				text_dest = (char **) &swlist->softinfo->publisher;
-			else if (!strcmp(tagname, "info"))
-			{
-				// the "info" field (containing info about actual developers, etc.) is not currently stored.
-				// full support will be added, but for the moment frontend have to get this info from the xml directly
-			}
-			else if (!strcmp(tagname, "sharedfeat"))
-			{
-				const char *str_feature_name = NULL;
-				const char *str_feature_value = NULL;
-
-				for ( ; attributes[0]; attributes += 2 )
-				{
-					if ( !strcmp( attributes[0], "name" ) )
-						str_feature_name = attributes[1];
-
-					if ( !strcmp( attributes[0], "value" ) )
-						str_feature_value = attributes[1];
-				}
-
-				/* Prepare for adding feature to feature list */
-				if ( str_feature_name && swlist->softinfo )
-				{
-					char *name = (char *)pool_malloc_lib(swlist->pool, ( strlen( str_feature_name ) + 1 ) * sizeof(char) );
-					char *value = NULL;
-
-					if ( !name )
-						return;
-
-					strcpy( name, str_feature_name );
-
-					if ( str_feature_value )
-					{
-						value = (char *)pool_malloc_lib(swlist->pool, ( strlen( str_feature_value ) + 1 ) * sizeof(char) );
-
-						if ( !value )
-							return;
-
-						strcpy( value, str_feature_value );
-					}
-
-					add_info( swlist, name, value );
-				}
-			}
 			else if ( !strcmp(tagname, "part" ) )
 			{
 				const char *str_name = NULL;
@@ -568,7 +513,7 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 				{
 					if ( swlist->softinfo )
 					{
-						UINT32 length = strtol( str_size, NULL, 0 );
+						UINT32 length = strtol( str_size, NULL, 10 );
 						char *s = (char *)pool_malloc_lib(swlist->pool, ( strlen( str_name ) + 1 ) * sizeof(char) );
 
 						if ( !s )
@@ -578,35 +523,6 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 
 						/* ROM_REGION( length, "name", flags ) */
 						add_rom_entry( swlist, s, NULL, 0, length, ROMENTRYTYPE_REGION );
-					}
-				}
-				else
-				{
-					/* Missing dataarea name or size */
-				}
-			}
-			else if (!strcmp(tagname, "diskarea"))
-			{
-				const char *str_name = NULL;
-
-				for ( ; attributes[0]; attributes += 2 )
-				{
-					if ( !strcmp( attributes[0], "name" ) )
-						str_name = attributes[1];
-				}
-				if ( str_name )
-				{
-					if ( swlist->softinfo )
-					{
-						char *s = (char *)pool_malloc_lib(swlist->pool, ( strlen( str_name ) + 1 ) * sizeof(char) );
-
-						if ( !s )
-							return;
-
-						strcpy( s, str_name );
-
-						/* ROM_REGION( length, "name", flags ) */
-						add_rom_entry( swlist, s, NULL, 0, 1, ROMENTRYTYPE_REGION | ROMREGION_DATATYPEDISK);
 					}
 				}
 				else
@@ -691,18 +607,13 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 				{
 					if ( str_size && str_offset )
 					{
-						UINT32 length = strtol( str_size, NULL, 0 );
-						UINT32 offset = strtol( str_offset, NULL, 0 );
+						UINT32 length = strtol( str_size, NULL, 10 );
+						UINT32 offset = strtol( str_offset, NULL, 16 );
 
 						if ( str_loadflag && !strcmp(str_loadflag, "reload") )
 						{
 							/* Handle 'reload' loadflag */
 							add_rom_entry( swlist, NULL, NULL, offset, length, ROMENTRYTYPE_RELOAD | ROM_INHERITFLAGS );
-						}
-						else if ( str_loadflag && !strcmp(str_loadflag, "reload_plain") )
-						{
-							/* Handle 'reload_plain' loadflag */
-							add_rom_entry( swlist, NULL, NULL, offset, length, ROMENTRYTYPE_RELOAD);
 						}
 						else if ( str_loadflag && !strcmp(str_loadflag, "continue") )
 						{
@@ -712,7 +623,7 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 						else if ( str_loadflag && !strcmp(str_loadflag, "fill") )
 						{
 							/* Handle 'fill' loadflag */
-							add_rom_entry( swlist, NULL, (const char*)(FPTR)atoi(str_value), offset, length, ROMENTRYTYPE_FILL );
+							add_rom_entry( swlist, NULL, (const char*)atoi(str_value), offset, length, ROMENTRYTYPE_FILL );
 						}
 						else
 						{
@@ -728,7 +639,7 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 									return;
 
 								strcpy( s_name, str_name );
-								sprintf( hashdata, "%c%s%c%s%s", hash_collection::HASH_CRC, str_crc, hash_collection::HASH_SHA1, str_sha1, ( nodump ? NO_DUMP : ( baddump ? BAD_DUMP : "" ) ) );
+								sprintf( hashdata, "c:%s#s:%s#%s", str_crc, str_sha1, ( nodump ? NO_DUMP : ( baddump ? BAD_DUMP : "" ) ) );
 
 								/* Handle loadflag attribute */
 								if ( str_loadflag && !strcmp(str_loadflag, "load16_word_swap") )
@@ -739,8 +650,6 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 									romflags = ROM_GROUPWORD | ROM_REVERSE | ROM_SKIP(2);
 								else if ( str_loadflag && !strcmp(str_loadflag, "load32_word") )
 									romflags = ROM_GROUPWORD | ROM_SKIP(2);
-								else if ( str_loadflag && !strcmp(str_loadflag, "load32_byte") )
-									romflags = ROM_SKIP(3);
 
 								/* ROM_LOAD( name, offset, length, hash ) */
 								add_rom_entry( swlist, s_name, hashdata, offset, length, ROMENTRYTYPE_ROM | romflags );
@@ -751,45 +660,6 @@ static void start_handler(void *data, const char *tagname, const char **attribut
 				else
 				{
 					/* Missing name, size, crc, sha1, or offset */
-				}
-			}
-			else
-			if (!strcmp(tagname, "disk"))
-			{
-				const char *str_name = NULL;
-				const char *str_sha1 = NULL;
-				const char *str_status = NULL;
-				const char *str_writeable = NULL;
-
-				for ( ; attributes[0]; attributes += 2 )
-				{
-					if ( !strcmp( attributes[0], "name" ) )
-						str_name = attributes[1];
-					if ( !strcmp( attributes[0], "sha1" ) )
-						str_sha1 = attributes[1];
-					if ( !strcmp( attributes[0], "status" ) )
-						str_status = attributes[1];
-					if ( !strcmp( attributes[0], "writeable" ) )
-						str_writeable = attributes[1];
-				}
-				if ( swlist->softinfo )
-				{
-					if ( str_name && str_sha1 )
-					{
-						char *s_name = (char *)pool_malloc_lib(swlist->pool, ( strlen( str_name ) + 1 ) * sizeof(char) );
-						char *hashdata = (char *)pool_malloc_lib( swlist->pool, sizeof(char) * ( strlen(str_sha1) + 7 + 4 ) );
-						int baddump = ( str_status && !strcmp(str_status, "baddump") ) ? 1 : 0;
-						int nodump = ( str_status && !strcmp(str_status, "nodump" ) ) ? 1 : 0;
-						int writeable = ( str_writeable && !strcmp(str_writeable, "yes" ) ) ? 1 : 0;
-
-						if ( !s_name || !hashdata )
-							return;
-
-						strcpy( s_name, str_name );
-						sprintf( hashdata, "%c%s%s", hash_collection::HASH_SHA1, str_sha1, ( nodump ? NO_DUMP : ( baddump ? BAD_DUMP : "" ) ) );
-
-						add_rom_entry( swlist, s_name, hashdata, 0, 0, ROMENTRYTYPE_ROM | (writeable ? DISK_READWRITE : DISK_READONLY ) );
-					}
 				}
 			}
 			else
@@ -830,17 +700,6 @@ static void end_handler(void *data, const char *name)
 			break;
 
 		case POS_PART:
-			/* Add shared_info inherited from the software_info level, if any */
-			if ( swlist->softinfo && swlist->softinfo->shared_info )
-			{
-				feature_list *list = swlist->softinfo->shared_info;
-
-				while( list->next )
-				{
-					add_feature( swlist, list->next->name, list->next->value );
-					list = list->next;
-				}
-			}
 			break;
 
 		case POS_DATA:
@@ -876,66 +735,10 @@ static void data_handler(void *data, const XML_Char *s, int len)
 
 
 /*-------------------------------------------------
- software_list_get_count
- -------------------------------------------------*/
-
-static int software_list_get_count(software_list *swlist)
-{
-	int count = 0;
-
-	for (software_info *swinfo = software_list_find(swlist, "*", NULL); swinfo != NULL; swinfo = software_list_find(swlist, "*", swinfo))
-		count++;
-
-	return count;
-}
-
-
-/*-------------------------------------------------
-    software_get_clone - retrive name string of the
-    parent software, if any
- -------------------------------------------------*/
-
-const char *software_get_clone(emu_options &options, char *swlist, const char *swname)
-{
-	software_list *software_list_ptr = software_list_open(options, swlist, FALSE, NULL);
-	const char *retval = NULL;
-	if (software_list_ptr)
-	{
-		software_info *tmp = software_list_find(software_list_ptr, swname, NULL);
-		retval = core_strdup(tmp->parentname);
-		software_list_close(software_list_ptr);
-	}
-
-	return retval;
-}
-
-
-/*-------------------------------------------------
-    software_get_support - retrive support state of
-    the software
- -------------------------------------------------*/
-
-UINT32 software_get_support(emu_options &options, char *swlist, const char *swname)
-{
-	software_list *software_list_ptr = software_list_open(options, swlist, FALSE, NULL);
-	UINT32 retval = 0;
-
-	if (software_list_ptr)
-	{
-		software_info *tmp = software_list_find(software_list_ptr, swname, NULL);
-		retval = tmp->supported;
-		software_list_close(software_list_ptr);
-	}
-
-	return retval;
-}
-
-
-/*-------------------------------------------------
     software_list_parse
 -------------------------------------------------*/
 
-void software_list_parse(software_list *swlist,
+static void software_list_parse(software_list *swlist,
 	void (*error_proc)(const char *message),
 	void *param)
 {
@@ -943,7 +746,7 @@ void software_list_parse(software_list *swlist,
 	UINT32 len;
 	XML_Memory_Handling_Suite memcallbacks;
 
-	swlist->file->seek(0, SEEK_SET);
+	mame_fseek(swlist->file, 0, SEEK_SET);
 
 	memset(&swlist->state, 0, sizeof(swlist->state));
 	swlist->state.error_proc = error_proc;
@@ -963,8 +766,8 @@ void software_list_parse(software_list *swlist,
 
 	while(!swlist->state.done)
 	{
-		len = swlist->file->read(buf, sizeof(buf));
-		swlist->state.done = swlist->file->eof();
+		len = mame_fread(swlist->file, buf, sizeof(buf));
+		swlist->state.done = mame_feof(swlist->file);
 		if (XML_Parse(swlist->state.parser, buf, len, swlist->state.done) == XML_STATUS_ERROR)
 		{
 			parse_error(&swlist->state, "[%lu:%lu]: %s\n",
@@ -980,7 +783,6 @@ done:
 		XML_ParserFree(swlist->state.parser);
 	swlist->state.parser = NULL;
 	swlist->current_software_info = swlist->software_info_list;
-	swlist->list_entries = software_list_get_count(swlist);
 }
 
 
@@ -988,12 +790,13 @@ done:
     software_list_open
 -------------------------------------------------*/
 
-software_list *software_list_open(emu_options &options, const char *listname, int is_preload,
+software_list *software_list_open(core_options *options, const char *listname, int is_preload,
 	void (*error_proc)(const char *message))
 {
+	file_error filerr;
+	astring *fname;
 	software_list *swlist = NULL;
 	object_pool *pool = NULL;
-	file_error filerr;
 
 	/* create a pool for this software list file */
 	pool = pool_alloc_lib(error_proc);
@@ -1011,8 +814,10 @@ software_list *software_list_open(emu_options &options, const char *listname, in
 	swlist->error_proc = error_proc;
 
 	/* open a file */
-	swlist->file = global_alloc(emu_file(options.hash_path(), OPEN_FLAG_READ));
-	filerr = swlist->file->open(listname, ".xml");
+	fname = astring_assemble_2(astring_alloc(), listname, ".xml");
+	filerr = mame_fopen_options(options, SEARCHPATH_HASH, astring_c(fname), OPEN_FLAG_READ, &swlist->file);
+	astring_free(fname);
+
 	if (filerr != FILERR_NONE)
 		goto error;
 
@@ -1040,141 +845,9 @@ void software_list_close(software_list *swlist)
 	if (swlist == NULL)
 		return;
 
-	if (swlist->file != NULL)
-		global_free(swlist->file);
+	if (swlist->file)
+		mame_fclose(swlist->file);
 	pool_free_lib(swlist->pool);
-}
-
-
-/*-------------------------------------------------
- software_list_get_description
- -------------------------------------------------*/
-
-const char *software_list_get_description(software_list *swlist)
-{
-	return swlist->description;
-}
-
-
-/*-------------------------------------------------
- software_list_find_by_number
- -------------------------------------------------*/
-
-INLINE software_info *software_list_find_by_number(software_list *swlist, int number)
-{
-	int length = swlist->list_entries;
-	if (number > length)
-		return NULL;
-
-	software_info *cur_info = software_list_find(swlist, "*", NULL);
-
-	for (int count = 0; count < number; count++)
-		cur_info = software_list_find(swlist, "*", cur_info);
-
-	return cur_info;
-}
-
-
-/*-------------------------------------------------
- softlist_penalty_compare (borrowed from driver.c)
- -------------------------------------------------*/
-
-static int softlist_penalty_compare(const char *source, const char *target)
-{
-	int gaps = 1;
-	int last = TRUE;
-
-	/* scan the strings */
-	for ( ; *source && *target; target++)
-	{
-		/* do a case insensitive match */
-		int match = (tolower((UINT8)*source) == tolower((UINT8)*target));
-
-		/* if we matched, advance the source */
-		if (match)
-			source++;
-
-		/* if the match state changed, count gaps */
-		if (match != last)
-		{
-			last = match;
-			if (!match)
-				gaps++;
-		}
-	}
-
-	/* penalty if short string does not completely fit in */
-	for ( ; *source; source++)
-		gaps++;
-
-	/* if we matched perfectly, gaps == 0 */
-	if (gaps == 1 && *source == 0 && *target == 0)
-		gaps = 0;
-
-	return gaps;
-}
-
-
-/*-------------------------------------------------
- software_list_find_approx_matches
- -------------------------------------------------*/
-
-void software_list_find_approx_matches(software_list *swlist, const char *name, int matches, software_info **list, const char* interface)
-{
-#undef rand
-
-	int matchnum;
-	int *penalty;
-
-	/* if no name, return */
-	if (name == NULL || name[0] == 0)
-		return;
-
-	/* allocate some temp memory */
-	penalty = global_alloc_array(int, matches);
-
-	/* initialize everyone's states */
-	for (matchnum = 0; matchnum < matches; matchnum++)
-	{
-		penalty[matchnum] = 9999;
-		list[matchnum] = NULL;
-	}
-
-	for (software_info *swinfo = software_list_find(swlist, "*", NULL); swinfo != NULL; swinfo = software_list_find(swlist, "*", swinfo))
-	{
-		int curpenalty, tmp;
-		software_info *candidate = swinfo;
-
-		software_part *part = software_find_part(swinfo, NULL, NULL);
-		if (interface==NULL || !strcmp(interface, part->interface_))
-		{
-
-			/* pick the best match between driver name and description */
-			curpenalty = softlist_penalty_compare(name, candidate->longname);
-			tmp = softlist_penalty_compare(name, candidate->shortname);
-			curpenalty = MIN(curpenalty, tmp);
-
-			/* insert into the sorted table of matches */
-			for (matchnum = matches - 1; matchnum >= 0; matchnum--)
-			{
-				/* stop if we're worse than the current entry */
-				if (curpenalty >= penalty[matchnum])
-					break;
-
-				/* as long as this isn't the last entry, bump this one down */
-				if (matchnum < matches - 1)
-				{
-					penalty[matchnum + 1] = penalty[matchnum];
-					list[matchnum + 1] = list[matchnum];
-				}
-				list[matchnum] = candidate;
-				penalty[matchnum] = curpenalty;
-			}
-		}
-	}
-
-	/* free our temp memory */
-	global_free(penalty);
 }
 
 
@@ -1185,9 +858,6 @@ void software_list_find_approx_matches(software_list *swlist, const char *name, 
 software_info *software_list_find(software_list *swlist, const char *look_for, software_info *prev)
 {
 	if (swlist == NULL)
-		return NULL;
-
-	if (look_for == NULL)
 		return NULL;
 
 	/* If we haven't read in the xml file yet, then do it now */
@@ -1201,58 +871,6 @@ software_info *software_list_find(software_list *swlist, const char *look_for, s
 	}
 
 	return prev;
-}
-
-
-/*-------------------------------------------------
-    software_find_romdata (for validation purposes)
- -------------------------------------------------*/
-
-static struct rom_entry *software_find_romdata(software_part *swpart, const char *dataname)
-{
-	struct rom_entry *data = swpart ? swpart->romdata : NULL;
-
-	/* If no dataname supplied, then we just return the first entry */
-	if (data)
-	{
-		while(data && data->_name)
-		{
-			if (dataname)
-			{
-				if (!strcmp(dataname, data->_name))
-				{
-					break;
-				}
-			}
-			/* No specific dataname supplied, return the first rom_entry */
-			else
-				break;
-
-			data++;
-		}
-	}
-
-	if (!data->_name)
-		data = NULL;
-
-	return data;
-}
-
-
-/*-------------------------------------------------
-    software_romdata_next (for validation purposes)
- -------------------------------------------------*/
-
-static struct rom_entry *software_romdata_next(struct rom_entry *romdata)
-{
-	if (romdata && romdata->_name)
-	{
-		romdata++;
-	}
-	else
-		romdata = NULL;
-
-	return romdata;
 }
 
 
@@ -1325,187 +943,6 @@ software_part *software_part_next(software_part *part)
 	return part;
 }
 
-/*-------------------------------------------------
-    software_display_matches
--------------------------------------------------*/
-
-void software_display_matches(const device_list &devlist,emu_options &options, const char *interface ,const char *name)
-{
-	// check if there is at least a software list
-	if (devlist.first(SOFTWARE_LIST))
-	{
-		mame_printf_error("\n\"%s\" approximately matches the following\n"
-						  "supported software items (best match first):\n\n", name);
-	}
-
-	for (device_t *swlists = devlist.first(SOFTWARE_LIST); swlists != NULL; swlists = swlists->typenext())
-	{
-		software_list_config *swlist = (software_list_config *)downcast<const legacy_device_base *>(swlists)->inline_config();
-
-		for (int i = 0; i < DEVINFO_STR_SWLIST_MAX - DEVINFO_STR_SWLIST_0; i++)
-		{
-			if (swlist->list_name[i] && *swlist->list_name[i])
-			{
-				software_list *list = software_list_open(options, swlist->list_name[i], FALSE, NULL);
-
-				if (list)
-				{
-					software_info *matches[10] = { 0 };
-					int softnum;
-
-					software_list_parse(list, list->error_proc, NULL);
-					// get the top 5 approximate matches for the selected device interface (i.e. only carts for cartslot, etc.)
-					software_list_find_approx_matches(list, name, ARRAY_LENGTH(matches), matches, interface);
-
-					if (matches[0] != 0)
-					{
-						if (swlist->list_type == SOFTWARE_LIST_ORIGINAL_SYSTEM)
-							mame_printf_error("* Software list \"%s\" (%s) matches: \n", swlist->list_name[i], software_list_get_description(list));
-						else
-							mame_printf_error("* Compatible software list \"%s\" (%s) matches: \n", swlist->list_name[i], software_list_get_description(list));
-
-						// print them out
-						for (softnum = 0; softnum < ARRAY_LENGTH(matches); softnum++)
-							if (matches[softnum] != NULL)
-								mame_printf_error("%-18s%s\n", matches[softnum]->shortname, matches[softnum]->longname);
-
-						mame_printf_error("\n");
-					}
-					software_list_close(list);
-				}
-			}
-		}
-	}
-}
-
-static void find_software_item(const device_list &devlist, emu_options &options, const device_image_interface *image, const char *path, software_list **software_list_ptr, software_info **software_info_ptr,software_part **software_part_ptr, const char **sw_list_name)
-{
-	char *swlist_name, *swname, *swpart; //, *swname_bckp;
-	*software_list_ptr = NULL;
-	*software_info_ptr = NULL;
-	*software_part_ptr = NULL;
-
-	/* Split full software name into software list name and short software name */
-	software_name_split(path, &swlist_name, &swname, &swpart );
-//  swname_bckp = swname;
-
-	const char *interface = image->image_interface();
-
-	if ( swlist_name )
-	{
-		/* Try to open the software list xml file explicitly named by the user */
-		*software_list_ptr = software_list_open( options, swlist_name, FALSE, NULL );
-
-		if ( *software_list_ptr )
-		{
-			*software_info_ptr = software_list_find( *software_list_ptr, swname, NULL );
-
-			if ( *software_info_ptr )
-			{
-				*software_part_ptr = software_find_part( *software_info_ptr, swpart, interface );
-			}
-		}
-	}
-	else
-	{
-		/* Loop through all the software lists named in the driver */
-		for (device_t *swlists = devlist.first(SOFTWARE_LIST); swlists != NULL; swlists = swlists->typenext())
-		{
-			if ( swlists )
-			{
-
-				software_list_config *swlist = (software_list_config *)downcast<const legacy_device_base *>(swlists)->inline_config();
-				UINT32 i = DEVINFO_STR_SWLIST_0;
-
-				while ( ! *software_part_ptr && i <= DEVINFO_STR_SWLIST_MAX )
-				{
-					swlist_name = swlist->list_name[i-DEVINFO_STR_SWLIST_0];
-
-					if ( swlist_name && *swlist_name && (swlist->list_type == SOFTWARE_LIST_ORIGINAL_SYSTEM))
-					{
-						if ( *software_list_ptr )
-						{
-							software_list_close( *software_list_ptr );
-						}
-
-						*software_list_ptr = software_list_open( options, swlist_name, FALSE, NULL );
-
-						if ( software_list_ptr )
-						{
-							*software_info_ptr = software_list_find( *software_list_ptr, swname, NULL );
-
-							if ( *software_info_ptr )
-							{
-								*software_part_ptr = software_find_part( *software_info_ptr, swpart, interface );
-							}
-						}
-					}
-					i++;
-				}
-			}
-		}
-
-		/* If not found try to load the software list using the driver name */
-		if ( ! *software_part_ptr )
-		{
-			swlist_name = (char *)options.system()->name;
-
-			if ( *software_list_ptr )
-			{
-				software_list_close( *software_list_ptr );
-			}
-
-			*software_list_ptr = software_list_open( options, swlist_name, FALSE, NULL );
-
-			if ( *software_list_ptr )
-			{
-				*software_info_ptr = software_list_find( *software_list_ptr, swname, NULL );
-
-				if ( *software_info_ptr )
-				{
-					*software_part_ptr = software_find_part( *software_info_ptr, swpart, interface );
-				}
-			}
-		}
-
-		/* If not found try to load the software list using the software name as software */
-		/* list name and software part name as software name. */
-		if ( ! *software_part_ptr )
-		{
-			swlist_name = swname;
-			swname = swpart;
-			swpart = NULL;
-
-			if ( *software_list_ptr )
-			{
-				software_list_close( *software_list_ptr );
-			}
-
-			*software_list_ptr = software_list_open( options, swlist_name, FALSE, NULL );
-
-			if ( software_list_ptr )
-			{
-				*software_info_ptr = software_list_find( *software_list_ptr, swname, NULL );
-
-				if ( *software_info_ptr )
-				{
-					*software_part_ptr = software_find_part( *software_info_ptr, swpart, interface );
-				}
-
-				if ( ! *software_part_ptr )
-				{
-					software_list_close( *software_list_ptr );
-					*software_list_ptr = NULL;
-				}
-			}
-		}
-	}
-	*sw_list_name = global_strdup(swlist_name);
-
-	global_free( swlist_name );
-	global_free( swname );
-	global_free( swpart );
-}
 
 /*-------------------------------------------------
     load_software_part
@@ -1520,23 +957,130 @@ static void find_software_item(const device_list &devlist, emu_options &options,
     sw_info and sw_part are also set.
 -------------------------------------------------*/
 
-bool load_software_part(emu_options &options, device_image_interface *image, const char *path, software_info **sw_info, software_part **sw_part, char **full_sw_name)
+bool load_software_part(device_image_interface *image, const char *path, software_info **sw_info, software_part **sw_part, char **full_sw_name)
 {
+	char *swlist_name, *swname, *swpart;
+	bool result = false;
 	software_list *software_list_ptr = NULL;
 	software_info *software_info_ptr = NULL;
 	software_part *software_part_ptr = NULL;
-	const char *swlist_name = NULL;
 
-	bool result = false;
 	*sw_info = NULL;
 	*sw_part = NULL;
 
-	find_software_item(image->device().machine().devicelist(), options, image, path, &software_list_ptr, &software_info_ptr, &software_part_ptr, &swlist_name);
+	/* Split full software name into software list name and short software name */
+	software_name_split( image->device().machine, path, &swlist_name, &swname, &swpart );
 
-	// if no match has been found, we suggest similar shortnames
-	if (software_info_ptr == NULL)
+	const char *interface = image->image_config().image_interface();
+
+	if ( swlist_name )
 	{
-		software_display_matches(image->device().machine().devicelist(),image->device().machine().options(), image->image_interface(), path);
+		/* Try to open the software list xml file explicitly named by the user */
+		software_list_ptr = software_list_open( mame_options(), swlist_name, FALSE, NULL );
+
+		if ( software_list_ptr )
+		{
+			software_info_ptr = software_list_find( software_list_ptr, swname, NULL );
+
+			if ( software_info_ptr )
+			{
+				software_part_ptr = software_find_part( software_info_ptr, swpart, interface );
+			}
+		}
+	}
+	else
+	{
+		/* Loop through all the software lists named in the driver */
+		for (device_t *swlists = image->device().machine->m_devicelist.first(SOFTWARE_LIST); swlists != NULL; swlists = swlists->typenext())
+		{
+			if ( swlists )
+			{
+
+				software_list_config *swlist = (software_list_config *)downcast<const legacy_device_config_base *>(&swlists->baseconfig())->inline_config();
+				UINT32 i = DEVINFO_STR_SWLIST_0;
+
+				while ( ! software_part_ptr && i <= DEVINFO_STR_SWLIST_MAX )
+				{
+					swlist_name = swlist->list_name[i-DEVINFO_STR_SWLIST_0];
+
+					if ( swlist_name && *swlist_name && (swlist->list_type == SOFTWARE_LIST_ORIGINAL_SYSTEM))
+					{
+						if ( software_list_ptr )
+						{
+							software_list_close( software_list_ptr );
+						}
+
+						software_list_ptr = software_list_open( image->device().machine->options(), swlist_name, FALSE, NULL );
+
+						if ( software_list_ptr )
+						{
+							software_info_ptr = software_list_find( software_list_ptr, swname, NULL );
+
+							if ( software_info_ptr )
+							{
+								software_part_ptr = software_find_part( software_info_ptr, swpart, interface );
+							}
+						}
+					}
+					i++;
+				}
+			}
+		}
+
+		/* If not found try to load the software list using the driver name */
+		if ( ! software_part_ptr )
+		{
+			swlist_name = (char *)image->device().machine->gamedrv->name;
+
+			if ( software_list_ptr )
+			{
+				software_list_close( software_list_ptr );
+			}
+
+			software_list_ptr = software_list_open( image->device().machine->options(), swlist_name, FALSE, NULL );
+
+			if ( software_list_ptr )
+			{
+				software_info_ptr = software_list_find( software_list_ptr, swname, NULL );
+
+				if ( software_info_ptr )
+				{
+					software_part_ptr = software_find_part( software_info_ptr, swpart, interface );
+				}
+			}
+		}
+
+		/* If not found try to load the software list using the software name as software */
+		/* list name and software part name as software name. */
+		if ( ! software_part_ptr )
+		{
+			swlist_name = swname;
+			swname = swpart;
+			swpart = NULL;
+
+			if ( software_list_ptr )
+			{
+				software_list_close( software_list_ptr );
+			}
+
+			software_list_ptr = software_list_open( image->device().machine->options(), swlist_name, FALSE, NULL );
+
+			if ( software_list_ptr )
+			{
+				software_info_ptr = software_list_find( software_list_ptr, swname, NULL );
+
+				if ( software_info_ptr )
+				{
+					software_part_ptr = software_find_part( software_info_ptr, swpart, interface );
+				}
+
+				if ( ! software_part_ptr )
+				{
+					software_list_close( software_list_ptr );
+					software_list_ptr = NULL;
+				}
+			}
+		}
 	}
 
 	if ( software_part_ptr )
@@ -1548,42 +1092,41 @@ bool load_software_part(emu_options &options, device_image_interface *image, con
 		catch (emu_fatalerror &fatal)
 		{
 			software_list_close( software_list_ptr );
-			global_free(swlist_name);
 			throw fatal;
 		}
 
 		/* Create a copy of the software and part information */
-		*sw_info = auto_alloc_clear( image->device().machine(), software_info );
-		(*sw_info)->shortname = auto_strdup( image->device().machine(), software_info_ptr->shortname );
-		(*sw_info)->longname = auto_strdup( image->device().machine(), software_info_ptr->longname );
+		*sw_info = auto_alloc_clear( image->device().machine, software_info );
+		(*sw_info)->shortname = auto_strdup( image->device().machine, software_info_ptr->shortname );
+		(*sw_info)->longname = auto_strdup( image->device().machine, software_info_ptr->longname );
 		if ( software_info_ptr->year )
-			(*sw_info)->year = auto_strdup( image->device().machine(), software_info_ptr->year );
+			(*sw_info)->year = auto_strdup( image->device().machine, software_info_ptr->year );
 		if ( software_info_ptr->publisher )
-			(*sw_info)->publisher = auto_strdup( image->device().machine(), software_info_ptr->publisher );
+			(*sw_info)->publisher = auto_strdup( image->device().machine, software_info_ptr->publisher );
 
-		*sw_part = auto_alloc_clear( image->device().machine(), software_part );
-		(*sw_part)->name = auto_strdup( image->device().machine(), software_part_ptr->name );
+		*sw_part = auto_alloc_clear( image->device().machine, software_part );
+		(*sw_part)->name = auto_strdup( image->device().machine, software_part_ptr->name );
 		if ( software_part_ptr->interface_ )
-			(*sw_part)->interface_ = auto_strdup( image->device().machine(), software_part_ptr->interface_ );
+			(*sw_part)->interface_ = auto_strdup( image->device().machine, software_part_ptr->interface_ );
 
 		if ( software_part_ptr->featurelist )
 		{
 			feature_list *list = software_part_ptr->featurelist;
-			feature_list *new_list = auto_alloc_clear( image->device().machine(), feature_list );
+			feature_list *new_list = auto_alloc_clear( image->device().machine, feature_list );
 
 			(*sw_part)->featurelist = new_list;
 
-			new_list->name = auto_strdup( image->device().machine(), list->name );
-			new_list->value = auto_strdup( image->device().machine(), list->value );
+			new_list->name = auto_strdup( image->device().machine, list->name );
+			new_list->value = auto_strdup( image->device().machine, list->value );
 
 			list = list->next;
 
 			while( list )
 			{
-				new_list->next = auto_alloc_clear( image->device().machine(), feature_list );
+				new_list->next = auto_alloc_clear( image->device().machine, feature_list );
 				new_list = new_list->next;
-				new_list->name = auto_strdup( image->device().machine(), list->name );
-				new_list->value = auto_strdup( image->device().machine(), list->value );
+				new_list->name = auto_strdup( image->device().machine, list->name );
+				new_list->value = auto_strdup( image->device().machine, list->value );
 
 				list = list->next;
 			}
@@ -1592,7 +1135,7 @@ bool load_software_part(emu_options &options, device_image_interface *image, con
 		}
 
 		/* Tell the world which part we actually loaded */
-		*full_sw_name = auto_alloc_array( image->device().machine(), char, strlen(swlist_name) + strlen(software_info_ptr->shortname) + strlen(software_part_ptr->name) + 3 );
+		*full_sw_name = auto_alloc_array( image->device().machine, char, strlen(swlist_name) + strlen(software_info_ptr->shortname) + strlen(software_part_ptr->name) + 3 );
 		sprintf( *full_sw_name, "%s:%s:%s", swlist_name, software_info_ptr->shortname, software_part_ptr->name );
 	}
 
@@ -1603,59 +1146,13 @@ bool load_software_part(emu_options &options, device_image_interface *image, con
 		software_info_ptr = NULL;
 		software_list_ptr = NULL;
 	}
-	global_free(swlist_name);
+	auto_free( image->device().machine, swlist_name );
+	auto_free( image->device().machine, swname );
+	auto_free( image->device().machine, swpart );
+
 	return result;
 }
 
-
-/*-------------------------------------------------
-    software_part_get_feature
- -------------------------------------------------*/
-
-const char *software_part_get_feature(software_part *part, const char *feature_name)
-{
-	feature_list *feature;
-
-	if (part == NULL)
-		return NULL;
-
-	for (feature = part->featurelist; feature; feature = feature->next)
-	{
-		if (!strcmp(feature->name, feature_name))
-			return feature->value;
-	}
-
-	return NULL;
-
-}
-
-/*-------------------------------------------------
-    software_get_default_slot
- -------------------------------------------------*/
-
- const char *software_get_default_slot(const device_list &devlist, emu_options &options, const device_image_interface *image, const char *default_card, const char* default_card_slot)
-{
-	const char* retVal = default_card;
-	const char* path = options.value(image->instance_name());
-	software_list *software_list_ptr = NULL;
-	software_info *software_info_ptr = NULL;
-	software_part *software_part_ptr = NULL;
-	const char *swlist_name = NULL;
-
-	if (strlen(path)>0) {
-		retVal = default_card_slot;
-		find_software_item(devlist, options, image, path, &software_list_ptr, &software_info_ptr, &software_part_ptr, &swlist_name);
-		if (software_part_ptr!=NULL) {
-			const char *slot = software_part_get_feature(software_part_ptr, "slot");
-			if (slot!=NULL) {
-				retVal = core_strdup(slot);
-			}
-		}
-		software_list_close(software_list_ptr);
-		global_free(swlist_name);
-	}
-	return retVal;
-}
 
 /***************************************************************************
     DEVICE INTERFACE
@@ -1668,7 +1165,7 @@ static DEVICE_START( software_list )
 
 static DEVICE_VALIDITY_CHECK( software_list )
 {
-	software_list_config *swlist = (software_list_config *)downcast<const legacy_device_base *>(device)->inline_config();
+	software_list_config *swlist = (software_list_config *)downcast<const legacy_device_config_base *>(device)->inline_config();
 	int error = FALSE;
 	softlist_map names;
 	softlist_map descriptions;
@@ -1679,7 +1176,10 @@ static DEVICE_VALIDITY_CHECK( software_list )
 	{
 		if (swlist->list_name[i])
 		{
-			software_list *list = software_list_open(options, swlist->list_name[i], FALSE, NULL);
+			if (mame_options() == NULL)
+				return FALSE;
+
+			software_list *list = software_list_open(mame_options(), swlist->list_name[i], FALSE, NULL);
 
 			/* if no .xml list is found, then return (this happens e.g. if you moved/renamed the xml list) */
 			if (list == NULL)
@@ -1735,28 +1235,13 @@ static DEVICE_VALIDITY_CHECK( software_list )
 				{
 					is_clone = 1;
 
-					if (strcmp(swinfo->parentname, swinfo->shortname) == 0)
-					{
-						mame_printf_error("%s: %s is set as a clone of itself\n", swlist->list_name[i], swinfo->shortname);
-						error = TRUE;
-						break;
-					}
-
 					/* make sure the parent exists */
 					software_info *swinfo2 = software_list_find(list, swinfo->parentname, NULL );
 
-					if (!swinfo2)
+					if ( !swinfo2 )
 					{
-						mame_printf_error("%s: parent '%s' software for '%s' not found\n", swlist->list_name[i], swinfo->parentname, swinfo->shortname);
+						mame_printf_error("%s: parent '%s' software for '%s' not found\n", swlist->list_name[i], swinfo->parentname, swinfo->shortname );
 						error = TRUE;
-					}
-					else
-					{
-						if (swinfo2->parentname != NULL)
-						{
-							mame_printf_error("%s: %s is a clone of a clone\n", swlist->list_name[i], swinfo->shortname);
-							error = TRUE;
-						}
 					}
 				}
 
@@ -1777,47 +1262,7 @@ static DEVICE_VALIDITY_CHECK( software_list )
 						break;
 					}
 
-				for (software_part *swpart = software_find_part(swinfo, NULL, NULL); swpart != NULL; swpart = software_part_next(swpart))
-				{
-					if (swpart->interface_ == NULL)
-					{
-						mame_printf_error("%s: %s has a part (%s) without interface\n", swlist->list_name[i], swinfo->shortname, swpart->name);
-						error = TRUE;
-					}
-
-					if (software_find_romdata(swpart, NULL) == NULL)
-					{
-						mame_printf_error("%s: %s has a part (%s) with no data\n", swlist->list_name[i], swinfo->shortname, swpart->name);
-						error = TRUE;
-					}
-
-					for (struct rom_entry *swdata = software_find_romdata(swpart, NULL); swdata != NULL;  swdata = software_romdata_next(swdata))
-					{
-						struct rom_entry *data = swdata;
-
-						if (data->_name && data->_hashdata)
-						{
-							const char *str;
-
-							/* make sure it's all lowercase */
-							for (str = data->_name; *str; str++)
-								if (tolower((UINT8)*str) != *str)
-								{
-									mame_printf_error("%s: %s has upper case ROM name %s\n", swlist->list_name[i], swinfo->shortname, data->_name);
-									error = TRUE;
-									break;
-								}
-
-							/* make sure the hash is valid */
-							hash_collection hashes;
-							if (!hashes.from_internal_string(data->_hashdata))
-							{
-								mame_printf_error("%s: %s has rom '%s' with an invalid hash string '%s'\n", swlist->list_name[i], swinfo->shortname, data->_name, data->_hashdata);
-								error = TRUE;
-							}
-						}
-					}
-				}
+				// TODO: shall we verify that all parts have some dataarea? and what about checking that a shortname is really present?
 			}
 
 			software_list_close(list);
@@ -1849,12 +1294,173 @@ DEVICE_GET_INFO( software_list )
 
 	if ( state >= DEVINFO_STR_SWLIST_0 && state <= DEVINFO_STR_SWLIST_MAX )
 	{
-		software_list_config *config = (software_list_config *)downcast<const legacy_device_base *>(device)->inline_config();
+		software_list_config *config = (software_list_config *)downcast<const legacy_device_config_base *>(device)->inline_config();
 
 		if ( config->list_name[ state - DEVINFO_STR_SWLIST_0 ] )
 			strcpy(info->s, config->list_name[ state - DEVINFO_STR_SWLIST_0 ]);
 	}
 }
 
+
+/***************************************************************************
+    MENU SUPPORT
+***************************************************************************/
+
+/* state of the software menu */
+typedef struct _software_menu_state software_menu_state;
+struct _software_menu_state
+{
+	char *list_name;	/* currently selected list */
+	device_image_interface* image;
+};
+
+/* state of a software entry */
+typedef struct _software_entry_state software_entry_state;
+struct _software_entry_state
+{
+	const char *short_name;
+	const char *interface;
+};
+
+
+/* populate a specific list */
+static void ui_mess_menu_populate_software_entries(running_machine *machine, ui_menu *menu, char *list_name, device_image_interface* image)
+{
+	software_list *list = software_list_open(machine->options(), list_name, FALSE, NULL);
+	const char *interface = image->image_config().image_interface();
+	if (list)
+	{
+		for (software_info *swinfo = software_list_find(list, "*", NULL); swinfo != NULL; swinfo = software_list_find(list, "*", swinfo))
+		{
+			software_entry_state *entry = (software_entry_state *) ui_menu_pool_alloc(menu, sizeof(*entry));
+			entry->short_name = ui_menu_pool_strdup(menu, swinfo->shortname);
+
+			software_part *part = software_find_part(swinfo, NULL, NULL);
+			entry->interface = ui_menu_pool_strdup(menu, part->interface_);
+			if (strcmp(interface,part->interface_)==0) {
+				ui_menu_item_append(menu, swinfo->shortname, swinfo->longname, 0, entry);
+			}
+		}
+
+		software_list_close(list);
+	}
+}
+
+void ui_mess_menu_software_list(running_machine *machine, ui_menu *menu, void *parameter, void *state)
+{
+	const ui_menu_event *event;
+	software_menu_state *sw_state = (software_menu_state *)state;
+
+	if (!ui_menu_populated(menu)) {
+		if (sw_state->list_name) {
+			ui_mess_menu_populate_software_entries(machine, menu, sw_state->list_name,sw_state->image);
+		}
+	}
+
+	/* process the menu */
+	event = ui_menu_process(machine, menu, 0);
+
+	if (event != NULL && event->iptkey == IPT_UI_SELECT && event->itemref != NULL)
+	{
+		device_image_interface *image = sw_state->image;
+		software_entry_state *entry = (software_entry_state *) event->itemref;
+		if (image != NULL)
+			image->load(entry->short_name);
+		else
+			popmessage("No matching device found for interface '%s'!", entry->interface);
+	}
+}
+
+/* list of available software lists - i.e. cartridges, floppies */
+static void ui_mess_menu_populate_software_list(running_machine *machine, ui_menu *menu, device_image_interface* image)
+{
+	bool haveCompatible = FALSE;
+	const char *interface = image->image_config().image_interface();
+
+	for (const device_config *dev = machine->config->m_devicelist.first(SOFTWARE_LIST); dev != NULL; dev = dev->typenext())
+	{
+		software_list_config *swlist = (software_list_config *)downcast<const legacy_device_config_base *>(dev)->inline_config();
+
+		for (int i = 0; i < DEVINFO_STR_SWLIST_MAX - DEVINFO_STR_SWLIST_0; i++)
+		{
+			if (swlist->list_name[i] && (swlist->list_type == SOFTWARE_LIST_ORIGINAL_SYSTEM))
+			{
+				software_list *list = software_list_open(mame_options(), swlist->list_name[i], FALSE, NULL);
+
+				if (list)
+				{
+					bool found = FALSE;
+					for (software_info *swinfo = software_list_find(list, "*", NULL); swinfo != NULL; swinfo = software_list_find(list, "*", swinfo))
+					{
+						software_part *part = software_find_part(swinfo, NULL, NULL);
+						if (strcmp(interface,part->interface_)==0) {
+							found = TRUE;
+						}
+					}
+					if (found) {
+						ui_menu_item_append(menu, list->description, NULL, 0, swlist->list_name[i]);
+					}
+
+					software_list_close(list);
+				}
+			}
+		}
+	}
+
+	for (const device_config *dev = machine->config->m_devicelist.first(SOFTWARE_LIST); dev != NULL; dev = dev->typenext())
+	{
+		software_list_config *swlist = (software_list_config *)downcast<const legacy_device_config_base *>(dev)->inline_config();
+
+		for (int i = 0; i < DEVINFO_STR_SWLIST_MAX - DEVINFO_STR_SWLIST_0; i++)
+		{
+			if (swlist->list_name[i] && (swlist->list_type == SOFTWARE_LIST_COMPATIBLE_SYSTEM))
+			{
+				software_list *list = software_list_open(mame_options(), swlist->list_name[i], FALSE, NULL);
+
+				if (list)
+				{
+					bool found = FALSE;
+					for (software_info *swinfo = software_list_find(list, "*", NULL); swinfo != NULL; swinfo = software_list_find(list, "*", swinfo))
+					{
+						software_part *part = software_find_part(swinfo, NULL, NULL);
+						if (strcmp(interface,part->interface_)==0) {
+							found = TRUE;
+						}
+					}
+					if (found) {
+						if (!haveCompatible) {
+							ui_menu_item_append(menu, "[compatible lists]", NULL, 0, NULL);
+						}
+						ui_menu_item_append(menu, list->description, NULL, 0, swlist->list_name[i]);
+					}
+
+					haveCompatible = TRUE;
+					software_list_close(list);
+				}
+			}
+		}
+	}
+
+}
+
+void ui_image_menu_software(running_machine *machine, ui_menu *menu, void *parameter, void *state)
+{
+	const ui_menu_event *event;
+	device_image_interface* image = (device_image_interface*)parameter;
+	if (!ui_menu_populated(menu))
+		ui_mess_menu_populate_software_list(machine, menu, image);
+
+	/* process the menu */
+	event = ui_menu_process(machine, menu, 0);
+
+	if (event != NULL && event->iptkey == IPT_UI_SELECT)
+	{
+		ui_menu *child_menu = ui_menu_alloc(machine, render_container_get_ui(), ui_mess_menu_software_list, NULL);
+		software_menu_state *child_menustate = (software_menu_state *)ui_menu_alloc_state(child_menu, sizeof(*child_menustate), NULL);
+		child_menustate->list_name = (char *)event->itemref;
+		child_menustate->image = image;
+		ui_menu_stack_push(child_menu);
+	}
+}
 
 DEFINE_LEGACY_DEVICE(SOFTWARE_LIST, software_list);

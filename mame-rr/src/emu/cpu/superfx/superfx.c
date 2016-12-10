@@ -62,11 +62,11 @@ struct _superfx_state
 	pixelcache_t pixelcache[2];
 
 	legacy_cpu_device *device;
-	address_space *program;
+	const address_space *program;
 	int icount;
 };
 
-INLINE superfx_state *get_safe_token(device_t *device)
+INLINE superfx_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == SUPERFX);
@@ -179,12 +179,12 @@ static void superfx_memory_reset(superfx_state *cpustate)
 
 INLINE UINT8 superfx_bus_read(superfx_state *cpustate, UINT32 addr)
 {
-	return cpustate->program->read_byte(addr);
+	return memory_read_byte(cpustate->program, addr);
 }
 
 INLINE void superfx_bus_write(superfx_state *cpustate, UINT32 addr, UINT8 data)
 {
-	cpustate->program->write_byte(addr, data);
+	memory_write_byte(cpustate->program, addr, data);
 }
 
 INLINE void superfx_pixelcache_flush(superfx_state *cpustate, INT32 line)
@@ -223,10 +223,10 @@ INLINE void superfx_pixelcache_flush(superfx_state *cpustate, INT32 line)
 	{
 		UINT32 byte = ((n >> 1) << 4) + (n & 1);  // = [n]{ 0, 1, 16, 17, 32, 33, 48, 49 };
 		UINT8 data = 0x00;
-		UINT32 x32 = 0;
-		for(x32 = 0; x32 < 8; x32++)
+		UINT32 x = 0;
+		for(x = 0; x < 8; x++)
 		{
-			data |= ((cpustate->pixelcache[line].data[x32] >> n) & 1) << x32;
+			data |= ((cpustate->pixelcache[line].data[x] >> n) & 1) << x;
 		}
 		if(cpustate->pixelcache[line].bitpend != 0xff)
 		{
@@ -471,7 +471,7 @@ INLINE UINT8 superfx_pipe(superfx_state *cpustate)
 /*****************************************************************************/
 
 /* reads to SuperFX RAM only happen if this returns 1 */
-int superfx_access_ram(device_t *cpu)
+int superfx_access_ram(running_device *cpu)
 {
 	superfx_state *cpustate = get_safe_token(cpu);
 
@@ -482,7 +482,7 @@ int superfx_access_ram(device_t *cpu)
 }
 
 /* reads to SuperFX ROM only happen if this returns 1 */
-int superfx_access_rom(device_t *cpu)
+int superfx_access_rom(running_device *cpu)
 {
 	superfx_state *cpustate = get_safe_token(cpu);
 
@@ -492,7 +492,7 @@ int superfx_access_rom(device_t *cpu)
 	return 1;
 }
 
-UINT8 superfx_mmio_read(device_t *cpu, UINT32 addr)
+UINT8 superfx_mmio_read(running_device *cpu, UINT32 addr)
 {
 	superfx_state *cpustate = get_safe_token(cpu);
 
@@ -518,7 +518,7 @@ UINT8 superfx_mmio_read(device_t *cpu, UINT32 addr)
 			UINT8 r = cpustate->sfr >> 8;
 			cpustate->sfr &= ~SUPERFX_SFR_IRQ;
 			cpustate->irq = 0;
-			cpustate->out_irq_func(cpustate->irq);
+			devcb_call_write_line(&cpustate->out_irq_func, cpustate->irq);
 			return r;
 		}
 
@@ -544,7 +544,7 @@ UINT8 superfx_mmio_read(device_t *cpu, UINT32 addr)
 	return 0;
 }
 
-void superfx_mmio_write(device_t *cpu, UINT32 addr, UINT8 data)
+void superfx_mmio_write(running_device *cpu, UINT32 addr, UINT8 data)
 {
 	superfx_state *cpustate = get_safe_token(cpu);
 
@@ -659,7 +659,7 @@ static void superfx_timing_reset(superfx_state *cpustate)
 	cpustate->ramdr = 0;
 }
 
-void superfx_add_clocks(device_t *cpu, INT32 clocks)
+void superfx_add_clocks(running_device *cpu, INT32 clocks)
 {
 	superfx_state *cpustate = get_safe_token(cpu);
 
@@ -673,51 +673,51 @@ static void superfx_register_save( legacy_cpu_device *device )
 	superfx_state *cpustate = get_safe_token(device);
 	int i;
 
-	device->save_item(NAME(cpustate->pipeline));
-	device->save_item(NAME(cpustate->ramaddr));
+	state_save_register_device_item(device, 0, cpustate->pipeline);
+	state_save_register_device_item(device, 0, cpustate->ramaddr);
 
-	device->save_item(NAME(cpustate->r));
-	device->save_item(NAME(cpustate->sfr));
-	device->save_item(NAME(cpustate->pbr));
-	device->save_item(NAME(cpustate->rombr));
-	device->save_item(NAME(cpustate->rambr));
-	device->save_item(NAME(cpustate->cbr));
-	device->save_item(NAME(cpustate->scbr));
-	device->save_item(NAME(cpustate->scmr));
-	device->save_item(NAME(cpustate->colr));
-	device->save_item(NAME(cpustate->por));
-	device->save_item(NAME(cpustate->bramr));
-	device->save_item(NAME(cpustate->vcr));
-	device->save_item(NAME(cpustate->cfgr));
-	device->save_item(NAME(cpustate->clsr));
+	state_save_register_device_item_array(device, 0, cpustate->r);
+	state_save_register_device_item(device, 0, cpustate->sfr);
+	state_save_register_device_item(device, 0, cpustate->pbr);
+	state_save_register_device_item(device, 0, cpustate->rombr);
+	state_save_register_device_item(device, 0, cpustate->rambr);
+	state_save_register_device_item(device, 0, cpustate->cbr);
+	state_save_register_device_item(device, 0, cpustate->scbr);
+	state_save_register_device_item(device, 0, cpustate->scmr);
+	state_save_register_device_item(device, 0, cpustate->colr);
+	state_save_register_device_item(device, 0, cpustate->por);
+	state_save_register_device_item(device, 0, cpustate->bramr);
+	state_save_register_device_item(device, 0, cpustate->vcr);
+	state_save_register_device_item(device, 0, cpustate->cfgr);
+	state_save_register_device_item(device, 0, cpustate->clsr);
 
-	device->save_item(NAME(cpustate->romcl));
-	device->save_item(NAME(cpustate->romdr));
+	state_save_register_device_item(device, 0, cpustate->romcl);
+	state_save_register_device_item(device, 0, cpustate->romdr);
 
-	device->save_item(NAME(cpustate->ramcl));
-	device->save_item(NAME(cpustate->ramar));
-	device->save_item(NAME(cpustate->ramdr));
+	state_save_register_device_item(device, 0, cpustate->ramcl);
+	state_save_register_device_item(device, 0, cpustate->ramar);
+	state_save_register_device_item(device, 0, cpustate->ramdr);
 
-	device->save_item(NAME(cpustate->sreg_idx));
-	device->save_item(NAME(cpustate->dreg_idx));
-	device->save_item(NAME(cpustate->r15_modified));
+	state_save_register_device_item(device, 0, cpustate->sreg_idx);
+	state_save_register_device_item(device, 0, cpustate->dreg_idx);
+	state_save_register_device_item(device, 0, cpustate->r15_modified);
 
-	device->save_item(NAME(cpustate->irq));
+	state_save_register_device_item(device, 0, cpustate->irq);
 
-	device->save_item(NAME(cpustate->cache_access_speed));
-	device->save_item(NAME(cpustate->memory_access_speed));
+	state_save_register_device_item(device, 0, cpustate->cache_access_speed);
+	state_save_register_device_item(device, 0, cpustate->memory_access_speed);
 
-	device->save_item(NAME(cpustate->cache.buffer));
-	device->save_item(NAME(cpustate->cache.valid));
+	state_save_register_device_item_array(device, 0, cpustate->cache.buffer);
+	state_save_register_device_item_array(device, 0, cpustate->cache.valid);
 
 	for (i = 0; i < 2; i++)
 	{
-		device->save_item(NAME(cpustate->pixelcache[i].offset), i);
-		device->save_item(NAME(cpustate->pixelcache[i].bitpend), i);
-		device->save_item(NAME(cpustate->pixelcache[i].data), i);
+		state_save_register_device_item(device, i, cpustate->pixelcache[i].offset);
+		state_save_register_device_item(device, i, cpustate->pixelcache[i].bitpend);
+		state_save_register_device_item_array(device, i, cpustate->pixelcache[i].data);
 	}
 
-	device->save_item(NAME(cpustate->icount));
+	state_save_register_device_item(device, 0, cpustate->icount);
 }
 
 static CPU_INIT( superfx )
@@ -754,12 +754,12 @@ static CPU_INIT( superfx )
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
 
-	if (device->static_config() != NULL)
+	if (device->baseconfig().static_config() != NULL)
 	{
-		cpustate->config = *(superfx_config *)device->static_config();
+		cpustate->config = *(superfx_config *)device->baseconfig().static_config();
 	}
 
-	cpustate->out_irq_func.resolve(cpustate->config.out_irq_func, *device);
+	devcb_resolve_write_line(&cpustate->out_irq_func, &cpustate->config.out_irq_func, device);
 
 	superfx_register_save(device);
 }
@@ -837,7 +837,7 @@ static CPU_EXECUTE( superfx )
 				{
 					cpustate->sfr |= SUPERFX_SFR_IRQ;
 					cpustate->irq = 1;
-					cpustate->out_irq_func(cpustate->irq ? ASSERT_LINE : CLEAR_LINE );
+					devcb_call_write_line(&cpustate->out_irq_func, cpustate->irq ? ASSERT_LINE : CLEAR_LINE );
 				}
 				cpustate->sfr &= ~SUPERFX_SFR_G;
 				cpustate->pipeline = 0x01;
@@ -1567,15 +1567,15 @@ CPU_GET_INFO( superfx )
 	case CPUINFO_INT_MIN_CYCLES:            	info->i = 1;                    					break;
 	case CPUINFO_INT_MAX_CYCLES:            	info->i = 1;                    					break;
 
-	case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;                						break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:	info->i = 32;               						break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:	info->i = 0;                						break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:   	info->i = 0;                						break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:   	info->i = 0;                						break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:   	info->i = 0;                						break;
-	case DEVINFO_INT_DATABUS_WIDTH + AS_IO:     	info->i = 0;                						break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:     	info->i = 0;                						break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:     	info->i = 0;                						break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM: 	info->i = 8;                						break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: 	info->i = 32;               						break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: 	info->i = 0;                						break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:    	info->i = 0;                						break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:    	info->i = 0;                						break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:    	info->i = 0;                						break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:      	info->i = 0;                						break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:      	info->i = 0;                						break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:      	info->i = 0;                						break;
 
 	case CPUINFO_INT_PC:    /* intentional fallthrough */
 	case CPUINFO_INT_REGISTER + SUPERFX_PC: 		info->i = ((cpustate->pbr << 16) | cpustate->r[15]) - 1; break;

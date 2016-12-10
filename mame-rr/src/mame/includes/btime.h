@@ -1,47 +1,48 @@
 
-class btime_state : public driver_device
+class btime_state
 {
 public:
-	btime_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, btime_state(machine)); }
+
+	btime_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *  m_videoram;
-	UINT8 *  m_colorram;
-//  UINT8 *  m_paletteram;    // currently this uses generic palette handling
-	UINT8 *  m_lnc_charbank;
-	UINT8 *  m_bnj_backgroundram;
-	UINT8 *  m_zoar_scrollram;
-	UINT8 *  m_deco_charram;
-	UINT8 *  m_spriteram;	// used by disco
-//  UINT8 *  m_decrypted;
-	UINT8 *  m_rambase;
-	UINT8 *  m_audio_rambase;
-	size_t   m_videoram_size;
-	size_t   m_spriteram_size;
-	size_t   m_bnj_backgroundram_size;
+	UINT8 *  videoram;
+	UINT8 *  colorram;
+//  UINT8 *  paletteram;    // currently this uses generic palette handling
+	UINT8 *  lnc_charbank;
+	UINT8 *  bnj_backgroundram;
+	UINT8 *  zoar_scrollram;
+	UINT8 *  deco_charram;
+	UINT8 *  spriteram;	// used by disco
+//  UINT8 *  decrypted;
+	UINT8 *  rambase;
+	UINT8 *  audio_rambase;
+	size_t   videoram_size;
+	size_t   spriteram_size;
+	size_t   bnj_backgroundram_size;
 
 	/* video-related */
-	bitmap_t *m_background_bitmap;
-	UINT8    m_btime_palette;
-	UINT8    m_bnj_scroll1;
-	UINT8    m_bnj_scroll2;
-	UINT8    m_btime_tilemap[4];
+	bitmap_t *background_bitmap;
+	UINT8    btime_palette;
+	UINT8    bnj_scroll1;
+	UINT8    bnj_scroll2;
+	UINT8    btime_tilemap[4];
 
 	/* audio-related */
-	UINT8    m_audio_nmi_enable_type;
-	UINT8    m_audio_nmi_enabled;
-	UINT8    m_audio_nmi_state;
+	UINT8    audio_nmi_enable_type;
+	UINT8    audio_nmi_enabled;
+	UINT8    audio_nmi_state;
 
 	/* protection-related (for mmonkey) */
-	int      m_protection_command;
-	int      m_protection_status;
-	int      m_protection_value;
-	int      m_protection_ret;
+	int      protection_command;
+	int      protection_status;
+	int      protection_value;
+	int      protection_ret;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 
@@ -59,13 +60,13 @@ PALETTE_INIT( lnc );
 VIDEO_START( btime );
 VIDEO_START( bnj );
 
-SCREEN_UPDATE( btime );
-SCREEN_UPDATE( cookrace );
-SCREEN_UPDATE( bnj );
-SCREEN_UPDATE( lnc );
-SCREEN_UPDATE( zoar );
-SCREEN_UPDATE( disco );
-SCREEN_UPDATE( eggs );
+VIDEO_UPDATE( btime );
+VIDEO_UPDATE( cookrace );
+VIDEO_UPDATE( bnj );
+VIDEO_UPDATE( lnc );
+VIDEO_UPDATE( zoar );
+VIDEO_UPDATE( disco );
+VIDEO_UPDATE( eggs );
 
 WRITE8_HANDLER( btime_paletteram_w );
 WRITE8_HANDLER( bnj_background_w );

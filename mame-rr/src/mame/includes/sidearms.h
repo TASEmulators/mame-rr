@@ -1,29 +1,30 @@
-class sidearms_state : public driver_device
+class sidearms_state
 {
 public:
-	sidearms_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, sidearms_state(machine)); }
 
-	int m_gameid;
+	sidearms_state(running_machine &machine) { }
 
-	UINT8 *m_videoram;
-	UINT8 *m_colorram;
-	UINT8 *m_bg_scrollx;
-	UINT8 *m_bg_scrolly;
-	UINT8 *m_tilerom;
-	tilemap_t *m_bg_tilemap;
-	tilemap_t *m_fg_tilemap;
+	int gameid;
 
-	int m_bgon;
-	int m_objon;
-	int m_staron;
-	int m_charon;
-	int m_flipon;
+	UINT8 *videoram;
+	UINT8 *colorram;
+	UINT8 *bg_scrollx;
+	UINT8 *bg_scrolly;
+	UINT8 *tilerom;
+	tilemap_t *bg_tilemap;
+	tilemap_t *fg_tilemap;
 
-	UINT32 m_hflop_74a_n;
-	UINT32 m_hcount_191;
-	UINT32 m_vcount_191;
-	UINT32 m_latch_374;
+	int bgon;
+	int objon;
+	int staron;
+	int charon;
+	int flipon;
+
+	UINT32 hflop_74a_n;
+	UINT32 hcount_191;
+	UINT32 vcount_191;
+	UINT32 latch_374;
 };
 
 /*----------- defined in video/sidearms.c -----------*/
@@ -36,5 +37,5 @@ WRITE8_HANDLER( sidearms_c804_w );
 WRITE8_HANDLER( sidearms_gfxctrl_w );
 
 VIDEO_START( sidearms );
-SCREEN_UPDATE( sidearms );
-SCREEN_EOF( sidearms );
+VIDEO_UPDATE( sidearms );
+VIDEO_EOF( sidearms );

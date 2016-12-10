@@ -41,7 +41,7 @@
   taken here is to assume the 2V DC offset for all outputs for the YM2149.
   For the AY-3-8910, an offset is used if envelope is active for a channel.
   This is backed by oscilloscope pictures from the datasheet. If a fixed volume
-  is set, i.e. envelope is disabled, the output voltage is set to 0V. Recordings
+  is set, i.e. enveloppe is disabled, the output voltage is set to 0V. Recordings
   I found on the web for gyruss indicate, that the AY-3-8910 offset should
   be around 0.2V. This will also make sound levels more compatible with
   user observations for scramble.
@@ -105,6 +105,7 @@ has twice the steps, happening twice as fast.
 ***************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "ay8910.h"
 
 /*************************************
@@ -142,7 +143,7 @@ has twice the steps, happening twice as fast.
 #define TONE_PERIOD(_psg, _chan)	( (_psg)->regs[(_chan) << 1] | (((_psg)->regs[((_chan) << 1) | 1] & 0x0f) << 8) )
 #define NOISE_PERIOD(_psg)			( (_psg)->regs[AY_NOISEPER] & 0x1f)
 #define TONE_VOLUME(_psg, _chan)	( (_psg)->regs[AY_AVOL + (_chan)] & 0x0f)
-#define TONE_ENVELOPE(_psg, _chan)	(((_psg)->regs[AY_AVOL + (_chan)] >> 4) & (((_psg)->device->type() == AY8914) ? 3 : 1))
+#define TONE_ENVELOPE(_psg, _chan)	(((_psg)->regs[AY_AVOL + (_chan)] >> 4) & 1)
 #define ENVELOPE_PERIOD(_psg)		(((_psg)->regs[AY_EFINE] | ((_psg)->regs[AY_ECOARSE]<<8)))
 
 /*************************************
@@ -163,7 +164,7 @@ struct _ay_ym_param
 typedef struct _ay8910_context ay8910_context;
 struct _ay8910_context
 {
-	device_t *device;
+	running_device *device;
 	int streams;
 	int ready;
 	sound_stream *channel;
@@ -196,18 +197,17 @@ struct _ay8910_context
 	devcb_resolved_write8 portBwrite;
 };
 
-INLINE ay8910_context *get_safe_token(device_t *device)
+INLINE ay8910_context *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == AY8910 ||
-		   device->type() == AY8912 ||
-		   device->type() == AY8913 ||
-		   device->type() == AY8914 ||
-		   device->type() == AY8930 ||
-		   device->type() == YM2149 ||
-		   device->type() == YM3439 ||
-		   device->type() == YMZ284 ||
-		   device->type() == YMZ294);
+	assert(device->type() == SOUND_AY8910 ||
+		   device->type() == SOUND_AY8912 ||
+		   device->type() == SOUND_AY8913 ||
+		   device->type() == SOUND_AY8930 ||
+		   device->type() == SOUND_YM2149 ||
+		   device->type() == SOUND_YM3439 ||
+		   device->type() == SOUND_YMZ284 ||
+		   device->type() == SOUND_YMZ294);
 	return (ay8910_context *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -437,16 +437,9 @@ INLINE UINT16 mix_3D(ay8910_context *psg)
 	int indx = 0, chan;
 
 	for (chan = 0; chan < NUM_CHANNELS; chan++)
-		if (TONE_ENVELOPE(psg, chan) != 0)
+		if (TONE_ENVELOPE(psg, chan))
 		{
-			if (psg->device->type() == AY8914) // AY8914 Has a two bit tone_envelope field
-			{
-				indx |= (1 << (chan+15)) | ( psg->vol_enabled[chan] ? ((psg->env_volume >> (3-TONE_ENVELOPE(psg, chan))) << (chan*5)) : 0);
-			}
-			else
-			{
-				indx |= (1 << (chan+15)) | ( psg->vol_enabled[chan] ? psg->env_volume << (chan*5) : 0);
-			}
+			indx |= (1 << (chan+15)) | ( psg->vol_enabled[chan] ? psg->env_volume << (chan*5) : 0);
 		}
 		else
 		{
@@ -484,7 +477,7 @@ static void ay8910_write_reg(ay8910_context *psg, int r, int v)
 		case AY_ECOARSE:
 			#ifdef MAME_DEBUG
 			if ( (v & 0x0f) > 0)
-				popmessage("ECoarse");
+				popmessage("Write to ECoarse register detected - please inform www.mametesters.org");
 			#endif
 			/* No action required */
 			break;
@@ -493,14 +486,14 @@ static void ay8910_write_reg(ay8910_context *psg, int r, int v)
 			    ((psg->last_enable & 0x40) != (psg->regs[AY_ENABLE] & 0x40)))
 			{
 				/* write out 0xff if port set to input */
-				psg->portAwrite(0, (psg->regs[AY_ENABLE] & 0x40) ? psg->regs[AY_PORTA] : 0xff);
+				devcb_call_write8(&psg->portAwrite, 0, (psg->regs[AY_ENABLE] & 0x40) ? psg->regs[AY_PORTA] : 0xff);
 			}
 
 			if ((psg->last_enable == -1) ||
 			    ((psg->last_enable & 0x80) != (psg->regs[AY_ENABLE] & 0x80)))
 			{
 				/* write out 0xff if port set to input */
-				psg->portBwrite(0, (psg->regs[AY_ENABLE] & 0x80) ? psg->regs[AY_PORTB] : 0xff);
+				devcb_call_write8(&psg->portBwrite, 0, (psg->regs[AY_ENABLE] & 0x80) ? psg->regs[AY_PORTB] : 0xff);
 			}
 
 			psg->last_enable = psg->regs[AY_ENABLE];
@@ -508,7 +501,7 @@ static void ay8910_write_reg(ay8910_context *psg, int r, int v)
 		case AY_ESHAPE:
 			#ifdef MAME_DEBUG
 			if ( (v & 0x0f) > 0)
-				popmessage("EShape");
+				popmessage("Write to EShape register detected - please inform www.mametesters.org");
 			#endif
 			psg->attack = (psg->regs[AY_ESHAPE] & 0x04) ? psg->env_step_mask : 0x00;
 			if ((psg->regs[AY_ESHAPE] & 0x08) == 0)
@@ -529,8 +522,8 @@ static void ay8910_write_reg(ay8910_context *psg, int r, int v)
 		case AY_PORTA:
 			if (psg->regs[AY_ENABLE] & 0x40)
 			{
-				if (!psg->portAwrite.isnull())
-					psg->portAwrite(0, psg->regs[AY_PORTA]);
+				if (psg->portAwrite.write)
+					devcb_call_write8(&psg->portAwrite, 0, psg->regs[AY_PORTA]);
 				else
 					logerror("warning - write %02x to 8910 '%s' Port A\n",psg->regs[AY_PORTA],psg->device->tag());
 			}
@@ -542,8 +535,8 @@ static void ay8910_write_reg(ay8910_context *psg, int r, int v)
 		case AY_PORTB:
 			if (psg->regs[AY_ENABLE] & 0x80)
 			{
-				if (!psg->portBwrite.isnull())
-					psg->portBwrite(0, psg->regs[AY_PORTB]);
+				if (psg->portBwrite.write)
+					devcb_call_write8(&psg->portBwrite, 0, psg->regs[AY_PORTB]);
 				else
 					logerror("warning - write %02x to 8910 '%s' Port B\n",psg->regs[AY_PORTB],psg->device->tag());
 			}
@@ -664,16 +657,10 @@ static STREAM_UPDATE( ay8910_update )
 		if (psg->streams == 3)
 		{
 			for (chan = 0; chan < NUM_CHANNELS; chan++)
-				if (TONE_ENVELOPE(psg,chan) != 0)
+				if (TONE_ENVELOPE(psg,chan))
 				{
-					if (psg->device->type() == AY8914) // AY8914 Has a two bit tone_envelope field
-					{
-						*(buf[chan]++) = psg->env_table[chan][psg->vol_enabled[chan] ? psg->env_volume >> (3-TONE_ENVELOPE(psg,chan)) : 0];
-					}
-					else
-					{
-						*(buf[chan]++) = psg->env_table[chan][psg->vol_enabled[chan] ? psg->env_volume : 0];
-					}
+					/* Envolope has no "off" state */
+					*(buf[chan]++) = psg->env_table[chan][psg->vol_enabled[chan] ? psg->env_volume : 0];
 				}
 				else
 				{
@@ -716,27 +703,27 @@ static void build_mixer_table(ay8910_context *psg)
 	build_3D_table(psg->intf->res_load[0], psg->par, psg->par_env, normalize, 3, psg->zero_is_off, psg->vol3d_table);
 }
 
-static void ay8910_statesave(ay8910_context *psg, device_t *device)
+static void ay8910_statesave(ay8910_context *psg, running_device *device)
 {
-	device->save_item(NAME(psg->register_latch));
-	device->save_item(NAME(psg->regs));
-	device->save_item(NAME(psg->last_enable));
+	state_save_register_device_item(device, 0, psg->register_latch);
+	state_save_register_device_item_array(device, 0, psg->regs);
+	state_save_register_device_item(device, 0, psg->last_enable);
 
-	device->save_item(NAME(psg->count));
-	device->save_item(NAME(psg->count_noise));
-	device->save_item(NAME(psg->count_env));
+	state_save_register_device_item_array(device, 0, psg->count);
+	state_save_register_device_item(device, 0, psg->count_noise);
+	state_save_register_device_item(device, 0, psg->count_env);
 
-	device->save_item(NAME(psg->env_volume));
+	state_save_register_device_item(device, 0, psg->env_volume);
 
-	device->save_item(NAME(psg->output));
-	device->save_item(NAME(psg->output_noise));
+	state_save_register_device_item_array(device, 0, psg->output);
+	state_save_register_device_item(device, 0, psg->output_noise);
 
-	device->save_item(NAME(psg->env_step));
-	device->save_item(NAME(psg->hold));
-	device->save_item(NAME(psg->alternate));
-	device->save_item(NAME(psg->attack));
-	device->save_item(NAME(psg->holding));
-	device->save_item(NAME(psg->rng));
+	state_save_register_device_item(device, 0, psg->env_step);
+	state_save_register_device_item(device, 0, psg->hold);
+	state_save_register_device_item(device, 0, psg->alternate);
+	state_save_register_device_item(device, 0, psg->attack);
+	state_save_register_device_item(device, 0, psg->holding);
+	state_save_register_device_item(device, 0, psg->rng);
 }
 
 /*************************************
@@ -747,20 +734,19 @@ static void ay8910_statesave(ay8910_context *psg, device_t *device)
  *
  *************************************/
 
-void *ay8910_start_ym(void *infoptr, device_type chip_type, device_t *device, int clock, const ay8910_interface *intf)
+void *ay8910_start_ym(void *infoptr, device_type chip_type, running_device *device, int clock, const ay8910_interface *intf)
 {
 	ay8910_context *info = (ay8910_context *)infoptr;
-	int master_clock = clock;
 
 	if (info == NULL)
-		info = auto_alloc_clear(device->machine(), ay8910_context);
+		info = auto_alloc_clear(device->machine, ay8910_context);
 
 	info->device = device;
 	info->intf = intf;
-	info->portAread.resolve(intf->portAread, *device);
-	info->portBread.resolve(intf->portBread, *device);
-	info->portAwrite.resolve(intf->portAwrite, *device);
-	info->portBwrite.resolve(intf->portBwrite, *device);
+	devcb_resolve_read8(&info->portAread, &intf->portAread, device);
+	devcb_resolve_read8(&info->portBread, &intf->portBread, device);
+	devcb_resolve_write8(&info->portAwrite, &intf->portAwrite, device);
+	devcb_resolve_write8(&info->portBwrite, &intf->portBwrite, device);
 	if ((info->intf->flags & AY8910_SINGLE_OUTPUT) != 0)
 	{
 		logerror("AY-3-8910/YM2149 using single output!\n");
@@ -769,8 +755,7 @@ void *ay8910_start_ym(void *infoptr, device_type chip_type, device_t *device, in
 	else
 		info->streams = 3;
 
-
-	if (chip_type == AY8910 || chip_type == AY8914 || chip_type == AY8930)
+	if (chip_type == SOUND_AY8910 || chip_type == SOUND_AY8930)
 	{
 		info->step = 2;
 		info->par = &ay8910_param;
@@ -785,19 +770,15 @@ void *ay8910_start_ym(void *infoptr, device_type chip_type, device_t *device, in
 		info->par_env = &ym2149_param_env;
 		info->zero_is_off = 0;
 		info->env_step_mask = 0x1F;
-
-		/* YM2149 master clock divider? */
-		if (info->intf->flags & YM2149_PIN26_LOW)
-			master_clock /= 2;
 	}
 
 	build_mixer_table(info);
 
 	/* The envelope is pacing twice as fast for the YM2149 as for the AY-3-8910,    */
 	/* This handled by the step parameter. Consequently we use a divider of 8 here. */
-	info->channel = device->machine().sound().stream_alloc(*device, 0, info->streams, master_clock / 8, info, ay8910_update);
+	info->channel = stream_create(device, 0, info->streams, device->clock() / 8, info, ay8910_update);
 
-	ay8910_set_clock_ym(info, master_clock);
+	ay8910_set_clock_ym(info,device->clock());
 	ay8910_statesave(info, device);
 
 	return info;
@@ -845,20 +826,20 @@ void ay8910_reset_ym(void *chip)
 #endif
 }
 
-void ay8910_set_volume(device_t *device,int channel,int volume)
+void ay8910_set_volume(running_device *device,int channel,int volume)
 {
 	ay8910_context *psg = get_safe_token(device);
 	int ch;
 
 	for (ch = 0; ch < psg->streams; ch++)
 		if (channel == ch || psg->streams == 1 || channel == ALL_8910_CHANNELS)
-			psg->channel->set_output_gain(ch, volume / 100.0);
+			stream_set_output_gain(psg->channel, ch, volume / 100.0);
 }
 
 void ay8910_set_clock_ym(void *chip, int clock)
 {
 	ay8910_context *psg = (ay8910_context *)chip;
-	psg->channel->set_sample_rate( clock / 8 );
+	stream_set_sample_rate(psg->channel, clock / 8 );
 }
 
 void ay8910_write_ym(void *chip, int addr, int data)
@@ -873,7 +854,7 @@ void ay8910_write_ym(void *chip, int addr, int data)
 		if (r == AY_ESHAPE || psg->regs[r] != data)
 		{
 			/* update the output buffer before changing the register */
-			psg->channel->update();
+			stream_update(psg->channel);
 		}
 
 		ay8910_write_reg(psg,r,data);
@@ -887,13 +868,12 @@ void ay8910_write_ym(void *chip, int addr, int data)
 int ay8910_read_ym(void *chip)
 {
 	ay8910_context *psg = (ay8910_context *)chip;
-	device_type chip_type = psg->device->type();
 	int r = psg->register_latch;
 
 	if (r > 15) return 0;
 
 	/* There are no state dependent register in the AY8910! */
-	/* psg->channel->update(); */
+	/* stream_update(psg->channel); */
 
 	switch (r)
 	{
@@ -904,35 +884,21 @@ int ay8910_read_ym(void *chip)
            even if the port is set as output, we still need to return the external
            data. Some games, like kidniki, need this to work.
          */
-		if (!psg->portAread.isnull())
-			psg->regs[AY_PORTA] = psg->portAread(0);
+		if (psg->portAread.read)
+			psg->regs[AY_PORTA] = devcb_call_read8(&psg->portAread, 0);
 		else
-			logerror("%s: warning - read 8910 '%s' Port A\n",psg->device->machine().describe_context(),psg->device->tag());
+			logerror("%s: warning - read 8910 '%s' Port A\n",cpuexec_describe_context(psg->device->machine),psg->device->tag());
 		break;
 	case AY_PORTB:
 		if ((psg->regs[AY_ENABLE] & 0x80) != 0)
 			logerror("warning: read from 8910 '%s' Port B set as output\n",psg->device->tag());
-		if (!psg->portBread.isnull())
-			psg->regs[AY_PORTB] = psg->portBread(0);
+		if (psg->portBread.read)
+			psg->regs[AY_PORTB] = devcb_call_read8(&psg->portBread, 0);
 		else
-			logerror("%s: warning - read 8910 '%s' Port B\n",psg->device->machine().describe_context(),psg->device->tag());
+			logerror("%s: warning - read 8910 '%s' Port B\n",cpuexec_describe_context(psg->device->machine),psg->device->tag());
 		break;
 	}
-
-	/* Depending on chip type, unused bits in registers may or may not be accessible.
-    Untested chips are assumed to regard them as 'ram'
-    Tested and confirmed on hardware:
-    - AY-3-8910: inaccessible bits (see masks below) read back as 0
-    - YM2149: no anomaly
-    */
-	if (chip_type == AY8910) {
-		const UINT8 mask[0x10]={
-			0xff,0x0f,0xff,0x0f,0xff,0x0f,0x1f,0xff,0x1f,0x1f,0x1f,0xff,0xff,0x0f,0xff,0xff
-		};
-
-		return psg->regs[r] & mask[r];
-	}
-	else return psg->regs[r];
+	return psg->regs[r];
 }
 
 /*************************************
@@ -949,8 +915,8 @@ static DEVICE_START( ay8910 )
 		AY8910_DEFAULT_LOADS,
 		DEVCB_NULL, DEVCB_NULL, DEVCB_NULL, DEVCB_NULL
 	};
-	const ay8910_interface *intf = (device->static_config() ? (const ay8910_interface *)device->static_config() : &generic_ay8910);
-	ay8910_start_ym(get_safe_token(device), AY8910, device, device->clock(), intf);
+	const ay8910_interface *intf = (device->baseconfig().static_config() ? (const ay8910_interface *)device->baseconfig().static_config() : &generic_ay8910);
+	ay8910_start_ym(get_safe_token(device), SOUND_AY8910, device, device->clock(), intf);
 }
 
 static DEVICE_START( ym2149 )
@@ -961,8 +927,8 @@ static DEVICE_START( ym2149 )
 		AY8910_DEFAULT_LOADS,
 		DEVCB_NULL, DEVCB_NULL, DEVCB_NULL, DEVCB_NULL
 	};
-	const ay8910_interface *intf = (device->static_config() ? (const ay8910_interface *)device->static_config() : &generic_ay8910);
-	ay8910_start_ym(get_safe_token(device), YM2149, device, device->clock(), intf);
+	const ay8910_interface *intf = (device->baseconfig().static_config() ? (const ay8910_interface *)device->baseconfig().static_config() : &generic_ay8910);
+	ay8910_start_ym(get_safe_token(device), SOUND_YM2149, device, device->clock(), intf);
 }
 
 static DEVICE_STOP( ay8910 )
@@ -980,7 +946,7 @@ DEVICE_GET_INFO( ay8910 )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as 64-bit signed integers --- */
-		case DEVINFO_INT_TOKEN_BYTES:					info->i = sizeof(ay8910_context);					break;
+		case DEVINFO_INT_TOKEN_BYTES:					info->i = sizeof(ay8910_context);				break;
 
 		/* --- the following bits of info are returned as pointers to data or functions --- */
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ay8910 );			break;
@@ -988,11 +954,11 @@ DEVICE_GET_INFO( ay8910 )
 		case DEVINFO_FCT_RESET:							info->reset = DEVICE_RESET_NAME( ay8910 );			break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
-		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8910A");						break;
-		case DEVINFO_STR_FAMILY:						strcpy(info->s, "PSG");								break;
-		case DEVINFO_STR_VERSION:						strcpy(info->s, "1.0");								break;
-		case DEVINFO_STR_SOURCE_FILE:					strcpy(info->s, __FILE__);							break;
-		case DEVINFO_STR_CREDITS:						strcpy(info->s, "Copyright Nicola Salmoria and the MAME Team"); break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8910A");					break;
+		case DEVINFO_STR_FAMILY:					strcpy(info->s, "PSG");							break;
+		case DEVINFO_STR_VERSION:					strcpy(info->s, "1.0");							break;
+		case DEVINFO_STR_SOURCE_FILE:						strcpy(info->s, __FILE__);						break;
+		case DEVINFO_STR_CREDITS:					strcpy(info->s, "Copyright Nicola Salmoria and the MAME Team"); break;
 	}
 }
 
@@ -1001,7 +967,7 @@ DEVICE_GET_INFO( ay8912 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ay8910 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8912A");						break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8912A");					break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1011,17 +977,7 @@ DEVICE_GET_INFO( ay8913 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ay8910 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8913A");						break;
-		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
-	}
-}
-
-DEVICE_GET_INFO( ay8914 )
-{
-	switch (state)
-	{
-		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ay8910 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8914");					break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "AY-3-8913A");					break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1031,7 +987,7 @@ DEVICE_GET_INFO( ay8930 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ay8910 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "AY8930");							break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "AY8930");						break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1041,7 +997,7 @@ DEVICE_GET_INFO( ym2149 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ym2149 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "YM2149");							break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "YM2149");						break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1051,7 +1007,7 @@ DEVICE_GET_INFO( ym3439 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ym2149 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "YM3439");							break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "YM3439");						break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1061,7 +1017,7 @@ DEVICE_GET_INFO( ymz284 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ym2149 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "YMZ284");							break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "YMZ284");						break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1071,7 +1027,7 @@ DEVICE_GET_INFO( ymz294 )
 	switch (state)
 	{
 		case DEVINFO_FCT_START:							info->start = DEVICE_START_NAME( ym2149 );			break;
-		case DEVINFO_STR_NAME:							strcpy(info->s, "YMZ294");							break;
+		case DEVINFO_STR_NAME:							strcpy(info->s, "YMZ294");						break;
 		default:										DEVICE_GET_INFO_CALL(ay8910);						break;
 	}
 }
@@ -1116,26 +1072,10 @@ WRITE8_DEVICE_HANDLER( ay8910_data_w )
 #endif
 }
 
-static const int mapping8914to8910[16] = { 0, 2, 4, 11, 1, 3, 5, 12, 7, 6, 13, 8, 9, 10, 14, 15 };
-
-READ8_DEVICE_HANDLER( ay8914_r )
-{
-	UINT16 rv;
-	ay8910_address_w(device, 0, mapping8914to8910[offset & 0xff]);
-	rv = (UINT16)ay8910_r(device, 0);
-	return rv;
-}
-
-WRITE8_DEVICE_HANDLER( ay8914_w )
-{
-	ay8910_address_w(device, 0, mapping8914to8910[offset & 0xff]);
-	ay8910_data_w(device, 0, data & 0xff);
-}
 
 DEFINE_LEGACY_SOUND_DEVICE(AY8910, ay8910);
 DEFINE_LEGACY_SOUND_DEVICE(AY8912, ay8912);
 DEFINE_LEGACY_SOUND_DEVICE(AY8913, ay8913);
-DEFINE_LEGACY_SOUND_DEVICE(AY8914, ay8914);
 DEFINE_LEGACY_SOUND_DEVICE(AY8930, ay8930);
 DEFINE_LEGACY_SOUND_DEVICE(YM2149, ym2149);
 DEFINE_LEGACY_SOUND_DEVICE(YM3439, ym3439);

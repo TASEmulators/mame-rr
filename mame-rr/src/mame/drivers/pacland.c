@@ -176,20 +176,33 @@ Notes:
 #include "cpu/m6809/m6809.h"
 #include "cpu/m6800/m6800.h"
 #include "sound/namco.h"
-#include "includes/pacland.h"
+
+
+extern UINT8 *pacland_videoram,*pacland_videoram2,*pacland_spriteram;
+
+WRITE8_HANDLER( pacland_videoram_w );
+WRITE8_HANDLER( pacland_videoram2_w );
+WRITE8_HANDLER( pacland_scroll0_w );
+WRITE8_HANDLER( pacland_scroll1_w );
+WRITE8_HANDLER( pacland_bankswitch_w );
+
+PALETTE_INIT( pacland );
+VIDEO_START( pacland );
+VIDEO_UPDATE( pacland );
+
 
 static WRITE8_HANDLER( pacland_subreset_w )
 {
 	int bit = !BIT(offset,11);
-	cputag_set_input_line(space->machine(), "mcu", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
+	cputag_set_input_line(space->machine, "mcu", INPUT_LINE_RESET, bit ? CLEAR_LINE : ASSERT_LINE);
 }
 
 static WRITE8_HANDLER( pacland_flipscreen_w )
 {
 	int bit = !BIT(offset,11);
-	/* can't use flip_screen_set(space->machine(), ) because the visible area is asymmetrical */
-	flip_screen_set_no_update(space->machine(), bit);
-	tilemap_set_flip_all(space->machine(),flip_screen_get(space->machine()) ? (TILEMAP_FLIPX | TILEMAP_FLIPY) : 0);
+	/* can't use flip_screen_set(space->machine, ) because the visible area is asymmetrical */
+	flip_screen_set_no_update(space->machine, bit);
+	tilemap_set_flip_all(space->machine,flip_screen_get(space->machine) ? (TILEMAP_FLIPX | TILEMAP_FLIPY) : 0);
 }
 
 
@@ -198,47 +211,47 @@ static READ8_HANDLER( pacland_input_r )
 	int shift = 4 * (offset & 1);
 	int port = offset & 2;
 	static const char *const portnames[] = { "DSWA", "DSWB", "IN0", "IN1" };
-	int r = (input_port_read(space->machine(), portnames[port]) << shift) & 0xf0;
-	r |= (input_port_read(space->machine(), portnames[port+1]) >> (4 - shift)) & 0x0f;
+	int r = (input_port_read(space->machine, portnames[port]) << shift) & 0xf0;
+	r |= (input_port_read(space->machine, portnames[port+1]) >> (4 - shift)) & 0x0f;
 
 	return r;
 }
 
 static WRITE8_HANDLER( pacland_coin_w )
 {
-	coin_lockout_global_w(space->machine(), data & 1);
-	coin_counter_w(space->machine(), 0, ~data & 2);
-	coin_counter_w(space->machine(), 1, ~data & 4);
+	coin_lockout_global_w(space->machine, data & 1);
+	coin_counter_w(space->machine, 0, ~data & 2);
+	coin_counter_w(space->machine, 1, ~data & 4);
 }
 
 static WRITE8_HANDLER( pacland_led_w )
 {
-	set_led_status(space->machine(), 0, data & 0x08);
-	set_led_status(space->machine(), 1, data & 0x10);
+	set_led_status(space->machine, 0, data & 0x08);
+	set_led_status(space->machine, 1, data & 0x10);
 }
 
 static WRITE8_HANDLER( pacland_irq_1_ctrl_w )
 {
 	int bit = !BIT(offset, 11);
-	cpu_interrupt_enable(space->machine().device("maincpu"), bit);
+	cpu_interrupt_enable(space->machine->device("maincpu"), bit);
 	if (!bit)
-		cputag_set_input_line(space->machine(), "maincpu", 0, CLEAR_LINE);
+		cputag_set_input_line(space->machine, "maincpu", 0, CLEAR_LINE);
 }
 
 static WRITE8_HANDLER( pacland_irq_2_ctrl_w )
 {
 	int bit = !BIT(offset, 13);
-	cpu_interrupt_enable(space->machine().device("mcu"), bit);
+	cpu_interrupt_enable(space->machine->device("mcu"), bit);
 	if (!bit)
-		cputag_set_input_line(space->machine(), "mcu", 0, CLEAR_LINE);
+		cputag_set_input_line(space->machine, "mcu", 0, CLEAR_LINE);
 }
 
 
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x0fff) AM_RAM_WRITE(pacland_videoram_w) AM_BASE_MEMBER(pacland_state, m_videoram)
-	AM_RANGE(0x1000, 0x1fff) AM_RAM_WRITE(pacland_videoram2_w) AM_BASE_MEMBER(pacland_state, m_videoram2)
-	AM_RANGE(0x2000, 0x37ff) AM_RAM AM_BASE_MEMBER(pacland_state, m_spriteram)
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x0fff) AM_RAM_WRITE(pacland_videoram_w) AM_BASE(&pacland_videoram)
+	AM_RANGE(0x1000, 0x1fff) AM_RAM_WRITE(pacland_videoram2_w) AM_BASE(&pacland_videoram2)
+	AM_RANGE(0x2000, 0x37ff) AM_RAM AM_BASE(&pacland_spriteram)
 	AM_RANGE(0x3800, 0x3801) AM_WRITE(pacland_scroll0_w)
 	AM_RANGE(0x3a00, 0x3a01) AM_WRITE(pacland_scroll1_w)
 	AM_RANGE(0x3c00, 0x3c00) AM_WRITE(pacland_bankswitch_w)
@@ -251,10 +264,10 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
 	AM_RANGE(0x9000, 0x9fff) AM_WRITE(pacland_flipscreen_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mcu_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x001f) AM_READWRITE(m6801_io_r, m6801_io_w)
+static ADDRESS_MAP_START( mcu_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x001f) AM_READWRITE(hd63701_internal_registers_r, hd63701_internal_registers_w)
 	AM_RANGE(0x0080, 0x00ff) AM_RAM
-	AM_RANGE(0x1000, 0x13ff) AM_DEVREADWRITE("namco", namcos1_cus30_r, namcos1_cus30_w)		/* PSG device, shared RAM */
+	AM_RANGE(0x1000, 0x13ff) AM_DEVREADWRITE("namco", namcos1_cus30_r, namcos1_cus30_w) AM_BASE(&namco_wavedata)		/* PSG device, shared RAM */
 	AM_RANGE(0x2000, 0x3fff) AM_WRITE(watchdog_reset_w)		/* watchdog? */
 	AM_RANGE(0x4000, 0x7fff) AM_WRITE(pacland_irq_2_ctrl_w)
 	AM_RANGE(0x8000, 0xbfff) AM_ROM
@@ -269,11 +282,11 @@ static READ8_HANDLER( readFF )
 	return 0xff;
 }
 
-static ADDRESS_MAP_START( mcu_port_map, AS_IO, 8 )
-	AM_RANGE(M6801_PORT1, M6801_PORT1) AM_READ_PORT("IN2")
-	AM_RANGE(M6801_PORT1, M6801_PORT1) AM_WRITE(pacland_coin_w)
-	AM_RANGE(M6801_PORT2, M6801_PORT2) AM_READ(readFF)	/* leds won't work otherwise */
-	AM_RANGE(M6801_PORT2, M6801_PORT2) AM_WRITE(pacland_led_w)
+static ADDRESS_MAP_START( mcu_port_map, ADDRESS_SPACE_IO, 8 )
+	AM_RANGE(HD63701_PORT1, HD63701_PORT1) AM_READ_PORT("IN2")
+	AM_RANGE(HD63701_PORT1, HD63701_PORT1) AM_WRITE(pacland_coin_w)
+	AM_RANGE(HD63701_PORT2, HD63701_PORT2) AM_READ(readFF)	/* leds won't work otherwise */
+	AM_RANGE(HD63701_PORT2, HD63701_PORT2) AM_WRITE(pacland_led_w)
 ADDRESS_MAP_END
 
 
@@ -398,42 +411,42 @@ static const namco_interface namco_config =
 
 
 
-static MACHINE_CONFIG_START( pacland, pacland_state )
+static MACHINE_DRIVER_START( pacland )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, 49152000/32)	/* 1.536 MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("maincpu", M6809, 49152000/32)	/* 1.536 MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_CPU_ADD("mcu", HD63701, 49152000/8)	/* 1.536 MHz? */
-	MCFG_CPU_PROGRAM_MAP(mcu_map)
-	MCFG_CPU_IO_MAP(mcu_port_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_assert)
+	MDRV_CPU_ADD("mcu", HD63701, 49152000/8)	/* 1.536 MHz? */
+	MDRV_CPU_PROGRAM_MAP(mcu_map)
+	MDRV_CPU_IO_MAP(mcu_port_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_assert)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(6000))	/* we need heavy synching between the MCU and the CPU */
+	MDRV_QUANTUM_TIME(HZ(6000))	/* we need heavy synching between the MCU and the CPU */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60.606060)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(64*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(3*8, 39*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(pacland)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60.606060)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(64*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(3*8, 39*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(pacland)
-	MCFG_PALETTE_LENGTH(256*4+256*4+64*16)
+	MDRV_GFXDECODE(pacland)
+	MDRV_PALETTE_LENGTH(256*4+256*4+64*16)
 
-	MCFG_PALETTE_INIT(pacland)
-	MCFG_VIDEO_START(pacland)
+	MDRV_PALETTE_INIT(pacland)
+	MDRV_VIDEO_START(pacland)
+	MDRV_VIDEO_UPDATE(pacland)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("namco", NAMCO_CUS30, 49152000/2/1024)
-	MCFG_SOUND_CONFIG(namco_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("namco", NAMCO_CUS30, 49152000/2/1024)
+	MDRV_SOUND_CONFIG(namco_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

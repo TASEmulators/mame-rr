@@ -5,30 +5,30 @@
 *************************************************************************/
 
 
-class exprraid_state : public driver_device
+class exprraid_state
 {
 public:
-	exprraid_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, exprraid_state(machine)); }
+
+	exprraid_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *        m_main_ram;
-	UINT8 *        m_videoram;
-	UINT8 *        m_colorram;
-	UINT8 *        m_spriteram;
-	size_t         m_spriteram_size;
+	UINT8 *        main_ram;
+	UINT8 *        videoram;
+	UINT8 *        colorram;
+	UINT8 *        spriteram;
+	size_t         spriteram_size;
 
 	/* video-related */
-	tilemap_t        *m_bg_tilemap;
-	tilemap_t        *m_fg_tilemap;
-	int            m_bg_index[4];
+	tilemap_t        *bg_tilemap, *fg_tilemap;
+	int            bg_index[4];
 
 	/* misc */
-	//int          m_coin;    // used in the commented out INTERRUPT_GEN - can this be removed?
+	//int          coin;    // used in the commented out INTERRUPT_GEN - can this be removed?
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_slave;
+	running_device *maincpu;
+	running_device *slave;
 };
 
 
@@ -42,4 +42,4 @@ extern WRITE8_HANDLER( exprraid_scrollx_w );
 extern WRITE8_HANDLER( exprraid_scrolly_w );
 
 extern VIDEO_START( exprraid );
-extern SCREEN_UPDATE( exprraid );
+extern VIDEO_UPDATE( exprraid );

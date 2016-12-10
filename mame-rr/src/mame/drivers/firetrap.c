@@ -129,41 +129,6 @@ Notes:
       HSync - 15.6137kHz
       VSync - 57.4034Hz
 
-
-Stephh's notes (based on the games Z80 code and some tests) :
-
-1) 'firetrap' :
-
-  - US version, licensed to Data East.
-  - MCU missing and simulated (init command = 0x13).
-  - No warning screen.
-  - Instructions in English
-  - Initials : 3 letters.
-  - Bugs in test mode :
-      * when lives are set to "2", it displays "1".
-      * bonus lives is still the same as the Japan version even if table at 0x0ca3 has changed.
-
-2) 'firetrapj' :
-
-  - Japan version.
-  - MCU missing and simulated (init command = 0xf5).
-  - Additional warning screen.
-  - Instructions in Japanese
-  - Initials : 5 letters.
-  - Bugs in test mode :
-      * when lives are set to "2", it displays "1".
-
-3) 'firetrapbl' :
-
-  - Bootleg based on 'firetrapj'.
-  - Most MCU writes are patched while reads are handled differently.
-  - Additional ROM with code at 0xf800 to simulate the MCU initialisation routine.
-  - No warning screen.
-  - Instructions in Japanese
-  - Initials : 5 letters.
-  - Bugs in test mode :
-      * when lives are set to "2", it displays "1".
-
 ***************************************************************************/
 
 #include "emu.h"
@@ -179,13 +144,13 @@ Stephh's notes (based on the games Z80 code and some tests) :
 
 static WRITE8_HANDLER( firetrap_nmi_disable_w )
 {
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
-	state->m_nmi_enable = ~data & 1;
+	firetrap_state *state = (firetrap_state *)space->machine->driver_data;
+	state->nmi_enable = ~data & 1;
 }
 
 static WRITE8_HANDLER( firetrap_bankselect_w )
 {
-	memory_set_bank(space->machine(), "bank1", data & 0x03);
+	memory_set_bank(space->machine, "bank1", data & 0x03);
 }
 
 static READ8_HANDLER( firetrap_8751_bootleg_r )
@@ -193,33 +158,17 @@ static READ8_HANDLER( firetrap_8751_bootleg_r )
 	/* Check for coin insertion */
 	/* the following only works in the bootleg version, which doesn't have an */
 	/* 8751 - the real thing is much more complicated than that. */
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
-	UINT8 coin = 0;
-	UINT8 port = input_port_read(space->machine(), "IN2") & 0x70;
-
-	if (cpu_get_pc(&space->device()) == 0x1188)
-		return ~state->m_coin_command_pending;
-
-	if (port != 0x70)
-	{
-		if (!(port & 0x20)) /* COIN1 */
-			coin = 1;
-		if (!(port & 0x40)) /* COIN2 */
-			coin = 2;
-		if (!(port & 0x10)) /* SERVICE1 */
-			coin = 3;
-		state->m_coin_command_pending = coin;
+	if ((input_port_read(space->machine, "IN2") & 0x70) != 0x70)
 		return 0xff;
-	}
 
 	return 0;
 }
 
 static READ8_HANDLER( firetrap_8751_r )
 {
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
-	//logerror("PC:%04x read from 8751\n",cpu_get_pc(&space->device()));
-	return state->m_i8751_return;
+	firetrap_state *state = (firetrap_state *)space->machine->driver_data;
+	//logerror("PC:%04x read from 8751\n",cpu_get_pc(space->cpu));
+	return state->i8751_return;
 }
 
 static WRITE8_HANDLER( firetrap_8751_w )
@@ -244,119 +193,119 @@ static WRITE8_HANDLER( firetrap_8751_w )
 	};
 	static const int i8751_coin_data[]={ 0x00, 0xb7 };
 	static const int i8751_36_data[]={ 0x00, 0xbc };
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
+	firetrap_state *state = (firetrap_state *)space->machine->driver_data;
 
 	/* End of command - important to note, as coin input is supressed while commands are pending */
 	if (data == 0x26)
 	{
-		state->m_i8751_current_command = 0;
-		state->m_i8751_return = 0xff; /* This value is XOR'd and must equal 0 */
-		device_set_input_line_and_vector(state->m_maincpu, 0, HOLD_LINE, 0xff);
+		state->i8751_current_command = 0;
+		state->i8751_return = 0xff; /* This value is XOR'd and must equal 0 */
+		cpu_set_input_line_and_vector(state->maincpu, 0, HOLD_LINE, 0xff);
 		return;
 	}
 
-	/* Init sequence command (0x13 : US - 0xf5 : Japan) */
-	else if ((data == 0x13) || (data == 0xf5))
+	/* Init sequence command */
+	else if (data == 0x13)
 	{
-		if (!state->m_i8751_current_command)
-			state->m_i8751_init_ptr = 0;
-		state->m_i8751_return = i8751_init_data[state->m_i8751_init_ptr++];
+		if (!state->i8751_current_command)
+			state->i8751_init_ptr = 0;
+		state->i8751_return = i8751_init_data[state->i8751_init_ptr++];
 	}
 
 	/* Used to calculate a jump address when coins are inserted */
 	else if (data == 0xbd)
 	{
-		if (!state->m_i8751_current_command)
-			state->m_i8751_init_ptr = 0;
-		state->m_i8751_return = i8751_coin_data[state->m_i8751_init_ptr++];
+		if (!state->i8751_current_command)
+			state->i8751_init_ptr = 0;
+		state->i8751_return = i8751_coin_data[state->i8751_init_ptr++];
 	}
 
 	else if (data == 0x36)
 	{
-		if (!state->m_i8751_current_command)
-			state->m_i8751_init_ptr = 0;
-		state->m_i8751_return = i8751_36_data[state->m_i8751_init_ptr++];
+		if (!state->i8751_current_command)
+			state->i8751_init_ptr = 0;
+		state->i8751_return = i8751_36_data[state->i8751_init_ptr++];
 	}
 
 	/* Static value commands */
 	else if (data == 0x14)
-		state->m_i8751_return = 1;
+		state->i8751_return = 1;
 	else if (data == 0x02)
-		state->m_i8751_return = 0;
+		state->i8751_return = 0;
 	else if (data == 0x72)
-		state->m_i8751_return = 3;
+		state->i8751_return = 3;
 	else if (data == 0x69)
-		state->m_i8751_return = 2;
+		state->i8751_return = 2;
 	else if (data == 0xcb)
-		state->m_i8751_return = 0;
+		state->i8751_return = 0;
 	else if (data == 0x49)
-		state->m_i8751_return = 1;
+		state->i8751_return = 1;
 	else if (data == 0x17)
-		state->m_i8751_return = 2;
+		state->i8751_return = 2;
 	else if (data == 0x88)
-		state->m_i8751_return = 3;
+		state->i8751_return = 3;
 	else
 	{
-		state->m_i8751_return = 0xff;
-		logerror("%04x: Unknown i8751 command %02x!\n",cpu_get_pc(&space->device()),data);
+		state->i8751_return = 0xff;
+		logerror("%04x: Unknown i8751 command %02x!\n",cpu_get_pc(space->cpu),data);
 	}
 
 	/* Signal main cpu task is complete */
-	device_set_input_line_and_vector(state->m_maincpu, 0, HOLD_LINE, 0xff);
-	state->m_i8751_current_command=data;
+	cpu_set_input_line_and_vector(state->maincpu, 0, HOLD_LINE, 0xff);
+	state->i8751_current_command=data;
 }
 
 static WRITE8_HANDLER( firetrap_sound_command_w )
 {
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
+	firetrap_state *state = (firetrap_state *)space->machine->driver_data;
 	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, PULSE_LINE);
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static WRITE8_HANDLER( firetrap_sound_2400_w )
 {
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
-	msm5205_reset_w(state->m_msm, ~data & 0x01);
-	state->m_irq_enable = data & 0x02;
+	firetrap_state *state = (firetrap_state *)space->machine->driver_data;
+	msm5205_reset_w(state->msm, ~data & 0x01);
+	state->irq_enable = data & 0x02;
 }
 
 static WRITE8_HANDLER( firetrap_sound_bankselect_w )
 {
-	memory_set_bank(space->machine(), "bank2", data & 0x01);
+	memory_set_bank(space->machine, "bank2", data & 0x01);
 }
 
-static void firetrap_adpcm_int( device_t *device )
+static void firetrap_adpcm_int( running_device *device )
 {
-	firetrap_state *state = device->machine().driver_data<firetrap_state>();
+	firetrap_state *state = (firetrap_state *)device->machine->driver_data;
 
-	msm5205_data_w(device, state->m_msm5205next >> 4);
-	state->m_msm5205next <<= 4;
+	msm5205_data_w(device, state->msm5205next >> 4);
+	state->msm5205next <<= 4;
 
-	state->m_adpcm_toggle ^= 1;
-	if (state->m_irq_enable && state->m_adpcm_toggle)
-		device_set_input_line(state->m_audiocpu, M6502_IRQ_LINE, HOLD_LINE);
+	state->adpcm_toggle ^= 1;
+	if (state->irq_enable && state->adpcm_toggle)
+		cpu_set_input_line(state->audiocpu, M6502_IRQ_LINE, HOLD_LINE);
 }
 
 static WRITE8_HANDLER( firetrap_adpcm_data_w )
 {
-	firetrap_state *state = space->machine().driver_data<firetrap_state>();
-	state->m_msm5205next = data;
+	firetrap_state *state = (firetrap_state *)space->machine->driver_data;
+	state->msm5205next = data;
 }
 
 static WRITE8_HANDLER( flip_screen_w )
 {
-	flip_screen_set(space->machine(), data);
+	flip_screen_set(space->machine, data);
 }
 
 
-static ADDRESS_MAP_START( firetrap_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( firetrap_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xcfff) AM_RAM
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(firetrap_bg1videoram_w) AM_BASE_MEMBER(firetrap_state, m_bg1videoram)
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(firetrap_bg2videoram_w) AM_BASE_MEMBER(firetrap_state, m_bg2videoram)
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(firetrap_fgvideoram_w) AM_BASE_MEMBER(firetrap_state, m_fgvideoram)
-	AM_RANGE(0xe800, 0xe97f) AM_RAM AM_BASE_SIZE_MEMBER(firetrap_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(firetrap_bg1videoram_w) AM_BASE_MEMBER(firetrap_state, bg1videoram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(firetrap_bg2videoram_w) AM_BASE_MEMBER(firetrap_state, bg2videoram)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(firetrap_fgvideoram_w) AM_BASE_MEMBER(firetrap_state, fgvideoram)
+	AM_RANGE(0xe800, 0xe97f) AM_RAM AM_BASE_SIZE_MEMBER(firetrap_state, spriteram, spriteram_size)
 	AM_RANGE(0xf000, 0xf000) AM_WRITENOP	/* IRQ acknowledge */
 	AM_RANGE(0xf001, 0xf001) AM_WRITE(firetrap_sound_command_w)
 	AM_RANGE(0xf002, 0xf002) AM_WRITE(firetrap_bankselect_w)
@@ -375,14 +324,14 @@ static ADDRESS_MAP_START( firetrap_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf016, 0xf016) AM_READ(firetrap_8751_r)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( firetrap_bootleg_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( firetrap_bootleg_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0xbfff) AM_ROMBANK("bank1")
 	AM_RANGE(0xc000, 0xcfff) AM_RAM
-	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(firetrap_bg1videoram_w) AM_BASE_MEMBER(firetrap_state, m_bg1videoram)
-	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(firetrap_bg2videoram_w) AM_BASE_MEMBER(firetrap_state, m_bg2videoram)
-	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(firetrap_fgvideoram_w) AM_BASE_MEMBER(firetrap_state, m_fgvideoram)
-	AM_RANGE(0xe800, 0xe97f) AM_RAM AM_BASE_SIZE_MEMBER(firetrap_state, m_spriteram, m_spriteram_size)
+	AM_RANGE(0xd000, 0xd7ff) AM_RAM_WRITE(firetrap_bg1videoram_w) AM_BASE_MEMBER(firetrap_state, bg1videoram)
+	AM_RANGE(0xd800, 0xdfff) AM_RAM_WRITE(firetrap_bg2videoram_w) AM_BASE_MEMBER(firetrap_state, bg2videoram)
+	AM_RANGE(0xe000, 0xe7ff) AM_RAM_WRITE(firetrap_fgvideoram_w) AM_BASE_MEMBER(firetrap_state, fgvideoram)
+	AM_RANGE(0xe800, 0xe97f) AM_RAM AM_BASE_SIZE_MEMBER(firetrap_state, spriteram, spriteram_size)
 	AM_RANGE(0xf000, 0xf000) AM_WRITENOP	/* IRQ acknowledge */
 	AM_RANGE(0xf001, 0xf001) AM_WRITE(firetrap_sound_command_w)
 	AM_RANGE(0xf002, 0xf002) AM_WRITE(firetrap_bankselect_w)
@@ -402,7 +351,7 @@ static ADDRESS_MAP_START( firetrap_bootleg_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xf800, 0xf8ff) AM_ROM /* extra ROM in the bootleg with unprotection code */
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_RAM
 	AM_RANGE(0x1000, 0x1001) AM_DEVWRITE("ymsnd", ym3526_w)
 	AM_RANGE(0x2000, 0x2000) AM_WRITE(firetrap_adpcm_data_w)	/* ADPCM data for the MSM5205 chip */
@@ -414,26 +363,26 @@ static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
 ADDRESS_MAP_END
 
 
-/* verified from Z80 code */
+
 static INPUT_PORTS_START( firetrap )
 	PORT_START("IN0")	/* IN0 */
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP )     PORT_4WAY
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN )   PORT_4WAY
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT )   PORT_4WAY
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT )  PORT_4WAY
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP )    PORT_4WAY
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN )  PORT_4WAY
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT )  PORT_4WAY
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_4WAY
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_4WAY
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_4WAY
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_4WAY
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_4WAY
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_4WAY
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_4WAY
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_4WAY
 
 	PORT_START("IN1")	/* IN1 */
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP )     PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN )   PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT )   PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT )  PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP )    PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN )  PORT_4WAY PORT_COCKTAIL
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT )  PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_4WAY PORT_COCKTAIL
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_4WAY PORT_COCKTAIL
 
 	PORT_START("IN2")	/* IN2 */
@@ -447,47 +396,50 @@ static INPUT_PORTS_START( firetrap )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_VBLANK )
 
 	PORT_START("DSW0")	/* DSW0 */
-	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coin_A ) )		PORT_DIPLOCATION("SW1:1,2,3")
+	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coin_A ) )
+//  PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
+//  PORT_DIPSETTING(    0x01, DEF_STR( 1C_1C ) )
+//  PORT_DIPSETTING(    0x02, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x07, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x06, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x05, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_4C ) )
-	PORT_DIPSETTING(    0x04, DEF_STR( 1C_6C ) )		/* Manual shows 1C_5C */
-	PORT_DIPNAME( 0x18, 0x18, DEF_STR( Coin_B ) )		PORT_DIPLOCATION("SW1:4,5")
+	PORT_DIPSETTING(    0x04, DEF_STR( 1C_6C ) )
+	PORT_DIPNAME( 0x18, 0x18, DEF_STR( Coin_B ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 4C_1C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_1C ) )
-	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:6")
+	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Demo_Sounds ) )	PORT_DIPLOCATION("SW1:7")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Demo_Sounds ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
-	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Flip_Screen ) )	PORT_DIPLOCATION("SW1:8")
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Flip_Screen ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("DSW1")	/* DSW1 */
-	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )	PORT_DIPLOCATION("SW2:1,2")
+	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( Easy ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( Normal ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( Hard ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
-	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW2:3,4")
-	PORT_DIPSETTING(    0x00, "2" )                         /* "1" in the "test mode" but manual states "Infinite" */
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Lives ) )
+	PORT_DIPSETTING(    0x00, "1" )
 	PORT_DIPSETTING(    0x0c, "3" )
 	PORT_DIPSETTING(    0x08, "4" )
 	PORT_DIPSETTING(    0x04, "5" )
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW2:5,6") /* table at 0x0ca3 - 4*30 bytes */
-	PORT_DIPSETTING(    0x10, "30k and 70k" )
-	PORT_DIPSETTING(    0x00, "50k and 100k" )
-	PORT_DIPSETTING(    0x30, "30k only" )
-	PORT_DIPSETTING(    0x20, "50k only" )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )	PORT_DIPLOCATION("SW2:7")
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Bonus_Life ) )
+	PORT_DIPSETTING(    0x30, "50000 70000" )
+	PORT_DIPSETTING(    0x20, "60000 80000" )
+	PORT_DIPSETTING(    0x10, "80000 100000" )
+	PORT_DIPSETTING(    0x00, "50000" )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Yes ) )
-	PORT_SERVICE_DIPLOC(  0x80, IP_ACTIVE_LOW, "SW2:8" )
+	PORT_SERVICE( 0x80, IP_ACTIVE_LOW )
 
 	PORT_START("COIN")	/* Connected to i8751 directly */
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 )
@@ -495,29 +447,82 @@ static INPUT_PORTS_START( firetrap )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE1 )
 INPUT_PORTS_END
 
-/* verified from Z80 code */
-static INPUT_PORTS_START( firetrapj )
-	PORT_INCLUDE( firetrap )
-
-	PORT_MODIFY("DSW1")
-	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW2:5,6") /* table at 0x0ca3 - 4*30 bytes */
-	PORT_DIPSETTING(    0x30, "50k & Every 70k" )             /* last bonus life at 960k */
-	PORT_DIPSETTING(    0x20, "60k & Every 80k" )             /* last bonus life at 940k */
-	PORT_DIPSETTING(    0x10, "80k & Every 100k" )            /* last bonus life at 980k */
-	PORT_DIPSETTING(    0x00, "50k only" )
-INPUT_PORTS_END
-
-/* verified from Z80 code */
 static INPUT_PORTS_START( firetrapbl )
-	PORT_INCLUDE( firetrapj )
+	PORT_START("IN0")	/* IN0 */
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_4WAY
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_4WAY
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_4WAY
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_4WAY
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_4WAY
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_4WAY
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_4WAY
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_4WAY
 
-	PORT_MODIFY("IN2")
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_SERVICE1 )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN1 )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN2 )
+	PORT_START("IN1")	/* IN1 */
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_UP ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_DOWN ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_LEFT ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICKLEFT_RIGHT ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_UP ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_DOWN ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_LEFT ) PORT_4WAY PORT_COCKTAIL
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_JOYSTICKRIGHT_RIGHT ) PORT_4WAY PORT_COCKTAIL
 
-	PORT_MODIFY("COIN")
-	PORT_BIT( 0x07, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_START("IN2")	/* IN2 */
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_COCKTAIL
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_START2 )
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN3 )	/* bootleg only */
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN1 )	/* bootleg only */
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN2 )	/* bootleg only */
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_VBLANK )
+
+	PORT_START("DSW0")	/* DSW0 */
+	PORT_DIPNAME( 0x07, 0x07, DEF_STR( Coin_A ) )
+//  PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
+//  PORT_DIPSETTING(    0x01, DEF_STR( 1C_1C ) )
+//  PORT_DIPSETTING(    0x02, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x07, DEF_STR( 1C_1C ) )
+	PORT_DIPSETTING(    0x06, DEF_STR( 1C_2C ) )
+	PORT_DIPSETTING(    0x05, DEF_STR( 1C_3C ) )
+	PORT_DIPSETTING(    0x03, DEF_STR( 1C_4C ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( 1C_6C ) )
+	PORT_DIPNAME( 0x18, 0x18, DEF_STR( Coin_B ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( 4C_1C ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( 3C_1C ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( 2C_1C ) )
+	PORT_DIPSETTING(    0x18, DEF_STR( 1C_1C ) )
+	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Cabinet ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
+	PORT_DIPSETTING(    0x20, DEF_STR( Cocktail ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Demo_Sounds ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Flip_Screen ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+
+	PORT_START("DSW1")	/* DSW1 */
+	PORT_DIPNAME( 0x03, 0x03, DEF_STR( Difficulty ) )
+	PORT_DIPSETTING(    0x02, DEF_STR( Easy ) )
+	PORT_DIPSETTING(    0x03, DEF_STR( Normal ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( Hard ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
+	PORT_DIPNAME( 0x0c, 0x0c, DEF_STR( Lives ) )
+	PORT_DIPSETTING(    0x00, "1" )
+	PORT_DIPSETTING(    0x0c, "3" )
+	PORT_DIPSETTING(    0x08, "4" )
+	PORT_DIPSETTING(    0x04, "5" )
+	PORT_DIPNAME( 0x30, 0x30, DEF_STR( Bonus_Life ) )
+	PORT_DIPSETTING(    0x30, "50000 70000" )
+	PORT_DIPSETTING(    0x20, "60000 80000" )
+	PORT_DIPSETTING(    0x10, "80000 100000" )
+	PORT_DIPSETTING(    0x00, "50000" )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Allow_Continue ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( No ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Yes ) )
+	PORT_SERVICE( 0x80, IP_ACTIVE_LOW )
 INPUT_PORTS_END
 
 
@@ -571,185 +576,183 @@ static const msm5205_interface msm5205_config =
 	MSM5205_S48_4B		/* 7.8125kHz          */
 };
 
-static INTERRUPT_GEN( firetrap_irq )
+static INTERRUPT_GEN( firetrap )
 {
-	firetrap_state *state = device->machine().driver_data<firetrap_state>();
-	UINT8 coin = 0;
-	UINT8 port = input_port_read(device->machine(), "COIN") & 0x07; /* TODO: remove me */
+	firetrap_state *state = (firetrap_state *)device->machine->driver_data;
 
 	/* Check for coin IRQ */
 	if (cpu_getiloops(device))
 	{
-		if (port != 0x07 && !state->m_int_latch)
+		if ((input_port_read(device->machine, "COIN") & 0x7) != 0x7 && !state->int_latch)
 		{
-			if (!(port & 0x01)) /* COIN1 */
-				coin = 1;
-			if (!(port & 0x02)) /* COIN2 */
-				coin = 2;
-			if (!(port & 0x04)) /* SERVICE1 */
-				coin = 3;
-			state->m_coin_command_pending = coin;
-			state->m_int_latch = 1;
+			state->coin_command_pending = ~input_port_read(device->machine, "COIN");
+			state->int_latch = 1;
 		}
-		if (port == 0x07)
-			state->m_int_latch = 0;
+		if ((input_port_read(device->machine, "COIN") & 0x7) == 0x7)
+			state->int_latch = 0;
 
 		/* Make sure coin IRQ's aren't generated when another command is pending, the main cpu
             definitely doesn't expect them as it locks out the coin routine */
-		if (state->m_coin_command_pending && !state->m_i8751_current_command)
+		if (state->coin_command_pending && !state->i8751_current_command)
 		{
-			state->m_i8751_return = state->m_coin_command_pending;
-			device_set_input_line_and_vector(device, 0, HOLD_LINE, 0xff);
-			state->m_coin_command_pending = 0;
+			state->i8751_return = state->coin_command_pending;
+			cpu_set_input_line_and_vector(device, 0, HOLD_LINE, 0xff);
+			state->coin_command_pending = 0;
 		}
 	}
 
-	if (state->m_nmi_enable && !cpu_getiloops(device))
-		device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	if (state->nmi_enable && !cpu_getiloops(device))
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
-static INTERRUPT_GEN( bootleg_irq )
+static INTERRUPT_GEN( bootleg )
 {
-	firetrap_state *state = device->machine().driver_data<firetrap_state>();
+	firetrap_state *state = (firetrap_state *)device->machine->driver_data;
 
-	if (state->m_nmi_enable)
-		device_set_input_line (device, INPUT_LINE_NMI, PULSE_LINE);
+	if (state->nmi_enable)
+		cpu_set_input_line (device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 
 static MACHINE_START( firetrap )
 {
-	firetrap_state *state = machine.driver_data<firetrap_state>();
-	UINT8 *MAIN = machine.region("maincpu")->base();
-	UINT8 *SOUND = machine.region("audiocpu")->base();
+	firetrap_state *state = (firetrap_state *)machine->driver_data;
+	UINT8 *MAIN = memory_region(machine, "maincpu");
+	UINT8 *SOUND = memory_region(machine, "audiocpu");
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_msm = machine.device("msm");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->msm = machine->device("msm");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &MAIN[0x10000], 0x4000);
 	memory_configure_bank(machine, "bank2", 0, 2, &SOUND[0x10000], 0x4000);
 
-	state->save_item(NAME(state->m_i8751_current_command));
-	state->save_item(NAME(state->m_irq_enable));
-	state->save_item(NAME(state->m_nmi_enable));
-	state->save_item(NAME(state->m_i8751_return));
-	state->save_item(NAME(state->m_i8751_init_ptr));
-	state->save_item(NAME(state->m_msm5205next));
-	state->save_item(NAME(state->m_adpcm_toggle));
-	state->save_item(NAME(state->m_int_latch));
-	state->save_item(NAME(state->m_coin_command_pending));
-	state->save_item(NAME(state->m_scroll1_x));
-	state->save_item(NAME(state->m_scroll1_y));
-	state->save_item(NAME(state->m_scroll2_x));
-	state->save_item(NAME(state->m_scroll2_y));
+	state_save_register_global(machine, state->i8751_current_command);
+	state_save_register_global(machine, state->irq_enable);
+	state_save_register_global(machine, state->nmi_enable);
+	state_save_register_global(machine, state->i8751_return);
+	state_save_register_global(machine, state->i8751_init_ptr);
+	state_save_register_global(machine, state->msm5205next);
+	state_save_register_global(machine, state->adpcm_toggle);
+	state_save_register_global(machine, state->int_latch);
+	state_save_register_global(machine, state->coin_command_pending);
+	state_save_register_global_array(machine, state->scroll1_x);
+	state_save_register_global_array(machine, state->scroll1_y);
+	state_save_register_global_array(machine, state->scroll2_x);
+	state_save_register_global_array(machine, state->scroll2_y);
 }
 
 static MACHINE_RESET( firetrap )
 {
-	firetrap_state *state = machine.driver_data<firetrap_state>();
+	firetrap_state *state = (firetrap_state *)machine->driver_data;
 	int i;
 
 	for (i = 0; i < 2; i++)
 	{
-		state->m_scroll1_x[i] = 0;
-		state->m_scroll1_y[i] = 0;
-		state->m_scroll2_x[i] = 0;
-		state->m_scroll2_y[i] = 0;
+		state->scroll1_x[i] = 0;
+		state->scroll1_y[i] = 0;
+		state->scroll2_x[i] = 0;
+		state->scroll2_y[i] = 0;
 	}
 
-	state->m_i8751_current_command = 0;
-	state->m_irq_enable = 0;
-	state->m_nmi_enable = 0;
-	state->m_i8751_return = 0;
-	state->m_i8751_init_ptr = 0;
-	state->m_msm5205next = 0xff;
-	state->m_adpcm_toggle = 0;
-	state->m_int_latch = 0;
-	state->m_coin_command_pending = 0;
+	state->i8751_current_command = 0;
+	state->irq_enable = 0;
+	state->nmi_enable = 0;
+	state->i8751_return = 0;
+	state->i8751_init_ptr = 0;
+	state->msm5205next = 0xff;
+	state->adpcm_toggle = 0;
+	state->int_latch = 0;
+	state->coin_command_pending = 0;
 }
 
-static MACHINE_CONFIG_START( firetrap, firetrap_state )
+static MACHINE_DRIVER_START( firetrap )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(firetrap_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, FIRETRAP_XTAL/2)		// 6 MHz
-	MCFG_CPU_PROGRAM_MAP(firetrap_map)
-	MCFG_CPU_VBLANK_INT_HACK(firetrap_irq,2)
+	MDRV_CPU_ADD("maincpu", Z80, FIRETRAP_XTAL/2)		// 6 MHz
+	MDRV_CPU_PROGRAM_MAP(firetrap_map)
+	MDRV_CPU_VBLANK_INT_HACK(firetrap,2)
 
-	MCFG_CPU_ADD("audiocpu", M6502, FIRETRAP_XTAL/8)	// 1.5 MHz
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", M6502, FIRETRAP_XTAL/8)	// 1.5 MHz
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 							/* IRQs are caused by the ADPCM chip */
 							/* NMIs are caused by the main CPU */
 
-	MCFG_MACHINE_START(firetrap)
-	MCFG_MACHINE_RESET(firetrap)
+	MDRV_MACHINE_START(firetrap)
+	MDRV_MACHINE_RESET(firetrap)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57.4034) // PCB measurement
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
-	MCFG_SCREEN_UPDATE(firetrap)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57.4034) // PCB measurement
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(firetrap)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(firetrap)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(firetrap)
-	MCFG_VIDEO_START(firetrap)
+	MDRV_PALETTE_INIT(firetrap)
+	MDRV_VIDEO_START(firetrap)
+	MDRV_VIDEO_UPDATE(firetrap)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM3526, FIRETRAP_XTAL/4)	// 3 MHz
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM3526, FIRETRAP_XTAL/4)	// 3 MHz
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("msm", MSM5205, FIRETRAP_XTAL/32)	// 375 kHz
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, FIRETRAP_XTAL/32)	// 375 kHz
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_START( firetrapbl, firetrap_state )
+static MACHINE_DRIVER_START( firetrapbl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(firetrap_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, FIRETRAP_XTAL/2)		// 6 MHz
-	MCFG_CPU_PROGRAM_MAP(firetrap_bootleg_map)
-	MCFG_CPU_VBLANK_INT("screen", bootleg_irq)
+	MDRV_CPU_ADD("maincpu", Z80, FIRETRAP_XTAL/2)		// 6 MHz
+	MDRV_CPU_PROGRAM_MAP(firetrap_bootleg_map)
+	MDRV_CPU_VBLANK_INT("screen", bootleg)
 
-	MCFG_CPU_ADD("audiocpu", M6502, FIRETRAP_XTAL/8)	// 1.5 MHz
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", M6502, FIRETRAP_XTAL/8)	// 1.5 MHz
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 							/* IRQs are caused by the ADPCM chip */
 							/* NMIs are caused by the main CPU */
 
-	MCFG_MACHINE_START(firetrap)
-	MCFG_MACHINE_RESET(firetrap)
+	MDRV_MACHINE_START(firetrap)
+	MDRV_MACHINE_RESET(firetrap)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57.4034)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57.4034)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 1*8, 31*8-1)
 
-	MCFG_GFXDECODE(firetrap)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(firetrap)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(firetrap)
-	MCFG_VIDEO_START(firetrap)
-	MCFG_SCREEN_UPDATE(firetrap)
+	MDRV_PALETTE_INIT(firetrap)
+	MDRV_VIDEO_START(firetrap)
+	MDRV_VIDEO_UPDATE(firetrap)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM3526, FIRETRAP_XTAL/4)	// 3 MHz
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+	MDRV_SOUND_ADD("ymsnd", YM3526, FIRETRAP_XTAL/4)	// 3 MHz
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
-	MCFG_SOUND_ADD("msm", MSM5205, FIRETRAP_XTAL/32)	// 375 kHz
-	MCFG_SOUND_CONFIG(msm5205_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("msm", MSM5205, FIRETRAP_XTAL/32)	// 375 kHz
+	MDRV_SOUND_CONFIG(msm5205_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.30)
+MACHINE_DRIVER_END
 
 
 
@@ -952,5 +955,5 @@ ROM_END
 
 
 GAME( 1986, firetrap,   0,        firetrap,   firetrap,   0, ROT90, "Wood Place Inc. (Data East USA license)", "Fire Trap (US)", GAME_SUPPORTS_SAVE )
-GAME( 1986, firetrapj,  firetrap, firetrap,   firetrapj,  0, ROT90, "Wood Place Inc.", "Fire Trap (Japan)", GAME_SUPPORTS_SAVE )
+GAME( 1986, firetrapj,  firetrap, firetrap,   firetrap,   0, ROT90, "Wood Place Inc.", "Fire Trap (Japan)", GAME_NOT_WORKING | GAME_UNEMULATED_PROTECTION | GAME_SUPPORTS_SAVE )
 GAME( 1986, firetrapbl, firetrap, firetrapbl, firetrapbl, 0, ROT90, "bootleg", "Fire Trap (Japan bootleg)", GAME_SUPPORTS_SAVE )

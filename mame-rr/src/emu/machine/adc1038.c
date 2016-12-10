@@ -33,7 +33,7 @@ struct _adc1038_state
     INLINE FUNCTIONS
 *****************************************************************************/
 
-INLINE adc1038_state *adc1038_get_safe_token( device_t *device )
+INLINE adc1038_state *adc1038_get_safe_token( running_device *device )
 {
 	assert(device != NULL);
 	assert(device->type() == ADC1038);
@@ -41,11 +41,11 @@ INLINE adc1038_state *adc1038_get_safe_token( device_t *device )
 	return (adc1038_state *)downcast<legacy_device_base *>(device)->token();
 }
 
-INLINE const adc1038_interface *adc1038_get_interface( device_t *device )
+INLINE const adc1038_interface *adc1038_get_interface( running_device *device )
 {
 	assert(device != NULL);
 	assert((device->type() == ADC1038));
-	return (const adc1038_interface *) device->static_config();
+	return (const adc1038_interface *) device->baseconfig().static_config();
 }
 
 /*****************************************************************************
@@ -139,13 +139,13 @@ static DEVICE_START( adc1038 )
 	adc1038->gticlub_hack = intf->gticlub_hack;
 	adc1038->input_callback_r = intf->input_callback_r;
 
-	device->save_item(NAME(adc1038->cycle));
-	device->save_item(NAME(adc1038->clk));
-	device->save_item(NAME(adc1038->adr));
-	device->save_item(NAME(adc1038->data_in));
-	device->save_item(NAME(adc1038->data_out));
-	device->save_item(NAME(adc1038->adc_data));
-	device->save_item(NAME(adc1038->sars));
+	state_save_register_device_item(device, 0, adc1038->cycle);
+	state_save_register_device_item(device, 0, adc1038->clk);
+	state_save_register_device_item(device, 0, adc1038->adr);
+	state_save_register_device_item(device, 0, adc1038->data_in);
+	state_save_register_device_item(device, 0, adc1038->data_out);
+	state_save_register_device_item(device, 0, adc1038->adc_data);
+	state_save_register_device_item(device, 0, adc1038->sars);
 }
 
 static DEVICE_RESET( adc1038 )

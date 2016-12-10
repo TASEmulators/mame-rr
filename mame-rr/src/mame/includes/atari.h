@@ -24,14 +24,14 @@ READ8_DEVICE_HANDLER(atari_pia_pb_r);
 WRITE8_DEVICE_HANDLER(a600xl_pia_pb_w);
 
 /* This is needed in MESS as well for Atari 8bit drivers */
-void atari_machine_start(running_machine &machine);
+void atari_machine_start(running_machine *machine);
 
 MACHINE_START( atarixl );
 
-void atari_interrupt_cb(device_t *device, int mask);
+void atari_interrupt_cb(running_device *device, int mask);
 
-void a800_handle_keyboard(running_machine &machine);
-void a5200_handle_keypads(running_machine &machine);
+void a800_handle_keyboard(running_machine *machine);
+void a5200_handle_keypads(running_machine *machine);
 
 /* video */
 
@@ -210,7 +210,7 @@ typedef struct {
     UINT16  data[HWIDTH];       /* graphics data buffer (text through chargen) */
 }   VIDEO;
 
-typedef void (*atari_renderer_func)(address_space *space, VIDEO *video);
+typedef void (*atari_renderer_func)(const address_space *space, VIDEO *video);
 
 typedef struct {
 	atari_renderer_func	renderer;	/* current renderer */
@@ -259,11 +259,11 @@ typedef struct {
 	UINT8   *uc_g3;				/* used colors for gfx GTIA 3 */
 }   ANTIC;
 
-#define RDANTIC(space)		space->read_byte(antic.dpage+antic.doffs)
-#define RDVIDEO(space,o)	space->read_byte(antic.vpage+((antic.voffs+(o))&VOFFS))
-#define RDCHGEN(space,o)	space->read_byte(antic.chbase+(o))
-#define RDPMGFXS(space,o)	space->read_byte(antic.pmbase_s+(o)+(antic.scanline>>1))
-#define RDPMGFXD(space,o)	space->read_byte(antic.pmbase_d+(o)+antic.scanline)
+#define RDANTIC(space)		memory_read_byte(space, antic.dpage+antic.doffs)
+#define RDVIDEO(space,o)	memory_read_byte(space, antic.vpage+((antic.voffs+(o))&VOFFS))
+#define RDCHGEN(space,o)	memory_read_byte(space, antic.chbase+(o))
+#define RDPMGFXS(space,o)	memory_read_byte(space, antic.pmbase_s+(o)+(antic.scanline>>1))
+#define RDPMGFXD(space,o)	memory_read_byte(space, antic.pmbase_d+(o)+antic.scanline)
 
 #define PREPARE()												\
 	UINT32 *dst = (UINT32 *)&antic.cclock[PMOFFSET]
@@ -534,7 +534,7 @@ void antic_reset(void);
  READ8_HANDLER ( atari_antic_r );
 WRITE8_HANDLER ( atari_antic_w );
 
-#define ANTIC_RENDERER(name) void name(address_space *space, VIDEO *video)
+#define ANTIC_RENDERER(name) void name(const address_space *space, VIDEO *video)
 
 ANTIC_RENDERER( antic_mode_0_xx );
 ANTIC_RENDERER( antic_mode_2_32 );
@@ -586,18 +586,16 @@ extern char atari_frame_message[64+1];
 extern int atari_frame_counter;
 
 extern VIDEO_START( atari );
-extern SCREEN_UPDATE( atari );
+extern VIDEO_UPDATE( atari );
 
 INTERRUPT_GEN( a400_interrupt );
 INTERRUPT_GEN( a800_interrupt );
 INTERRUPT_GEN( a800xl_interrupt );
 INTERRUPT_GEN( a5200_interrupt );
 
-extern PALETTE_INIT( atari );
-
 /*----------- defined in drivers/maxaflex.c -----------*/
 
-int atari_input_disabled(running_machine &machine);
+int atari_input_disabled(void);
 
 #endif /* ATARI_H */
 

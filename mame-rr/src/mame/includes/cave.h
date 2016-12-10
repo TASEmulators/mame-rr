@@ -21,25 +21,32 @@ struct sprite_cave
 #define MAX_PRIORITY        4
 #define MAX_SPRITE_NUM      0x400
 
-class cave_state : public driver_device
+class cave_state
 {
 public:
-	cave_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag), m_int_timer(*this, "int_timer") { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, cave_state(machine)); }
+
+	cave_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *     m_videoregs;
-	UINT16 *     m_vram[4];
-	UINT16 *     m_vctrl[4];
-	UINT16 *     m_spriteram;
-	UINT16 *     m_spriteram_2;
-	UINT16 *     m_paletteram;
-	size_t       m_spriteram_size;
-	size_t       m_paletteram_size;
+	UINT16 *     videoregs;
+	UINT16 *     vram_0;
+	UINT16 *     vram_1;
+	UINT16 *     vram_2;
+	UINT16 *     vram_3;
+	UINT16 *     vctrl_0;
+	UINT16 *     vctrl_1;
+	UINT16 *     vctrl_2;
+	UINT16 *     vctrl_3;
+	UINT16 *     spriteram;
+	UINT16 *     spriteram_2;
+	UINT16 *     paletteram;
+	size_t       spriteram_size;
+	size_t       paletteram_size;
 
 	/* video-related */
-	struct sprite_cave *m_sprite;
-	struct sprite_cave *m_sprite_table[MAX_PRIORITY][MAX_SPRITE_NUM + 1];
+	struct sprite_cave *sprite;
+	struct sprite_cave *sprite_table[MAX_PRIORITY][MAX_SPRITE_NUM + 1];
 
 	struct
 	{
@@ -48,67 +55,64 @@ public:
 		int    line_offset;
 		UINT8  *baseaddr_zbuf;
 		int    line_offset_zbuf;
-	} m_blit;
+	} blit;
 
 
-	void (*m_get_sprite_info)(running_machine &machine);
-	void (*m_sprite_draw)(running_machine &machine, int priority);
+	void (*get_sprite_info)(running_machine *machine);
+	void (*sprite_draw)(running_machine *machine, int priority);
 
-	tilemap_t    *m_tilemap[4];
-	int          m_tiledim[4];
-	int          m_old_tiledim[4];
+	tilemap_t    *tilemap_0, *tilemap_1, *tilemap_2, *tilemap_3;
+	int          tiledim_0, old_tiledim_0;
+	int          tiledim_1, old_tiledim_1;
+	int          tiledim_2, old_tiledim_2;
+	int          tiledim_3, old_tiledim_3;
 
-	bitmap_t     *m_sprite_zbuf;
-	UINT16       m_sprite_zbuf_baseval;
+	bitmap_t     *sprite_zbuf;
+	UINT16       sprite_zbuf_baseval;
 
-	int          m_num_sprites;
+	int          num_sprites;
 
-	int          m_spriteram_bank;
-	int          m_spriteram_bank_delay;
+	int          spriteram_bank;
+	int          spriteram_bank_delay;
 
-	UINT16       *m_palette_map;
+	UINT16       *palette_map;
 
-	int          m_layers_offs_x;
-	int          m_layers_offs_y;
-	int          m_row_effect_offs_n;
-	int          m_row_effect_offs_f;
-	int          m_background_color;
+	int          layers_offs_x, layers_offs_y;
+	int          row_effect_offs_n;
+	int          row_effect_offs_f;
+	int          background_color;
 
-	int          m_spritetype[2];
-	int          m_kludge;
+	int          spritetype[2];
+	int          kludge;
 
 
 	/* misc */
-	int          m_time_vblank_irq;
-	UINT8        m_irq_level;
-	UINT8        m_vblank_irq;
-	UINT8        m_sound_irq;
-	UINT8        m_unknown_irq;
-	UINT8        m_agallet_vblank_irq;
+	int          time_vblank_irq;
+	UINT8        irq_level;
+	UINT8        vblank_irq;
+	UINT8        sound_irq;
+	UINT8        unknown_irq;
+	UINT8        agallet_vblank_irq;
 
 	/* sound related */
-	int          m_soundbuf_len;
-	UINT8        m_soundbuf_data[32];
-	//UINT8        m_sound_flag1;
-	//UINT8        m_sound_flag2;
+	int          soundbuf_len;
+	UINT8        soundbuf_data[32];
+	//UINT8        sound_flag1, sound_flag2;
 
 	/* eeprom-related */
-	int          m_region_byte;
+	int          region_byte;
 
 	/* game specific */
 	// sailormn
-	int          m_sailormn_tilebank;
-	UINT8        *m_mirror_ram;
+	int          sailormn_tilebank;
+	UINT8        *mirror_ram;
 	// korokoro
-	UINT16       m_leds[2];
-	int          m_hopper;
+	UINT16       leds[2];
+	int          hopper;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	required_device<timer_device> m_int_timer;
-	int m_rasflag;
-	int m_old_rasflag;
+	running_device *maincpu;
+	running_device *audiocpu;
 };
 
 /*----------- defined in video/cave.c -----------*/
@@ -138,7 +142,7 @@ VIDEO_START( cave_4_layers );
 
 VIDEO_START( sailormn_3_layers );
 
-SCREEN_UPDATE( cave );
+VIDEO_UPDATE( cave );
 
-void cave_get_sprite_info(running_machine &machine);
-void sailormn_tilebank_w(running_machine &machine, int bank);
+void cave_get_sprite_info(running_machine *machine);
+void sailormn_tilebank_w(running_machine *machine, int bank);

@@ -39,48 +39,48 @@ Stephh's notes (based on the game Z80 code and some tests) :
 
 static WRITE8_HANDLER( mnchmobl_nmi_enable_w )
 {
-	munchmo_state *state = space->machine().driver_data<munchmo_state>();
-	state->m_nmi_enable = data;
+	munchmo_state *state = (munchmo_state *)space->machine->driver_data;
+	state->nmi_enable = data;
 }
 
 static INTERRUPT_GEN( mnchmobl_interrupt )
 {
-	munchmo_state *state = device->machine().driver_data<munchmo_state>();
-	state->m_which = !state->m_which;
+	munchmo_state *state = (munchmo_state *)device->machine->driver_data;
+	state->which = !state->which;
 
-	if (state->m_which)
-		device_set_input_line(device, 0, HOLD_LINE);
-	else if (state->m_nmi_enable)
-		device_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
+	if (state->which)
+		cpu_set_input_line(device, 0, HOLD_LINE);
+	else if (state->nmi_enable)
+		cpu_set_input_line(device, INPUT_LINE_NMI, PULSE_LINE);
 }
 
 static INTERRUPT_GEN( mnchmobl_sound_irq )
 {
-	munchmo_state *state = device->machine().driver_data<munchmo_state>();
+	munchmo_state *state = (munchmo_state *)device->machine->driver_data;
 
-	if (!(state->m_sound_nmi_enable))
-		device_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
+	if (!(state->sound_nmi_enable))
+		cpu_set_input_line(device, INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 static WRITE8_HANDLER( mnchmobl_soundlatch_w )
 {
-	munchmo_state *state = space->machine().driver_data<munchmo_state>();
+	munchmo_state *state = (munchmo_state *)space->machine->driver_data;
 
 	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE );
+	cpu_set_input_line(state->audiocpu, 0, HOLD_LINE );
 }
 
 static WRITE8_HANDLER( sound_nmi_enable_w )
 {
-	munchmo_state *state = space->machine().driver_data<munchmo_state>();
-	state->m_sound_nmi_enable = data & 1;
+	munchmo_state *state = (munchmo_state *)space->machine->driver_data;
+	state->sound_nmi_enable = data & 1;
 }
 
 
 static WRITE8_HANDLER( sound_nmi_ack_w )
 {
-	munchmo_state *state = space->machine().driver_data<munchmo_state>();
-	device_set_input_line(state->m_audiocpu, INPUT_LINE_NMI, CLEAR_LINE);
+	munchmo_state *state = (munchmo_state *)space->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, INPUT_LINE_NMI, CLEAR_LINE);
 }
 
 
@@ -90,15 +90,15 @@ static WRITE8_HANDLER( sound_nmi_ack_w )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mnchmobl_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mnchmobl_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x3fff) AM_ROM
 	AM_RANGE(0x8000, 0x83ff) AM_RAM
-	AM_RANGE(0xa000, 0xa3ff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(munchmo_state, m_sprite_xpos)
-	AM_RANGE(0xa800, 0xabff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(munchmo_state, m_sprite_tile)
-	AM_RANGE(0xb000, 0xb3ff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(munchmo_state, m_sprite_attr)
-	AM_RANGE(0xb800, 0xb8ff) AM_MIRROR(0x0100) AM_RAM AM_BASE_MEMBER(munchmo_state, m_videoram)
+	AM_RANGE(0xa000, 0xa3ff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(munchmo_state, sprite_xpos)
+	AM_RANGE(0xa800, 0xabff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(munchmo_state, sprite_tile)
+	AM_RANGE(0xb000, 0xb3ff) AM_MIRROR(0x0400) AM_RAM AM_BASE_MEMBER(munchmo_state, sprite_attr)
+	AM_RANGE(0xb800, 0xb8ff) AM_MIRROR(0x0100) AM_RAM AM_BASE_MEMBER(munchmo_state, videoram)
 	AM_RANGE(0xbaba, 0xbaba) AM_WRITENOP /* ? */
-	AM_RANGE(0xbc00, 0xbc7f) AM_RAM AM_BASE_MEMBER(munchmo_state, m_status_vram)
+	AM_RANGE(0xbc00, 0xbc7f) AM_RAM AM_BASE_MEMBER(munchmo_state, status_vram)
 	AM_RANGE(0xbe00, 0xbe00) AM_WRITE(mnchmobl_soundlatch_w)
 	AM_RANGE(0xbe01, 0xbe01) AM_WRITE(mnchmobl_palette_bank_w)
 	AM_RANGE(0xbe02, 0xbe02) AM_READ_PORT("DSW1")
@@ -108,13 +108,13 @@ static ADDRESS_MAP_START( mnchmobl_map, AS_PROGRAM, 8 )
 	AM_RANGE(0xbe31, 0xbe31) AM_WRITENOP /* ? */
 	AM_RANGE(0xbe41, 0xbe41) AM_WRITE(mnchmobl_flipscreen_w)
 	AM_RANGE(0xbe61, 0xbe61) AM_WRITE(mnchmobl_nmi_enable_w) /* ENI 1-10C */
-	AM_RANGE(0xbf00, 0xbf07) AM_WRITEONLY AM_BASE_MEMBER(munchmo_state, m_vreg) /* MY0 1-8C */
+	AM_RANGE(0xbf00, 0xbf07) AM_WRITEONLY AM_BASE_MEMBER(munchmo_state, vreg) /* MY0 1-8C */
 	AM_RANGE(0xbf01, 0xbf01) AM_READ_PORT("SYSTEM")
 	AM_RANGE(0xbf02, 0xbf02) AM_READ_PORT("P1")
 	AM_RANGE(0xbf03, 0xbf03) AM_READ_PORT("P2")
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x2000) AM_READ(soundlatch_r)
 	AM_RANGE(0x4000, 0x4000) AM_DEVWRITE("ay1", ay8910_data_w)
@@ -307,66 +307,69 @@ GFXDECODE_END
 
 static MACHINE_START( munchmo )
 {
-	munchmo_state *state = machine.driver_data<munchmo_state>();
+	munchmo_state *state = (munchmo_state *)machine->driver_data;
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
 
-	state->save_item(NAME(state->m_palette_bank));
-	state->save_item(NAME(state->m_flipscreen));
-	state->save_item(NAME(state->m_nmi_enable));
-	state->save_item(NAME(state->m_which));
+	state_save_register_global(machine, state->palette_bank);
+	state_save_register_global(machine, state->flipscreen);
+	state_save_register_global(machine, state->nmi_enable);
+	state_save_register_global(machine, state->which);
 }
 
 static MACHINE_RESET( munchmo )
 {
-	munchmo_state *state = machine.driver_data<munchmo_state>();
+	munchmo_state *state = (munchmo_state *)machine->driver_data;
 
-	state->m_palette_bank = 0;
-	state->m_flipscreen = 0;
-	state->m_nmi_enable = 0;
-	state->m_which = 0;
+	state->palette_bank = 0;
+	state->flipscreen = 0;
+	state->nmi_enable = 0;
+	state->which = 0;
 }
 
-static MACHINE_CONFIG_START( mnchmobl, munchmo_state )
+static MACHINE_DRIVER_START( mnchmobl )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(munchmo_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, XTAL_15MHz/4) /* ? */
-	MCFG_CPU_PROGRAM_MAP(mnchmobl_map)
-	MCFG_CPU_VBLANK_INT_HACK(mnchmobl_interrupt,2)
+	MDRV_CPU_ADD("maincpu", Z80, XTAL_15MHz/4) /* ? */
+	MDRV_CPU_PROGRAM_MAP(mnchmobl_map)
+	MDRV_CPU_VBLANK_INT_HACK(mnchmobl_interrupt,2)
 
-	MCFG_CPU_ADD("audiocpu", Z80, XTAL_15MHz/4) /* ? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_VBLANK_INT("screen", mnchmobl_sound_irq)
+	MDRV_CPU_ADD("audiocpu", Z80, XTAL_15MHz/4) /* ? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_VBLANK_INT("screen", mnchmobl_sound_irq)
 
-	MCFG_MACHINE_START(munchmo)
-	MCFG_MACHINE_RESET(munchmo)
+	MDRV_MACHINE_START(munchmo)
+	MDRV_MACHINE_RESET(munchmo)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(57)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256+32+32, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 255+32+32,0, 255-16)
-	MCFG_SCREEN_UPDATE(mnchmobl)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(57)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256+32+32, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 255+32+32,0, 255-16)
 
-	MCFG_GFXDECODE(mnchmobl)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_GFXDECODE(mnchmobl)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_PALETTE_INIT(mnchmobl)
-	MCFG_VIDEO_START(mnchmobl)
+	MDRV_PALETTE_INIT(mnchmobl)
+	MDRV_VIDEO_START(mnchmobl)
+	MDRV_VIDEO_UPDATE(mnchmobl)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
         /* AY clock speeds confirmed to match known recording */
-	MCFG_SOUND_ADD("ay1", AY8910, XTAL_15MHz/4/2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+	MDRV_SOUND_ADD("ay1", AY8910, XTAL_15MHz/4/2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
-	MCFG_SOUND_ADD("ay2", AY8910, XTAL_15MHz/4/2)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("ay2", AY8910, XTAL_15MHz/4/2)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 /*************************************

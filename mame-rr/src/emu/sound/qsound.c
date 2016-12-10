@@ -32,6 +32,7 @@
 ***************************************************************************/
 
 #include "emu.h"
+#include "streams.h"
 #include "qsound.h"
 
 /*
@@ -87,10 +88,10 @@ struct _qsound_state
 	FILE *fpRawDataR;
 };
 
-INLINE qsound_state *get_safe_token(device_t *device)
+INLINE qsound_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == QSOUND);
+	assert(device->type() == SOUND_QSOUND);
 	return (qsound_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -123,8 +124,8 @@ static DEVICE_START( qsound )
 
 	{
 		/* Allocate stream */
-		chip->stream = device->machine().sound().stream_alloc(
-			*device, 0, 2,
+		chip->stream = stream_create(
+			device, 0, 2,
 			device->clock() / QSOUND_CLOCKDIV,
 			chip,
 			qsound_update );
@@ -139,18 +140,18 @@ static DEVICE_START( qsound )
 	/* state save */
 	for (i=0; i<QSOUND_CHANNELS; i++)
 	{
-		device->save_item(NAME(chip->channel[i].bank), i);
-		device->save_item(NAME(chip->channel[i].address), i);
-		device->save_item(NAME(chip->channel[i].pitch), i);
-		device->save_item(NAME(chip->channel[i].loop), i);
-		device->save_item(NAME(chip->channel[i].end), i);
-		device->save_item(NAME(chip->channel[i].vol), i);
-		device->save_item(NAME(chip->channel[i].pan), i);
-		device->save_item(NAME(chip->channel[i].key), i);
-		device->save_item(NAME(chip->channel[i].lvol), i);
-		device->save_item(NAME(chip->channel[i].rvol), i);
-		device->save_item(NAME(chip->channel[i].lastdt), i);
-		device->save_item(NAME(chip->channel[i].offset), i);
+		state_save_register_device_item(device, i, chip->channel[i].bank);
+		state_save_register_device_item(device, i, chip->channel[i].address);
+		state_save_register_device_item(device, i, chip->channel[i].pitch);
+		state_save_register_device_item(device, i, chip->channel[i].loop);
+		state_save_register_device_item(device, i, chip->channel[i].end);
+		state_save_register_device_item(device, i, chip->channel[i].vol);
+		state_save_register_device_item(device, i, chip->channel[i].pan);
+		state_save_register_device_item(device, i, chip->channel[i].key);
+		state_save_register_device_item(device, i, chip->channel[i].lvol);
+		state_save_register_device_item(device, i, chip->channel[i].rvol);
+		state_save_register_device_item(device, i, chip->channel[i].lastdt);
+		state_save_register_device_item(device, i, chip->channel[i].offset);
 	}
 }
 
@@ -187,7 +188,7 @@ WRITE8_DEVICE_HANDLER( qsound_w )
 			break;
 
 		default:
-			logerror("%s: unexpected qsound write to offset %d == %02X\n", device->machine().describe_context(), offset, data);
+			logerror("%s: unexpected qsound write to offset %d == %02X\n", cpuexec_describe_context(device->machine), offset, data);
 			break;
 	}
 }

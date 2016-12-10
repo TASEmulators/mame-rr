@@ -99,7 +99,6 @@ static const translation_info gcc_translate[] =
 	{ VS2005,	"-fno-strict-aliasing",		"" },		// deprecated in VS2005
 	{ 0,		"-fno-strict-aliasing",		"/Oa" },
 	{ 0,		"-fno-omit-frame-pointer",	"" },
-	{ 0,		"-fomit-frame-pointer",		"" },
 	{ 0,		"-Werror",					"/WX" },
 	{ VS7,		"-Wall",					"/Wall /W3 /wd4003 /wd4018 /wd4146 /wd4242 /wd4244 /wd4619 /wd4702 /wd4706 /wd4710 /wd4711 /wd4738 /wd4826" },
 	{ 0,		"-Wall",					"/W0" },
@@ -289,7 +288,7 @@ static void build_command_line(int argc, char *argv[])
 	else if (!strcmp(argv[1], "ar"))
 	{
 		transtable = ar_translate;
-		executable = "link.exe";
+		executable = "lib.exe";
 		dst += sprintf(dst, "link /lib /nologo ");
 		outstring = "/out:";
 		output_is_first = 1;

@@ -8,47 +8,42 @@
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "deprecat.h"
 #include "sound/dac.h"
 #include "sound/ay8910.h"
 
 #define MCLK 12000000
 
 
-class mjsister_state : public driver_device
+class mjsister_state
 {
 public:
-	mjsister_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, mjsister_state(machine)); }
+
+	mjsister_state(running_machine &machine) { }
+
+	/* memory pointers */
+	UINT8 *     videoram0, *videoram1;
 
 	/* video-related */
-	bitmap_t *m_tmpbitmap0;
-	bitmap_t *m_tmpbitmap1;
-	int  m_flip_screen;
-	int  m_video_enable;
-	int  m_screen_redraw;
-	int  m_vrambank;
-	int  m_colorbank;
+	bitmap_t *tmpbitmap0, *tmpbitmap1;
+	int  flip_screen;
+	int  video_enable;
+	int  screen_redraw;
+	int  vrambank;
+	int  colorbank;
 
 	/* misc */
-	int  m_input_sel1;
-	int  m_input_sel2;
+	int  input_sel1;
+	int  input_sel2;
 
-	int  m_rombank0;
-	int  m_rombank1;
+	int  rombank0,rombank1;
 
-	UINT32 m_dac_adr;
-	UINT32 m_dac_bank;
-	UINT32 m_dac_adr_s;
-	UINT32 m_dac_adr_e;
-	UINT32 m_dac_busy;
+	UINT32 dac_adr, dac_bank, dac_adr_s, dac_adr_e, dac_busy;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_dac;
-
-	/* memory */
-	UINT8 m_videoram0[0x8000];
-	UINT8 m_videoram1[0x8000];
+	running_device *maincpu;
+	running_device *dac;
 };
 
 
@@ -60,32 +55,34 @@ public:
 
 static VIDEO_START( mjsister )
 {
-	mjsister_state *state = machine.driver_data<mjsister_state>();
-	state->m_tmpbitmap0 = auto_bitmap_alloc(machine, 256, 256, machine.primary_screen->format());
-	state->m_tmpbitmap1 = auto_bitmap_alloc(machine, 256, 256, machine.primary_screen->format());
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
+	state->tmpbitmap0 = auto_bitmap_alloc(machine, 256, 256, machine->primary_screen->format());
+	state->tmpbitmap1 = auto_bitmap_alloc(machine, 256, 256, machine->primary_screen->format());
+	state->videoram0 = auto_alloc_array(machine, UINT8, 0x8000);
+	state->videoram1 = auto_alloc_array(machine, UINT8, 0x8000);
 
-	state->save_item(NAME(state->m_videoram0));
-	state->save_item(NAME(state->m_videoram1));
+	state_save_register_global_pointer(machine, state->videoram0, 0x8000);
+	state_save_register_global_pointer(machine, state->videoram1, 0x8000);
 }
 
-static void mjsister_plot0( running_machine &machine, int offset, UINT8 data )
+static void mjsister_plot0( running_machine *machine, int offset, UINT8 data )
 {
-	mjsister_state *state = machine.driver_data<mjsister_state>();
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
 	int x, y, c1, c2;
 
 	x = offset & 0x7f;
 	y = offset / 0x80;
 
-	c1 = (data & 0x0f)        + state->m_colorbank * 0x20;
-	c2 = ((data & 0xf0) >> 4) + state->m_colorbank * 0x20;
+	c1 = (data & 0x0f)        + state->colorbank * 0x20;
+	c2 = ((data & 0xf0) >> 4) + state->colorbank * 0x20;
 
-	*BITMAP_ADDR16(state->m_tmpbitmap0, y, x * 2 + 0) = c1;
-	*BITMAP_ADDR16(state->m_tmpbitmap0, y, x * 2 + 1) = c2;
+	*BITMAP_ADDR16(state->tmpbitmap0, y, x * 2 + 0) = c1;
+	*BITMAP_ADDR16(state->tmpbitmap0, y, x * 2 + 1) = c2;
 }
 
-static void mjsister_plot1( running_machine &machine, int offset, UINT8 data )
+static void mjsister_plot1( running_machine *machine, int offset, UINT8 data )
 {
-	mjsister_state *state = machine.driver_data<mjsister_state>();
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
 	int x, y, c1, c2;
 
 	x = offset & 0x7f;
@@ -95,58 +92,58 @@ static void mjsister_plot1( running_machine &machine, int offset, UINT8 data )
 	c2 = (data & 0xf0) >> 4;
 
 	if (c1)
-		c1 += state->m_colorbank * 0x20 + 0x10;
+		c1 += state->colorbank * 0x20 + 0x10;
 	if (c2)
-		c2 += state->m_colorbank * 0x20 + 0x10;
+		c2 += state->colorbank * 0x20 + 0x10;
 
-	*BITMAP_ADDR16(state->m_tmpbitmap1, y, x * 2 + 0) = c1;
-	*BITMAP_ADDR16(state->m_tmpbitmap1, y, x * 2 + 1) = c2;
+	*BITMAP_ADDR16(state->tmpbitmap1, y, x * 2 + 0) = c1;
+	*BITMAP_ADDR16(state->tmpbitmap1, y, x * 2 + 1) = c2;
 }
 
 static WRITE8_HANDLER( mjsister_videoram_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
-	if (state->m_vrambank)
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
+	if (state->vrambank)
 	{
-		state->m_videoram1[offset] = data;
-		mjsister_plot1(space->machine(), offset, data);
+		state->videoram1[offset] = data;
+		mjsister_plot1(space->machine, offset, data);
 	}
 	else
 	{
-		state->m_videoram0[offset] = data;
-		mjsister_plot0(space->machine(), offset, data);
+		state->videoram0[offset] = data;
+		mjsister_plot0(space->machine, offset, data);
 	}
 }
 
-static SCREEN_UPDATE( mjsister )
+static VIDEO_UPDATE( mjsister )
 {
-	mjsister_state *state = screen->machine().driver_data<mjsister_state>();
-	int flip = state->m_flip_screen;
+	mjsister_state *state = (mjsister_state *)screen->machine->driver_data;
+	int flip = state->flip_screen;
 	int i, j;
 
-	if (state->m_screen_redraw)
+	if (state->screen_redraw)
 	{
 		int offs;
 
 		for (offs = 0; offs < 0x8000; offs++)
 		{
-			mjsister_plot0(screen->machine(), offs, state->m_videoram0[offs]);
-			mjsister_plot1(screen->machine(), offs, state->m_videoram1[offs]);
+			mjsister_plot0(screen->machine, offs, state->videoram0[offs]);
+			mjsister_plot1(screen->machine, offs, state->videoram1[offs]);
 		}
-		state->m_screen_redraw = 0;
+		state->screen_redraw = 0;
 	}
 
-	if (state->m_video_enable)
+	if (state->video_enable)
 	{
 		for (i = 0; i < 256; i++)
 			for (j = 0; j < 4; j++)
-				*BITMAP_ADDR16(bitmap, i, 256 + j) = state->m_colorbank * 0x20;
+				*BITMAP_ADDR16(bitmap, i, 256 + j) = state->colorbank * 0x20;
 
-		copybitmap(bitmap, state->m_tmpbitmap0, flip, flip, 0, 0, cliprect);
-		copybitmap_trans(bitmap, state->m_tmpbitmap1, flip, flip, 2, 0, cliprect, 0);
+		copybitmap(bitmap, state->tmpbitmap0, flip, flip, 0, 0, cliprect);
+		copybitmap_trans(bitmap, state->tmpbitmap1, flip, flip, 2, 0, cliprect, 0);
 	}
 	else
-		bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine()));
+		bitmap_fill(bitmap, cliprect, get_black_pen(screen->machine));
 	return 0;
 }
 
@@ -158,115 +155,115 @@ static SCREEN_UPDATE( mjsister )
 
 static TIMER_CALLBACK( dac_callback )
 {
-	mjsister_state *state = machine.driver_data<mjsister_state>();
-	UINT8 *DACROM = machine.region("samples")->base();
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
+	UINT8 *DACROM = memory_region(machine, "samples");
 
-	dac_data_w(state->m_dac, DACROM[(state->m_dac_bank * 0x10000 + state->m_dac_adr++) & 0x1ffff]);
+	dac_data_w(state->dac, DACROM[(state->dac_bank * 0x10000 + state->dac_adr++) & 0x1ffff]);
 
-	if (((state->m_dac_adr & 0xff00 ) >> 8) !=  state->m_dac_adr_e)
-		machine.scheduler().timer_set(attotime::from_hz(MCLK) * 1024, FUNC(dac_callback));
+	if (((state->dac_adr & 0xff00 ) >> 8) !=  state->dac_adr_e)
+		timer_set(machine, attotime_mul(ATTOTIME_IN_HZ(MCLK), 1024), NULL, 0, dac_callback);
 	else
-		state->m_dac_busy = 0;
+		state->dac_busy = 0;
 }
 
 static WRITE8_HANDLER( mjsister_dac_adr_s_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
-	state->m_dac_adr_s = data;
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
+	state->dac_adr_s = data;
 }
 
 static WRITE8_HANDLER( mjsister_dac_adr_e_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
-	state->m_dac_adr_e = data;
-	state->m_dac_adr = state->m_dac_adr_s << 8;
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
+	state->dac_adr_e = data;
+	state->dac_adr = state->dac_adr_s << 8;
 
-	if (state->m_dac_busy == 0)
-		space->machine().scheduler().synchronize(FUNC(dac_callback));
+	if (state->dac_busy == 0)
+		timer_call_after_resynch(space->machine, NULL, 0, dac_callback);
 
-	state->m_dac_busy = 1;
+	state->dac_busy = 1;
 }
 
 static WRITE8_HANDLER( mjsister_banksel1_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
-	int tmp = state->m_colorbank;
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
+	int tmp = state->colorbank;
 
 	switch (data)
 	{
-		case 0x0: state->m_rombank0 = 0 ; break;
-		case 0x1: state->m_rombank0 = 1 ; break;
+		case 0x0: state->rombank0 = 0 ; break;
+		case 0x1: state->rombank0 = 1 ; break;
 
-		case 0x2: state->m_flip_screen = 0 ; break;
-		case 0x3: state->m_flip_screen = 1 ; break;
+		case 0x2: state->flip_screen = 0 ; break;
+		case 0x3: state->flip_screen = 1 ; break;
 
-		case 0x4: state->m_colorbank &= 0xfe; break;
-		case 0x5: state->m_colorbank |= 0x01; break;
-		case 0x6: state->m_colorbank &= 0xfd; break;
-		case 0x7: state->m_colorbank |= 0x02; break;
-		case 0x8: state->m_colorbank &= 0xfb; break;
-		case 0x9: state->m_colorbank |= 0x04; break;
+		case 0x4: state->colorbank &= 0xfe; break;
+		case 0x5: state->colorbank |= 0x01; break;
+		case 0x6: state->colorbank &= 0xfd; break;
+		case 0x7: state->colorbank |= 0x02; break;
+		case 0x8: state->colorbank &= 0xfb; break;
+		case 0x9: state->colorbank |= 0x04; break;
 
-		case 0xa: state->m_video_enable = 0 ; break;
-		case 0xb: state->m_video_enable = 1 ; break;
+		case 0xa: state->video_enable = 0 ; break;
+		case 0xb: state->video_enable = 1 ; break;
 
-		case 0xe: state->m_vrambank = 0 ; break;
-		case 0xf: state->m_vrambank = 1 ; break;
+		case 0xe: state->vrambank = 0 ; break;
+		case 0xf: state->vrambank = 1 ; break;
 
 		default:
-			logerror("%04x p30_w:%02x\n", cpu_get_pc(&space->device()), data);
+			logerror("%04x p30_w:%02x\n", cpu_get_pc(space->cpu), data);
 	}
 
-	if (tmp != state->m_colorbank)
-		state->m_screen_redraw = 1;
+	if (tmp != state->colorbank)
+		state->screen_redraw = 1;
 
-	memory_set_bank(space->machine(), "bank1", state->m_rombank0 * 2 + state->m_rombank1);
+	memory_set_bank(space->machine, "bank1", state->rombank0 * 2 + state->rombank1);
 }
 
 static WRITE8_HANDLER( mjsister_banksel2_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
 
 	switch (data)
 	{
-		case 0xa: state->m_dac_bank = 0; break;
-		case 0xb: state->m_dac_bank = 1; break;
+		case 0xa: state->dac_bank = 0; break;
+		case 0xb: state->dac_bank = 1; break;
 
-		case 0xc: state->m_rombank1 = 0; break;
-		case 0xd: state->m_rombank1 = 1; break;
+		case 0xc: state->rombank1 = 0; break;
+		case 0xd: state->rombank1 = 1; break;
 
 		default:
-			logerror("%04x p31_w:%02x\n", cpu_get_pc(&space->device()), data);
+			logerror("%04x p31_w:%02x\n", cpu_get_pc(space->cpu), data);
 	}
 
-	memory_set_bank(space->machine(), "bank1", state->m_rombank0 * 2 + state->m_rombank1);
+	memory_set_bank(space->machine, "bank1", state->rombank0 * 2 + state->rombank1);
 }
 
 static WRITE8_HANDLER( mjsister_input_sel1_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
-	state->m_input_sel1 = data;
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
+	state->input_sel1 = data;
 }
 
 static WRITE8_HANDLER( mjsister_input_sel2_w )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
-	state->m_input_sel2 = data;
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
+	state->input_sel2 = data;
 }
 
 static READ8_HANDLER( mjsister_keys_r )
 {
-	mjsister_state *state = space->machine().driver_data<mjsister_state>();
+	mjsister_state *state = (mjsister_state *)space->machine->driver_data;
 	int p, i, ret = 0;
 	static const char *const keynames[] = { "KEY0", "KEY1", "KEY2", "KEY3", "KEY4", "KEY5" };
 
-	p = state->m_input_sel1 & 0x3f;
-	//  p |= ((state->m_input_sel2 & 8) << 4) | ((state->m_input_sel2 & 0x20) << 1);
+	p = state->input_sel1 & 0x3f;
+	//  p |= ((state->input_sel2 & 8) << 4) | ((state->input_sel2 & 0x20) << 1);
 
 	for (i = 0; i < 6; i++)
 	{
 		if (BIT(p, i))
-			ret |= input_port_read(space->machine(), keynames[i]);
+			ret |= input_port_read(space->machine, keynames[i]);
 	}
 
 	return ret;
@@ -278,13 +275,13 @@ static READ8_HANDLER( mjsister_keys_r )
  *
  *************************************/
 
-static ADDRESS_MAP_START( mjsister_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( mjsister_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
 	AM_RANGE(0x7800, 0x7fff) AM_RAM
 	AM_RANGE(0x8000, 0xffff) AM_ROMBANK("bank1") AM_WRITE(mjsister_videoram_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( mjsister_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( mjsister_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_WRITENOP /* HD46505? */
 	AM_RANGE(0x10, 0x10) AM_DEVWRITE("aysnd", ay8910_address_w)
@@ -440,94 +437,99 @@ static const ay8910_interface ay8910_config =
  *
  *************************************/
 
-static void mjsister_redraw(mjsister_state *state)
+static STATE_POSTLOAD( mjsister_redraw )
 {
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
+
 	/* we can skip saving tmpbitmaps because we can redraw them from vram */
-	state->m_screen_redraw = 1;
+	state->screen_redraw = 1;
 }
 
 static MACHINE_START( mjsister )
 {
-	mjsister_state *state = machine.driver_data<mjsister_state>();
-	UINT8 *ROM = machine.region("maincpu")->base();
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
+	UINT8 *ROM = memory_region(machine, "maincpu");
 
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x10000], 0x8000);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_dac = machine.device("dac");
+	state->maincpu = machine->device("maincpu");
+	state->dac = machine->device("dac");
 
-	state->save_item(NAME(state->m_dac_busy));
-	state->save_item(NAME(state->m_flip_screen));
-	state->save_item(NAME(state->m_video_enable));
-	state->save_item(NAME(state->m_vrambank));
-	state->save_item(NAME(state->m_colorbank));
-	state->save_item(NAME(state->m_input_sel1));
-	state->save_item(NAME(state->m_input_sel2));
-	state->save_item(NAME(state->m_rombank0));
-	state->save_item(NAME(state->m_rombank1));
-	state->save_item(NAME(state->m_dac_adr));
-	state->save_item(NAME(state->m_dac_bank));
-	state->save_item(NAME(state->m_dac_adr_s));
-	state->save_item(NAME(state->m_dac_adr_e));
-	machine.save().register_postload(save_prepost_delegate(FUNC(mjsister_redraw), state));
+	state_save_register_global(machine, state->dac_busy);
+	state_save_register_global(machine, state->flip_screen);
+	state_save_register_global(machine, state->video_enable);
+	state_save_register_global(machine, state->vrambank);
+	state_save_register_global(machine, state->colorbank);
+	state_save_register_global(machine, state->input_sel1);
+	state_save_register_global(machine, state->input_sel2);
+	state_save_register_global(machine, state->rombank0);
+	state_save_register_global(machine, state->rombank1);
+	state_save_register_global(machine, state->dac_adr);
+	state_save_register_global(machine, state->dac_bank);
+	state_save_register_global(machine, state->dac_adr_s);
+	state_save_register_global(machine, state->dac_adr_e);
+	state_save_register_postload(machine, mjsister_redraw, 0);
 }
 
 static MACHINE_RESET( mjsister )
 {
-	mjsister_state *state = machine.driver_data<mjsister_state>();
+	mjsister_state *state = (mjsister_state *)machine->driver_data;
 
-	state->m_dac_busy = 0;
-	state->m_flip_screen = 0;
-	state->m_video_enable = 0;
-	state->m_screen_redraw = 0;
-	state->m_vrambank = 0;
-	state->m_colorbank = 0;
-	state->m_input_sel1 = 0;
-	state->m_input_sel2 = 0;
-	state->m_rombank0 = 0;
-	state->m_rombank1 = 0;
-	state->m_dac_adr = 0;
-	state->m_dac_bank = 0;
-	state->m_dac_adr_s = 0;
-	state->m_dac_adr_e = 0;
+	state->dac_busy = 0;
+	state->flip_screen = 0;
+	state->video_enable = 0;
+	state->screen_redraw = 0;
+	state->vrambank = 0;
+	state->colorbank = 0;
+	state->input_sel1 = 0;
+	state->input_sel2 = 0;
+	state->rombank0 = 0;
+	state->rombank1 = 0;
+	state->dac_adr = 0;
+	state->dac_bank = 0;
+	state->dac_adr_s = 0;
+	state->dac_adr_e = 0;
 }
 
 
-static MACHINE_CONFIG_START( mjsister, mjsister_state )
+static MACHINE_DRIVER_START( mjsister )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(mjsister_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, MCLK/2) /* 6.000 MHz */
-	MCFG_CPU_PROGRAM_MAP(mjsister_map)
-	MCFG_CPU_IO_MAP(mjsister_io_map)
-	MCFG_CPU_PERIODIC_INT(irq0_line_hold,2*60)
+	MDRV_CPU_ADD("maincpu", Z80, MCLK/2) /* 6.000 MHz */
+	MDRV_CPU_PROGRAM_MAP(mjsister_map)
+	MDRV_CPU_IO_MAP(mjsister_io_map)
+	MDRV_CPU_VBLANK_INT_HACK(irq0_line_hold,2)
 
-	MCFG_MACHINE_START(mjsister)
-	MCFG_MACHINE_RESET(mjsister)
+	MDRV_MACHINE_START(mjsister)
+	MDRV_MACHINE_RESET(mjsister)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256+4, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 255+4, 8, 247)
-	MCFG_SCREEN_UPDATE(mjsister)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256+4, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 255+4, 8, 247)
 
-	MCFG_PALETTE_INIT(RRRR_GGGG_BBBB)
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_INIT(RRRR_GGGG_BBBB)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(mjsister)
+	MDRV_VIDEO_START(mjsister)
+	MDRV_VIDEO_UPDATE(mjsister)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, MCLK/8)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.15)
+	MDRV_SOUND_ADD("aysnd", AY8910, MCLK/8)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.15)
 
-	MCFG_SOUND_ADD("dac", DAC, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 /*************************************
  *

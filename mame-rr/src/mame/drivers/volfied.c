@@ -61,7 +61,7 @@ Stephh's notes (based on the game M68000 code and some tests) :
                 MEMORY STRUCTURES
 ***********************************************************/
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM		/* program */
 	AM_RANGE(0x080000, 0x0fffff) AM_ROM		/* tiles   */
 	AM_RANGE(0x100000, 0x103fff) AM_RAM		/* main    */
@@ -78,7 +78,7 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16 )
 	AM_RANGE(0xf00c00, 0xf00c01) AM_WRITE(volfied_cchip_bank_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( z80_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( z80_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x7fff) AM_ROM
 	AM_RANGE(0x8000, 0x87ff) AM_RAM
 	AM_RANGE(0x8800, 0x8800) AM_DEVWRITE("tc0140syt", tc0140syt_slave_port_w)
@@ -207,10 +207,10 @@ GFXDECODE_END
 
 /* handler called by the YM2203 emulator when the internal timers cause an IRQ */
 
-static void irqhandler( device_t *device, int irq )
+static void irqhandler( running_device *device, int irq )
 {
-	volfied_state *state = device->machine().driver_data<volfied_state>();
-	device_set_input_line(state->m_audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
+	volfied_state *state = (volfied_state *)device->machine->driver_data;
+	cpu_set_input_line(state->audiocpu, 0, irq ? ASSERT_LINE : CLEAR_LINE);
 }
 
 static const ym2203_interface ym2203_config =
@@ -233,13 +233,13 @@ static const ym2203_interface ym2203_config =
 
 static MACHINE_START( volfied )
 {
-	volfied_state *state = machine.driver_data<volfied_state>();
+	volfied_state *state = (volfied_state *)machine->driver_data;
 
 	volfied_cchip_init(machine);
 
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-	state->m_pc090oj = machine.device("pc090oj");
+	state->maincpu = machine->device("maincpu");
+	state->audiocpu = machine->device("audiocpu");
+	state->pc090oj = machine->device("pc090oj");
 }
 
 static MACHINE_RESET( volfied )
@@ -257,49 +257,52 @@ static const tc0140syt_interface volfied_tc0140syt_intf =
 	"maincpu", "audiocpu"
 };
 
-static MACHINE_CONFIG_START( volfied, volfied_state )
+static MACHINE_DRIVER_START( volfied )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(volfied_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, CPU_CLOCK)   /* 8MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT("screen", irq4_line_hold)
+	MDRV_CPU_ADD("maincpu", M68000, CPU_CLOCK)   /* 8MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT("screen", irq4_line_hold)
 
-	MCFG_CPU_ADD("audiocpu", Z80, SOUND_CPU_CLOCK)   /* 4MHz sound CPU, required to run the game */
-	MCFG_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_ADD("audiocpu", Z80, SOUND_CPU_CLOCK)   /* 4MHz sound CPU, required to run the game */
+	MDRV_CPU_PROGRAM_MAP(z80_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(1200))
+	MDRV_QUANTUM_TIME(HZ(1200))
 
-	MCFG_MACHINE_START(volfied)
-	MCFG_MACHINE_RESET(volfied)
+	MDRV_MACHINE_START(volfied)
+	MDRV_MACHINE_RESET(volfied)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(320, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 8, 247)
-	MCFG_SCREEN_UPDATE(volfied)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(320, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 319, 8, 247)
 
-	MCFG_GFXDECODE(volfied)
-	MCFG_PALETTE_LENGTH(8192)
+	MDRV_GFXDECODE(volfied)
+	MDRV_PALETTE_LENGTH(8192)
 
-	MCFG_VIDEO_START(volfied)
+	MDRV_VIDEO_START(volfied)
+	MDRV_VIDEO_UPDATE(volfied)
 
-	MCFG_PC090OJ_ADD("pc090oj", volfied_pc090oj_intf)
+	MDRV_PC090OJ_ADD("pc090oj", volfied_pc090oj_intf)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("ymsnd", YM2203, 4000000)
-	MCFG_SOUND_CONFIG(ym2203_config)
-	MCFG_SOUND_ROUTE(0, "mono", 0.15)
-	MCFG_SOUND_ROUTE(1, "mono", 0.15)
-	MCFG_SOUND_ROUTE(2, "mono", 0.15)
-	MCFG_SOUND_ROUTE(3, "mono", 0.60)
+	MDRV_SOUND_ADD("ymsnd", YM2203, 4000000)
+	MDRV_SOUND_CONFIG(ym2203_config)
+	MDRV_SOUND_ROUTE(0, "mono", 0.15)
+	MDRV_SOUND_ROUTE(1, "mono", 0.15)
+	MDRV_SOUND_ROUTE(2, "mono", 0.15)
+	MDRV_SOUND_ROUTE(3, "mono", 0.60)
 
-	MCFG_TC0140SYT_ADD("tc0140syt", volfied_tc0140syt_intf)
-MACHINE_CONFIG_END
+	MDRV_TC0140SYT_ADD("tc0140syt", volfied_tc0140syt_intf)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

@@ -98,8 +98,7 @@ typedef struct
 	UINT16 *sound_data;
 
 	legacy_cpu_device *device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	int icount;
 } cquestsnd_state;
 
@@ -140,8 +139,7 @@ typedef struct
 
 	legacy_cpu_device *device;
 	legacy_cpu_device *lindevice;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	int icount;
 } cquestrot_state;
 
@@ -187,8 +185,7 @@ typedef struct
 
 	legacy_cpu_device *device;
 	legacy_cpu_device *rotdevice;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	int icount;
 } cquestlin_state;
 
@@ -196,21 +193,21 @@ typedef struct
     STATE ACCESSORS
 ***************************************************************************/
 
-INLINE cquestsnd_state *get_safe_token_snd(device_t *device)
+INLINE cquestsnd_state *get_safe_token_snd(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == CQUESTSND);
 	return (cquestsnd_state *)downcast<legacy_cpu_device *>(device)->token();
 }
 
-INLINE cquestrot_state *get_safe_token_rot(device_t *device)
+INLINE cquestrot_state *get_safe_token_rot(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == CQUESTROT);
 	return (cquestrot_state *)downcast<legacy_cpu_device *>(device)->token();
 }
 
-INLINE cquestlin_state *get_safe_token_lin(device_t *device)
+INLINE cquestlin_state *get_safe_token_lin(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == CQUESTLIN);
@@ -250,43 +247,49 @@ READ16_DEVICE_HANDLER( cubeqcpu_rotram_r )
     SOUND INITIALIZATION AND SHUTDOWN
 ***************************************************************************/
 
-static void cquestsnd_state_register(device_t *device)
+static STATE_POSTLOAD( cquestsnd_postload )
+{
+
+}
+
+static void cquestsnd_state_register(running_device *device)
 {
 	cquestsnd_state *cpustate = get_safe_token_snd(device);
-	device->save_item(NAME(cpustate->ram));
-	device->save_item(NAME(cpustate->q));
-	device->save_item(NAME(cpustate->f));
-	device->save_item(NAME(cpustate->y));
-	device->save_item(NAME(cpustate->cflag));
-	device->save_item(NAME(cpustate->vflag));
+	state_save_register_device_item_array(device, 0, cpustate->ram);
+	state_save_register_device_item(device, 0, cpustate->q);
+	state_save_register_device_item(device, 0, cpustate->f);
+	state_save_register_device_item(device, 0, cpustate->y);
+	state_save_register_device_item(device, 0, cpustate->cflag);
+	state_save_register_device_item(device, 0, cpustate->vflag);
 
-	device->save_item(NAME(cpustate->pc));
-	device->save_item(NAME(cpustate->platch));
-	device->save_item(NAME(cpustate->rtnlatch));
-	device->save_item(NAME(cpustate->adrcntr));
-	device->save_item(NAME(cpustate->adrlatch));
-	device->save_item(NAME(cpustate->dinlatch));
-	device->save_item(NAME(cpustate->ramwlatch));
-	device->save_item(NAME(cpustate->prev_ipram));
-	device->save_item(NAME(cpustate->prev_ipwrt));
+	state_save_register_device_item(device, 0, cpustate->pc);
+	state_save_register_device_item(device, 0, cpustate->platch);
+	state_save_register_device_item(device, 0, cpustate->rtnlatch);
+	state_save_register_device_item(device, 0, cpustate->adrcntr);
+	state_save_register_device_item(device, 0, cpustate->adrlatch);
+	state_save_register_device_item(device, 0, cpustate->dinlatch);
+	state_save_register_device_item(device, 0, cpustate->ramwlatch);
+	state_save_register_device_item(device, 0, cpustate->prev_ipram);
+	state_save_register_device_item(device, 0, cpustate->prev_ipwrt);
+
+	state_save_register_postload(device->machine, cquestsnd_postload, (void *)device);
 }
 
 static CPU_INIT( cquestsnd )
 {
 	cquestsnd_state *cpustate = get_safe_token_snd(device);
-	cubeqst_snd_config* _config = (cubeqst_snd_config*)device->static_config();
+	cubeqst_snd_config* _config = (cubeqst_snd_config*)device->baseconfig().static_config();
 
 	memset(cpustate, 0, sizeof(*cpustate));
 
 	cpustate->dac_w = _config->dac_w;
-	cpustate->sound_data = (UINT16*)device->machine().region(_config->sound_data_region)->base();
+	cpustate->sound_data = (UINT16*)memory_region(device->machine, _config->sound_data_region);
 
 	cpustate->device = device;
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 
 	/* Allocate RAM shared with 68000 */
-	cpustate->sram = auto_alloc_array(device->machine(), UINT16, 4096/2);
+	cpustate->sram = auto_alloc_array(device->machine, UINT16, 4096/2);
 
 	cquestsnd_state_register(device);
 }
@@ -308,50 +311,56 @@ static CPU_EXIT( cquestsnd )
     ROTATE INITIALIZATION AND SHUTDOWN
 ***************************************************************************/
 
-static void cquestrot_state_register(device_t *device)
+static STATE_POSTLOAD( cquestrot_postload )
+{
+
+}
+
+static void cquestrot_state_register(running_device *device)
 {
 	cquestrot_state *cpustate = get_safe_token_rot(device);
-	device->save_item(NAME(cpustate->ram));
-	device->save_item(NAME(cpustate->q));
-	device->save_item(NAME(cpustate->f));
-	device->save_item(NAME(cpustate->y));
-	device->save_item(NAME(cpustate->cflag));
-	device->save_item(NAME(cpustate->vflag));
+	state_save_register_device_item_array(device, 0, cpustate->ram);
+	state_save_register_device_item(device, 0, cpustate->q);
+	state_save_register_device_item(device, 0, cpustate->f);
+	state_save_register_device_item(device, 0, cpustate->y);
+	state_save_register_device_item(device, 0, cpustate->cflag);
+	state_save_register_device_item(device, 0, cpustate->vflag);
 
-	device->save_item(NAME(cpustate->pc));
-	device->save_item(NAME(cpustate->seqcnt));
-	device->save_item(NAME(cpustate->dsrclatch));
-	device->save_item(NAME(cpustate->rsrclatch));
-	device->save_item(NAME(cpustate->dynaddr));
-	device->save_item(NAME(cpustate->dyndata));
-	device->save_item(NAME(cpustate->yrlatch));
-	device->save_item(NAME(cpustate->ydlatch));
-	device->save_item(NAME(cpustate->dinlatch));
-	device->save_item(NAME(cpustate->divreg));
-	device->save_item(NAME(cpustate->linedata));
-	device->save_item(NAME(cpustate->lineaddr));
-	device->save_item(NAME(cpustate->prev_dred));
-	device->save_item(NAME(cpustate->prev_dwrt));
-	device->save_item(NAME(cpustate->wc));
+	state_save_register_device_item(device, 0, cpustate->pc);
+	state_save_register_device_item(device, 0, cpustate->seqcnt);
+	state_save_register_device_item(device, 0, cpustate->dsrclatch);
+	state_save_register_device_item(device, 0, cpustate->rsrclatch);
+	state_save_register_device_item(device, 0, cpustate->dynaddr);
+	state_save_register_device_item(device, 0, cpustate->dyndata);
+	state_save_register_device_item(device, 0, cpustate->yrlatch);
+	state_save_register_device_item(device, 0, cpustate->ydlatch);
+	state_save_register_device_item(device, 0, cpustate->dinlatch);
+	state_save_register_device_item(device, 0, cpustate->divreg);
+	state_save_register_device_item(device, 0, cpustate->linedata);
+	state_save_register_device_item(device, 0, cpustate->lineaddr);
+	state_save_register_device_item(device, 0, cpustate->prev_dred);
+	state_save_register_device_item(device, 0, cpustate->prev_dwrt);
+	state_save_register_device_item(device, 0, cpustate->wc);
 
-	device->save_pointer(NAME(cpustate->dram), 16384);
-	device->save_pointer(NAME(cpustate->sram), 2048);
+	state_save_register_device_item_pointer(device, 0, cpustate->dram, 16384);
+	state_save_register_device_item_pointer(device, 0, cpustate->sram, 2048);
+
+	state_save_register_postload(device->machine, cquestrot_postload, (void *)device);
 }
 
 static CPU_INIT( cquestrot )
 {
-	const cubeqst_rot_config *rotconfig = (const cubeqst_rot_config *)device->static_config();
+	const cubeqst_rot_config *rotconfig = (const cubeqst_rot_config *)device->baseconfig().static_config();
 	cquestrot_state *cpustate = get_safe_token_rot(device);
 	memset(cpustate, 0, sizeof(*cpustate));
 
 	/* Allocate RAM */
-	cpustate->dram = auto_alloc_array(device->machine(), UINT16, 16384);  /* Shared with 68000 */
-	cpustate->sram = auto_alloc_array(device->machine(), UINT16, 2048);   /* Private */
+	cpustate->dram = auto_alloc_array(device->machine, UINT16, 16384);  /* Shared with 68000 */
+	cpustate->sram = auto_alloc_array(device->machine, UINT16, 2048);   /* Private */
 
 	cpustate->device = device;
-	cpustate->lindevice = device->machine().device<legacy_cpu_device>(rotconfig->lin_cpu_tag);
+	cpustate->lindevice = device->machine->device<legacy_cpu_device>(rotconfig->lin_cpu_tag);
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 
 	cquestrot_state_register(device);
 }
@@ -380,57 +389,63 @@ static CPU_EXIT( cquestrot )
 #define ODD_FIELD		0
 #define EVEN_FIELD		1
 
-static void cquestlin_state_register(device_t *device)
+static STATE_POSTLOAD( cquestlin_postload )
+{
+
+}
+
+static void cquestlin_state_register(running_device *device)
 {
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 
-	device->save_item(NAME(cpustate->ram));
-	device->save_item(NAME(cpustate->q));
-	device->save_item(NAME(cpustate->f));
-	device->save_item(NAME(cpustate->y));
-	device->save_item(NAME(cpustate->cflag));
-	device->save_item(NAME(cpustate->vflag));
+	state_save_register_device_item_array(device, 0, cpustate->ram);
+	state_save_register_device_item(device, 0, cpustate->q);
+	state_save_register_device_item(device, 0, cpustate->f);
+	state_save_register_device_item(device, 0, cpustate->y);
+	state_save_register_device_item(device, 0, cpustate->cflag);
+	state_save_register_device_item(device, 0, cpustate->vflag);
 
-	device->save_item(NAME(cpustate->pc[0]));
-	device->save_item(NAME(cpustate->pc[1]));
-	device->save_item(NAME(cpustate->seqcnt));
-	device->save_item(NAME(cpustate->clatch));
-	device->save_item(NAME(cpustate->zlatch));
-	device->save_item(NAME(cpustate->xcnt));
-	device->save_item(NAME(cpustate->ycnt));
-	device->save_item(NAME(cpustate->sreg));
-	device->save_item(NAME(cpustate->fadlatch));
-	device->save_item(NAME(cpustate->badlatch));
-	device->save_item(NAME(cpustate->sramdlatch));
-	device->save_item(NAME(cpustate->fglatch));
-	device->save_item(NAME(cpustate->bglatch));
-	device->save_item(NAME(cpustate->gt0reg));
-	device->save_item(NAME(cpustate->fdxreg));
-	device->save_item(NAME(cpustate->field));
-	device->save_item(NAME(cpustate->clkcnt));
+	state_save_register_device_item(device, 0, cpustate->pc[0]);
+	state_save_register_device_item(device, 0, cpustate->pc[1]);
+	state_save_register_device_item(device, 0, cpustate->seqcnt);
+	state_save_register_device_item(device, 0, cpustate->clatch);
+	state_save_register_device_item(device, 0, cpustate->zlatch);
+	state_save_register_device_item(device, 0, cpustate->xcnt);
+	state_save_register_device_item(device, 0, cpustate->ycnt);
+	state_save_register_device_item(device, 0, cpustate->sreg);
+	state_save_register_device_item(device, 0, cpustate->fadlatch);
+	state_save_register_device_item(device, 0, cpustate->badlatch);
+	state_save_register_device_item(device, 0, cpustate->sramdlatch);
+	state_save_register_device_item(device, 0, cpustate->fglatch);
+	state_save_register_device_item(device, 0, cpustate->bglatch);
+	state_save_register_device_item(device, 0, cpustate->gt0reg);
+	state_save_register_device_item(device, 0, cpustate->fdxreg);
+	state_save_register_device_item(device, 0, cpustate->field);
+	state_save_register_device_item(device, 0, cpustate->clkcnt);
 
-	device->save_pointer(NAME(cpustate->sram), 4096);
-	device->save_pointer(NAME(cpustate->ptr_ram), 1024);
-	device->save_pointer(NAME(cpustate->e_stack), 32768);
-	device->save_pointer(NAME(cpustate->o_stack), 32768);
+	state_save_register_device_item_pointer(device, 0, cpustate->sram, 4096);
+	state_save_register_device_item_pointer(device, 0, cpustate->ptr_ram, 1024);
+	state_save_register_device_item_pointer(device, 0, cpustate->e_stack, 32768);
+	state_save_register_device_item_pointer(device, 0, cpustate->o_stack, 32768);
+
+	state_save_register_postload(device->machine, cquestlin_postload, (void *)device);
 }
 
 static CPU_INIT( cquestlin )
 {
-	const cubeqst_lin_config *linconfig = (const cubeqst_lin_config *)device->static_config();
+	const cubeqst_lin_config *linconfig = (const cubeqst_lin_config *)device->baseconfig().static_config();
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 	memset(cpustate, 0, sizeof(*cpustate));
 
 	/* Allocate RAM */
-	cpustate->sram = auto_alloc_array(device->machine(), UINT16, 4096);      /* Shared with rotate CPU */
-	cpustate->ptr_ram = auto_alloc_array(device->machine(), UINT8, 1024);                    /* Pointer RAM */
-	cpustate->e_stack = auto_alloc_array(device->machine(), UINT32, 32768);  /* Stack DRAM: 32kx20 */
-	cpustate->o_stack = auto_alloc_array(device->machine(), UINT32, 32768);  /* Stack DRAM: 32kx20 */
+	cpustate->sram = auto_alloc_array(device->machine, UINT16, 4096);      /* Shared with rotate CPU */
+	cpustate->ptr_ram = auto_alloc_array(device->machine, UINT8, 1024);                    /* Pointer RAM */
+	cpustate->e_stack = auto_alloc_array(device->machine, UINT32, 32768);  /* Stack DRAM: 32kx20 */
+	cpustate->o_stack = auto_alloc_array(device->machine, UINT32, 32768);  /* Stack DRAM: 32kx20 */
 
 	cpustate->device = device;
-	cpustate->rotdevice = device->machine().device<legacy_cpu_device>(linconfig->rot_cpu_tag);
+	cpustate->rotdevice = device->machine->device<legacy_cpu_device>(linconfig->rot_cpu_tag);
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 
 	cquestlin_state_register(device);
 }
@@ -482,13 +497,13 @@ static int do_sndjmp(cquestsnd_state *cpustate, int jmp)
 static CPU_EXECUTE( cquestsnd )
 {
 	cquestsnd_state *cpustate = get_safe_token_snd(device);
-	int calldebugger = ((device->machine().debug_flags & DEBUG_FLAG_ENABLED) != 0);
+	int calldebugger = ((device->machine->debug_flags & DEBUG_FLAG_ENABLED) != 0);
 
 	/* Core execution loop */
 	do
 	{
 		/* Decode the instruction */
-		UINT64 inst = cpustate->direct->read_decrypted_qword(SND_PC << 3);
+		UINT64 inst = memory_decrypted_read_qword(cpustate->program, SND_PC << 3);
 		UINT32 inslow = inst & 0xffffffff;
 		UINT32 inshig = inst >> 32;
 
@@ -743,13 +758,13 @@ static CPU_EXECUTE( cquestrot )
 {
 	cquestrot_state *cpustate = get_safe_token_rot(device);
 	cquestlin_state *lincpustate = get_safe_token_lin(cpustate->lindevice);
-	int calldebugger = ((device->machine().debug_flags & DEBUG_FLAG_ENABLED) != 0);
+	int calldebugger = ((device->machine->debug_flags & DEBUG_FLAG_ENABLED) != 0);
 
 	/* Core execution loop */
 	do
 	{
 		/* Decode the instruction */
-		UINT64 inst = cpustate->direct->read_decrypted_qword(ROT_PC << 3);
+		UINT64 inst = memory_decrypted_read_qword(cpustate->program, ROT_PC << 3);
 
 		UINT32 inslow = inst & 0xffffffff;
 		UINT32 inshig = inst >> 32;
@@ -1121,26 +1136,26 @@ INLINE int do_linjmp(cquestlin_state *cpustate, int jmp)
 
 
 
-void cubeqcpu_swap_line_banks(device_t *device)
+void cubeqcpu_swap_line_banks(running_device *device)
 {
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 	cpustate->field = cpustate->field ^ 1;
 }
 
 
-void cubeqcpu_clear_stack(device_t *device)
+void cubeqcpu_clear_stack(running_device *device)
 {
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 	memset(&cpustate->ptr_ram[cpustate->field * 256], 0, 256);
 }
 
-UINT8 cubeqcpu_get_ptr_ram_val(device_t *device, int i)
+UINT8 cubeqcpu_get_ptr_ram_val(running_device *device, int i)
 {
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 	return cpustate->ptr_ram[(VISIBLE_FIELD * 256) + i];
 }
 
-UINT32* cubeqcpu_get_stack_ram(device_t *device)
+UINT32* cubeqcpu_get_stack_ram(running_device *device)
 {
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 	if (VISIBLE_FIELD == ODD_FIELD)
@@ -1156,7 +1171,7 @@ static CPU_EXECUTE( cquestlin )
 
 	cquestlin_state *cpustate = get_safe_token_lin(device);
 	cquestrot_state *rotcpustate = get_safe_token_rot(cpustate->rotdevice);
-	int calldebugger = ((device->machine().debug_flags & DEBUG_FLAG_ENABLED) != 0);
+	int calldebugger = ((device->machine->debug_flags & DEBUG_FLAG_ENABLED) != 0);
 	UINT32	*stack_ram;
 	UINT8	*ptr_ram;
 
@@ -1178,7 +1193,7 @@ static CPU_EXECUTE( cquestlin )
 		/* Are we executing the foreground or backgroud program? */
 		int prog = (cpustate->clkcnt & 3) ? BACKGROUND : FOREGROUND;
 
-		UINT64 inst = cpustate->direct->read_decrypted_qword(LINE_PC << 3);
+		UINT64 inst = memory_decrypted_read_qword(cpustate->program, LINE_PC << 3);
 
 		UINT32 inslow = inst & 0xffffffff;
 		UINT32 inshig = inst >> 32;
@@ -1580,15 +1595,15 @@ CPU_GET_INFO( cquestsnd )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 64;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -3;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 64;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -3;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_PC:
 		case CPUINFO_INT_REGISTER + CQUESTSND_PC:			info->i = cpustate->pc;				break;
@@ -1698,15 +1713,15 @@ CPU_GET_INFO( cquestrot )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 64;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 9;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -3;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 64;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 9;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -3;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_PC:
 		case CPUINFO_INT_REGISTER + CQUESTROT_PC:		info->i = cpustate->pc;					break;
@@ -1816,15 +1831,15 @@ CPU_GET_INFO( cquestlin )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 1;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 64;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = -3;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 64;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = -3;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_PC:
 		case CPUINFO_INT_REGISTER + CQUESTLIN_FGPC:		info->i = cpustate->pc[cpustate->clkcnt & 3 ? BACKGROUND : FOREGROUND];	break;

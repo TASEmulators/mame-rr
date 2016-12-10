@@ -22,11 +22,11 @@ struct _ssem_state
     UINT32 halt;
 
     legacy_cpu_device *device;
-    address_space *program;
+    const address_space *program;
     int icount;
 };
 
-INLINE ssem_state *get_safe_token(device_t *device)
+INLINE ssem_state *get_safe_token(running_device *device)
 {
     assert(device != NULL);
     assert(device->type() == SSEM);
@@ -67,10 +67,10 @@ INLINE UINT32 READ32(ssem_state *cpustate, UINT32 address)
     // the address value to get the appropriate byte index.
     address <<= 2;
 
-    v |= cpustate->program->read_byte(address + 0) << 24;
-    v |= cpustate->program->read_byte(address + 1) << 16;
-    v |= cpustate->program->read_byte(address + 2) <<  8;
-    v |= cpustate->program->read_byte(address + 3) <<  0;
+    v |= memory_read_byte(cpustate->program, address + 0) << 24;
+    v |= memory_read_byte(cpustate->program, address + 1) << 16;
+    v |= memory_read_byte(cpustate->program, address + 2) <<  8;
+    v |= memory_read_byte(cpustate->program, address + 3) <<  0;
 
     return reverse(v);
 }
@@ -84,10 +84,10 @@ INLINE void WRITE32(ssem_state *cpustate, UINT32 address, UINT32 data)
     // the address value to get the appropriate byte index.
     address <<= 2;
 
-    cpustate->program->write_byte(address + 0, (v >> 24) & 0x000000ff);
-    cpustate->program->write_byte(address + 1, (v >> 16) & 0x000000ff);
-    cpustate->program->write_byte(address + 2, (v >>  8) & 0x000000ff);
-    cpustate->program->write_byte(address + 3, (v >>  0) & 0x000000ff);
+    memory_write_byte(cpustate->program, address + 0, (v >> 24) & 0x000000ff);
+    memory_write_byte(cpustate->program, address + 1, (v >> 16) & 0x000000ff);
+    memory_write_byte(cpustate->program, address + 2, (v >>  8) & 0x000000ff);
+    memory_write_byte(cpustate->program, address + 3, (v >>  0) & 0x000000ff);
     return;
 }
 
@@ -95,7 +95,7 @@ INLINE void WRITE32(ssem_state *cpustate, UINT32 address, UINT32 data)
 
 static void unimplemented_opcode(ssem_state *cpustate, UINT32 op)
 {
-    if((cpustate->device->machine().debug_flags & DEBUG_FLAG_ENABLED) != 0)
+    if((cpustate->device->machine->debug_flags & DEBUG_FLAG_ENABLED) != 0)
     {
         char string[200];
         ssem_dasm_one(string, cpustate->pc-1, op);
@@ -130,7 +130,7 @@ static void unimplemented_opcode(ssem_state *cpustate, UINT32 op)
         {
             for( i = 0; i < 0x80; i++ )
             {
-                fputc(cpustate->program->read_byte(i), store);
+                fputc(memory_read_byte_32be(cpustate->program, i), store);
             }
             fclose(store);
         }
@@ -266,15 +266,15 @@ CPU_GET_INFO( ssem )
         case CPUINFO_INT_MIN_CYCLES:            info->i = 1;                    break;
         case CPUINFO_INT_MAX_CYCLES:            info->i = 1;                    break;
 
-        case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM: info->i = 8;                    break;
-        case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 16;                   break;
-        case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;                    break;
-        case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:    info->i = 0;                    break;
-        case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:    info->i = 0;                    break;
-        case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:    info->i = 0;                    break;
-        case DEVINFO_INT_DATABUS_WIDTH + AS_IO:      info->i = 0;                    break;
-        case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:      info->i = 0;                    break;
-        case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:      info->i = 0;                    break;
+        case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 8;                    break;
+        case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;                   break;
+        case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;                    break;
+        case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+        case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+        case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:    info->i = 0;                    break;
+        case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:      info->i = 0;                    break;
+        case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:      info->i = 0;                    break;
+        case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:      info->i = 0;                    break;
 
         case CPUINFO_INT_PC:    /* intentional fallthrough */
         case CPUINFO_INT_REGISTER + SSEM_PC:    info->i = cpustate->pc << 2;    break;

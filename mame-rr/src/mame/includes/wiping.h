@@ -1,23 +1,20 @@
-class wiping_state : public driver_device
-{
-public:
-	wiping_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+#include "devlegcy.h"
 
-	UINT8 *m_sharedram1;
-	UINT8 *m_sharedram2;
-	UINT8 *m_videoram;
-	UINT8 *m_colorram;
-	int m_flipscreen;
-	UINT8 *m_soundregs;
-	UINT8 *m_spriteram;
-	size_t m_spriteram_size;
-};
+/*----------- defined in audio/wiping.c -----------*/
+
+extern UINT8 *wiping_soundregs;
+
+DECLARE_LEGACY_SOUND_DEVICE(WIPING, wiping_sound);
+
+WRITE8_HANDLER( wiping_sound_w );
 
 
 /*----------- defined in video/wiping.c -----------*/
 
+extern UINT8 *wiping_videoram;
+extern UINT8 *wiping_colorram;
+
 WRITE8_HANDLER( wiping_flipscreen_w );
 PALETTE_INIT( wiping );
-SCREEN_UPDATE( wiping );
+VIDEO_UPDATE( wiping );
 

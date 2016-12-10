@@ -45,17 +45,7 @@
 #include "sound/okim6295.h"
 
 
-class itgambl3_state : public driver_device
-{
-public:
-	itgambl3_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	int m_test_x;
-	int m_test_y;
-	int m_start_offs;
-};
-
+static int test_x, test_y, start_offs;
 
 /*************************
 *     Video Hardware     *
@@ -63,59 +53,57 @@ public:
 
 static VIDEO_START( itgambl3 )
 {
-	itgambl3_state *state = machine.driver_data<itgambl3_state>();
-	state->m_test_x = 256;
-	state->m_test_y = 256;
-	state->m_start_offs = 0;
+	test_x = 256;
+	test_y = 256;
+	start_offs = 0;
 }
 
 /* (dirty) debug code for looking 8bpps blitter-based gfxs */
-static SCREEN_UPDATE( itgambl3 )
+static VIDEO_UPDATE( itgambl3 )
 {
-	itgambl3_state *state = screen->machine().driver_data<itgambl3_state>();
 	int x,y,count;
-	const UINT8 *blit_ram = screen->machine().region("gfx1")->base();
+	const UINT8 *blit_ram = memory_region(screen->machine,"gfx1");
 
-	if(screen->machine().input().code_pressed(KEYCODE_Z))
-		state->m_test_x++;
+	if(input_code_pressed(screen->machine, KEYCODE_Z))
+		test_x++;
 
-	if(screen->machine().input().code_pressed(KEYCODE_X))
-		state->m_test_x--;
+	if(input_code_pressed(screen->machine, KEYCODE_X))
+		test_x--;
 
-	if(screen->machine().input().code_pressed(KEYCODE_A))
-		state->m_test_y++;
+	if(input_code_pressed(screen->machine, KEYCODE_A))
+		test_y++;
 
-	if(screen->machine().input().code_pressed(KEYCODE_S))
-		state->m_test_y--;
+	if(input_code_pressed(screen->machine, KEYCODE_S))
+		test_y--;
 
-	if(screen->machine().input().code_pressed(KEYCODE_Q))
-		state->m_start_offs+=0x200;
+	if(input_code_pressed(screen->machine, KEYCODE_Q))
+		start_offs+=0x200;
 
-	if(screen->machine().input().code_pressed(KEYCODE_W))
-		state->m_start_offs-=0x200;
+	if(input_code_pressed(screen->machine, KEYCODE_W))
+		start_offs-=0x200;
 
-	if(screen->machine().input().code_pressed(KEYCODE_E))
-		state->m_start_offs++;
+	if(input_code_pressed(screen->machine, KEYCODE_E))
+		start_offs++;
 
-	if(screen->machine().input().code_pressed(KEYCODE_R))
-		state->m_start_offs--;
+	if(input_code_pressed(screen->machine, KEYCODE_R))
+		start_offs--;
 
-	popmessage("%d %d %04x",state->m_test_x,state->m_test_y,state->m_start_offs);
+	popmessage("%d %d %04x",test_x,test_y,start_offs);
 
-	bitmap_fill(bitmap,cliprect,get_black_pen(screen->machine()));
+	bitmap_fill(bitmap,cliprect,get_black_pen(screen->machine));
 
-	count = (state->m_start_offs);
+	count = (start_offs);
 
-	for(y=0;y<state->m_test_y;y++)
+	for(y=0;y<test_y;y++)
 	{
-		for(x=0;x<state->m_test_x;x++)
+		for(x=0;x<test_x;x++)
 		{
 			UINT32 color;
 
 			color = (blit_ram[count] & 0xff)>>0;
 
 			if((x)<screen->visible_area().max_x && ((y)+0)<screen->visible_area().max_y)
-				*BITMAP_ADDR32(bitmap, y, x) = screen->machine().pens[color];
+				*BITMAP_ADDR32(bitmap, y, x) = screen->machine->pens[color];
 
 			count++;
 		}
@@ -129,7 +117,7 @@ static SCREEN_UPDATE( itgambl3 )
 * Memory map information *
 *************************/
 
-static ADDRESS_MAP_START( itgambl3_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( itgambl3_map, ADDRESS_SPACE_PROGRAM, 16 )
 	ADDRESS_MAP_GLOBAL_MASK(0xffffff)
 	AM_RANGE(0x000000, 0xffffff) AM_ROM
 ADDRESS_MAP_END
@@ -248,33 +236,32 @@ static PALETTE_INIT( itgambl3 )
 *     Machine Drivers     *
 **************************/
 
-static MACHINE_CONFIG_START( itgambl3, itgambl3_state )
+static MACHINE_DRIVER_START( itgambl3 )
 
     /* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", H83044, MAIN_CLOCK)	/* wrong CPU, but we have not a M16C core ATM */
-	MCFG_CPU_PROGRAM_MAP(itgambl3_map)
+	MDRV_CPU_ADD("maincpu", H83044, MAIN_CLOCK)	/* wrong CPU, but we have not a M16C core ATM */
+	MDRV_CPU_PROGRAM_MAP(itgambl3_map)
 
     /* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(512, 256)
-	MCFG_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
-	MCFG_SCREEN_UPDATE( itgambl3 )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(512, 256)
+	MDRV_SCREEN_VISIBLE_AREA(0, 512-1, 0, 256-1)
+	MDRV_MACHINE_RESET( itgambl3 )
+	MDRV_PALETTE_INIT( itgambl3 )
 
-	MCFG_MACHINE_RESET( itgambl3 )
-	MCFG_PALETTE_INIT( itgambl3 )
-
-	MCFG_GFXDECODE(itgambl3)
-	MCFG_PALETTE_LENGTH(0x200)
-	MCFG_VIDEO_START( itgambl3 )
+	MDRV_GFXDECODE(itgambl3)
+	MDRV_PALETTE_LENGTH(0x200)
+	MDRV_VIDEO_START( itgambl3 )
+	MDRV_VIDEO_UPDATE( itgambl3 )
 
     /* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_OKIM6295_ADD("oki", MAIN_CLOCK/16, OKIM6295_PIN7_HIGH)	/* 1MHz */
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_OKIM6295_ADD("oki", MAIN_CLOCK/16, OKIM6295_PIN7_HIGH)	/* 1MHz */
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************

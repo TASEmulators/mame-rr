@@ -1,31 +1,4 @@
-/***************************************************************************
-
-Zodiack/Dogfight (c) 1983 Orca
-
-driver by Zsolt Vasvari
-
-Notes:
-- Moguchan and The Percussor triggers this code:
-  2DD6: D1            pop  de
-  2DD7: D1            pop  de
-  2DD8: D1            pop  de
-  2DD9: D1            pop  de
-  2DDA: D1            pop  de
-  2DDB: D1            pop  de
-  2DDC: 32 00 70      ld   ($7000),a
-  2DDF: 0B            dec  bc
-  2DE0: 78            ld   a,b
-  2DE1: B1            or   c
-  2DE2: 20 F2         jr   nz,$2DD6
-  2DE4: E9            jp   (hl)
-  All it does is scanning the whole 64k z80 space via all those pop opcodes ...
-  DE register values are always discarded ... bug in coding or ROM patch?
-
-TODO:
-
-- Verify Z80 and AY8910 clock speeds
-
-============================================================================
+/*
 
 Zodiack
 Orca, 1983
@@ -83,122 +56,98 @@ Notes:
       ALL ROMs 2732
       ALL PROMs MMI 6331
 
+*/
+
+/***************************************************************************
+
+Zodiack/Dogfight Memory Map (preliminary)
+
+driver by Zsolt Vasvari
+
+Memory Mapped:
+
+
+I/O Ports:
+
+00-01       W   AY8910 #0
+
+
+TODO:
+
+- Verify Z80 and AY8910 clock speeds
+
 ***************************************************************************/
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "deprecat.h"
 #include "sound/ay8910.h"
-#include "includes/zodiack.h"
+#include "includes/espial.h"
 
-
-static WRITE8_HANDLER( zodiack_nmi_mask_w )
-{
-	zodiack_state *state = space->machine().driver_data<zodiack_state>();
-
-	state->m_nmi_enable = (data & 1) ^ 1;
-}
-
-static WRITE8_HANDLER( zodiack_sound_nmi_enable_w )
-{
-	zodiack_state *state = space->machine().driver_data<zodiack_state>();
-	state->m_sound_nmi_enabled = data & 1;
-}
-
-
-static TIMER_DEVICE_CALLBACK( zodiack_scanline )
-{
-	zodiack_state *state = timer.machine().driver_data<zodiack_state>();
-	int scanline = param;
-
-	if(scanline == 240 && state->m_nmi_enable) // vblank-out irq
-		cputag_set_input_line(timer.machine(), "maincpu", INPUT_LINE_NMI, PULSE_LINE);
-
-	if(scanline == 0 ) // vblank-in irq
-		cputag_set_input_line(timer.machine(), "maincpu", 0, HOLD_LINE);
-}
-
-static INTERRUPT_GEN( zodiack_sound_nmi_gen )
-{
-	zodiack_state *state = device->machine().driver_data<zodiack_state>();
-
-	if (state->m_sound_nmi_enabled)
-		nmi_line_pulse(device);
-}
-
-
-static WRITE8_HANDLER( zodiack_master_soundlatch_w )
-{
-	zodiack_state *state = space->machine().driver_data<zodiack_state>();
-	soundlatch_w(space, offset, data);
-	device_set_input_line(state->m_audiocpu, 0, HOLD_LINE);
-}
 
 static MACHINE_START( zodiack )
 {
-	zodiack_state *state = machine.driver_data<zodiack_state>();
+	espial_state *state = (espial_state *)machine->driver_data;
 
-	state->m_percuss_hardware = 0;
-	state->m_maincpu = machine.device("maincpu");
-	state->m_audiocpu = machine.device("audiocpu");
-
-	state->save_item(NAME(state->m_sound_nmi_enabled));
+	state_save_register_global(machine, state->percuss_hardware);
+	MACHINE_START_CALL(espial);
 }
 
 static MACHINE_RESET( zodiack )
 {
-	zodiack_state *state = machine.driver_data<zodiack_state>();
+	espial_state *state = (espial_state *)machine->driver_data;
 
-	state->m_sound_nmi_enabled = FALSE;
+	state->percuss_hardware = 0;
+	MACHINE_RESET_CALL(espial);
 }
 
-static MACHINE_START( percuss )
+static MACHINE_RESET( percuss )
 {
-	zodiack_state *state = machine.driver_data<zodiack_state>();
+	espial_state *state = (espial_state *)machine->driver_data;
 
-	MACHINE_START_CALL( zodiack );
-
-	state->m_percuss_hardware = 1;
+	state->percuss_hardware = 1;
+	MACHINE_RESET_CALL(espial);
 }
 
 
 static WRITE8_HANDLER( zodiack_control_w )
 {
 	/* Bit 0-1 - coin counters */
-	coin_counter_w(space->machine(), 0, data & 0x02);
-	coin_counter_w(space->machine(), 1, data & 0x01);
+	coin_counter_w(space->machine, 0, data & 0x02);
+	coin_counter_w(space->machine, 1, data & 0x01);
 
 	/* Bit 2 - ???? */
 }
 
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x4fff) AM_ROM
 	AM_RANGE(0x5800, 0x5fff) AM_RAM
 	AM_RANGE(0x6081, 0x6081) AM_READ_PORT("DSW0") AM_WRITE(zodiack_control_w)
 	AM_RANGE(0x6082, 0x6082) AM_READ_PORT("DSW1")
 	AM_RANGE(0x6083, 0x6083) AM_READ_PORT("IN0")
 	AM_RANGE(0x6084, 0x6084) AM_READ_PORT("IN1")
-	AM_RANGE(0x6090, 0x6090) AM_READWRITE(soundlatch_r, zodiack_master_soundlatch_w)
+	AM_RANGE(0x6090, 0x6090) AM_READWRITE(soundlatch_r, zodiac_master_soundlatch_w)
 	AM_RANGE(0x7000, 0x7000) AM_READNOP AM_WRITE(watchdog_reset_w)  /* NOP??? */
-	AM_RANGE(0x7100, 0x7100) AM_WRITE(zodiack_nmi_mask_w)
+	AM_RANGE(0x7100, 0x7100) AM_WRITE(zodiac_master_interrupt_enable_w)
 	AM_RANGE(0x7200, 0x7200) AM_WRITE(zodiack_flipscreen_w)
-	AM_RANGE(0x9000, 0x903f) AM_RAM_WRITE(zodiack_attributes_w) AM_BASE_MEMBER(zodiack_state, m_attributeram)
-	AM_RANGE(0x9040, 0x905f) AM_RAM AM_BASE_SIZE_MEMBER(zodiack_state, m_spriteram, m_spriteram_size)
-	AM_RANGE(0x9060, 0x907f) AM_RAM AM_BASE_SIZE_MEMBER(zodiack_state, m_bulletsram, m_bulletsram_size)
+	AM_RANGE(0x9000, 0x903f) AM_RAM_WRITE(zodiack_attributes_w) AM_BASE_MEMBER(espial_state, attributeram)
+	AM_RANGE(0x9040, 0x905f) AM_RAM AM_BASE_SIZE_MEMBER(espial_state, spriteram, spriteram_size)
+	AM_RANGE(0x9060, 0x907f) AM_RAM AM_BASE_SIZE_MEMBER(espial_state, bulletsram, bulletsram_size)
 	AM_RANGE(0x9080, 0x93ff) AM_RAM
-	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(zodiack_videoram_w) AM_BASE_SIZE_MEMBER(zodiack_state, m_videoram, m_videoram_size)
-	AM_RANGE(0xb000, 0xb3ff) AM_RAM_WRITE(zodiack_videoram2_w) AM_BASE_MEMBER(zodiack_state, m_videoram_2)
+	AM_RANGE(0xa000, 0xa3ff) AM_RAM_WRITE(zodiack_videoram_w) AM_BASE_SIZE_MEMBER(espial_state, videoram, videoram_size)
+	AM_RANGE(0xb000, 0xb3ff) AM_RAM_WRITE(zodiack_videoram2_w) AM_BASE_MEMBER(espial_state, videoram_2)
 	AM_RANGE(0xc000, 0xcfff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x1fff) AM_ROM
 	AM_RANGE(0x2000, 0x23ff) AM_RAM
-	AM_RANGE(0x4000, 0x4000) AM_WRITE(zodiack_sound_nmi_enable_w)
+	AM_RANGE(0x4000, 0x4000) AM_WRITE(espial_sound_nmi_enable_w)
 	AM_RANGE(0x6000, 0x6000) AM_READWRITE(soundlatch_r, soundlatch_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x01) AM_DEVWRITE("aysnd", ay8910_address_data_w)
 ADDRESS_MAP_END
@@ -210,12 +159,12 @@ static INPUT_PORTS_START( zodiack )
 	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_UNUSED )
 
 	PORT_START("DSW1")
-	PORT_DIPNAME( 0x03, 0x00, DEF_STR( Lives ) )		PORT_DIPLOCATION("SW1:1,2")
+	PORT_DIPNAME( 0x03, 0x00, DEF_STR( Lives ) )
 	PORT_DIPSETTING(    0x00, "3" )
 	PORT_DIPSETTING(    0x01, "4" )
 	PORT_DIPSETTING(    0x02, "5" )
 	PORT_DIPSETTING(    0x03, "6" )
-	PORT_DIPNAME( 0x1c, 0x00, DEF_STR( Coinage ) )		PORT_DIPLOCATION("SW1:3,4,5")
+	PORT_DIPNAME( 0x1c, 0x00, DEF_STR( Coinage ) )
 	PORT_DIPSETTING(    0x14, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x18, "2 Coins/1 Credit  3 Coins/2 Credits" )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
@@ -224,13 +173,13 @@ static INPUT_PORTS_START( zodiack )
 	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_6C ) )
 	PORT_DIPSETTING(    0x1c, DEF_STR( Free_Play ) )
-	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Bonus_Life ) )	PORT_DIPLOCATION("SW1:6")
+	PORT_DIPNAME( 0x20, 0x00, DEF_STR( Bonus_Life ) )
 	PORT_DIPSETTING(    0x00, "20000 50000" )
 	PORT_DIPSETTING(    0x20, "40000 70000" )
-	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Cabinet ) )		PORT_DIPLOCATION("SW1:7")
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Cabinet ) )
 	PORT_DIPSETTING(    0x40, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )		PORT_DIPLOCATION("SW1:8") /* Manual shows this one as Service Mode */
+	PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
@@ -535,7 +484,7 @@ static const gfx_layout charlayout_2 =
 	8,8,    /* 8*8 chars */
 	256,    /* 256 characters */
 	2,      /* 2 bits per pixel */
-	{ 0, 512*8*8 },  /* The bitplanes are separate */
+	{ 0, 512*8*8 },  /* The bitplanes are seperate */
 	{ 0, 1, 2, 3, 4, 5, 6, 7 },
 	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8 },
 	8*8     /* every char takes 8 consecutive bytes */
@@ -574,46 +523,50 @@ static GFXDECODE_START( zodiack )
 GFXDECODE_END
 
 
-static MACHINE_CONFIG_START( zodiack, zodiack_state )
+static MACHINE_DRIVER_START( zodiack )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(espial_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 4000000)        /* 4.00 MHz??? */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_TIMER_ADD_SCANLINE("scantimer", zodiack_scanline, "screen", 0, 1)
+	MDRV_CPU_ADD("maincpu", Z80, 4000000)        /* 4.00 MHz??? */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT_HACK(zodiac_master_interrupt,2)
 
-	MCFG_CPU_ADD("audiocpu", Z80, 14318000/8)	/* 1.78975 MHz??? */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_PERIODIC_INT(zodiack_sound_nmi_gen,8*60)	/* IRQs are triggered by the main CPU */
+	MDRV_CPU_ADD("audiocpu", Z80, 14318000/8)	/* 1.78975 MHz??? */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT_HACK(espial_sound_nmi_gen,8)	/* IRQs are triggered by the main CPU */
 
-	MCFG_MACHINE_RESET(zodiack)
-	MCFG_MACHINE_START(zodiack)
+	MDRV_MACHINE_RESET(zodiack)
+	MDRV_MACHINE_START(zodiack)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */  /* frames per second, vblank duration */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
-	MCFG_SCREEN_UPDATE(zodiack)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */  /* frames per second, vblank duration */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 2*8, 30*8-1)
 
-	MCFG_GFXDECODE(zodiack)
-	MCFG_PALETTE_LENGTH(4*8+2*8+2*1)
+	MDRV_GFXDECODE(zodiack)
+	MDRV_PALETTE_LENGTH(4*8+2*8+2*1)
 
-	MCFG_PALETTE_INIT(zodiack)
-	MCFG_VIDEO_START(zodiack)
+	MDRV_PALETTE_INIT(zodiack)
+	MDRV_VIDEO_START(zodiack)
+	MDRV_VIDEO_UPDATE(zodiack)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 1789750)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 1789750)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
-static MACHINE_CONFIG_DERIVED( percuss, zodiack )
-	MCFG_MACHINE_START(percuss)
-MACHINE_CONFIG_END
+static MACHINE_DRIVER_START( percuss )
+	MDRV_IMPORT_FROM(zodiack)
+	MDRV_MACHINE_RESET(percuss)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************
@@ -722,8 +675,8 @@ ROM_START( bounty )
 	ROM_LOAD( "mb7051.2b",   0x0020, 0x0020, CRC(465e31d4) SHA1(d47a4aa0e8931dcd8f85017ef04c2f6ad79f5725) )
 ROM_END
 
-GAME( 1983, zodiack,  0, zodiack, zodiack,  0, ROT270, "Orca (Esco Trading Co)",                           "Zodiack", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )	/* bullet color needs to be verified */
-GAME( 1983, dogfight, 0, zodiack, dogfight, 0, ROT270, "Orca / Thunderbolt",                               "Dog Fight (Thunderbolt)", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )	/* bullet color needs to be verified */
-GAME( 1982, moguchan, 0, percuss, moguchan, 0, ROT270, "Orca (Eastern Commerce Inc. license) (bootleg?)",  "Moguchan", GAME_WRONG_COLORS | GAME_SUPPORTS_SAVE ) /* license copyright taken from ROM string at $0b5c */
-GAME( 1981, percuss,  0, percuss, percuss,  0, ROT270, "Orca (bootleg?)",                                  "The Percussor", GAME_SUPPORTS_SAVE )
-GAME( 1982, bounty,   0, percuss, bounty,   0, ROT180, "Orca",                                             "The Bounty", GAME_SUPPORTS_SAVE )
+GAME( 1983, zodiack,  0, zodiack, zodiack,  0, ROT270, "Orca (Esco Trading Co)", "Zodiack", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )	/* bullet color needs to be verified */
+GAME( 1983, dogfight, 0, zodiack, dogfight, 0, ROT270, "Orca / Thunderbolt", "Dog Fight (Thunderbolt)", GAME_IMPERFECT_COLORS | GAME_SUPPORTS_SAVE )	/* bullet color needs to be verified */
+GAME( 1982, moguchan, 0, percuss, moguchan, 0, ROT270, "Orca (Eastern Commerce Inc. license) (bootleg?)",  /* this is in the ROM at $0b5c */ "Moguchan", GAME_WRONG_COLORS | GAME_SUPPORTS_SAVE )
+GAME( 1981, percuss,  0, percuss, percuss,  0, ROT270, "Orca", "The Percussor", GAME_SUPPORTS_SAVE )
+GAME( 1982, bounty,   0, percuss, bounty,   0, ROT180, "Orca", "The Bounty", GAME_SUPPORTS_SAVE )

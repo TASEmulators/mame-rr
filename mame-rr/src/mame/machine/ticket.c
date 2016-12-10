@@ -20,18 +20,18 @@
 typedef struct _ticket_state ticket_state;
 struct _ticket_state
 {
-	int m_active_bit;
-	int m_time_msec;
-	int m_motoron;
-	int m_ticketdispensed;
-	int m_ticketnotdispensed;
+	int active_bit;
+	int time_msec;
+	int motoron;
+	int ticketdispensed;
+	int ticketnotdispensed;
 
-	UINT8 m_status;
-	UINT8 m_power;
-	emu_timer *m_timer;
+	UINT8 status;
+	UINT8 power;
+	emu_timer *timer;
 };
 
-INLINE ticket_state *get_safe_token(device_t *device)
+INLINE ticket_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == TICKET_DISPENSER);
@@ -42,17 +42,17 @@ INLINE ticket_state *get_safe_token(device_t *device)
 
 static TIMER_CALLBACK( ticket_dispenser_toggle )
 {
-	ticket_state *state = get_safe_token((device_t *)ptr);
+	ticket_state *state = get_safe_token((running_device *)ptr);
 
 	/* If we still have power, keep toggling ticket states. */
-	if (state->m_power)
+	if (state->power)
 	{
-		state->m_status ^= state->m_active_bit;
-		LOG(("Ticket Status Changed to %02X\n", state->m_status));
-		state->m_timer->adjust(attotime::from_msec(state->m_time_msec));
+		state->status ^= state->active_bit;
+		LOG(("Ticket Status Changed to %02X\n", state->status));
+		timer_adjust_oneshot(state->timer, ATTOTIME_IN_MSEC(state->time_msec), 0);
 	}
 
-	if (state->m_status == state->m_ticketdispensed)
+	if (state->status == state->ticketdispensed)
 	{
 		set_led_status(machine, 2,1);
 		increment_dispensed_tickets(machine, 1);
@@ -69,15 +69,15 @@ static TIMER_CALLBACK( ticket_dispenser_toggle )
 READ8_DEVICE_HANDLER( ticket_dispenser_r )
 {
 	ticket_state *state = get_safe_token(device);
-	LOG(("%s: Ticket Status Read = %02X\n", device->machine().describe_context(), state->m_status));
-	return state->m_status;
+	LOG(("%s: Ticket Status Read = %02X\n", cpuexec_describe_context(device->machine), state->status));
+	return state->status;
 }
 
 
 READ_LINE_DEVICE_HANDLER( ticket_dispenser_line_r )
 {
 	ticket_state *state = get_safe_token(device);
-	return state->m_status ? 1 : 0;
+	return state->status ? 1 : 0;
 }
 
 
@@ -86,25 +86,25 @@ WRITE8_DEVICE_HANDLER( ticket_dispenser_w )
 	ticket_state *state = get_safe_token(device);
 
 	/* On an activate signal, start dispensing! */
-	if ((data & state->m_active_bit) == state->m_motoron)
+	if ((data & state->active_bit) == state->motoron)
 	{
-		if (!state->m_power)
+		if (!state->power)
 		{
-			LOG(("%s: Ticket Power On\n", device->machine().describe_context()));
-			state->m_timer->adjust(attotime::from_msec(state->m_time_msec));
-			state->m_power = 1;
+			LOG(("%s: Ticket Power On\n", cpuexec_describe_context(device->machine)));
+			timer_adjust_oneshot(state->timer, ATTOTIME_IN_MSEC(state->time_msec), 0);
+			state->power = 1;
 
-			state->m_status = state->m_ticketnotdispensed;
+			state->status = state->ticketnotdispensed;
 		}
 	}
 	else
 	{
-		if (state->m_power)
+		if (state->power)
 		{
-			LOG(("%s: Ticket Power Off\n", device->machine().describe_context()));
-			state->m_timer->adjust(attotime::never);
-			set_led_status(device->machine(), 2,0);
-			state->m_power = 0;
+			LOG(("%s: Ticket Power Off\n", cpuexec_describe_context(device->machine)));
+			timer_adjust_oneshot(state->timer, attotime_never, 0);
+			set_led_status(device->machine, 2,0);
+			state->power = 0;
 		}
 	}
 }
@@ -121,22 +121,22 @@ WRITE8_DEVICE_HANDLER( ticket_dispenser_w )
 
 static DEVICE_START( ticket )
 {
-	const ticket_config *config = (const ticket_config *)downcast<const legacy_device_base *>(device)->inline_config();
+	const ticket_config *config = (const ticket_config *)downcast<const legacy_device_config_base &>(device->baseconfig()).inline_config();
 	ticket_state *state = get_safe_token(device);
 
 	assert(config != NULL);
 
 	/* initialize the state */
-	state->m_active_bit			= 0x80;
-	state->m_time_msec			= device->clock();
-	state->m_motoron				= config->motorhigh  ? state->m_active_bit : 0;
-	state->m_ticketdispensed		= config->statushigh ? state->m_active_bit : 0;
-	state->m_ticketnotdispensed	= state->m_ticketdispensed ^ state->m_active_bit;
+	state->active_bit			= 0x80;
+	state->time_msec			= device->clock();
+	state->motoron				= config->motorhigh  ? state->active_bit : 0;
+	state->ticketdispensed		= config->statushigh ? state->active_bit : 0;
+	state->ticketnotdispensed	= state->ticketdispensed ^ state->active_bit;
 
-	state->m_timer				= device->machine().scheduler().timer_alloc(FUNC(ticket_dispenser_toggle), (void *)device);
+	state->timer				= timer_alloc(device->machine, ticket_dispenser_toggle, (void *)device);
 
-	device->save_item(NAME(state->m_status));
-	device->save_item(NAME(state->m_power));
+	state_save_register_device_item(device, 0, state->status);
+	state_save_register_device_item(device, 0, state->power);
 }
 
 
@@ -147,8 +147,8 @@ static DEVICE_START( ticket )
 static DEVICE_RESET( ticket )
 {
 	ticket_state *state = get_safe_token(device);
-	state->m_status				= state->m_ticketnotdispensed;
-	state->m_power				= 0x00;
+	state->status				= state->ticketnotdispensed;
+	state->power				= 0x00;
 }
 
 

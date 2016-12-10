@@ -4,41 +4,39 @@
 
 *************************************************************************/
 
-class ultraman_state : public driver_device
+class ultraman_state
 {
 public:
-	ultraman_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, ultraman_state(machine)); }
+
+	ultraman_state(running_machine &machine) { }
 
 	/* memory pointers */
-//  UINT16 *   m_paletteram;    // currently this uses generic palette handling
+//  UINT16 *   paletteram;    // currently this uses generic palette handling
 
 	/* video-related */
-	int        m_sprite_colorbase;
-	int        m_zoom_colorbase[3];
-	int        m_bank0;
-	int        m_bank1;
-	int        m_bank2;
+	int        sprite_colorbase, zoom_colorbase[3];
+	int        bank0, bank1, bank2;
 
 	/* devices */
-	device_t *m_maincpu;
-	device_t *m_audiocpu;
-	device_t *m_k051316_1;
-	device_t *m_k051316_2;
-	device_t *m_k051316_3;
-	device_t *m_k051960;
+	running_device *maincpu;
+	running_device *audiocpu;
+	running_device *k051316_1;
+	running_device *k051316_2;
+	running_device *k051316_3;
+	running_device *k051960;
 };
 
 
 
 /*----------- defined in video/ultraman.c -----------*/
 
-extern void ultraman_sprite_callback(running_machine &machine, int *code,int *color,int *priority,int *shadow);
-extern void ultraman_zoom_callback_0(running_machine &machine, int *code,int *color,int *flags);
-extern void ultraman_zoom_callback_1(running_machine &machine, int *code,int *color,int *flags);
-extern void ultraman_zoom_callback_2(running_machine &machine, int *code,int *color,int *flags);
+extern void ultraman_sprite_callback(running_machine *machine, int *code,int *color,int *priority,int *shadow);
+extern void ultraman_zoom_callback_0(running_machine *machine, int *code,int *color,int *flags);
+extern void ultraman_zoom_callback_1(running_machine *machine, int *code,int *color,int *flags);
+extern void ultraman_zoom_callback_2(running_machine *machine, int *code,int *color,int *flags);
 
 WRITE16_HANDLER( ultraman_gfxctrl_w );
 
 VIDEO_START( ultraman );
-SCREEN_UPDATE( ultraman );
+VIDEO_UPDATE( ultraman );

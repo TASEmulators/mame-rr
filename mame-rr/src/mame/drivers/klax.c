@@ -19,9 +19,8 @@
 
 #include "emu.h"
 #include "cpu/m68000/m68000.h"
-#include "sound/okim6295.h"
-#include "video/atarimo.h"
 #include "includes/klax.h"
+#include "sound/okim6295.h"
 
 
 
@@ -31,18 +30,18 @@
  *
  *************************************/
 
-static void update_interrupts(running_machine &machine)
+static void update_interrupts(running_machine *machine)
 {
-	klax_state *state = machine.driver_data<klax_state>();
-	cputag_set_input_line(machine, "maincpu", 4, state->m_video_int_state || state->m_scanline_int_state ? ASSERT_LINE : CLEAR_LINE);
+	klax_state *state = (klax_state *)machine->driver_data;
+	cputag_set_input_line(machine, "maincpu", 4, state->atarigen.video_int_state || state->atarigen.scanline_int_state ? ASSERT_LINE : CLEAR_LINE);
 }
 
 
 static void scanline_update(screen_device &screen, int scanline)
 {
 	/* generate 32V signals */
-	if ((scanline & 32) == 0 && !(input_port_read(screen.machine(), "P1") & 0x800))
-		atarigen_scanline_int_gen(screen.machine().device("maincpu"));
+	if ((scanline & 32) == 0 && !(input_port_read(screen.machine, "P1") & 0x800))
+		atarigen_scanline_int_gen(screen.machine->device("maincpu"));
 }
 
 
@@ -68,11 +67,11 @@ static MACHINE_START( klax )
 
 static MACHINE_RESET( klax )
 {
-	klax_state *state = machine.driver_data<klax_state>();
+	klax_state *state = (klax_state *)machine->driver_data;
 
-	atarigen_eeprom_reset(state);
-	atarigen_interrupt_reset(state, update_interrupts);
-	atarigen_scanline_timer_reset(*machine.primary_screen, scanline_update, 32);
+	atarigen_eeprom_reset(&state->atarigen);
+	atarigen_interrupt_reset(&state->atarigen, update_interrupts);
+	atarigen_scanline_timer_reset(*machine->primary_screen, scanline_update, 32);
 }
 
 
@@ -83,20 +82,20 @@ static MACHINE_RESET( klax )
  *
  *************************************/
 
-static ADDRESS_MAP_START( klax_map, AS_PROGRAM, 16 )
+static ADDRESS_MAP_START( klax_map, ADDRESS_SPACE_PROGRAM, 16 )
 	AM_RANGE(0x000000, 0x03ffff) AM_ROM
-	AM_RANGE(0x0e0000, 0x0e0fff) AM_READWRITE(atarigen_eeprom_r,atarigen_eeprom_w) AM_SHARE("eeprom")
+	AM_RANGE(0x0e0000, 0x0e0fff) AM_READWRITE(atarigen_eeprom_r,atarigen_eeprom_w) AM_BASE_SIZE_MEMBER(klax_state, atarigen.eeprom, atarigen.eeprom_size)
 	AM_RANGE(0x1f0000, 0x1fffff) AM_WRITE(atarigen_eeprom_enable_w)
 	AM_RANGE(0x260000, 0x260001) AM_READ_PORT("P1") AM_WRITE(klax_latch_w)
 	AM_RANGE(0x260002, 0x260003) AM_READ_PORT("P2")
-	AM_RANGE(0x270000, 0x270001) AM_DEVREADWRITE8_MODERN("oki", okim6295_device, read, write, 0x00ff)
+	AM_RANGE(0x270000, 0x270001) AM_DEVREADWRITE8("oki", okim6295_r,okim6295_w, 0x00ff)
 	AM_RANGE(0x2e0000, 0x2e0001) AM_WRITE(watchdog_reset16_w)
 	AM_RANGE(0x360000, 0x360001) AM_WRITE(interrupt_ack_w)
 	AM_RANGE(0x3e0000, 0x3e07ff) AM_RAM_WRITE(atarigen_expanded_666_paletteram_w) AM_BASE_GENERIC(paletteram)
-	AM_RANGE(0x3f0000, 0x3f0f7f) AM_RAM_WRITE(atarigen_playfield_w) AM_BASE_MEMBER(klax_state, m_playfield)
-	AM_RANGE(0x3f0f80, 0x3f0fff) AM_READWRITE(atarimo_0_slipram_r, atarimo_0_slipram_w)
-	AM_RANGE(0x3f1000, 0x3f1fff) AM_RAM_WRITE(atarigen_playfield_upper_w) AM_BASE_MEMBER(klax_state, m_playfield_upper)
-	AM_RANGE(0x3f2000, 0x3f27ff) AM_READWRITE(atarimo_0_spriteram_r, atarimo_0_spriteram_w)
+	AM_RANGE(0x3f0000, 0x3f0f7f) AM_RAM_WRITE(atarigen_playfield_w) AM_BASE_MEMBER(klax_state, atarigen.playfield)
+	AM_RANGE(0x3f0f80, 0x3f0fff) AM_RAM_WRITE(atarimo_0_slipram_w) AM_BASE(&atarimo_0_slipram)
+	AM_RANGE(0x3f1000, 0x3f1fff) AM_RAM_WRITE(atarigen_playfield_upper_w) AM_BASE_MEMBER(klax_state, atarigen.playfield_upper)
+	AM_RANGE(0x3f2000, 0x3f27ff) AM_RAM_WRITE(atarimo_0_spriteram_w) AM_BASE(&atarimo_0_spriteram)
 	AM_RANGE(0x3f2800, 0x3f3fff) AM_RAM
 ADDRESS_MAP_END
 
@@ -165,37 +164,38 @@ GFXDECODE_END
  *
  *************************************/
 
-static MACHINE_CONFIG_START( klax, klax_state )
+static MACHINE_DRIVER_START( klax )
+	MDRV_DRIVER_DATA(klax_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M68000, ATARI_CLOCK_14MHz/2)
-	MCFG_CPU_PROGRAM_MAP(klax_map)
-	MCFG_CPU_VBLANK_INT("screen", atarigen_video_int_gen)
+	MDRV_CPU_ADD("maincpu", M68000, ATARI_CLOCK_14MHz/2)
+	MDRV_CPU_PROGRAM_MAP(klax_map)
+	MDRV_CPU_VBLANK_INT("screen", atarigen_video_int_gen)
 
-	MCFG_MACHINE_START(klax)
-	MCFG_MACHINE_RESET(klax)
-	MCFG_NVRAM_ADD_1FILL("eeprom")
+	MDRV_MACHINE_START(klax)
+	MDRV_MACHINE_RESET(klax)
+	MDRV_NVRAM_HANDLER(atarigen)
 
 	/* video hardware */
-	MCFG_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
-	MCFG_GFXDECODE(klax)
-	MCFG_PALETTE_LENGTH(512)
+	MDRV_VIDEO_ATTRIBUTES(VIDEO_UPDATE_BEFORE_VBLANK)
+	MDRV_GFXDECODE(klax)
+	MDRV_PALETTE_LENGTH(512)
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
 	/* note: these parameters are from published specs, not derived */
 	/* the board uses an SOS-2 chip to generate video signals */
-	MCFG_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
-	MCFG_SCREEN_UPDATE(klax)
+	MDRV_SCREEN_RAW_PARAMS(ATARI_CLOCK_14MHz/2, 456, 0, 336, 262, 0, 240)
 
-	MCFG_VIDEO_START(klax)
+	MDRV_VIDEO_START(klax)
+	MDRV_VIDEO_UPDATE(klax)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_OKIM6295_ADD("oki", ATARI_CLOCK_14MHz/4/4, OKIM6295_PIN7_HIGH)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_OKIM6295_ADD("oki", ATARI_CLOCK_14MHz/4/4, OKIM6295_PIN7_HIGH)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 

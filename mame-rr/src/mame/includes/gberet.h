@@ -4,27 +4,27 @@
 
 ***************************************************************************/
 
-class gberet_state : public driver_device
+class gberet_state
 {
 public:
-	gberet_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, gberet_state(machine)); }
+
+	gberet_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT8 *     m_videoram;
-	UINT8 *     m_colorram;
-	UINT8 *     m_spriteram;
-	UINT8 *     m_spriteram2;
-	UINT8 *     m_scrollram;
-	size_t      m_spriteram_size;
+	UINT8 *     videoram;
+	UINT8 *     colorram;
+	UINT8 *     spriteram;
+	UINT8 *     spriteram2;
+	UINT8 *     scrollram;
+	size_t      spriteram_size;
 
 	/* video-related */
-	tilemap_t     *m_bg_tilemap;
-	UINT8       m_spritebank;
+	tilemap_t     *bg_tilemap;
+	UINT8       spritebank;
 
 	/* misc */
-	UINT8       m_nmi_enable;
-	UINT8       m_irq_enable;
+	UINT8       nmi_enable, irq_enable;
 };
 
 
@@ -38,5 +38,5 @@ WRITE8_HANDLER( gberet_sprite_bank_w );
 
 PALETTE_INIT( gberet );
 VIDEO_START( gberet );
-SCREEN_UPDATE( gberet );
-SCREEN_UPDATE( gberetb );
+VIDEO_UPDATE( gberet );
+VIDEO_UPDATE( gberetb );

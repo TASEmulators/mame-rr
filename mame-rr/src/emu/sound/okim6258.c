@@ -10,6 +10,7 @@
 
 
 #include "emu.h"
+#include "streams.h"
 #include "okim6258.h"
 
 #define COMMAND_STOP		(1 << 0)
@@ -48,10 +49,10 @@ static int diff_lookup[49*16];
 /* tables computed? */
 static int tables_computed = 0;
 
-INLINE okim6258_state *get_safe_token(device_t *device)
+INLINE okim6258_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
-	assert(device->type() == OKIM6258);
+	assert(device->type() == SOUND_OKIM6258);
 	return (okim6258_state *)downcast<legacy_device_base *>(device)->token();
 }
 
@@ -169,15 +170,15 @@ static STREAM_UPDATE( okim6258_update )
 
 ***********************************************************************************************/
 
-static void okim6258_state_save_register(okim6258_state *info, device_t *device)
+static void okim6258_state_save_register(okim6258_state *info, running_device *device)
 {
-	device->save_item(NAME(info->status));
-	device->save_item(NAME(info->master_clock));
-	device->save_item(NAME(info->divider));
-	device->save_item(NAME(info->data_in));
-	device->save_item(NAME(info->nibble_shift));
-	device->save_item(NAME(info->signal));
-	device->save_item(NAME(info->step));
+	state_save_register_device_item(device, 0, info->status);
+	state_save_register_device_item(device, 0, info->master_clock);
+	state_save_register_device_item(device, 0, info->divider);
+	state_save_register_device_item(device, 0, info->data_in);
+	state_save_register_device_item(device, 0, info->nibble_shift);
+	state_save_register_device_item(device, 0, info->signal);
+	state_save_register_device_item(device, 0, info->step);
 }
 
 
@@ -189,7 +190,7 @@ static void okim6258_state_save_register(okim6258_state *info, device_t *device)
 
 static DEVICE_START( okim6258 )
 {
-	const okim6258_interface *intf = (const okim6258_interface *)device->static_config();
+	const okim6258_interface *intf = (const okim6258_interface *)device->baseconfig().static_config();
 	okim6258_state *info = get_safe_token(device);
 
 	compute_tables();
@@ -201,7 +202,7 @@ static DEVICE_START( okim6258 )
 	info->output_bits = intf->output_12bits ? 12 : 10;
 	info->divider = dividers[intf->divider];
 
-	info->stream = device->machine().sound().stream_alloc(*device, 0, 1, device->clock()/info->divider, info, okim6258_update);
+	info->stream = stream_create(device, 0, 1, device->clock()/info->divider, info, okim6258_update);
 
 	info->signal = -2;
 	info->step = 0;
@@ -220,7 +221,7 @@ static DEVICE_RESET( okim6258 )
 {
 	okim6258_state *info = get_safe_token(device);
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	info->signal = -2;
 	info->step = 0;
@@ -234,13 +235,13 @@ static DEVICE_RESET( okim6258 )
 
 ***********************************************************************************************/
 
-void okim6258_set_divider(device_t *device, int val)
+void okim6258_set_divider(running_device *device, int val)
 {
 	okim6258_state *info = get_safe_token(device);
 	int divider = dividers[val];
 
 	info->divider = dividers[val];
-	info->stream->set_sample_rate(info->master_clock / divider);
+	stream_set_sample_rate(info->stream, info->master_clock / divider);
 }
 
 
@@ -250,12 +251,12 @@ void okim6258_set_divider(device_t *device, int val)
 
 ***********************************************************************************************/
 
-void okim6258_set_clock(device_t *device, int val)
+void okim6258_set_clock(running_device *device, int val)
 {
 	okim6258_state *info = get_safe_token(device);
 
 	info->master_clock = val;
-	info->stream->set_sample_rate(info->master_clock / info->divider);
+	stream_set_sample_rate(info->stream, info->master_clock / info->divider);
 }
 
 
@@ -265,7 +266,7 @@ void okim6258_set_clock(device_t *device, int val)
 
 ***********************************************************************************************/
 
-int okim6258_get_vclk(device_t *device)
+int okim6258_get_vclk(running_device *device)
 {
 	okim6258_state *info = get_safe_token(device);
 
@@ -283,7 +284,7 @@ READ8_DEVICE_HANDLER( okim6258_status_r )
 {
 	okim6258_state *info = get_safe_token(device);
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	return (info->status & STATUS_PLAYING) ? 0x00 : 0x80;
 }
@@ -299,7 +300,7 @@ WRITE8_DEVICE_HANDLER( okim6258_data_w )
 	okim6258_state *info = get_safe_token(device);
 
 	/* update the stream */
-	info->stream->update();
+	stream_update(info->stream);
 
 	info->data_in = data;
 	info->nibble_shift = 0;
@@ -316,7 +317,7 @@ WRITE8_DEVICE_HANDLER( okim6258_ctrl_w )
 {
 	okim6258_state *info = get_safe_token(device);
 
-	info->stream->update();
+	stream_update(info->stream);
 
 	if (data & COMMAND_STOP)
 	{

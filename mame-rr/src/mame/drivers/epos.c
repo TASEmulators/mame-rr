@@ -36,16 +36,16 @@
 
 static WRITE8_HANDLER( dealer_decrypt_rom )
 {
-	epos_state *state = space->machine().driver_data<epos_state>();
+	epos_state *state = (epos_state *)space->machine->driver_data;
 
 	if (offset & 0x04)
-		state->m_counter = (state->m_counter + 1) & 0x03;
+		state->counter = (state->counter + 1) & 0x03;
 	else
-		state->m_counter = (state->m_counter - 1) & 0x03;
+		state->counter = (state->counter - 1) & 0x03;
 
-//  logerror("PC %08x: ctr=%04x\n",cpu_get_pc(&space->device()), state->m_counter);
+//  logerror("PC %08x: ctr=%04x\n",cpu_get_pc(space->cpu), state->counter);
 
-	memory_set_bank(space->machine(), "bank1", state->m_counter);
+	memory_set_bank(space->machine, "bank1", state->counter);
 
 	// is the 2nd bank changed by the counter or it always uses the 1st key?
 }
@@ -57,18 +57,18 @@ static WRITE8_HANDLER( dealer_decrypt_rom )
  *
  *************************************/
 
-static ADDRESS_MAP_START( epos_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( epos_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x77ff) AM_ROM
 	AM_RANGE(0x7800, 0x7fff) AM_RAM
-	AM_RANGE(0x8000, 0xffff) AM_RAM AM_BASE_SIZE_MEMBER(epos_state, m_videoram, m_videoram_size)
+	AM_RANGE(0x8000, 0xffff) AM_RAM AM_BASE_SIZE_MEMBER(epos_state, videoram, videoram_size)
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( dealer_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( dealer_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x5fff) AM_ROMBANK("bank1")
 	AM_RANGE(0x6000, 0x6fff) AM_ROMBANK("bank2")
 	AM_RANGE(0x7000, 0x7fff) AM_RAM
-	AM_RANGE(0x8000, 0xffff) AM_RAM AM_BASE_SIZE_MEMBER(epos_state, m_videoram, m_videoram_size)
+	AM_RANGE(0x8000, 0xffff) AM_RAM AM_BASE_SIZE_MEMBER(epos_state, videoram, videoram_size)
 ADDRESS_MAP_END
 
 /*************************************
@@ -77,7 +77,7 @@ ADDRESS_MAP_END
  *
  *************************************/
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READ_PORT("DSW") AM_WRITE(watchdog_reset_w)
 	AM_RANGE(0x01, 0x01) AM_READ_PORT("SYSTEM") AM_WRITE(epos_port_1_w)
@@ -86,7 +86,7 @@ static ADDRESS_MAP_START( io_map, AS_IO, 8 )
 	AM_RANGE(0x06, 0x06) AM_DEVWRITE("aysnd", ay8910_address_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( dealer_io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( dealer_io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x10, 0x13) AM_DEVREADWRITE("ppi8255", ppi8255_r, ppi8255_w)
 	AM_RANGE(0x20, 0x24) AM_WRITE(dealer_decrypt_rom)
@@ -102,7 +102,7 @@ ADDRESS_MAP_END
 */
 static WRITE8_DEVICE_HANDLER( write_prtc )
 {
-	memory_set_bank(device->machine(), "bank2", data & 0x01);
+	memory_set_bank(device->machine, "bank2", data & 0x01);
 }
 
 static const ppi8255_interface ppi8255_intf =
@@ -365,24 +365,24 @@ INPUT_PORTS_END
 
 static MACHINE_START( epos )
 {
-	epos_state *state = machine.driver_data<epos_state>();
+	epos_state *state = (epos_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_palette));
-	state->save_item(NAME(state->m_counter));
+	state_save_register_global(machine, state->palette);
+	state_save_register_global(machine, state->counter);
 }
 
 static MACHINE_RESET( epos )
 {
-	epos_state *state = machine.driver_data<epos_state>();
+	epos_state *state = (epos_state *)machine->driver_data;
 
-	state->m_palette = 0;
-	state->m_counter = 0;
+	state->palette = 0;
+	state->counter = 0;
 }
 
 
 static MACHINE_START( dealer )
 {
-	UINT8 *ROM = machine.region("maincpu")->base();
+	UINT8 *ROM = memory_region(machine, "maincpu");
 	memory_configure_bank(machine, "bank1", 0, 4, &ROM[0x0000], 0x10000);
 	memory_configure_bank(machine, "bank2", 0, 2, &ROM[0x6000], 0x1000);
 
@@ -392,60 +392,68 @@ static MACHINE_START( dealer )
 	MACHINE_START_CALL(epos);
 }
 
-static MACHINE_CONFIG_START( epos, epos_state )
+static MACHINE_DRIVER_START( epos )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(epos_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 11000000/4)	/* 2.75 MHz (see notes) */
-	MCFG_CPU_PROGRAM_MAP(epos_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 11000000/4)	/* 2.75 MHz (see notes) */
+	MDRV_CPU_PROGRAM_MAP(epos_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_RESET(epos)
-	MCFG_MACHINE_RESET(epos)
+	MDRV_MACHINE_RESET(epos)
+	MDRV_MACHINE_RESET(epos)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(272, 241)
-	MCFG_SCREEN_VISIBLE_AREA(0, 271, 0, 235)
-	MCFG_SCREEN_UPDATE(epos)
+	MDRV_VIDEO_UPDATE(epos)
+
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(272, 241)
+	MDRV_SCREEN_VISIBLE_AREA(0, 271, 0, 235)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("aysnd", AY8910, 11000000/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("aysnd", AY8910, 11000000/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
-static MACHINE_CONFIG_START( dealer, epos_state )
+static MACHINE_DRIVER_START( dealer )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(epos_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80, 11000000/4)	/* 2.75 MHz (see notes) */
-	MCFG_CPU_PROGRAM_MAP(dealer_map)
-	MCFG_CPU_IO_MAP(dealer_io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80, 11000000/4)	/* 2.75 MHz (see notes) */
+	MDRV_CPU_PROGRAM_MAP(dealer_map)
+	MDRV_CPU_IO_MAP(dealer_io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_PPI8255_ADD( "ppi8255", ppi8255_intf )
+	MDRV_PPI8255_ADD( "ppi8255", ppi8255_intf )
 
-	MCFG_MACHINE_START(dealer)
-	MCFG_MACHINE_RESET(epos)
+	MDRV_MACHINE_START(dealer)
+	MDRV_MACHINE_RESET(epos)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
-	MCFG_SCREEN_SIZE(272, 241)
-	MCFG_SCREEN_VISIBLE_AREA(0, 271, 0, 235)
-	MCFG_SCREEN_UPDATE(epos)
+	MDRV_VIDEO_UPDATE(epos)
+
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_RGB32)
+	MDRV_SCREEN_SIZE(272, 241)
+	MDRV_SCREEN_VISIBLE_AREA(0, 271, 0, 235)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
-	MCFG_SOUND_ADD("aysnd", AY8910, 11000000/4)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-MACHINE_CONFIG_END
+	MDRV_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SOUND_ADD("aysnd", AY8910, 11000000/4)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
+MACHINE_DRIVER_END
 
 
 /*************************************
@@ -610,7 +618,7 @@ ROM_END
 
 static DRIVER_INIT( dealer )
 {
-	UINT8 *rom = machine.region("maincpu")->base();
+	UINT8 *rom = memory_region(machine, "maincpu");
 	int A;
 
 	/* Key 0 */

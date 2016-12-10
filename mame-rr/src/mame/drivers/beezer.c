@@ -13,22 +13,19 @@
 #include "sound/dac.h"
 #include "includes/beezer.h"
 
-static ADDRESS_MAP_START( main_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0xbfff) AM_RAM AM_BASE_MEMBER(beezer_state, m_videoram)
+
+static ADDRESS_MAP_START( main_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0xbfff) AM_RAM AM_BASE_GENERIC(videoram) AM_SIZE_GENERIC(videoram)
 	AM_RANGE(0xc000, 0xcfff) AM_ROMBANK("bank1")
-	AM_RANGE(0xd000, 0xdfff) AM_ROM AM_WRITE(beezer_bankswitch_w) // ROM at G1, bankswitch
-	AM_RANGE(0xe000, 0xffff) AM_ROM // ROMS at G3, G5
+	AM_RANGE(0xd000, 0xffff) AM_ROM AM_WRITE(beezer_bankswitch_w)
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8 )
-	AM_RANGE(0x0000, 0x07ff) AM_RAM // RAM at 0D
-	AM_RANGE(0x0800, 0x0fff) AM_RAM // optional RAM at 2D (can be rom here instead)
-	AM_RANGE(0x1000, 0x1007) AM_MIRROR(0x07F8) AM_DEVREADWRITE("custom", beezer_sh6840_r, beezer_sh6840_w)
-	AM_RANGE(0x1800, 0x180F) AM_MIRROR(0x07F0) AM_DEVREADWRITE_MODERN("via6522_1", via6522_device, read, write)
-	AM_RANGE(0x8000, 0x8003) AM_MIRROR(0x1FFC) AM_DEVWRITE("custom", beezer_sfxctrl_w)
-	//AM_RANGE(0xa000, 0xbfff) AM_ROM // ROM at 2D (can be ram here instead), unpopulated
-	//AM_RANGE(0xc000, 0xdfff) AM_ROM // ROM at 4D, unpopulated
-	AM_RANGE(0xe000, 0xffff) AM_ROM // ROM at 6D
+static ADDRESS_MAP_START( sound_map, ADDRESS_SPACE_PROGRAM, 8 )
+	AM_RANGE(0x0000, 0x07ff) AM_RAM
+//  AM_RANGE(0x1000, 0x10ff) AM_READWRITE(beezer_6840_r, beezer_6840_w)
+	AM_RANGE(0x1800, 0x18ff) AM_DEVREADWRITE("via6522_1", via_r, via_w)
+//  AM_RANGE(0x8000, 0x9fff) AM_WRITE(beezer_dac_w)
+	AM_RANGE(0xe000, 0xffff) AM_ROM
 ADDRESS_MAP_END
 
 
@@ -75,39 +72,37 @@ static INPUT_PORTS_START( beezer )
 	PORT_DIPSETTING(    0x00, DEF_STR( Hardest ) )
 INPUT_PORTS_END
 
-static MACHINE_CONFIG_START( beezer, beezer_state )
+static MACHINE_DRIVER_START( beezer )
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", M6809, 1000000)        /* 1 MHz */
-	MCFG_CPU_PROGRAM_MAP(main_map)
-	MCFG_CPU_VBLANK_INT_HACK(beezer_interrupt,128)
+	MDRV_CPU_ADD("maincpu", M6809, 1000000)        /* 1 MHz */
+	MDRV_CPU_PROGRAM_MAP(main_map)
+	MDRV_CPU_VBLANK_INT_HACK(beezer_interrupt,128)
 
-	MCFG_CPU_ADD("audiocpu", M6809, 1000000)        /* 1 MHz */
-	MCFG_CPU_PROGRAM_MAP(sound_map)
+	MDRV_CPU_ADD("audiocpu", M6809, 1000000)        /* 1 MHz */
+	MDRV_CPU_PROGRAM_MAP(sound_map)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(256, 384)
-	MCFG_SCREEN_VISIBLE_AREA(0, 256-1, 16, 303)
-	MCFG_SCREEN_UPDATE(beezer)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(256, 384)
+	MDRV_SCREEN_VISIBLE_AREA(0, 256-1, 16, 303)
+	MDRV_PALETTE_LENGTH(16)
 
-	MCFG_PALETTE_LENGTH(16)
+	MDRV_VIDEO_UPDATE(beezer)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	//MCFG_SOUND_ADD("dac", DAC, 0)
-	//MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
-	MCFG_SOUND_ADD("custom", BEEZER, 0)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.00)
+	MDRV_SOUND_ADD("dac", DAC, 0)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 1.0)
 
 	/* via */
-	MCFG_VIA6522_ADD("via6522_0", 0, b_via_0_interface)
-	MCFG_VIA6522_ADD("via6522_1", 0, b_via_1_interface)
-MACHINE_CONFIG_END
+	MDRV_VIA6522_ADD("via6522_0", 0, b_via_0_interface)
+	MDRV_VIA6522_ADD("via6522_1", 0, b_via_1_interface)
+MACHINE_DRIVER_END
 
 /***************************************************************************
 

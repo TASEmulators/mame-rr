@@ -31,29 +31,18 @@
 #include "machine/pcecommn.h"
 #include "video/vdc.h"
 
-
-class uapce_state : public driver_device
-{
-public:
-	uapce_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT8 m_jamma_if_control_latch;
-};
-
-
+static UINT8 jamma_if_control_latch = 0;
 
 static WRITE8_HANDLER( jamma_if_control_latch_w )
 {
-	uapce_state *state = space->machine().driver_data<uapce_state>();
-	UINT8 diff = data ^ state->m_jamma_if_control_latch;
-	state->m_jamma_if_control_latch = data;
+	UINT8 diff = data ^ jamma_if_control_latch;
+	jamma_if_control_latch = data;
 
-	space->machine().sound().system_enable( (data >> 7) & 1 );
+	sound_global_enable( space->machine, (data >> 7) & 1 );
 
 	if ( diff & 0x40 )
 	{
-		cputag_set_input_line(space->machine(), "maincpu", INPUT_LINE_RESET, (data & 0x40) ? CLEAR_LINE : ASSERT_LINE);
+		cputag_set_input_line(space->machine, "maincpu", INPUT_LINE_RESET, (data & 0x40) ? CLEAR_LINE : ASSERT_LINE);
 	}
 
 	// bit 3 - enable 752 Hz (D-3) square wave output
@@ -63,15 +52,14 @@ static WRITE8_HANDLER( jamma_if_control_latch_w )
 
 static READ8_HANDLER( jamma_if_control_latch_r )
 {
-	uapce_state *state = space->machine().driver_data<uapce_state>();
-	return state->m_jamma_if_control_latch & 0x08;
+	return jamma_if_control_latch & 0x08;
 }
 
 static READ8_HANDLER( jamma_if_read_dsw )
 {
 	UINT8 dsw_val;
 
-	dsw_val = input_port_read(space->machine(),  "DSW" );
+	dsw_val = input_port_read(space->machine,  "DSW" );
 
 	if ( BIT( offset, 7 ) == 0 )
 	{
@@ -109,10 +97,9 @@ static READ8_HANDLER( jamma_if_read_dsw )
 	return dsw_val & 1;
 }
 
-static UINT8 jamma_if_read_joystick( running_machine &machine )
+static UINT8 jamma_if_read_joystick( running_machine *machine )
 {
-	uapce_state *state = machine.driver_data<uapce_state>();
-	if ( state->m_jamma_if_control_latch & 0x10 )
+	if ( jamma_if_control_latch & 0x10 )
 	{
 		return input_port_read(machine,  "JOY" );
 	}
@@ -124,12 +111,11 @@ static UINT8 jamma_if_read_joystick( running_machine &machine )
 
 static MACHINE_RESET( uapce )
 {
-	uapce_state *state = machine.driver_data<uapce_state>();
 	pce_set_joystick_readinputport_callback( jamma_if_read_joystick );
-	state->m_jamma_if_control_latch = 0;
+	jamma_if_control_latch = 0;
 }
 
-static ADDRESS_MAP_START( z80_map, AS_PROGRAM, 8)
+static ADDRESS_MAP_START( z80_map, ADDRESS_SPACE_PROGRAM, 8)
 	AM_RANGE( 0x0000, 0x07FF) AM_ROM
 	AM_RANGE( 0x0800, 0x0FFF) AM_RAM
 	AM_RANGE( 0x1000, 0x17FF) AM_WRITE( jamma_if_control_latch_w )
@@ -177,7 +163,7 @@ static INPUT_PORTS_START( uapce )
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_IMPULSE(1)
 INPUT_PORTS_END
 
-static ADDRESS_MAP_START( pce_mem , AS_PROGRAM, 8)
+static ADDRESS_MAP_START( pce_mem , ADDRESS_SPACE_PROGRAM, 8)
 	AM_RANGE( 0x000000, 0x09FFFF) AM_ROM
 	AM_RANGE( 0x1F0000, 0x1F1FFF) AM_RAM AM_MIRROR(0x6000) AM_BASE( &pce_user_ram )
 	AM_RANGE( 0x1FE000, 0x1FE3FF) AM_READWRITE( vdc_0_r, vdc_0_w )
@@ -188,7 +174,7 @@ static ADDRESS_MAP_START( pce_mem , AS_PROGRAM, 8)
 	AM_RANGE( 0x1FF400, 0x1FF7FF) AM_READWRITE( h6280_irq_status_r, h6280_irq_status_w )
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( pce_io , AS_IO, 8)
+static ADDRESS_MAP_START( pce_io , ADDRESS_SPACE_IO, 8)
 	AM_RANGE( 0x00, 0x03) AM_READWRITE( vdc_0_r, vdc_0_w )
 ADDRESS_MAP_END
 
@@ -197,40 +183,40 @@ static const c6280_interface c6280_config =
 	"maincpu"
 };
 
-static MACHINE_CONFIG_START( uapce, uapce_state )
+static MACHINE_DRIVER_START( uapce )
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", H6280, PCE_MAIN_CLOCK/3)
-	MCFG_CPU_PROGRAM_MAP(pce_mem)
-	MCFG_CPU_IO_MAP(pce_io)
-	MCFG_CPU_VBLANK_INT_HACK(pce_interrupt, VDC_LPF)
+	MDRV_CPU_ADD("maincpu", H6280, PCE_MAIN_CLOCK/3)
+	MDRV_CPU_PROGRAM_MAP(pce_mem)
+	MDRV_CPU_IO_MAP(pce_io)
+	MDRV_CPU_VBLANK_INT_HACK(pce_interrupt, VDC_LPF)
 
-	MCFG_CPU_ADD("sub", Z80, 1400000)
-	MCFG_CPU_PROGRAM_MAP(z80_map)
+	MDRV_CPU_ADD("sub", Z80, 1400000)
+	MDRV_CPU_PROGRAM_MAP(z80_map)
 
-	MCFG_QUANTUM_TIME(attotime::from_hz(60))
+	MDRV_QUANTUM_TIME(HZ(60))
 
-	MCFG_MACHINE_RESET( uapce )
+	MDRV_MACHINE_RESET( uapce )
 
     /* video hardware */
 
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_RAW_PARAMS(PCE_MAIN_CLOCK/2, VDC_WPF, 70, 70 + 512 + 32, VDC_LPF, 14, 14+242)
-	MCFG_SCREEN_UPDATE( pce )
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_RAW_PARAMS(PCE_MAIN_CLOCK/2, VDC_WPF, 70, 70 + 512 + 32, VDC_LPF, 14, 14+242)
 
-	/* MCFG_GFXDECODE( pce_gfxdecodeinfo ) */
-	MCFG_PALETTE_LENGTH(1024)
-	MCFG_PALETTE_INIT( vce )
+	/* MDRV_GFXDECODE( pce_gfxdecodeinfo ) */
+	MDRV_PALETTE_LENGTH(1024)
+	MDRV_PALETTE_INIT( vce )
 
-	MCFG_VIDEO_START( pce )
+	MDRV_VIDEO_START( pce )
+	MDRV_VIDEO_UPDATE( pce )
 
-	MCFG_SPEAKER_STANDARD_STEREO("lspeaker","rspeaker")
-	MCFG_SOUND_ADD("c6280", C6280, PCE_MAIN_CLOCK/6)
-	MCFG_SOUND_CONFIG(c6280_config)
-	MCFG_SOUND_ROUTE(0, "lspeaker", 1.00)
-	MCFG_SOUND_ROUTE(1, "rspeaker", 1.00)
+	MDRV_SPEAKER_STANDARD_STEREO("lspeaker","rspeaker")
+	MDRV_SOUND_ADD("c6280", C6280, PCE_MAIN_CLOCK/6)
+	MDRV_SOUND_CONFIG(c6280_config)
+	MDRV_SOUND_ROUTE(0, "lspeaker", 1.00)
+	MDRV_SOUND_ROUTE(1, "rspeaker", 1.00)
 
-MACHINE_CONFIG_END
+MACHINE_DRIVER_END
 
 ROM_START(blazlaz)
 	ROM_REGION( 0x0a0000, "maincpu", 0 )

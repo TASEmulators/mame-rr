@@ -73,7 +73,7 @@ struct _tlcs900_state
 	int regbank;
 	device_irq_callback irqcallback;
 	legacy_cpu_device *device;
-	address_space *program;
+	const address_space *program;
 };
 
 
@@ -195,8 +195,8 @@ struct _tlcs900_state
 #define FLAG_SF		0x80
 
 
-#define RDMEM(addr)			cpustate->program->read_byte( addr )
-#define WRMEM(addr,data)	cpustate->program->write_byte( addr, data )
+#define RDMEM(addr)			memory_read_byte_8le( cpustate->program, addr )
+#define WRMEM(addr,data)	memory_write_byte_8le( cpustate->program, addr, data )
 #define RDOP()				RDMEM( cpustate->pc.d ); cpustate->pc.d++
 #define RDMEMW(addr)			( RDMEM(addr) | ( RDMEM(addr+1) << 8 ) )
 #define RDMEML(addr)			( RDMEMW(addr) | ( RDMEMW(addr+2) << 16 ) )
@@ -204,7 +204,7 @@ struct _tlcs900_state
 #define WRMEML(addr,data)		{ UINT32 dl = data; WRMEMW(addr,dl); WRMEMW(addr+2,(dl >> 16)); }
 
 
-INLINE tlcs900_state *get_safe_token( device_t *device )
+INLINE tlcs900_state *get_safe_token( running_device *device )
 {
 	assert( device != NULL );
 	assert( device->type() == TLCS900H );
@@ -217,40 +217,40 @@ static CPU_INIT( tlcs900 )
 {
 	tlcs900_state *cpustate = get_safe_token(device);
 
-	cpustate->intf = (const tlcs900_interface *)device->static_config();
+	cpustate->intf = (const tlcs900_interface *)device->baseconfig().static_config();
 	cpustate->irqcallback = irqcallback;
 	cpustate->device = device;
 	cpustate->program = device->space( AS_PROGRAM );
 
-	cpustate->to1.resolve(cpustate->intf->to1, *device );
-	cpustate->to3.resolve(cpustate->intf->to3, *device );
+	devcb_resolve_write8( &cpustate->to1, &cpustate->intf->to1, device );
+	devcb_resolve_write8( &cpustate->to3, &cpustate->intf->to3, device );
 
-	device->save_item( NAME(cpustate->xwa) );
-	device->save_item( NAME(cpustate->xbc) );
-	device->save_item( NAME(cpustate->xde) );
-	device->save_item( NAME(cpustate->xhl) );
-	device->save_item( NAME(cpustate->xix) );
-	device->save_item( NAME(cpustate->xiy) );
-	device->save_item( NAME(cpustate->xiz) );
-	device->save_item( NAME(cpustate->xssp) );
-	device->save_item( NAME(cpustate->xnsp) );
-	device->save_item( NAME(cpustate->pc) );
-	device->save_item( NAME(cpustate->sr) );
-	device->save_item( NAME(cpustate->f2) );
-	device->save_item( NAME(cpustate->dmas) );
-	device->save_item( NAME(cpustate->dmad) );
-	device->save_item( NAME(cpustate->dmac) );
-	device->save_item( NAME(cpustate->dmam) );
-	device->save_item( NAME(cpustate->reg) );
-	device->save_item( NAME(cpustate->timer_pre) );
-	device->save_item( NAME(cpustate->timer) );
-	device->save_item( NAME(cpustate->tff1) );
-	device->save_item( NAME(cpustate->tff3) );
-	device->save_item( NAME(cpustate->timer_change) );
-	device->save_item( NAME(cpustate->level) );
-	device->save_item( NAME(cpustate->check_irqs) );
-	device->save_item( NAME(cpustate->ad_cycles_left) );
-	device->save_item( NAME(cpustate->nmi_state) );
+	state_save_register_device_item_array( device, 0, cpustate->xwa );
+	state_save_register_device_item_array( device, 0, cpustate->xbc );
+	state_save_register_device_item_array( device, 0, cpustate->xde );
+	state_save_register_device_item_array( device, 0, cpustate->xhl );
+	state_save_register_device_item( device, 0, cpustate->xix );
+	state_save_register_device_item( device, 0, cpustate->xiy );
+	state_save_register_device_item( device, 0, cpustate->xiz );
+	state_save_register_device_item( device, 0, cpustate->xssp );
+	state_save_register_device_item( device, 0, cpustate->xnsp );
+	state_save_register_device_item( device, 0, cpustate->pc );
+	state_save_register_device_item( device, 0, cpustate->sr );
+	state_save_register_device_item( device, 0, cpustate->f2 );
+	state_save_register_device_item_array( device, 0, cpustate->dmas );
+	state_save_register_device_item_array( device, 0, cpustate->dmad );
+	state_save_register_device_item_array( device, 0, cpustate->dmac );
+	state_save_register_device_item_array( device, 0, cpustate->dmam );
+	state_save_register_device_item_array( device, 0, cpustate->reg );
+	state_save_register_device_item( device, 0, cpustate->timer_pre );
+	state_save_register_device_item_array( device, 0, cpustate->timer );
+	state_save_register_device_item( device, 0, cpustate->tff1 );
+	state_save_register_device_item( device, 0, cpustate->tff3 );
+	state_save_register_device_item_array( device, 0, cpustate->timer_change );
+	state_save_register_device_item_array( device, 0, cpustate->level );
+	state_save_register_device_item( device, 0, cpustate->check_irqs );
+	state_save_register_device_item( device, 0, cpustate->ad_cycles_left );
+	state_save_register_device_item( device, 0, cpustate->nmi_state );
 }
 
 
@@ -661,8 +661,8 @@ INLINE void tlcs900_change_tff( tlcs900_state *cpustate, int which, int change )
 			cpustate->tff1 ^= 1;
 			break;
 		}
-		if ( !cpustate->to1.isnull() )
-			cpustate->to1(0, cpustate->tff1 );
+		if ( cpustate->to1.write != NULL )
+			devcb_call_write8( &cpustate->to1, 0, cpustate->tff1 );
 		break;
 
 	case 3:
@@ -678,8 +678,8 @@ INLINE void tlcs900_change_tff( tlcs900_state *cpustate, int which, int change )
 			cpustate->tff3 ^= 1;
 			break;
 		}
-		if ( !cpustate->to3.isnull() )
-			cpustate->to3(0, cpustate->tff3 );
+		if ( cpustate->to3.write != NULL )
+			devcb_call_write8( &cpustate->to3, 0, cpustate->tff3 );
 		break;
 	}
 }
@@ -978,7 +978,7 @@ static void tlcs900_input_level_change( tlcs900_state *cpustate, int input, int 
 
 static READ8_HANDLER( tlcs900_internal_r )
 {
-	tlcs900_state *cpustate = get_safe_token( &space->device() );
+	tlcs900_state *cpustate = get_safe_token( space->cpu );
 
 	return cpustate->reg[ offset ];
 }
@@ -986,7 +986,7 @@ static READ8_HANDLER( tlcs900_internal_r )
 
 static WRITE8_HANDLER( tlcs900_internal_w )
 {
-	tlcs900_state *cpustate = get_safe_token( &space->device() );
+	tlcs900_state *cpustate = get_safe_token( space->cpu );
 
 	switch ( offset )
 	{
@@ -1095,7 +1095,7 @@ static WRITE8_HANDLER( tlcs900_internal_w )
 }
 
 
-static ADDRESS_MAP_START( tlcs900_mem, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( tlcs900_mem, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE( 0x000000, 0x00007f ) AM_READWRITE( tlcs900_internal_r, tlcs900_internal_w )
 ADDRESS_MAP_END
 
@@ -1134,9 +1134,9 @@ CPU_GET_INFO( tlcs900h )
 	case CPUINFO_INT_MAX_CYCLES:					info->i = 1; break; /* FIXME */
 	case CPUINFO_INT_INPUT_LINES:					info->i = 1; break;
 
-	case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:			info->i = 8; break;
-	case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:			info->i = 24; break;
-	case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:			info->i = 0; break;
+	case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 8; break;
+	case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 24; break;
+	case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM:			info->i = 0; break;
 
 	case CPUINFO_INT_INPUT_STATE + INPUT_LINE_NMI:
 	case CPUINFO_INT_INPUT_STATE + TLCS900_NMI:		info->i = cpustate->level[TLCS900_NMI]; break;
@@ -1178,7 +1178,7 @@ CPU_GET_INFO( tlcs900h )
 	case CPUINFO_FCT_EXECUTE:						info->execute = CPU_EXECUTE_NAME(tlcs900); break;
 	case CPUINFO_FCT_DISASSEMBLE:					info->disassemble = CPU_DISASSEMBLE_NAME(tlcs900); break;
 	case CPUINFO_PTR_INSTRUCTION_COUNTER:			info->icount = &cpustate->icount; break;
-	case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(tlcs900_mem); break;
+	case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(tlcs900_mem); break;
 
 	case CPUINFO_STR_REGISTER + TLCS900_PC:			sprintf( info->s, "PC:%08x", cpustate->pc.d ); break;
 	case CPUINFO_STR_REGISTER + TLCS900_SR:			sprintf( info->s, "SR:%c%d%c%d%c%c%c%c%c%c%c%c",

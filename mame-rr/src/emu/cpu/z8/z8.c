@@ -159,10 +159,9 @@ enum
 typedef struct _z8_state z8_state;
 struct _z8_state
 {
-    address_space *program;
-    direct_read_data *direct;
-    address_space *data;
-    address_space *io;
+    const address_space *program;
+    const address_space *data;
+    const address_space *io;
 
 	/* registers */
 	UINT16 pc;				/* program counter */
@@ -192,7 +191,7 @@ struct _z8_state
     INLINE FUNCTIONS
 ***************************************************************************/
 
-INLINE z8_state *get_safe_token(device_t *device)
+INLINE z8_state *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert((device->type() == Z8601) ||
@@ -203,7 +202,7 @@ INLINE z8_state *get_safe_token(device_t *device)
 
 INLINE UINT8 fetch(z8_state *cpustate)
 {
-	UINT8 data = cpustate->direct->read_decrypted_byte(cpustate->pc);
+	UINT8 data = memory_decrypted_read_byte(cpustate->program, cpustate->pc);
 
 	cpustate->pc++;
 
@@ -234,7 +233,7 @@ INLINE UINT8 register_read(z8_state *cpustate, UINT8 offset)
 
 		if (!(P3M & Z8_P3M_P0_STROBED))
 		{
-			if (mask) cpustate->input[offset] = cpustate->io->read_byte(offset);
+			if (mask) cpustate->input[offset] = memory_read_byte_8be(cpustate->io, offset);
 		}
 
 		data |= cpustate->input[offset] & mask;
@@ -250,7 +249,7 @@ INLINE UINT8 register_read(z8_state *cpustate, UINT8 offset)
 
 		if ((P3M & Z8_P3M_P33_P34_MASK) != Z8_P3M_P33_P34_DAV1_RDY1)
 		{
-			if (mask) cpustate->input[offset] = cpustate->io->read_byte(offset);
+			if (mask) cpustate->input[offset] = memory_read_byte_8be(cpustate->io, offset);
 		}
 
 		data |= cpustate->input[offset] & mask;
@@ -261,7 +260,7 @@ INLINE UINT8 register_read(z8_state *cpustate, UINT8 offset)
 
 		if (!(P3M & Z8_P3M_P2_STROBED))
 		{
-			if (mask) cpustate->input[offset] = cpustate->io->read_byte(offset);
+			if (mask) cpustate->input[offset] = memory_read_byte_8be(cpustate->io, offset);
 		}
 
 		data = (cpustate->input[offset] & mask) | (cpustate->output[offset] & ~mask);
@@ -274,7 +273,7 @@ INLINE UINT8 register_read(z8_state *cpustate, UINT8 offset)
 			mask = 0x0f;
 		}
 
-		if (mask) cpustate->input[offset] = cpustate->io->read_byte(offset);
+		if (mask) cpustate->input[offset] = memory_read_byte_8be(cpustate->io, offset);
 
 		data = (cpustate->input[offset] & mask) | (cpustate->output[offset] & ~mask);
 		break;
@@ -319,19 +318,19 @@ INLINE void register_write(z8_state *cpustate, UINT8 offset, UINT8 data)
 		cpustate->output[offset] = data;
 		if ((P01M & Z8_P01M_P0L_MODE_MASK) == Z8_P01M_P0L_MODE_OUTPUT) mask |= 0x0f;
 		if ((P01M & Z8_P01M_P0H_MODE_MASK) == Z8_P01M_P0H_MODE_OUTPUT) mask |= 0xf0;
-		if (mask) cpustate->io->write_byte(offset, data & mask);
+		if (mask) memory_write_byte_8be(cpustate->io, offset, data & mask);
 		break;
 
 	case Z8_REGISTER_P1:
 		cpustate->output[offset] = data;
 		if ((P01M & Z8_P01M_P1_MODE_MASK) == Z8_P01M_P1_MODE_OUTPUT) mask = 0xff;
-		if (mask) cpustate->io->write_byte(offset, data & mask);
+		if (mask) memory_write_byte_8be(cpustate->io, offset, data & mask);
 		break;
 
 	case Z8_REGISTER_P2:
 		cpustate->output[offset] = data;
 		mask = cpustate->r[Z8_REGISTER_P2M] ^ 0xff;
-		if (mask) cpustate->io->write_byte(offset, data & mask);
+		if (mask) memory_write_byte_8be(cpustate->io, offset, data & mask);
 		break;
 
 	case Z8_REGISTER_P3:
@@ -343,7 +342,7 @@ INLINE void register_write(z8_state *cpustate, UINT8 offset, UINT8 data)
 			mask = 0xf0;
 		}
 
-		if (mask) cpustate->io->write_byte(offset, data & mask);
+		if (mask) memory_write_byte_8be(cpustate->io, offset, data & mask);
 		break;
 
 	case Z8_REGISTER_SIO:
@@ -353,18 +352,18 @@ INLINE void register_write(z8_state *cpustate, UINT8 offset, UINT8 data)
 		if (data & Z8_TMR_LOAD_T0)
 		{
 			cpustate->t0 = T0;
-			cpustate->t0_timer->adjust(attotime::zero, 0, attotime::from_hz(cpustate->clock / 2 / 4 / ((PRE0 >> 2) + 1)));
+			timer_adjust_periodic(cpustate->t0_timer, attotime_zero, 0, ATTOTIME_IN_HZ(cpustate->clock / 2 / 4 / ((PRE0 >> 2) + 1)));
 		}
 
-		cpustate->t0_timer->enable(data & Z8_TMR_ENABLE_T0);
+		timer_enable(cpustate->t0_timer, data & Z8_TMR_ENABLE_T0);
 
 		if (data & Z8_TMR_LOAD_T1)
 		{
 			cpustate->t1 = T1;
-			cpustate->t1_timer->adjust(attotime::zero, 0, attotime::from_hz(cpustate->clock / 2 / 4 / ((PRE1 >> 2) + 1)));
+			timer_adjust_periodic(cpustate->t1_timer, attotime_zero, 0, ATTOTIME_IN_HZ(cpustate->clock / 2 / 4 / ((PRE1 >> 2) + 1)));
 		}
 
-		cpustate->t1_timer->enable(data & Z8_TMR_ENABLE_T1);
+		timer_enable(cpustate->t1_timer, data & Z8_TMR_ENABLE_T1);
 		break;
 
 	case Z8_REGISTER_P2M:
@@ -437,7 +436,7 @@ INLINE void stack_push_byte(z8_state *cpustate, UINT8 src)
 		register_pair_write(cpustate, Z8_REGISTER_SPH, sp);
 
 		/* @SP <- src */
-		cpustate->data->write_byte(sp, src);
+		memory_write_byte(cpustate->data, sp, src);
 	}
 }
 
@@ -459,7 +458,7 @@ INLINE void stack_push_word(z8_state *cpustate, UINT16 src)
 		register_pair_write(cpustate, Z8_REGISTER_SPH, sp);
 
 		/* @SP <- src */
-		cpustate->data->write_word(sp, src);
+		memory_write_word_8le(cpustate->data, sp, src);
 	}
 }
 
@@ -481,7 +480,7 @@ INLINE UINT8 stack_pop_byte(z8_state *cpustate)
 		register_pair_write(cpustate, Z8_REGISTER_SPH, sp);
 
 		/* @SP <- src */
-		return cpustate->data->read_byte(sp);
+		return memory_read_byte(cpustate->data, sp);
 	}
 }
 
@@ -503,7 +502,7 @@ INLINE UINT16 stack_pop_word(z8_state *cpustate)
 		register_pair_write(cpustate, Z8_REGISTER_SPH, sp);
 
 		/* @SP <- src */
-		return cpustate->data->read_word(sp);
+		return memory_read_word_8le(cpustate->data, sp);
 	}
 }
 
@@ -613,8 +612,8 @@ static TIMER_CALLBACK( t0_tick )
 	if (cpustate->t0 == 0)
 	{
 		cpustate->t0 = T0;
-		cpustate->t0_timer->adjust(attotime::zero, 0, attotime::from_hz(cpustate->clock / 2 / 4 / ((PRE0 >> 2) + 1)));
-		cpustate->t0_timer->enable(PRE0 & Z8_PRE0_COUNT_MODULO_N);
+		timer_adjust_periodic(cpustate->t0_timer, attotime_zero, 0, ATTOTIME_IN_HZ(cpustate->clock / 2 / 4 / ((PRE0 >> 2) + 1)));
+		timer_enable(cpustate->t0_timer, PRE0 & Z8_PRE0_COUNT_MODULO_N);
 		cpustate->irq[4] = ASSERT_LINE;
 	}
 }
@@ -628,8 +627,8 @@ static TIMER_CALLBACK( t1_tick )
 	if (cpustate->t1 == 0)
 	{
 		cpustate->t1 = T1;
-		cpustate->t1_timer->adjust(attotime::zero, 0, attotime::from_hz(cpustate->clock / 2 / 4 / ((PRE1 >> 2) + 1)));
-		cpustate->t1_timer->enable(PRE1 & Z8_PRE0_COUNT_MODULO_N);
+		timer_adjust_periodic(cpustate->t1_timer, attotime_zero, 0, ATTOTIME_IN_HZ(cpustate->clock / 2 / 4 / ((PRE1 >> 2) + 1)));
+		timer_enable(cpustate->t1_timer, PRE1 & Z8_PRE0_COUNT_MODULO_N);
 		cpustate->irq[5] = ASSERT_LINE;
 	}
 }
@@ -664,20 +663,19 @@ static CPU_INIT( z8 )
 
 	/* find address spaces */
 	cpustate->program = device->space(AS_PROGRAM);
-	cpustate->direct = &cpustate->program->direct();
 	cpustate->data = device->space(AS_DATA);
 	cpustate->io = device->space(AS_IO);
 
 	/* allocate timers */
-	cpustate->t0_timer = device->machine().scheduler().timer_alloc(FUNC(t0_tick), cpustate);
-	cpustate->t1_timer = device->machine().scheduler().timer_alloc(FUNC(t1_tick), cpustate);
+	cpustate->t0_timer = timer_alloc(device->machine, t0_tick, cpustate);
+	cpustate->t1_timer = timer_alloc(device->machine, t1_tick, cpustate);
 
 	/* register for state saving */
-	device->save_item(NAME(cpustate->pc));
-	device->save_item(NAME(cpustate->r));
-	device->save_item(NAME(cpustate->input));
-	device->save_item(NAME(cpustate->output));
-	device->save_item(NAME(cpustate->irq));
+	state_save_register_device_item(device, 0, cpustate->pc);
+	state_save_register_device_item_array(device, 0, cpustate->r);
+	state_save_register_device_item_array(device, 0, cpustate->input);
+	state_save_register_device_item_array(device, 0, cpustate->output);
+	state_save_register_device_item_array(device, 0, cpustate->irq);
 }
 
 /***************************************************************************
@@ -696,7 +694,7 @@ static CPU_EXECUTE( z8 )
 		debugger_instruction_hook(device, cpustate->pc);
 
 		/* TODO: sample interrupts */
-		cpustate->input[3] = cpustate->io->read_byte(3);
+		cpustate->input[3] = memory_read_byte_8be(cpustate->io, 3);
 
 		/* fetch opcode */
 		opcode = fetch(cpustate);
@@ -734,11 +732,11 @@ static CPU_RESET( z8 )
     ADDRESS MAPS
 ***************************************************************************/
 
-static ADDRESS_MAP_START( program_2kb, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( program_2kb, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x07ff) AM_ROM
 ADDRESS_MAP_END
 
-static ADDRESS_MAP_START( program_4kb, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( program_4kb, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x0fff) AM_ROM
 ADDRESS_MAP_END
 
@@ -840,15 +838,15 @@ static CPU_GET_INFO( z8 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 6;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 20;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM:			info->i = 16;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM:			info->i = 0;							break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:			info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:			info->i = 16;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:			info->i = 0;							break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:				info->i = 8;							break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:				info->i = 2;							break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:				info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM:			info->i = 16;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM:			info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:			info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:			info->i = 16;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:			info->i = 0;							break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 8;							break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:				info->i = 2;							break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:				info->i = 0;							break;
 
 		/* --- the following bits of info are returned as pointers to functions --- */
 		case CPUINFO_FCT_SET_INFO:				info->setinfo = CPU_SET_INFO_NAME(z8);			break;
@@ -881,7 +879,7 @@ CPU_GET_INFO( z8601 )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as pointers --- */
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(program_2kb);	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(program_2kb);	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "Z8601");								break;
@@ -895,7 +893,7 @@ CPU_GET_INFO( ub8830d )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as pointers --- */
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(program_2kb);	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(program_2kb);	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "UB8830D");								break;
@@ -909,7 +907,7 @@ CPU_GET_INFO( z8611 )
 	switch (state)
 	{
 		/* --- the following bits of info are returned as pointers --- */
-		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + AS_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(program_4kb);	break;
+		case DEVINFO_PTR_INTERNAL_MEMORY_MAP + ADDRESS_SPACE_PROGRAM:	info->internal_map8 = ADDRESS_MAP_NAME(program_4kb);	break;
 
 		/* --- the following bits of info are returned as NULL-terminated strings --- */
 		case DEVINFO_STR_NAME:							strcpy(info->s, "Z8611");								break;

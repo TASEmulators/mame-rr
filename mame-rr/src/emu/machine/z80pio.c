@@ -12,6 +12,7 @@
 #include "cpu/z80/z80daisy.h"
 
 
+
 //**************************************************************************
 //  CONSTANTS
 //**************************************************************************
@@ -45,20 +46,38 @@ const int ICW_MASK_FOLLOWS	= 0x10;
 
 
 //**************************************************************************
-//  LIVE DEVICE
+//  DEVICE CONFIGURATION
 //**************************************************************************
 
-// device type definition
-const device_type Z80PIO = &device_creator<z80pio_device>;
-
 //-------------------------------------------------
-//  z80pio_device - constructor
+//  z80pio_device_config - constructor
 //-------------------------------------------------
 
-z80pio_device::z80pio_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock)
-	: device_t(mconfig, Z80PIO, "Z8420", tag, owner, clock),
-	  device_z80daisy_interface(mconfig, *this)
+z80pio_device_config::z80pio_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock)
+	: device_config(mconfig, static_alloc_device_config, "Z8420", tag, owner, clock),
+	  device_config_z80daisy_interface(mconfig, *this)
 {
+}
+
+
+//-------------------------------------------------
+//  static_alloc_device_config - allocate a new
+//  configuration object
+//-------------------------------------------------
+
+device_config *z80pio_device_config::static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock)
+{
+	return global_alloc(z80pio_device_config(mconfig, tag, owner, clock));
+}
+
+
+//-------------------------------------------------
+//  alloc_device - allocate a new device object
+//-------------------------------------------------
+
+device_t *z80pio_device_config::alloc_device(running_machine &machine) const
+{
+	return auto_alloc(&machine, z80pio_device(machine, *this));
 }
 
 
@@ -68,7 +87,7 @@ z80pio_device::z80pio_device(const machine_config &mconfig, const char *tag, dev
 //  complete
 //-------------------------------------------------
 
-void z80pio_device::device_config_complete()
+void z80pio_device_config::device_config_complete()
 {
 	// inherit a copy of the static data
 	const z80pio_interface *intf = reinterpret_cast<const z80pio_interface *>(static_config());
@@ -78,14 +97,31 @@ void z80pio_device::device_config_complete()
 	// or initialize to defaults if none provided
 	else
 	{
-		memset(&m_out_int_cb, 0, sizeof(m_out_int_cb));
-		memset(&m_in_pa_cb, 0, sizeof(m_in_pa_cb));
-		memset(&m_out_pa_cb, 0, sizeof(m_out_pa_cb));
-		memset(&m_out_ardy_cb, 0, sizeof(m_out_ardy_cb));
-		memset(&m_in_pb_cb, 0, sizeof(m_in_pb_cb));
-		memset(&m_out_pb_cb, 0, sizeof(m_out_pb_cb));
-		memset(&m_out_brdy_cb, 0, sizeof(m_out_brdy_cb));
+		memset(&m_out_int_func, 0, sizeof(m_out_int_func));
+		memset(&m_in_pa_func, 0, sizeof(m_in_pa_func));
+		memset(&m_out_pa_func, 0, sizeof(m_out_pa_func));
+		memset(&m_out_ardy_func, 0, sizeof(m_out_ardy_func));
+		memset(&m_in_pb_func, 0, sizeof(m_in_pb_func));
+		memset(&m_out_pb_func, 0, sizeof(m_out_pb_func));
+		memset(&m_out_brdy_func, 0, sizeof(m_out_brdy_func));
 	}
+}
+
+
+
+//**************************************************************************
+//  LIVE DEVICE
+//**************************************************************************
+
+//-------------------------------------------------
+//  z80pio_device - constructor
+//-------------------------------------------------
+
+z80pio_device::z80pio_device(running_machine &_machine, const z80pio_device_config &config)
+	: device_t(_machine, config),
+	  device_z80daisy_interface(_machine, config, *this),
+	  m_config(config)
+{
 }
 
 
@@ -95,11 +131,11 @@ void z80pio_device::device_config_complete()
 
 void z80pio_device::device_start()
 {
-	m_port[PORT_A].start(this, PORT_A, m_in_pa_cb, m_out_pa_cb, m_out_ardy_cb);
-	m_port[PORT_B].start(this, PORT_B, m_in_pb_cb, m_out_pb_cb, m_out_brdy_cb);
+	m_port[PORT_A].start(this, PORT_A, m_config.m_in_pa_func, m_config.m_out_pa_func, m_config.m_out_ardy_func);
+	m_port[PORT_B].start(this, PORT_B, m_config.m_in_pb_func, m_config.m_out_pb_func, m_config.m_out_brdy_func);
 
 	// resolve callbacks
-	m_out_int_func.resolve(m_out_int_cb, *this);
+	devcb_resolve_write_line(&m_out_int_func, &m_config.m_out_int_func, this);
 }
 
 
@@ -237,7 +273,7 @@ void z80pio_device::check_interrupts()
 		if (m_port[index].interrupt_signalled())
 			state = ASSERT_LINE;
 
-	m_out_int_func(state);
+	devcb_call_write_line(&m_out_int_func, state);
 }
 
 
@@ -284,25 +320,25 @@ void z80pio_device::pio_port::start(z80pio_device *device, int index, const devc
 	m_index = index;
 
 	// resolve callbacks
-	m_in_p_func.resolve(infunc, *m_device);
-	m_out_p_func.resolve(outfunc, *m_device);
-	m_out_rdy_func.resolve(rdyfunc, *m_device);
+	devcb_resolve_read8(&m_in_p_func, &infunc, m_device);
+	devcb_resolve_write8(&m_out_p_func, &outfunc, m_device);
+	devcb_resolve_write_line(&m_out_rdy_func, &rdyfunc, m_device);
 
 	// register for state saving
-	m_device->save_item(NAME(m_mode), m_index);
-	m_device->save_item(NAME(m_next_control_word), m_index);
-	m_device->save_item(NAME(m_input), m_index);
-	m_device->save_item(NAME(m_output), m_index);
-	m_device->save_item(NAME(m_ior), m_index);
-	m_device->save_item(NAME(m_rdy), m_index);
-	m_device->save_item(NAME(m_stb), m_index);
-	m_device->save_item(NAME(m_ie), m_index);
-	m_device->save_item(NAME(m_ip), m_index);
-	m_device->save_item(NAME(m_ius), m_index);
-	m_device->save_item(NAME(m_icw), m_index);
-	m_device->save_item(NAME(m_vector), m_index);
-	m_device->save_item(NAME(m_mask), m_index);
-	m_device->save_item(NAME(m_match), m_index);
+	state_save_register_device_item(m_device, m_index, m_mode);
+	state_save_register_device_item(m_device, m_index, m_next_control_word);
+	state_save_register_device_item(m_device, m_index, m_input);
+	state_save_register_device_item(m_device, m_index, m_output);
+	state_save_register_device_item(m_device, m_index, m_ior);
+	state_save_register_device_item(m_device, m_index, m_rdy);
+	state_save_register_device_item(m_device, m_index, m_stb);
+	state_save_register_device_item(m_device, m_index, m_ie);
+	state_save_register_device_item(m_device, m_index, m_ip);
+	state_save_register_device_item(m_device, m_index, m_ius);
+	state_save_register_device_item(m_device, m_index, m_icw);
+	state_save_register_device_item(m_device, m_index, m_vector);
+	state_save_register_device_item(m_device, m_index, m_mask);
+	state_save_register_device_item(m_device, m_index, m_match);
 }
 
 
@@ -396,7 +432,7 @@ void z80pio_device::pio_port::set_rdy(bool state)
 	if (LOG) logerror("Z80PIO '%s' Port %c Ready: %u\n", m_device->tag(), 'A' + m_index, state);
 
 	m_rdy = state;
-	m_out_rdy_func(state);
+	devcb_call_write_line(&m_out_rdy_func, state);
 }
 
 
@@ -412,7 +448,7 @@ void z80pio_device::pio_port::set_mode(int mode)
 	{
 	case MODE_OUTPUT:
 		// enable data output
-		m_out_p_func(0, m_output);
+		devcb_call_write8(&m_out_p_func, 0, m_output);
 
 		// assert ready line
 		set_rdy(true);
@@ -477,9 +513,9 @@ void z80pio_device::pio_port::strobe(bool state)
 			if (m_stb && !state) // falling edge
 			{
 				if (m_index == PORT_A)
-					m_out_p_func(0, m_output);
+					devcb_call_write8(&m_out_p_func, 0, m_output);
 				else
-					m_device->m_port[PORT_A].m_input = m_device->m_port[PORT_A].m_in_p_func(0);
+					m_device->m_port[PORT_A].m_input = devcb_call_read8(&m_device->m_port[PORT_A].m_in_p_func, 0);
 			}
 			else if (!m_stb && state) // rising edge
 			{
@@ -511,7 +547,7 @@ void z80pio_device::pio_port::strobe(bool state)
 			if (!state)
 			{
 				// input port data
-				m_input = m_in_p_func(0);
+				m_input = devcb_call_read8(&m_in_p_func, 0);
 			}
 			else if (!m_stb && state) // rising edge
 			{
@@ -687,7 +723,7 @@ UINT8 z80pio_device::pio_port::data_read()
 		if (!m_stb)
 		{
 			// input port data
-			m_input = m_in_p_func(0);
+			m_input = devcb_call_read8(&m_in_p_func, 0);
 		}
 
 		data = m_input;
@@ -711,7 +747,7 @@ UINT8 z80pio_device::pio_port::data_read()
 
 	case MODE_BIT_CONTROL:
 		// input port data
-		m_input = m_in_p_func(0);
+		m_input = devcb_call_read8(&m_in_p_func, 0);
 
 		data = (m_input & m_ior) | (m_output & (m_ior ^ 0xff));
 		break;
@@ -737,7 +773,7 @@ void z80pio_device::pio_port::data_write(UINT8 data)
 		m_output = data;
 
 		// output data to port
-		m_out_p_func(0, data);
+		devcb_call_write8(&m_out_p_func, 0, data);
 
 		// assert ready line
 		set_rdy(true);
@@ -758,7 +794,7 @@ void z80pio_device::pio_port::data_write(UINT8 data)
 		if (!m_stb)
 		{
 			// output data to port
-			m_out_p_func(0, data);
+			devcb_call_write8(&m_out_p_func, 0, data);
 		}
 
 		// assert ready line
@@ -770,7 +806,7 @@ void z80pio_device::pio_port::data_write(UINT8 data)
 		m_output = data;
 
 		// output data to port
-		m_out_p_func(0, m_ior | (m_output & (m_ior ^ 0xff)));
+		devcb_call_write8(&m_out_p_func, 0, m_ior | (m_output & (m_ior ^ 0xff)));
 		break;
 	}
 }
@@ -842,3 +878,5 @@ WRITE8_DEVICE_HANDLER( z80pio_ba_cd_w )
 
 	BIT(offset, 0) ? z80pio_c_w(device, index, data) : z80pio_d_w(device, index, data);
 }
+
+const device_type Z80PIO = z80pio_device_config::static_alloc_device_config;

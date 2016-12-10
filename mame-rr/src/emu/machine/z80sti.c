@@ -24,9 +24,6 @@
 
 
 
-// device type definition
-const device_type Z80STI = &device_creator<z80sti_device>;
-
 //**************************************************************************
 //  DEBUGGING
 //**************************************************************************
@@ -139,27 +136,38 @@ static const int PRESCALER[] = { 0, 4, 10, 16, 50, 64, 100, 200 };
 
 
 //**************************************************************************
-//  LIVE DEVICE
+//  DEVICE CONFIGURATION
 //**************************************************************************
 
 //-------------------------------------------------
-//  z80sti_device - constructor
+//  z80sti_device_config - constructor
 //-------------------------------------------------
 
-z80sti_device::z80sti_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock)
-	: device_t(mconfig, Z80STI, "Mostek MK3801", tag, owner, clock),
-	  device_z80daisy_interface(mconfig, *this),
-	  m_gpip(0),
-	  m_aer(0),
-	  m_ier(0),
-	  m_ipr(0),
-	  m_isr(0),
-	  m_imr(0)
+z80sti_device_config::z80sti_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock)
+	: device_config(mconfig, static_alloc_device_config, "Mostek MK3801", tag, owner, clock),
+	  device_config_z80daisy_interface(mconfig, *this)
 {
-	for (int i = 0; i < 16; i++)
-	{
-		m_int_state[i] = 0;
-	}
+}
+
+
+//-------------------------------------------------
+//  static_alloc_device_config - allocate a new
+//  configuration object
+//-------------------------------------------------
+
+device_config *z80sti_device_config::static_alloc_device_config(const machine_config &mconfig, const char *tag, const device_config *owner, UINT32 clock)
+{
+	return global_alloc(z80sti_device_config(mconfig, tag, owner, clock));
+}
+
+
+//-------------------------------------------------
+//  alloc_device - allocate a new device object
+//-------------------------------------------------
+
+device_t *z80sti_device_config::alloc_device(running_machine &machine) const
+{
+	return auto_alloc(&machine, z80sti_device(machine, *this));
 }
 
 
@@ -169,7 +177,7 @@ z80sti_device::z80sti_device(const machine_config &mconfig, const char *tag, dev
 //  complete
 //-------------------------------------------------
 
-void z80sti_device::device_config_complete()
+void z80sti_device_config::device_config_complete()
 {
 	// inherit a copy of the static data
 	const z80sti_interface *intf = reinterpret_cast<const z80sti_interface *>(static_config());
@@ -180,16 +188,33 @@ void z80sti_device::device_config_complete()
 	else
 	{
 		m_rx_clock = m_tx_clock = 0;
-		memset(&m_out_int_cb, 0, sizeof(m_out_int_cb));
-		memset(&m_in_gpio_cb, 0, sizeof(m_in_gpio_cb));
-		memset(&m_out_gpio_cb, 0, sizeof(m_out_gpio_cb));
-		memset(&m_in_si_cb, 0, sizeof(m_in_si_cb));
-		memset(&m_out_so_cb, 0, sizeof(m_out_so_cb));
-		memset(&m_out_tao_cb, 0, sizeof(m_out_tao_cb));
-		memset(&m_out_tbo_cb, 0, sizeof(m_out_tbo_cb));
-		memset(&m_out_tco_cb, 0, sizeof(m_out_tco_cb));
-		memset(&m_out_tdo_cb, 0, sizeof(m_out_tdo_cb));
+		memset(&m_out_int_func, 0, sizeof(m_out_int_func));
+		memset(&m_in_gpio_func, 0, sizeof(m_in_gpio_func));
+		memset(&m_out_gpio_func, 0, sizeof(m_out_gpio_func));
+		memset(&m_in_si_func, 0, sizeof(m_in_si_func));
+		memset(&m_out_so_func, 0, sizeof(m_out_so_func));
+		memset(&m_out_tao_func, 0, sizeof(m_out_tao_func));
+		memset(&m_out_tbo_func, 0, sizeof(m_out_tbo_func));
+		memset(&m_out_tco_func, 0, sizeof(m_out_tco_func));
+		memset(&m_out_tdo_func, 0, sizeof(m_out_tdo_func));
 	}
+}
+
+
+
+//**************************************************************************
+//  LIVE DEVICE
+//**************************************************************************
+
+//-------------------------------------------------
+//  z80sti_device - constructor
+//-------------------------------------------------
+
+z80sti_device::z80sti_device(running_machine &_machine, const z80sti_device_config &config)
+	: device_t(_machine, config),
+	  device_z80daisy_interface(_machine, config, *this),
+	  m_config(config)
+{
 }
 
 
@@ -200,56 +225,56 @@ void z80sti_device::device_config_complete()
 void z80sti_device::device_start()
 {
 	// resolve callbacks
-	m_in_gpio_func.resolve(m_in_gpio_cb, *this);
-	m_out_gpio_func.resolve(m_out_gpio_cb, *this);
-	m_in_si_func.resolve(m_in_si_cb, *this);
-	m_out_so_func.resolve(m_out_so_cb, *this);
-	m_out_timer_func[TIMER_A].resolve(m_out_tao_cb, *this);
-	m_out_timer_func[TIMER_B].resolve(m_out_tbo_cb, *this);
-	m_out_timer_func[TIMER_C].resolve(m_out_tco_cb, *this);
-	m_out_timer_func[TIMER_D].resolve(m_out_tdo_cb, *this);
-	m_out_int_func.resolve(m_out_int_cb, *this);
+	devcb_resolve_read8(&m_in_gpio_func, &m_config.m_in_gpio_func, this);
+	devcb_resolve_write8(&m_out_gpio_func, &m_config.m_out_gpio_func, this);
+	devcb_resolve_read_line(&m_in_si_func, &m_config.m_in_si_func, this);
+	devcb_resolve_write_line(&m_out_so_func, &m_config.m_out_so_func, this);
+	devcb_resolve_write_line(&m_out_timer_func[TIMER_A], &m_config.m_out_tao_func, this);
+	devcb_resolve_write_line(&m_out_timer_func[TIMER_B], &m_config.m_out_tbo_func, this);
+	devcb_resolve_write_line(&m_out_timer_func[TIMER_C], &m_config.m_out_tco_func, this);
+	devcb_resolve_write_line(&m_out_timer_func[TIMER_D], &m_config.m_out_tdo_func, this);
+	devcb_resolve_write_line(&m_out_int_func, &m_config.m_out_int_func, this);
 
 	// create the counter timers
-	m_timer[TIMER_A] = machine().scheduler().timer_alloc(FUNC(static_timer_count), (void *)this);
-	m_timer[TIMER_B] = machine().scheduler().timer_alloc(FUNC(static_timer_count), (void *)this);
-	m_timer[TIMER_C] = machine().scheduler().timer_alloc(FUNC(static_timer_count), (void *)this);
-	m_timer[TIMER_D] = machine().scheduler().timer_alloc(FUNC(static_timer_count), (void *)this);
+	m_timer[TIMER_A] = timer_alloc(&m_machine, static_timer_count, (void *)this);
+	m_timer[TIMER_B] = timer_alloc(&m_machine, static_timer_count, (void *)this);
+	m_timer[TIMER_C] = timer_alloc(&m_machine, static_timer_count, (void *)this);
+	m_timer[TIMER_D] = timer_alloc(&m_machine, static_timer_count, (void *)this);
 
 	// create serial receive clock timer
-	if (m_rx_clock > 0)
+	if (m_config.m_rx_clock > 0)
 	{
-		m_rx_timer = machine().scheduler().timer_alloc(FUNC(static_rx_tick), (void *)this);
-		m_rx_timer->adjust(attotime::zero, 0, attotime::from_hz(m_rx_clock));
+		m_rx_timer = timer_alloc(&m_machine, static_rx_tick, (void *)this);
+		timer_adjust_periodic(m_rx_timer, attotime_zero, 0, ATTOTIME_IN_HZ(m_config.m_rx_clock));
 	}
 
 	// create serial transmit clock timer
-	if (m_tx_clock > 0)
+	if (m_config.m_tx_clock > 0)
 	{
-		m_tx_timer = machine().scheduler().timer_alloc(FUNC(static_tx_tick), (void *)this);
-		m_tx_timer->adjust(attotime::zero, 0, attotime::from_hz(m_tx_clock));
+		m_tx_timer = timer_alloc(&m_machine, static_tx_tick, (void *)this);
+		timer_adjust_periodic(m_tx_timer, attotime_zero, 0, ATTOTIME_IN_HZ(m_config.m_tx_clock));
 	}
 
 	// register for state saving
-	save_item(NAME(m_gpip));
-	save_item(NAME(m_aer));
-	save_item(NAME(m_ddr));
-	save_item(NAME(m_ier));
-	save_item(NAME(m_ipr));
-	save_item(NAME(m_isr));
-	save_item(NAME(m_imr));
-	save_item(NAME(m_pvr));
-	save_item(NAME(m_int_state));
-	save_item(NAME(m_tabc));
-	save_item(NAME(m_tcdc));
-	save_item(NAME(m_tdr));
-	save_item(NAME(m_tmc));
-	save_item(NAME(m_to));
-	save_item(NAME(m_scr));
-	save_item(NAME(m_ucr));
-	save_item(NAME(m_rsr));
-	save_item(NAME(m_tsr));
-	save_item(NAME(m_udr));
+	state_save_register_device_item(this, 0, m_gpip);
+	state_save_register_device_item(this, 0, m_aer);
+	state_save_register_device_item(this, 0, m_ddr);
+	state_save_register_device_item(this, 0, m_ier);
+	state_save_register_device_item(this, 0, m_ipr);
+	state_save_register_device_item(this, 0, m_isr);
+	state_save_register_device_item(this, 0, m_imr);
+	state_save_register_device_item(this, 0, m_pvr);
+	state_save_register_device_item_array(this, 0, m_int_state);
+	state_save_register_device_item(this, 0, m_tabc);
+	state_save_register_device_item(this, 0, m_tcdc);
+	state_save_register_device_item_array(this, 0, m_tdr);
+	state_save_register_device_item_array(this, 0, m_tmc);
+	state_save_register_device_item_array(this, 0, m_to);
+	state_save_register_device_item(this, 0, m_scr);
+	state_save_register_device_item(this, 0, m_ucr);
+	state_save_register_device_item(this, 0, m_rsr);
+	state_save_register_device_item(this, 0, m_tsr);
+	state_save_register_device_item(this, 0, m_udr);
 
 }
 
@@ -382,11 +407,11 @@ void z80sti_device::check_interrupts()
 {
 	if (m_ipr & m_imr)
 	{
-		m_out_int_func(ASSERT_LINE);
+		devcb_call_write_line(&m_out_int_func, ASSERT_LINE);
 	}
 	else
 	{
-		m_out_int_func(CLEAR_LINE);
+		devcb_call_write_line(&m_out_int_func, CLEAR_LINE);
 	}
 }
 
@@ -447,7 +472,7 @@ UINT8 z80sti_device::read(offs_t offset)
 		}
 		break;
 
-	case Z80STI_REGISTER_GPIP:	m_gpip = (m_in_gpio_func(0) & ~m_ddr) | (m_gpip & m_ddr); return m_gpip;
+	case Z80STI_REGISTER_GPIP:	m_gpip = (devcb_call_read8(&m_in_gpio_func, 0) & ~m_ddr) | (m_gpip & m_ddr); return m_gpip;
 	case Z80STI_REGISTER_IPRB:	return m_ipr & 0xff;
 	case Z80STI_REGISTER_IPRA:	return m_ipr >> 8;
 	case Z80STI_REGISTER_ISRB:	return m_isr & 0xff;
@@ -527,21 +552,21 @@ void z80sti_device::write(offs_t offset, UINT8 data)
 			LOG(("Z80STI '%s' Timer D Prescaler: %u\n", tag(), tdc));
 
 			if (tcc)
-				m_timer[TIMER_C]->adjust(attotime::from_hz(clock() / tcc), TIMER_C, attotime::from_hz(clock() / tcc));
+				timer_adjust_periodic(m_timer[TIMER_C], ATTOTIME_IN_HZ(clock() / tcc), TIMER_C, ATTOTIME_IN_HZ(clock() / tcc));
 			else
-				m_timer[TIMER_C]->enable(false);
+				timer_enable(m_timer[TIMER_C], 0);
 
 			if (tdc)
-				m_timer[TIMER_D]->adjust(attotime::from_hz(clock() / tdc), TIMER_D, attotime::from_hz(clock() / tdc));
+				timer_adjust_periodic(m_timer[TIMER_D], ATTOTIME_IN_HZ(clock() / tdc), TIMER_D, ATTOTIME_IN_HZ(clock() / tdc));
 			else
-				m_timer[TIMER_D]->enable(false);
+				timer_enable(m_timer[TIMER_D], 0);
 
 			if (BIT(data, 7))
 			{
 				LOG(("Z80STI '%s' Timer A Reset\n", tag()));
 				m_to[TIMER_A] = 0;
 
-				m_out_timer_func[TIMER_A](m_to[TIMER_A]);
+				devcb_call_write_line(&m_out_timer_func[TIMER_A], m_to[TIMER_A]);
 			}
 
 			if (BIT(data, 3))
@@ -549,7 +574,7 @@ void z80sti_device::write(offs_t offset, UINT8 data)
 				LOG(("Z80STI '%s' Timer B Reset\n", tag()));
 				m_to[TIMER_B] = 0;
 
-				m_out_timer_func[TIMER_B](m_to[TIMER_B]);
+				devcb_call_write_line(&m_out_timer_func[TIMER_B], m_to[TIMER_B]);
 			}
 			}
 			break;
@@ -559,7 +584,7 @@ void z80sti_device::write(offs_t offset, UINT8 data)
 	case Z80STI_REGISTER_GPIP:
 		LOG(("Z80STI '%s' General Purpose I/O Register: %x\n", tag(), data));
 		m_gpip = data & m_ddr;
-		m_out_gpio_func(0, m_gpip);
+		devcb_call_write8(&m_out_gpio_func, 0, m_gpip);
 		break;
 
 	case Z80STI_REGISTER_IPRB:
@@ -633,14 +658,14 @@ void z80sti_device::write(offs_t offset, UINT8 data)
 		LOG(("Z80STI '%s' Timer B Prescaler: %u\n", tag(), tbc));
 
 		if (tac)
-			m_timer[TIMER_A]->adjust(attotime::from_hz(clock() / tac), TIMER_A, attotime::from_hz(clock() / tac));
+			timer_adjust_periodic(m_timer[TIMER_A], ATTOTIME_IN_HZ(clock() / tac), TIMER_A, ATTOTIME_IN_HZ(clock() / tac));
 		else
-			m_timer[TIMER_A]->enable(false);
+			timer_enable(m_timer[TIMER_A], 0);
 
 		if (tbc)
-			m_timer[TIMER_B]->adjust(attotime::from_hz(clock() / tbc), TIMER_B, attotime::from_hz(clock() / tbc));
+			timer_adjust_periodic(m_timer[TIMER_B], ATTOTIME_IN_HZ(clock() / tbc), TIMER_B, ATTOTIME_IN_HZ(clock() / tbc));
 		else
-			m_timer[TIMER_B]->enable(false);
+			timer_enable(m_timer[TIMER_B], 0);
 		}
 		break;
 
@@ -689,7 +714,7 @@ void z80sti_device::timer_count(int index)
 		// toggle timer output signal
 		m_to[index] = !m_to[index];
 
-		m_out_timer_func[index](m_to[index]);
+		devcb_call_write_line(&m_out_timer_func[index], m_to[index]);
 
 		if (m_ier & (1 << INT_LEVEL_TIMER[index]))
 		{
@@ -754,3 +779,5 @@ WRITE_LINE_DEVICE_HANDLER( z80sti_i4_w ) { downcast<z80sti_device *>(device)->gp
 WRITE_LINE_DEVICE_HANDLER( z80sti_i5_w ) { downcast<z80sti_device *>(device)->gpip_input(5, state); }
 WRITE_LINE_DEVICE_HANDLER( z80sti_i6_w ) { downcast<z80sti_device *>(device)->gpip_input(6, state); }
 WRITE_LINE_DEVICE_HANDLER( z80sti_i7_w ) { downcast<z80sti_device *>(device)->gpip_input(7, state); }
+
+const device_type Z80STI = z80sti_device_config::static_alloc_device_config;

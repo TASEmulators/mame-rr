@@ -18,23 +18,12 @@
 #include "machine/at28c16.h"
 #include "includes/eolithsp.h"
 
-
-class vegaeo_state : public driver_device
-{
-public:
-	vegaeo_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
-
-	UINT32 *m_vega_vram;
-	UINT8 m_vega_vbuffer;
-};
-
-
+static UINT32 *vega_vram;
+static UINT8 vega_vbuffer = 0;
 
 
 static WRITE32_HANDLER( vega_vram_w )
 {
-	vegaeo_state *state = space->machine().driver_data<vegaeo_state>();
 	switch(mem_mask)
 	{
 		case 0xffffffff:
@@ -60,41 +49,39 @@ static WRITE32_HANDLER( vega_vram_w )
 				return;
 	}
 
-	COMBINE_DATA(&state->m_vega_vram[offset + state->m_vega_vbuffer * (0x14000/4)]);
+	COMBINE_DATA(&vega_vram[offset + vega_vbuffer * (0x14000/4)]);
 }
 
 static READ32_HANDLER( vega_vram_r )
 {
-	vegaeo_state *state = space->machine().driver_data<vegaeo_state>();
-	return state->m_vega_vram[offset + (0x14000/4) * state->m_vega_vbuffer];
+	return vega_vram[offset + (0x14000/4) * vega_vbuffer];
 }
 
 static WRITE32_HANDLER( vega_palette_w )
 {
 	UINT16 paldata;
 
-	COMBINE_DATA(&space->machine().generic.paletteram.u32[offset]);
+	COMBINE_DATA(&space->machine->generic.paletteram.u32[offset]);
 
-	paldata = space->machine().generic.paletteram.u32[offset] & 0x7fff;
-	palette_set_color_rgb(space->machine(), offset, pal5bit(paldata >> 10), pal5bit(paldata >> 5), pal5bit(paldata >> 0));
+	paldata = space->machine->generic.paletteram.u32[offset] & 0x7fff;
+	palette_set_color_rgb(space->machine, offset, pal5bit(paldata >> 10), pal5bit(paldata >> 5), pal5bit(paldata >> 0));
 }
 
 static WRITE32_HANDLER( vega_misc_w )
 {
-	vegaeo_state *state = space->machine().driver_data<vegaeo_state>();
 	// other bits ???
 
-	state->m_vega_vbuffer = data & 1;
+	vega_vbuffer = data & 1;
 }
 
 
 static READ32_HANDLER( vegaeo_custom_read )
 {
 	eolith_speedup_read(space);
-	return input_port_read(space->machine(), "SYSTEM");
+	return input_port_read(space->machine, "SYSTEM");
 }
 
-static ADDRESS_MAP_START( vega_map, AS_PROGRAM, 32 )
+static ADDRESS_MAP_START( vega_map, ADDRESS_SPACE_PROGRAM, 32 )
 	AM_RANGE(0x00000000, 0x001fffff) AM_RAM
 	AM_RANGE(0x80000000, 0x80013fff) AM_READWRITE(vega_vram_r, vega_vram_w)
 	AM_RANGE(0xfc000000, 0xfc0000ff) AM_DEVREADWRITE8("at28c16", at28c16_r, at28c16_w, 0x000000ff)
@@ -143,13 +130,11 @@ INPUT_PORTS_END
 
 static VIDEO_START( vega )
 {
-	vegaeo_state *state = machine.driver_data<vegaeo_state>();
-	state->m_vega_vram = auto_alloc_array(machine, UINT32, 0x14000*2/4);
+	vega_vram = auto_alloc_array(machine, UINT32, 0x14000*2/4);
 }
 
-static SCREEN_UPDATE( vega )
+static VIDEO_UPDATE( vega )
 {
-	vegaeo_state *state = screen->machine().driver_data<vegaeo_state>();
 	int x,y,count;
 	int color;
 
@@ -158,16 +143,16 @@ static SCREEN_UPDATE( vega )
 	{
 		for (x=0;x < 320/4;x++)
 		{
-			color = state->m_vega_vram[count + (0x14000/4) * (state->m_vega_vbuffer ^ 1)] & 0xff;
+			color = vega_vram[count + (0x14000/4) * (vega_vbuffer ^ 1)] & 0xff;
 			*BITMAP_ADDR16(bitmap, y, x*4 + 3) = color;
 
-			color = (state->m_vega_vram[count + (0x14000/4) * (state->m_vega_vbuffer ^ 1)] & 0xff00) >> 8;
+			color = (vega_vram[count + (0x14000/4) * (vega_vbuffer ^ 1)] & 0xff00) >> 8;
 			*BITMAP_ADDR16(bitmap, y, x*4 + 2) = color;
 
-			color = (state->m_vega_vram[count + (0x14000/4) * (state->m_vega_vbuffer ^ 1)] & 0xff0000) >> 16;
+			color = (vega_vram[count + (0x14000/4) * (vega_vbuffer ^ 1)] & 0xff0000) >> 16;
 			*BITMAP_ADDR16(bitmap, y, x*4 + 1) = color;
 
-			color = (state->m_vega_vram[count + (0x14000/4) * (state->m_vega_vbuffer ^ 1)] & 0xff000000) >> 24;
+			color = (vega_vram[count + (0x14000/4) * (vega_vbuffer ^ 1)] & 0xff000000) >> 24;
 			*BITMAP_ADDR16(bitmap, y, x*4 + 0) = color;
 
 			count++;
@@ -177,29 +162,29 @@ static SCREEN_UPDATE( vega )
 }
 
 
-static MACHINE_CONFIG_START( vega, vegaeo_state )
-	MCFG_CPU_ADD("maincpu", GMS30C2132, 55000000)	/* 55 MHz */
-	MCFG_CPU_PROGRAM_MAP(vega_map)
-	MCFG_CPU_VBLANK_INT_HACK(eolith_speedup,262)
+static MACHINE_DRIVER_START( vega )
+	MDRV_CPU_ADD("maincpu", GMS30C2132, 55000000)	/* 55 MHz */
+	MDRV_CPU_PROGRAM_MAP(vega_map)
+	MDRV_CPU_VBLANK_INT_HACK(eolith_speedup,262)
 
 	/* sound cpu */
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(512, 512)
-	MCFG_SCREEN_VISIBLE_AREA(0, 319, 0, 239)
-	MCFG_SCREEN_UPDATE(vega)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(0))
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(512, 512)
+	MDRV_SCREEN_VISIBLE_AREA(0, 319, 0, 239)
 
-	MCFG_PALETTE_LENGTH(256)
+	MDRV_PALETTE_LENGTH(256)
 
-	MCFG_VIDEO_START(vega)
+	MDRV_VIDEO_START(vega)
+	MDRV_VIDEO_UPDATE(vega)
 
 	/* sound hardware */
-	MCFG_AT28C16_ADD( "at28c16", NULL )
-MACHINE_CONFIG_END
+	MDRV_AT28C16_ADD( "at28c16", NULL )
+MACHINE_DRIVER_END
 
 /*
 Crazy Wars

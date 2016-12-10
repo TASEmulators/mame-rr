@@ -73,7 +73,6 @@ enum
 class device_state_entry
 {
 	friend class device_state_interface;
-	friend class simple_list<device_state_entry>;
 
 private:
 	// construction/destruction
@@ -137,6 +136,19 @@ protected:
 
 
 
+// ======================> device_config_state_interface
+
+// class representing interface-specific configuration state
+class device_config_state_interface : public device_config_interface
+{
+public:
+	// construction/destruction
+	device_config_state_interface(const machine_config &mconfig, device_config &device);
+	virtual ~device_config_state_interface();
+};
+
+
+
 // ======================> device_state_interface
 
 // class representing interface-specific live state
@@ -144,11 +156,12 @@ class device_state_interface : public device_interface
 {
 public:
 	// construction/destruction
-	device_state_interface(const machine_config &mconfig, device_t &device);
+	device_state_interface(running_machine &machine, const device_config &config, device_t &device);
 	virtual ~device_state_interface();
 
 	// configuration access
-	const device_state_entry *state_first() const { return m_state_list.first(); }
+	const device_config_state_interface &state_config() const { return m_state_config; }
+	const device_state_entry *state_first() const { return m_state_list; }
 
 	// state getters
 	UINT64 state(int index);
@@ -166,7 +179,7 @@ public:
 public:	// protected eventually
 
 	// add a new state item
-	template<class _ItemType> device_state_entry &state_add(int index, const char *symbol, _ItemType &data)
+	template<class T> device_state_entry &state_add(int index, const char *symbol, T &data)
 	{
 		return state_add(index, symbol, &data, sizeof(data));
 	}
@@ -190,7 +203,9 @@ protected:
 	static const int k_fast_state_max = 256;						// lookups
 
 	// state
-	simple_list<device_state_entry>			m_state_list;			// head of state list
+	running_machine &						m_machine;				// reference to owning machine
+	const device_config_state_interface &	m_state_config;			// reference to configuration data
+	device_state_entry *					m_state_list;			// head of state list
 	device_state_entry *					m_fast_state[k_fast_state_max  + 1 - k_fast_state_min];
 																	// fast access to common entries
 };

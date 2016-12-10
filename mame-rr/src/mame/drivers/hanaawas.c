@@ -32,20 +32,20 @@
 
 static READ8_HANDLER( hanaawas_input_port_0_r )
 {
-	hanaawas_state *state = space->machine().driver_data<hanaawas_state>();
+	hanaawas_state *state = (hanaawas_state *)space->machine->driver_data;
 	int i, ordinal = 0;
 	UINT16 buttons = 0;
 
-	switch (state->m_mux)
+	switch (state->mux)
 	{
 	case 1: /* start buttons */
-		buttons = input_port_read(space->machine(), "START");
+		buttons = input_port_read(space->machine, "START");
 		break;
 	case 2: /* player 1 buttons */
-		buttons = input_port_read(space->machine(), "P1");
+		buttons = input_port_read(space->machine, "P1");
 		break;
 	case 4: /* player 2 buttons */
-		buttons = input_port_read(space->machine(), "P2");
+		buttons = input_port_read(space->machine, "P2");
 		break;
 	}
 
@@ -61,26 +61,26 @@ static READ8_HANDLER( hanaawas_input_port_0_r )
 		}
 	}
 
-	return (input_port_read(space->machine(), "IN0") & 0xf0) | ordinal;
+	return (input_port_read(space->machine, "IN0") & 0xf0) | ordinal;
 }
 
 static WRITE8_HANDLER( hanaawas_inputs_mux_w )
 {
-	hanaawas_state *state = space->machine().driver_data<hanaawas_state>();
-	state->m_mux = data;
+	hanaawas_state *state = (hanaawas_state *)space->machine->driver_data;
+	state->mux = data;
 }
 
-static ADDRESS_MAP_START( hanaawas_map, AS_PROGRAM, 8 )
+static ADDRESS_MAP_START( hanaawas_map, ADDRESS_SPACE_PROGRAM, 8 )
 	AM_RANGE(0x0000, 0x2fff) AM_ROM
 	AM_RANGE(0x4000, 0x4fff) AM_ROM
 	AM_RANGE(0x6000, 0x6fff) AM_ROM
-	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(hanaawas_videoram_w) AM_BASE_MEMBER(hanaawas_state, m_videoram)
-	AM_RANGE(0x8400, 0x87ff) AM_RAM_WRITE(hanaawas_colorram_w) AM_BASE_MEMBER(hanaawas_state, m_colorram)
+	AM_RANGE(0x8000, 0x83ff) AM_RAM_WRITE(hanaawas_videoram_w) AM_BASE_MEMBER(hanaawas_state, videoram)
+	AM_RANGE(0x8400, 0x87ff) AM_RAM_WRITE(hanaawas_colorram_w) AM_BASE_MEMBER(hanaawas_state, colorram)
 	AM_RANGE(0x8800, 0x8bff) AM_RAM
 ADDRESS_MAP_END
 
 
-static ADDRESS_MAP_START( io_map, AS_IO, 8 )
+static ADDRESS_MAP_START( io_map, ADDRESS_SPACE_IO, 8 )
 	ADDRESS_MAP_GLOBAL_MASK(0xff)
 	AM_RANGE(0x00, 0x00) AM_READWRITE(hanaawas_input_port_0_r, hanaawas_inputs_mux_w)
 	AM_RANGE(0x01, 0x01) AM_READNOP /* it must return 0 */
@@ -186,51 +186,54 @@ static const ay8910_interface ay8910_config =
 
 static MACHINE_START( hanaawas )
 {
-	hanaawas_state *state = machine.driver_data<hanaawas_state>();
+	hanaawas_state *state = (hanaawas_state *)machine->driver_data;
 
-	state->save_item(NAME(state->m_mux));
+	state_save_register_global(machine, state->mux);
 }
 
 static MACHINE_RESET( hanaawas )
 {
-	hanaawas_state *state = machine.driver_data<hanaawas_state>();
+	hanaawas_state *state = (hanaawas_state *)machine->driver_data;
 
-	state->m_mux = 0;
+	state->mux = 0;
 }
 
-static MACHINE_CONFIG_START( hanaawas, hanaawas_state )
+static MACHINE_DRIVER_START( hanaawas )
+
+	/* driver data */
+	MDRV_DRIVER_DATA(hanaawas_state)
 
 	/* basic machine hardware */
-	MCFG_CPU_ADD("maincpu", Z80,18432000/6)	/* 3.072 MHz ??? */
-	MCFG_CPU_PROGRAM_MAP(hanaawas_map)
-	MCFG_CPU_IO_MAP(io_map)
-	MCFG_CPU_VBLANK_INT("screen", irq0_line_hold)
+	MDRV_CPU_ADD("maincpu", Z80,18432000/6)	/* 3.072 MHz ??? */
+	MDRV_CPU_PROGRAM_MAP(hanaawas_map)
+	MDRV_CPU_IO_MAP(io_map)
+	MDRV_CPU_VBLANK_INT("screen", irq0_line_hold)
 
-	MCFG_MACHINE_START(hanaawas)
-	MCFG_MACHINE_RESET(hanaawas)
+	MDRV_MACHINE_START(hanaawas)
+	MDRV_MACHINE_RESET(hanaawas)
 
 	/* video hardware */
-	MCFG_SCREEN_ADD("screen", RASTER)
-	MCFG_SCREEN_REFRESH_RATE(60)
-	MCFG_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
-	MCFG_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
-	MCFG_SCREEN_SIZE(32*8, 32*8)
-	MCFG_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
-	MCFG_SCREEN_UPDATE(hanaawas)
+	MDRV_SCREEN_ADD("screen", RASTER)
+	MDRV_SCREEN_REFRESH_RATE(60)
+	MDRV_SCREEN_VBLANK_TIME(ATTOSECONDS_IN_USEC(2500) /* not accurate */)
+	MDRV_SCREEN_FORMAT(BITMAP_FORMAT_INDEXED16)
+	MDRV_SCREEN_SIZE(32*8, 32*8)
+	MDRV_SCREEN_VISIBLE_AREA(0*8, 32*8-1, 0*8, 32*8-1)
 
-	MCFG_GFXDECODE(hanaawas)
-	MCFG_PALETTE_LENGTH(32*8)
+	MDRV_GFXDECODE(hanaawas)
+	MDRV_PALETTE_LENGTH(32*8)
 
-	MCFG_PALETTE_INIT(hanaawas)
-	MCFG_VIDEO_START(hanaawas)
+	MDRV_PALETTE_INIT(hanaawas)
+	MDRV_VIDEO_START(hanaawas)
+	MDRV_VIDEO_UPDATE(hanaawas)
 
 	/* sound hardware */
-	MCFG_SPEAKER_STANDARD_MONO("mono")
+	MDRV_SPEAKER_STANDARD_MONO("mono")
 
-	MCFG_SOUND_ADD("aysnd", AY8910, 18432000/12)
-	MCFG_SOUND_CONFIG(ay8910_config)
-	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
-MACHINE_CONFIG_END
+	MDRV_SOUND_ADD("aysnd", AY8910, 18432000/12)
+	MDRV_SOUND_CONFIG(ay8910_config)
+	MDRV_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
+MACHINE_DRIVER_END
 
 
 /***************************************************************************

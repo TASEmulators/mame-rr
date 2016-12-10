@@ -1,30 +1,28 @@
 
-class crshrace_state : public driver_device
+class crshrace_state
 {
 public:
-	crshrace_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag) { }
+	static void *alloc(running_machine &machine) { return auto_alloc_clear(&machine, crshrace_state(machine)); }
+
+	crshrace_state(running_machine &machine) { }
 
 	/* memory pointers */
-	UINT16 *  m_videoram1;
-	UINT16 *  m_videoram2;
-//  UINT16 *  m_spriteram1;   // currently this uses generic buffered spriteram
-//  UINT16 *  m_spriteram2;   // currently this uses generic buffered spriteram
-//      UINT16 *  m_paletteram;   // currently this uses generic palette handling
+	UINT16 *  videoram1;
+	UINT16 *  videoram2;
+//  UINT16 *  spriteram1;   // currently this uses generic buffered spriteram
+//  UINT16 *  spriteram2;   // currently this uses generic buffered spriteram
+//      UINT16 *  paletteram;   // currently this uses generic palette handling
 
 	/* video-related */
-	tilemap_t   *m_tilemap1;
-	tilemap_t   *m_tilemap2;
-	int       m_roz_bank;
-	int       m_gfxctrl;
-	int       m_flipscreen;
+	tilemap_t   *tilemap1, *tilemap2;
+	int       roz_bank, gfxctrl, flipscreen;
 
 	/* misc */
-	int m_pending_command;
+	int pending_command;
 
 	/* devices */
-	device_t *m_audiocpu;
-	device_t *m_k053936;
+	running_device *audiocpu;
+	running_device *k053936;
 };
 
 /*----------- defined in video/crshrace.c -----------*/
@@ -35,5 +33,5 @@ WRITE16_HANDLER( crshrace_roz_bank_w );
 WRITE16_HANDLER( crshrace_gfxctrl_w );
 
 VIDEO_START( crshrace );
-SCREEN_EOF( crshrace );
-SCREEN_UPDATE( crshrace );
+VIDEO_EOF( crshrace );
+VIDEO_UPDATE( crshrace );

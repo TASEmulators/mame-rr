@@ -39,8 +39,7 @@
 #define PPCCAP_MISALIGNED			0x08		/* TRUE if misaligned accesses are supported */
 #define PPCCAP_4XX					0x10		/* TRUE if we are a non-OEA 4XX class chip */
 #define PPCCAP_603_MMU				0x20		/* TRUE if we have 603-class MMU features */
-#define PPCCAP_MFIOC                0x40        /* TRUE if we have memory-forced I/O controller interface accesses */
-#define PPCCAP_601BAT               0x80        /* TRUE if we're doing 601-style BATs (unified I/D, different bit layout) */
+
 
 /* PowerPC flavors */
 enum _powerpc_flavor
@@ -553,8 +552,7 @@ struct _powerpc_state
 	/* internal stuff */
 	device_irq_callback irq_callback;
 	legacy_cpu_device *	device;
-	address_space *program;
-	direct_read_data *direct;
+	const address_space *program;
 	offs_t			codexor;
 	UINT32			irq_pending;
 	UINT32			system_clock;
@@ -579,7 +577,7 @@ void ppccom_exit(powerpc_state *ppc);
 void ppccom_reset(powerpc_state *ppc);
 offs_t ppccom_dasm(powerpc_state *ppc, char *buffer, offs_t pc, const UINT8 *oprom, const UINT8 *opram);
 
-int ppccom_translate_address(powerpc_state *ppc, address_spacenum space, int intention, offs_t *address);
+int ppccom_translate_address(powerpc_state *ppc, int space, int intention, offs_t *address);
 
 void ppccom_set_info(powerpc_state *ppc, UINT32 state, cpuinfo *info);
 void ppccom_get_info(powerpc_state *ppc, UINT32 state, cpuinfo *info);

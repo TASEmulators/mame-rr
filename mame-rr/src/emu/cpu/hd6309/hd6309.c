@@ -5,7 +5,7 @@
 
     References:
 
-        HD63B09EP Technical Reference Guide, by Chet Simpson with addition
+        HD63B09EP Technical Refrence Guide, by Chet Simpson with addition
                             by Alan Dekok
         6809 Simulator V09, By L.C. Benschop, Eidnhoven The Netherlands.
 
@@ -137,8 +137,7 @@ struct _m68_state_t
 	PAIR	ea; 		/* effective address */
 
 	/* Memory spaces */
-    address_space *program;
-    direct_read_data *direct;
+    const address_space *program;
 
 	UINT8	int_state;	/* SYNC and CWAI flags */
 	UINT8	nmi_state;
@@ -152,7 +151,7 @@ struct _m68_state_t
 	UINT8 const *index_cycle;
 };
 
-INLINE m68_state_t *get_safe_token(device_t *device)
+INLINE m68_state_t *get_safe_token(running_device *device)
 {
 	assert(device != NULL);
 	assert(device->type() == HD6309);
@@ -225,31 +224,31 @@ INLINE void fetch_effective_address( m68_state_t *m68_state );
 
 #define M6809_CWAI	8	/* set when CWAI is waiting for an interrupt */
 #define M6809_SYNC	16	/* set when SYNC is waiting for an interrupt */
-#define M6809_LDS		32	/* set when LDS occurred at least once */
+#define M6809_LDS		32	/* set when LDS occured at least once */
 
 /****************************************************************************/
 /* Read a byte from given memory location                                   */
 /****************************************************************************/
-#define RM(Addr) ((unsigned)m68_state->program->read_byte(Addr))
+#define RM(Addr) ((unsigned)memory_read_byte_8be(m68_state->program, Addr))
 
 /****************************************************************************/
 /* Write a byte to given memory location                                    */
 /****************************************************************************/
-#define WM(Addr,Value) (m68_state->program->write_byte(Addr,Value))
+#define WM(Addr,Value) (memory_write_byte_8be(m68_state->program, Addr,Value))
 
 /****************************************************************************/
 /* Z80_RDOP() is identical to Z80_RDMEM() except it is used for reading     */
 /* opcodes. In case of system with memory mapped I/O, this function can be  */
 /* used to greatly speed up emulation                                       */
 /****************************************************************************/
-#define ROP(Addr) ((unsigned)m68_state->direct->read_decrypted_byte(Addr))
+#define ROP(Addr) ((unsigned)memory_decrypted_read_byte(m68_state->program, Addr))
 
 /****************************************************************************/
 /* Z80_RDOP_ARG() is identical to Z80_RDOP() except it is used for reading  */
 /* opcode arguments. This difference can be used to support systems that    */
 /* use different encoding mechanisms for opcodes and opcode arguments       */
 /****************************************************************************/
-#define ROP_ARG(Addr) ((unsigned)m68_state->direct->read_raw_byte(Addr))
+#define ROP_ARG(Addr) ((unsigned)memory_raw_read_byte(m68_state->program, Addr))
 
 /* macros to access memory */
 #define IMMBYTE(b)	b = ROP_ARG(PCD); PC++
@@ -503,8 +502,11 @@ static void check_irq_lines( m68_state_t *m68_state )
 
 
 
-static void hd6309_postload(m68_state_t *m68_state)
+static STATE_POSTLOAD( hd6309_postload )
 {
+	running_device *device = (legacy_cpu_device *)param;
+	m68_state_t *m68_state = get_safe_token(device);
+
 	UpdateState(m68_state);
 }
 
@@ -520,7 +522,6 @@ static CPU_INIT( hd6309 )
 	m68_state->device = device;
 
 	m68_state->program = device->space(AS_PROGRAM);
-	m68_state->direct = &m68_state->program->direct();
 
 	/* setup regtable */
 
@@ -529,20 +530,20 @@ static CPU_INIT( hd6309 )
 	m68_state->regTable[2] = &(B);
 	m68_state->regTable[3] = &m68_state->dummy_byte;
 
-	device->save_item(NAME(PC));
-	device->save_item(NAME(U));
-	device->save_item(NAME(S));
-	device->save_item(NAME(X));
-	device->save_item(NAME(Y));
-	device->save_item(NAME(V));
-	device->save_item(NAME(DP));
-	device->save_item(NAME(CC));
-	device->save_item(NAME(MD));
-	device->machine().save().register_postload(save_prepost_delegate(FUNC(hd6309_postload), m68_state));
-	device->save_item(NAME(m68_state->int_state));
-	device->save_item(NAME(m68_state->nmi_state));
-	device->save_item(NAME(m68_state->irq_state[0]));
-	device->save_item(NAME(m68_state->irq_state[1]));
+	state_save_register_device_item(device, 0, PC);
+	state_save_register_device_item(device, 0, U);
+	state_save_register_device_item(device, 0, S);
+	state_save_register_device_item(device, 0, X);
+	state_save_register_device_item(device, 0, Y);
+	state_save_register_device_item(device, 0, V);
+	state_save_register_device_item(device, 0, DP);
+	state_save_register_device_item(device, 0, CC);
+	state_save_register_device_item(device, 0, MD);
+	state_save_register_postload(device->machine, hd6309_postload, (void *) device);
+	state_save_register_device_item(device, 0, m68_state->int_state);
+	state_save_register_device_item(device, 0, m68_state->nmi_state);
+	state_save_register_device_item(device, 0, m68_state->irq_state[0]);
+	state_save_register_device_item(device, 0, m68_state->irq_state[1]);
 }
 
 /****************************************************************************/
@@ -1270,15 +1271,15 @@ CPU_GET_INFO( hd6309 )
 		case CPUINFO_INT_MIN_CYCLES:					info->i = 1;							break;
 		case CPUINFO_INT_MAX_CYCLES:					info->i = 20;							break;
 
-		case DEVINFO_INT_DATABUS_WIDTH + AS_PROGRAM:	info->i = 8;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_PROGRAM: info->i = 16;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_PROGRAM: info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_DATA:	info->i = 0;					break;
-		case DEVINFO_INT_DATABUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_WIDTH + AS_IO:		info->i = 0;					break;
-		case DEVINFO_INT_ADDRBUS_SHIFT + AS_IO:		info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_PROGRAM:	info->i = 8;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_PROGRAM: info->i = 16;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_PROGRAM: info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_DATA:	info->i = 0;					break;
+		case DEVINFO_INT_DATABUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_WIDTH + ADDRESS_SPACE_IO:		info->i = 0;					break;
+		case DEVINFO_INT_ADDRBUS_SHIFT + ADDRESS_SPACE_IO:		info->i = 0;					break;
 
 		case CPUINFO_INT_INPUT_STATE + HD6309_IRQ_LINE:	info->i = m68_state->irq_state[HD6309_IRQ_LINE]; break;
 		case CPUINFO_INT_INPUT_STATE + HD6309_FIRQ_LINE:info->i = m68_state->irq_state[HD6309_FIRQ_LINE]; break;
