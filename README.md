@@ -1,0 +1,18 @@
+### Repository
+
+https://github.com/TASVideos/mame-rr
+
+### Usage
+* You can replay/record movies by pressing the corresponding hotkeys (Control+R and Control+N by default). There are also hotkeys for stopping a movie (Control+T by default) and for playing the active movie from the beginning (Shift+R by default).
+* You can toggle movie read-only/read+write mode (Control+Q by default).
+* You can use RAM Search and RAM Watch by pressing the corresponding hotkeys (Control+F and Control+W by default).
+* You can open the Lua console by pressing the corresponding hotkeys (Control+L by default) or with the command line parameter "-lua" (example: mame.exe cninja -lua example.lua).
+* AVI (uncomressed) can be recorded from the movie using the command: mame-rr romname -pb moviename.mar -aviwrite aviname.avi. To stop recording, just close the emulator.
+* If movie recording was started while paused, the replay dialog should also be opened while paused.
+* If the state was saved while paused, it should also be loaded while paused.
+
+### What's new in 0.139-v0.1-alpha
+- read-only switch
+- movie header now stores framerate (as it should be parsed too for tasvideos submissions to provide proper movie time), the header changed a bit
+- movie replay dialog shows new contents (rom name, emulator version, framerate)
+- HUD shows more info relevant to tasing (recording/paused/fastforwarding, number of frames, total frames)
