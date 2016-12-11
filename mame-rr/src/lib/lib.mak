@@ -18,6 +18,7 @@ OBJDIRS += \
 	$(LIBOBJ)/expat \
 	$(LIBOBJ)/zlib \
 	$(LIBOBJ)/softfloat \
+	$(LIBOBJ)/lua \
 
 
 
@@ -75,6 +76,51 @@ $(LIBOBJ)/expat/%.o: $(LIBSRC)/explat/%.c | $(OSPREBUILD)
 
 
 #-------------------------------------------------
+# lua library objects
+#-------------------------------------------------
+
+LUAOBJS = \
+	$(LIBOBJ)/lua/lapi.o \
+	$(LIBOBJ)/lua/lauxlib.o \
+	$(LIBOBJ)/lua/lbaselib.o \
+	$(LIBOBJ)/lua/lcode.o \
+	$(LIBOBJ)/lua/ldblib.o \
+	$(LIBOBJ)/lua/ldebug.o \
+	$(LIBOBJ)/lua/ldo.o \
+	$(LIBOBJ)/lua/ldump.o \
+	$(LIBOBJ)/lua/lfunc.o \
+	$(LIBOBJ)/lua/lgc.o \
+	$(LIBOBJ)/lua/linit.o \
+	$(LIBOBJ)/lua/liolib.o \
+	$(LIBOBJ)/lua/llex.o \
+	$(LIBOBJ)/lua/lmathlib.o \
+	$(LIBOBJ)/lua/lmem.o \
+	$(LIBOBJ)/lua/loadlib.o \
+	$(LIBOBJ)/lua/lobject.o \
+	$(LIBOBJ)/lua/lopcodes.o \
+	$(LIBOBJ)/lua/loslib.o \
+	$(LIBOBJ)/lua/lparser.o \
+	$(LIBOBJ)/lua/lstate.o \
+	$(LIBOBJ)/lua/lstring.o \
+	$(LIBOBJ)/lua/lstrlib.o \
+	$(LIBOBJ)/lua/ltable.o \
+	$(LIBOBJ)/lua/ltablib.o \
+	$(LIBOBJ)/lua/ltm.o \
+	$(LIBOBJ)/lua/lua.o \
+	$(LIBOBJ)/lua/luac.o \
+	$(LIBOBJ)/lua/lundump.o \
+	$(LIBOBJ)/lua/lvm.o \
+	$(LIBOBJ)/lua/lzio.o \
+	$(LIBOBJ)/lua/print.o
+
+$(OBJ)/liblua.a: $(LUAOBJS)
+
+$(LIBOBJ)/lua/%.o: $(LIBSRC)/lua/%.c | $(OSPREBUILD)
+	@echo Compiling $<...
+	$(CC) $(CDEFS) $(CCOMFLAGS) $(CONLYFLAGS) -c $< -o $@
+
+
+#-------------------------------------------------
 # zlib library objects
 #-------------------------------------------------
 
@@ -97,6 +143,8 @@ $(OBJ)/libz.a: $(ZLIBOBJS)
 $(LIBOBJ)/zlib/%.o: $(LIBSRC)/zlib/%.c | $(OSPREBUILD)
 	@echo Compiling $<...
 	$(CC) $(CDEFS) $(CCOMFLAGS) $(CONLYFLAGS) -c $< -o $@
+
+
 
 #-------------------------------------------------
 # SoftFloat library objects
