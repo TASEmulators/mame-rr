@@ -196,6 +196,10 @@ int mame_execute(core_options *options)
 
 		// looooong term: remove this
 		global_machine = machine;
+		
+		// report rom name
+		if (strlen(gamename) > 0)
+			mame_printf_info("\nROM name: %s\n", gamename);
 
 		// run the machine
 		error = machine->run(firstrun);

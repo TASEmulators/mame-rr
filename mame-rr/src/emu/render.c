@@ -1334,6 +1334,17 @@ void render_target_set_layer_config(render_target *target, int layerconfig)
 {
 	target->layerconfig = layerconfig;
 	layout_view_recompute(target->curview, layerconfig);
+
+	if (strcmp(target->machine->m_game.name, "empty") != 0)
+	{
+		int x, y;
+		render_target_get_minimum_size(target, &x, &y);
+
+		mame_printf_info("Internal game resolution: %dx%d\n", x, y);
+		mame_printf_info("Intended aspect ratio: %d:%d\n",
+			int(target->curview->bounds.x1 - target->curview->bounds.x0),
+			int(target->curview->bounds.y1 - target->curview->bounds.y0));
+	}
 }
 
 
