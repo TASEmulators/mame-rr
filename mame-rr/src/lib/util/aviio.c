@@ -998,6 +998,12 @@ avi_error avi_append_video_frame_yuy16(avi_file *file, const bitmap_t *bitmap)
 }
 
 
+UINT64 avi_get_total_size(avi_file *file)
+{
+	return file->writeoffs;
+}
+
+
 /*-------------------------------------------------
     avi_append_video_frame_rgb32 - append a frame
     of video in RGB32 format

@@ -127,6 +127,7 @@ struct _video_global
 	attotime				movie_frame_period;		/* period of a single movie frame */
 	attotime				movie_next_frame_time;	/* time of next frame */
 	UINT32					movie_frame;			/* current movie frame number */
+	UINT32					movie_segment;			/* current movie segment */
 };
 
 
@@ -283,6 +284,7 @@ void video_init(running_machine *machine)
 	/* reset our global state */
 	memset(&global, 0, sizeof(global));
 	global.speed_percent = 1.0;
+	global.movie_segment = 1;
 
 	/* extract initial execution state from global configuration settings */
 	global.speed = original_speed_setting();
@@ -1518,9 +1520,12 @@ static void video_avi_record_frame(running_machine *machine)
 {
 	/* only record if we have a file */
 	if (global.avifile != NULL)
-	{
+	{		
 		attotime curtime = timer_get_time(machine);
+		const char *basename = options_get_string(machine->options(), OPTION_AVIWRITE);
+		char segmentname[100];
 		avi_error avierr;
+		astring basestr;
 
 		profiler_mark_start(PROFILER_MOVIE_REC);
 
@@ -1541,6 +1546,20 @@ static void video_avi_record_frame(running_machine *machine)
 			/* advance time */
 			global.movie_next_frame_time = attotime_add(global.movie_next_frame_time, global.movie_frame_period);
 			global.movie_frame++;
+			
+			/* split the file near 2GB */
+			int written = avi_get_total_size(global.avifile) / 1024 / 1024;
+			if (written >= 1900)
+			{
+				video_avi_end_recording(machine);
+				
+				/* insert segment count before extension */
+				basestr.cpy(basename);
+				sprintf(segmentname, "_%d", global.movie_segment++);
+				basestr.ins(basestr.len() - 4, segmentname);
+				
+				video_avi_begin_recording(machine, basestr);
+			}
 		}
 
 		profiler_mark_end();

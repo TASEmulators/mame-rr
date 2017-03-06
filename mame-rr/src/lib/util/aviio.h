@@ -141,6 +141,7 @@ const char *avi_error_string(avi_error err);
 
 const avi_movie_info *avi_get_movie_info(avi_file *file);
 UINT32 avi_first_sample_in_frame(avi_file *file, UINT32 framenum);
+UINT64 avi_get_total_size(avi_file *file);
 
 avi_error avi_read_video_frame_yuy16(avi_file *file, UINT32 framenum, bitmap_t *bitmap);
 avi_error avi_read_sound_samples(avi_file *file, int channel, UINT32 firstsample, UINT32 numsamples, INT16 *output);
