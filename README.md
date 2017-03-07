@@ -11,8 +11,26 @@ https://github.com/TASVideos/mame-rr
 * If movie recording was started while paused, the replay dialog should also be opened while paused.
 * If the state was saved while paused, it should also be loaded while paused.
 
+### Compiling
+
+* Download mingw-mame-20100102.exe:
+		http://www.mameworld.info/ubbthreads/showthreaded.php?Cat=&Number=207730
+		https://github.com/TASVideos/mame-rr/releases	
+* Add path to mingw64-w32\bin to your system path variable:
+		set path=mingw\mingw64-w32\bin	
+* Open command line in the folder with mame-rr makefile
+* To build with gcc, release configuration (mame-rr.exe):
+		make
+* To buld with gcc, debug configuration and symbols (mamed-rr.exe):
+		make DEBUG=1 SYMBOLS=1	
+* To build with Microsoft compiler and linker, release configuration (vmame-rr.exe):
+		call "G:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
+		make MSVC_BUILD=1	
+* To build with Microsoft compiler and linker, debug configuration and symbols (vmamed-rr.exe):
+		call "G:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
+		make MSVC_BUILD=1 DEBUG=1 SYMBOLS=1
 ### What's new in 0.139-v0.1-alpha
-- read-only switch
-- movie header now stores framerate (as it should be parsed too for tasvideos submissions to provide proper movie time), the header changed a bit
-- movie replay dialog shows new contents (rom name, emulator version, framerate)
-- HUD shows more info relevant to tasing (recording/paused/fastforwarding, number of frames, total frames)
+* read-only switch
+* movie header now stores framerate (as it should be parsed too for tasvideos submissions to provide proper movie time), the header changed a bit
+* movie replay dialog shows new contents (rom name, emulator version, framerate)
+* HUD shows more info relevant to tasing (recording/paused/fastforwarding, number of frames, total frames)
