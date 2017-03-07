@@ -40,6 +40,11 @@ https://github.com/TASVideos/mame-rr
 	    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
 	    make MSVC_BUILD=1 DEBUG=1 SYMBOLS=1
 		
+### What's new in 0.139-v0.1-beta
+* Split AVI at 2GB
+* Report intended aspect ratio for games
+* Statically link Lua 5.1.4
+		
 ### What's new in 0.139-v0.1-alpha
 * Read-only switch
 * Movie header now stores framerate (as it should be parsed too for tasvideos submissions to provide proper movie time), the header changed a bit
