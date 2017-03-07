@@ -12,33 +12,34 @@ https://github.com/TASVideos/mame-rr
 * If the state was saved while paused, it should also be loaded while paused.
 
 ### Compiling
+
 * Download mingw-mame-20100102.exe:
 
-    http://www.mameworld.info/ubbthreads/showthreaded.php?Cat=&Number=207730
-    https://github.com/TASVideos/mame-rr/releases
-    
+	    http://www.mameworld.info/ubbthreads/showthreaded.php?Cat=&Number=207730
+	    https://github.com/TASVideos/mame-rr/releases   
+	    
 * Add path to mingw64-w32\bin to your system path variable:
 
-    set path=mingw\mingw64-w32\bin	
+	    set path=mingw\mingw64-w32\bin	
     
 * Open command line in the folder with mame-rr makefile
 * To build with gcc, release configuration (mame-rr.exe):
 
-    make
+	    make
     
 * To buld with gcc, debug configuration and symbols (mamed-rr.exe):
 
-    make DEBUG=1 SYMBOLS=1		
+	    make DEBUG=1 SYMBOLS=1		
     
 * To build with Microsoft compiler and linker, release configuration (vmame-rr.exe):
 
-    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
-    make MSVC_BUILD=1
+	    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
+	    make MSVC_BUILD=1
     
 * To build with Microsoft compiler and linker, debug configuration and symbols (vmamed-rr.exe):
 
-    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
-    make MSVC_BUILD=1 DEBUG=1 SYMBOLS=1
+	    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
+	    make MSVC_BUILD=1 DEBUG=1 SYMBOLS=1
 		
 ### What's new in 0.139-v0.1-alpha
 * read-only switch
