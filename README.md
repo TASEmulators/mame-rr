@@ -15,8 +15,9 @@ https://github.com/TASVideos/mame-rr
 
 * Download mingw-mame-20100102.exe:
 
-	    http://www.mameworld.info/ubbthreads/showthreaded.php?Cat=&Number=207730
-	    https://github.com/TASVideos/mame-rr/releases   
+    http://www.mameworld.info/ubbthreads/showthreaded.php?Cat=&Number=207730
+
+    https://github.com/TASVideos/mame-rr/releases   
 	    
 * Add path to mingw64-w32\bin to your system path variable:
 
