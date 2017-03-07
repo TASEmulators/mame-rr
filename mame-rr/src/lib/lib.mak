@@ -117,7 +117,7 @@ $(OBJ)/liblua.a: $(LUAOBJS)
 
 $(LIBOBJ)/lua/%.o: $(LIBSRC)/lua/%.c | $(OSPREBUILD)
 	@echo Compiling $<...
-	$(CC) $(CDEFS) $(CCOMFLAGS) $(CONLYFLAGS) -c $< -o $@
+	$(CC) $(CDEFS) $(CCOMFLAGS) -Wno-error $(CONLYFLAGS) -c $< -o $@
 
 
 #-------------------------------------------------

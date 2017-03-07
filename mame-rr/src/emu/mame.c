@@ -199,7 +199,7 @@ int mame_execute(core_options *options)
 		
 		// report rom name
 		if (strlen(gamename) > 0)
-			mame_printf_info("\nROM name: %s\n", gamename);
+			mame_printf_info("\nROM name: %s\n", (char *)gamename);
 
 		// run the machine
 		error = machine->run(firstrun);

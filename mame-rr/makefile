@@ -454,7 +454,7 @@ CCOMFLAGS += -O$(OPTIMIZE)
 ifneq ($(OPTIMIZE),0)
 ifneq ($(TARGETOS),os2)
 ifndef NOWERROR
-CCOMFLAGS += -fno-strict-aliasing $(ARCHOPTS)
+CCOMFLAGS += -Werror -fno-strict-aliasing $(ARCHOPTS)
 else
 CCOMFLAGS += -fno-strict-aliasing $(ARCHOPTS)
 endif
