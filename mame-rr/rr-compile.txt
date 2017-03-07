@@ -1,7 +1,0 @@
-It's pretty hard to compile this crap... It's been a while and I can't remember all the things that I had in my MinGW folder at that time, so you will need luck to compile this... But why would you want to?
-
-Anyway... For a start, try copying the Lua 5.1 headers/libraries into MinGW lib and include folders.
-
-Good luck!
-
-(I'll try to make a better release in the future.)
