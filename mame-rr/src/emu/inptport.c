@@ -2616,10 +2616,12 @@ static void frame_update_digital_joysticks(running_machine *machine)
 					joystick->current |= JOYDIR_RIGHT_BIT;
 
 				/* lock out opposing directions (left + right or up + down) */
+				/*
 				if ((joystick->current & (JOYDIR_UP_BIT | JOYDIR_DOWN_BIT)) == (JOYDIR_UP_BIT | JOYDIR_DOWN_BIT))
 					joystick->current &= ~(JOYDIR_UP_BIT | JOYDIR_DOWN_BIT);
 				if ((joystick->current & (JOYDIR_LEFT_BIT | JOYDIR_RIGHT_BIT)) == (JOYDIR_LEFT_BIT | JOYDIR_RIGHT_BIT))
 					joystick->current &= ~(JOYDIR_LEFT_BIT | JOYDIR_RIGHT_BIT);
+				*/
 
 				/* only update 4-way case if joystick has moved */
 				if (joystick->current != joystick->previous)
