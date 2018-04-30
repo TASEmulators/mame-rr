@@ -2870,6 +2870,7 @@ static int frame_get_digital_field_state(const input_field_config *field, int mo
 	if (field->flags & FIELD_FLAG_TOGGLE)
 		curstate = FALSE;
 
+#if 0 /* explicitly allow every combination */
 	/* additional logic to restrict digital joysticks */
 	if (curstate && !mouse_down && field->state->joystick != NULL && field->way != 16)
 	{
@@ -2877,6 +2878,7 @@ static int frame_get_digital_field_state(const input_field_config *field, int mo
 		if (!(mask & (1 << field->state->joydir)))
 			curstate = FALSE;
 	}
+#endif
 
 	/* skip locked-out coin inputs */
 	if (curstate && field->type >= IPT_COIN1 && field->type <= IPT_COIN12 && coin_lockout_get_state(field->port->machine, field->type - IPT_COIN1) && options_get_bool(mame_options(), OPTION_COIN_LOCKOUT))
