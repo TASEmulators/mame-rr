@@ -143,6 +143,9 @@ CCOMFLAGS += /wd4267
 LIBS += -lbufferoverflowu
 endif
 
+# allow multithreaded compilation
+CCOMFLAGS += /FS /Qspectre
+
 # enable exception handling for C++
 CPPONLYFLAGS += /EHsc
 
@@ -155,11 +158,15 @@ CPPONLYFLAGS += /wd4290 /wd4355
 # disable performance warnings about casting ints to bools
 CPPONLYFLAGS += /wd4800
 
+# disable vs2017 warnings
+CPPONLYFLAGS += /wd4595 /wd4820 /wd5045 /wd4625 /wd4626 /wd5026 /wd5027 /wd4571
+
 # explicitly set the entry point for UNICODE builds
 LDFLAGS += /ENTRY:wmainCRTStartup
 
 # add some VC++-specific defines
-DEFS += -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE -DXML_STATIC -Dsnprintf=_snprintf -DWIN32
+DEFS += -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE -DXML_STATIC -DWIN32
+# DEFS += -Dsnprintf=_snprintf
 
 # make msvcprep into a pre-build step
 OSPREBUILD = $(VCONV)

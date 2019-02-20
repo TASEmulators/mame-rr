@@ -310,7 +310,11 @@ inline void operator delete[](void *ptr, const char *file, int line, const zerom
 #define free(x)			free_file_line(x, __FILE__, __LINE__)
 
 // disable direct deletion
+#ifdef _MSC_VER
+#if _MSC_VER <= 1900
 #define delete			__error_use_pool_free_mechanisms__
+#endif
+#endif
 
 
 #endif	/* __EMUALLOC_H__ */

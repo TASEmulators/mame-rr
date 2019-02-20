@@ -584,13 +584,13 @@ static void display_rom_load_results(rom_load_data *romdata)
 	{
 		/* create the error message and exit fatally */
 		mame_printf_error("%s", romdata->errorstring.cstr());
-		fatalerror_exitcode(romdata->machine, MAMERR_MISSING_FILES, "ERROR: required files are missing, the "GAMENOUN" cannot be run.");
+		fatalerror_exitcode(romdata->machine, MAMERR_MISSING_FILES, "ERROR: required files are missing, the " GAMENOUN " cannot be run.");
 	}
 
 	/* if we had warnings, output them, but continue */
 	if (romdata->warnings)
 	{
-		romdata->errorstring.cat("WARNING: the "GAMENOUN" might not run correctly.");
+		romdata->errorstring.cat("WARNING: the " GAMENOUN " might not run correctly.");
 		mame_printf_warning("%s\n", romdata->errorstring.cstr());
 	}
 }

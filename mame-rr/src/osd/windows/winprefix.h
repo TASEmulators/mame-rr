@@ -44,7 +44,9 @@
 #ifdef _MSC_VER
 #include <malloc.h>
 #define alloca _alloca
+#if _MSC_VER <= 1900
 #define round(x) floor((x) + 0.5)
+#endif
 #if _MSC_VER < 1500
 #define vsnprintf _vsnprintf
 #endif
