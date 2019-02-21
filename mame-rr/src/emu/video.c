@@ -515,6 +515,9 @@ static int finish_screen_updates(running_machine *machine)
 		if (screen->update_quads())
 			anything_changed = true;
 
+	// draw Lua GUI
+	MAME_LuaGui();
+
 	/* update our movie recording and burn-in state */
 	if (!machine->paused())
 	{
@@ -529,9 +532,6 @@ static int finish_screen_updates(running_machine *machine)
 	/* draw any crosshairs */
 	for (screen_device *screen = screen_first(*machine); screen != NULL; screen = screen_next(screen))
 		crosshair_render(*screen);
-
-	// draw Lua GUI
-	MAME_LuaGui();
 
 	return anything_changed;
 }
