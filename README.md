@@ -3,6 +3,9 @@
 https://github.com/TASVideos/mame-rr
 
 ### Usage
+* Do not unzip game ROM files.
+* Game versions need base game ROM to work.
+* Access MAME menus by pressing Tab wile the game is running
 * You can replay/record movies by pressing the corresponding hotkeys (Control+R and Control+N by default). There are also hotkeys for stopping a movie (Control+T by default) and for playing the active movie from the beginning (Shift+R by default).
 * You can toggle movie read-only/read+write mode (Control+Q by default).
 * You can use RAM Search and RAM Watch by pressing the corresponding hotkeys (Control+F and Control+W by default).
@@ -35,7 +38,7 @@ https://github.com/TASVideos/mame-rr
 	    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
 	    make MSVC_BUILD=1
 	    
-* To build with Microsoft compiler and linker, debug configuration and symbols (vmamed-rr.exe):
+* To build with Microsoft compiler and linker, debug configuration and symbols (vmamed-rr.exe) (for VS2017, the path is `VC\Auxiliary\Build\vcvars32`):
 
 	    call "C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall" x86
 	    make MSVC_BUILD=1 DEBUG=1 SYMBOLS=1
