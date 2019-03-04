@@ -826,6 +826,8 @@ void running_machine::handle_saveload()
 	if (filerr == FILERR_NONE)
 	{
 		astring fullname(mame_file_full_name(file));
+		astring slot(m_saveload_pending_file);
+		slot.substr(slot.find(0, "\\") + 1, 1);
 
 		// read/write the save state
 		state_save_error staterr = (m_saveload_schedule == SLS_LOAD) ? state_save_read_file(this, file) : state_save_write_file(this, file);
@@ -851,9 +853,9 @@ void running_machine::handle_saveload()
 
 			case STATERR_NONE:
 				if (!(m_game.flags & GAME_SUPPORTS_SAVE))
-					popmessage("State successfully %s.\nWarning: Save states are not officially supported for this game.", opnamed);
+					popmessage("State %s %s.\nWarning: Save states are not officially supported for this game.", slot.text, opnamed);
 				else
-					popmessage("State successfully %s.", opnamed);
+					popmessage("State %s %s.", slot.text, opnamed);
 				break;
 
 			default:

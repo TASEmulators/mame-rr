@@ -1524,7 +1524,7 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 		if (ui_input_pressed(machine, i)) {
 			current_savestate=i-IPT_UI_LOAD_STATE_1+1;
 			sprintf(savestate_filename, "%d", current_savestate);
-			popmessage("Load from position %d", current_savestate);
+			popmessage("Loading...");
 			machine->schedule_load(savestate_filename);
 			return 0;
 		}
@@ -1533,7 +1533,7 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 		if (ui_input_pressed(machine, i)) {
 			current_savestate=i-IPT_UI_SAVE_STATE_1+1;
 			sprintf(savestate_filename, "%d", current_savestate);
-			popmessage("Save to position %d", current_savestate);
+			popmessage("Saving...");
 			machine->schedule_save(savestate_filename);
 			return 0;
 		}
@@ -1561,13 +1561,13 @@ static UINT32 handler_ingame(running_machine *machine, render_container *contain
 	}
 	if (ui_input_pressed(machine, IPT_UI_LOAD_CUR_STATE)) {
 		sprintf(savestate_filename, "%d", current_savestate);
-		popmessage("Load from position %d", current_savestate);
+		popmessage("Loading...");
 		machine->schedule_load(savestate_filename);
 		return 0;
 	}
 	if (ui_input_pressed(machine, IPT_UI_SAVE_CUR_STATE)) {
 		sprintf(savestate_filename, "%d", current_savestate);
-		popmessage("Save to position %d", current_savestate);
+		popmessage("Saving...");
 		machine->schedule_save(savestate_filename);
 		return 0;
 	}
