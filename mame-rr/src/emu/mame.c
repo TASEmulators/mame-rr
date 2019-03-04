@@ -463,7 +463,7 @@ void CLIB_DECL popmessage(const char *format, ...)
 		va_end(arg);
 
 		// pop it in the UI
-		ui_popup_time(temp.len() / 40 + 2, "%s", temp.cstr());
+		ui_popup_time(temp.len() / 10 + 2, "%s", temp.cstr());
 	}
 }
 

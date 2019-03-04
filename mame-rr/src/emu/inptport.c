@@ -2497,8 +2497,16 @@ static void frame_update(running_machine *machine)
 
 profiler_mark_start(PROFILER_INPUT);
 
-	if ((portdata->playback_file != NULL) && (portdata->current_frame >= portdata->total_frames))
-		playback_end(machine, "movie end");
+	if (portdata->playback_file != NULL)
+	{
+		if (portdata->current_frame >= portdata->total_frames)
+			playback_end(machine, "movie end");
+		else if (portdata->current_frame == portdata->total_frames - 1)
+		{
+			machine->pause();
+			popmessage("Movie end reached.\nMachine paused.");
+		}
+	}
 
 	/* record/playback information about the current frame */
 	playback_frame(machine, curtime);
