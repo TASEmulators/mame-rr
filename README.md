@@ -14,6 +14,7 @@ https://github.com/TASVideos/mame-rr
 * If movie recording was started while paused, the replay dialog should also be opened while paused.
 * If the state was saved while paused, it should also be loaded while paused.
 
+
 ### Compiling
 * Download mingw-mame-20100102.exe:
 
