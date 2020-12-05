@@ -558,6 +558,17 @@ void running_machine::set_saveload_filename(const char *filename)
 	}
 	else
 	{
+		astring moviepath = "";
+
+		if (get_record_file(this))
+		{
+			moviepath = this->input_port_data->movie_filename;
+		}
+		else if (get_playback_file(this))
+		{
+
+		}
+
 		m_saveload_searchpath = SEARCHPATH_STATE;
 		m_saveload_pending_file.cpy(basename()).cat(PATH_SEPARATOR).cat(filename).cat(".sta");
 	}
